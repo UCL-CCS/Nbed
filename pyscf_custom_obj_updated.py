@@ -253,6 +253,9 @@ class subsystem():
 
         ### first need restricted Hartree fock
         high_level_scf = scf.RHF(self.mol)
+        # high_level_scf.run()
+        # print('TEST', high_level_scf.get_veff())
+        # print('TEST2', high_level_scf.make_rdm1())
 
         if self.proj_pot is None:
             raise ValueError("No projection operator! Check supersystem calculations (look for huzinaga)")
@@ -305,21 +308,33 @@ class subsystem():
         #     return Veff_new #Veff_with_embedding_pot and projection
         #
         # high_level_scf.get_veff = lambda *args, **kwargs: cheat(high_level_scf, self.proj_pot)
+        # def get_veff(scf_obj, projection_op, embedding_pot):
+        #
+        #     dmat = scf_obj.make_rdm1()
+        #     # if dmat is None:
+        #     #     dmat = scf_obj.get_init_guess()
+        #
+        #     print('changed_veff')
+        #     # env_dmat = scf_obj_ENV.get_init_guess()
+        #     veff_std = scf.hf.get_veff(scf_obj.mol, dm=dmat)
+        #     Veff_new =  veff_std + projection_op + embedding_pot
+        #     return Veff_new
 
-        def get_veff(projection_op=self.proj_pot, embedding_pot=embed_pot):
+        def get_hcore_modified(scf_obj, projection_op, embedding_pot):
 
-            print(high_level_scf.make_rdm1())
-            # env_dmat = scf_obj_ENV.get_init_guess()
-            veff_std = scf.hf.get_veff(high_level_scf.mol, dm=high_level_scf.make_rdm1())
-            Veff_new =  veff_std + projection_op + embedding_pot
-            return Veff_new
+            h1e = scf.hf.get_hcore(scf_obj.mol)
+            h1e_modified = h1e + projection_op + embedding_pot
 
-        high_level_scf.get_veff = get_veff
-        # high_level_scf.get_veff = lambda *args, **kwargs: scf.hf.get_veff(high_level_scf.mol,
-        #                                                                   dm=high_level_scf.make_rdm1()) +self.proj_pot + embed_pot
+            return h1e_modified
+
+        high_level_scf.get_hcore = lambda *args, **kwargs: get_hcore_modified(high_level_scf,
+                                                                            self.proj_pot,
+                                                                            embed_pot)
+
 
         # Run Hartree-Fock
-        high_level_scf.run()
+        dmat = high_level_scf.get_init_guess()
+        high_level_scf.kernel(dm0=dmat)
 
         # run coupled cluster on modified object!
         CC_high_levl_obj = cc.CCSD(high_level_scf)
@@ -861,10 +876,10 @@ class Supersystem():
         self.Get_WF_in_DFT_energy()
         print("".center(80, '*'), '\n')
 
-        # WF in DFT energy w/ correction
-        print("".center(80, '*'), '\n')
-        self.Get_WF_in_DFT_energy_SUPERIOR()
-        print("".center(80, '*'), '\n')
+        # # WF in DFT energy w/ correction
+        # print("".center(80, '*'), '\n')
+        # self.Get_WF_in_DFT_energy_SUPERIOR()
+        # print("".center(80, '*'), '\n')
 
         #FCI energy
         print("".center(80, '*'), '\n')
@@ -875,7 +890,7 @@ class Supersystem():
         print('Error in Supersystem KS-DFT calc:', self.FCI_energy - self.full_system_energy)
         print('Error in DFT-in-DFT calc:', self.FCI_energy - self.DFT_in_DFT_energy)
         print('Error in WF-in-DFT calc:', self.FCI_energy - self.WF_in_DFT_energy)
-        print('Error in WF-in-DFT /w correction:', self.FCI_energy - self.WF_in_DFT_energy_corr)
+        # print('Error in WF-in-DFT /w correction:', self.FCI_energy - self.WF_in_DFT_energy_corr)
 
 
 
