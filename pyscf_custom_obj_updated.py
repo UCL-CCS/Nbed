@@ -200,8 +200,7 @@ class subsystem():
 
     def get_env_energy(self): #, dmat=None, proj_pot=None):
         """
-        Returns total subsystem energy!
-
+        Returns total subsystem energy (= E_elec + E_nuc)!
 
         Args:
             hcore (numpy.array): core Hamiltonian of subsystem
@@ -241,11 +240,11 @@ class subsystem():
 
         # NEW density matrix from diagonalization!
         self.env_dmat = np.dot( (self.env_mo_coeff* self.env_mo_occ),
-                            self.env_mo_coeff.transpose().conjugate())
+                            self.env_mo_coeff.transpose().conjugate()) # updates attribute!
 
         ### END diagonalization routine
 
-        # delta_dmat - difference between new and old density matrices
+        # delta_dmat = difference between new and old density matrices
         delta_dmat = sp.linalg.norm(self.env_dmat - old_subsys_dmat)
         return delta_dmat
 
@@ -257,7 +256,6 @@ class subsystem():
 
         if self.proj_pot is None:
             raise ValueError("No projection operator! Check supersystem calculations (look for huzinaga)")
-
 
         if self.emb_fock is None:
             raise ValueError("may need to check calculation as no embedded Fock")
@@ -332,7 +330,7 @@ class subsystem():
 
         print(f"High level energy: {CC_energy:>4.8f}")
 
-        self.H_A_in_B = high_level_scf.get_hcore() # TODO: not correct, as know building embedded Fock
+        self.H_A_in_B = high_level_scf.get_hcore() # TODO: not correct, as now building embedded Fock
 
         return CC_energy
 
