@@ -9,6 +9,8 @@
 
 tmp*
 
+*.hdf5
+
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 

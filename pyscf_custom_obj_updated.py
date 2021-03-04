@@ -1,7 +1,8 @@
-from pyscf import gto, dft, scf, lib, cc, fci
+from pyscf import gto, dft, scf, lib, cc, fci, ao2mo
 from copy import deepcopy as copy
 import numpy as np
 import scipy as sp
+from functools import reduce
 
 class subsystem():
     """
@@ -248,7 +249,7 @@ class subsystem():
         delta_dmat = sp.linalg.norm(self.env_dmat - old_subsys_dmat)
         return delta_dmat
 
-    def Run_coupled_cluster_calc(self):
+    def Get_modified_RHF_scf_obj_with_embedding_Hamiltonian(self):
         # see __gen_hf_scf
 
         ### first need restricted Hartree fock
@@ -265,61 +266,6 @@ class subsystem():
         self.update_subsystem_fock()
         embed_pot = self.emb_fock - self.subsystem_fock # NEW code
 
-        # def Get_embedded_Fock(hl_scf_obj, projection_op, emb_pot): #, env_dmat=self.env_dmat):
-        #
-        #     hcore = scf.hf.get_hcore(hl_scf_obj.mol)
-        #     vhf = scf.hf.get_veff(hl_scf_obj.mol)
-        #     embedded_Fock = hcore + projection_op + emb_pot + vhf
-        #     return embedded_Fock #Fock_with_embedding_pot
-        #
-        # # Change object to use projection matrix!
-        # high_level_scf.get_fock = lambda *args,**kwargs: Get_embedded_Fock(high_level_scf, self.proj_pot, embed_pot, *args, **kwargs)  # lambda here means doesn't matter what arguements you have, will run function above (fairly hacky solution)
-        #
-        # def Get_embedded_elec_energy(hl_scf_obj, projection_op, emb_pot): #, env_dmat=self.env_dmat):
-        #
-        #     dmat = hl_scf_obj.make_rdm1()
-        #
-        #     hcore = scf.hf.get_hcore(hl_scf_obj.mol)
-        #     Vhf = scf.hf.get_veff(hl_scf_obj.mol, dm=dmat)
-        #     V_embedded = projection_op + emb_pot
-        #
-        #     new_Vhf = Vhf + V_embedded # <-- new 2 electron operator
-        #
-        #     e_core = np.einsum('ij, ji', hcore, dmat).real
-        #     e_coul = np.einsum('ij, ji', new_Vhf, dmat).real
-        #     return e_core+e_coul, e_coul
-        #
-        # high_level_scf.energy_elec = lambda *args, **kwargs: Get_embedded_elec_energy(high_level_scf, self.proj_pot,
-        #                                                                     embed_pot, *args, **kwargs)  # lambda here means doesn't matter what arguements you have, will run function above (fairly hacky solution)
-
-        # def Get_new_Veff(hl_scf_obj, projection_op, emb_pot): #, env_dmat=self.env_dmat):
-        #
-        #     vhf = scf.hf.get_veff(hl_scf_obj.mol, dm=hl_scf_obj.make_rdm1())
-        #     new_Veff = projection_op + emb_pot + vhf
-        #     return new_Veff # Veff_with_embedding_pot and projection!
-
-        # high_level_scf.get_veff = lambda *args, **kwargs: Get_new_Veff(high_level_scf, self.proj_pot, embed_pot)  # lambda here means doesn't matter what arguements you have, will run function above (fairly hacky solution)
-
-
-        # def cheat(scf_obj, projection_op, embedding_pot=embed_pot): #, env_dmat=self.env_dmat):
-        #
-        #     dmat = scf_obj.make_rdm1()
-        #     Veff_new = scf_obj.get_veff(dm=dmat) + projection_op + embedding_pot
-        #     return Veff_new #Veff_with_embedding_pot and projection
-        #
-        # high_level_scf.get_veff = lambda *args, **kwargs: cheat(high_level_scf, self.proj_pot)
-        # def get_veff(scf_obj, projection_op, embedding_pot):
-        #
-        #     dmat = scf_obj.make_rdm1()
-        #     # if dmat is None:
-        #     #     dmat = scf_obj.get_init_guess()
-        #
-        #     print('changed_veff')
-        #     # env_dmat = scf_obj_ENV.get_init_guess()
-        #     veff_std = scf.hf.get_veff(scf_obj.mol, dm=dmat)
-        #     Veff_new =  veff_std + projection_op + embedding_pot
-        #     return Veff_new
-
         def get_hcore_modified(scf_obj, projection_op, embedding_pot):
 
             h1e = scf.hf.get_hcore(scf_obj.mol)
@@ -331,8 +277,95 @@ class subsystem():
                                                                             self.proj_pot,
                                                                             embed_pot)
 
+        return high_level_scf
+
+    def Run_coupled_cluster_calc(self):
+        # # see __gen_hf_scf
+        #
+        # ### first need restricted Hartree fock
+        # high_level_scf = scf.RHF(self.mol)
+        # # high_level_scf.run()
+        # # print('TEST', high_level_scf.get_veff())
+        # # print('TEST2', high_level_scf.make_rdm1())
+        #
+        # if self.proj_pot is None:
+        #     raise ValueError("No projection operator! Check supersystem calculations (look for huzinaga)")
+        #
+        # if self.emb_fock is None:
+        #     raise ValueError("may need to check calculation as no embedded Fock")
+        # self.update_subsystem_fock()
+        # embed_pot = self.emb_fock - self.subsystem_fock # NEW code
+        #
+        # # def Get_embedded_Fock(hl_scf_obj, projection_op, emb_pot): #, env_dmat=self.env_dmat):
+        # #
+        # #     hcore = scf.hf.get_hcore(hl_scf_obj.mol)
+        # #     vhf = scf.hf.get_veff(hl_scf_obj.mol)
+        # #     embedded_Fock = hcore + projection_op + emb_pot + vhf
+        # #     return embedded_Fock #Fock_with_embedding_pot
+        # #
+        # # # Change object to use projection matrix!
+        # # high_level_scf.get_fock = lambda *args,**kwargs: Get_embedded_Fock(high_level_scf, self.proj_pot, embed_pot, *args, **kwargs)  # lambda here means doesn't matter what arguements you have, will run function above (fairly hacky solution)
+        # #
+        # # def Get_embedded_elec_energy(hl_scf_obj, projection_op, emb_pot): #, env_dmat=self.env_dmat):
+        # #
+        # #     dmat = hl_scf_obj.make_rdm1()
+        # #
+        # #     hcore = scf.hf.get_hcore(hl_scf_obj.mol)
+        # #     Vhf = scf.hf.get_veff(hl_scf_obj.mol, dm=dmat)
+        # #     V_embedded = projection_op + emb_pot
+        # #
+        # #     new_Vhf = Vhf + V_embedded # <-- new 2 electron operator
+        # #
+        # #     e_core = np.einsum('ij, ji', hcore, dmat).real
+        # #     e_coul = np.einsum('ij, ji', new_Vhf, dmat).real
+        # #     return e_core+e_coul, e_coul
+        # #
+        # # high_level_scf.energy_elec = lambda *args, **kwargs: Get_embedded_elec_energy(high_level_scf, self.proj_pot,
+        # #                                                                     embed_pot, *args, **kwargs)  # lambda here means doesn't matter what arguements you have, will run function above (fairly hacky solution)
+        #
+        # # def Get_new_Veff(hl_scf_obj, projection_op, emb_pot): #, env_dmat=self.env_dmat):
+        # #
+        # #     vhf = scf.hf.get_veff(hl_scf_obj.mol, dm=hl_scf_obj.make_rdm1())
+        # #     new_Veff = projection_op + emb_pot + vhf
+        # #     return new_Veff # Veff_with_embedding_pot and projection!
+        #
+        # # high_level_scf.get_veff = lambda *args, **kwargs: Get_new_Veff(high_level_scf, self.proj_pot, embed_pot)  # lambda here means doesn't matter what arguements you have, will run function above (fairly hacky solution)
+        #
+        #
+        # # def cheat(scf_obj, projection_op, embedding_pot=embed_pot): #, env_dmat=self.env_dmat):
+        # #
+        # #     dmat = scf_obj.make_rdm1()
+        # #     Veff_new = scf_obj.get_veff(dm=dmat) + projection_op + embedding_pot
+        # #     return Veff_new #Veff_with_embedding_pot and projection
+        # #
+        # # high_level_scf.get_veff = lambda *args, **kwargs: cheat(high_level_scf, self.proj_pot)
+        # # def get_veff(scf_obj, projection_op, embedding_pot):
+        # #
+        # #     dmat = scf_obj.make_rdm1()
+        # #     # if dmat is None:
+        # #     #     dmat = scf_obj.get_init_guess()
+        # #
+        # #     print('changed_veff')
+        # #     # env_dmat = scf_obj_ENV.get_init_guess()
+        # #     veff_std = scf.hf.get_veff(scf_obj.mol, dm=dmat)
+        # #     Veff_new =  veff_std + projection_op + embedding_pot
+        # #     return Veff_new
+        #
+        # def get_hcore_modified(scf_obj, projection_op, embedding_pot):
+        #
+        #     h1e = scf.hf.get_hcore(scf_obj.mol)
+        #     h1e_modified = h1e + projection_op + embedding_pot
+        #
+        #     return h1e_modified
+        #
+        # high_level_scf.get_hcore = lambda *args, **kwargs: get_hcore_modified(high_level_scf,
+        #                                                                     self.proj_pot,
+        #                                                                     embed_pot)
+
 
         # Run Hartree-Fock
+
+        high_level_scf = self.Get_modified_RHF_scf_obj_with_embedding_Hamiltonian()
         dmat = high_level_scf.get_init_guess()
         high_level_scf.kernel(dm0=dmat)
 
@@ -389,6 +422,7 @@ class Supersystem():
         self.DFT_in_DFT_energy = None
         self.WF_in_DFT_energy = None
         self.WF_in_DFT_energy_corr = None
+        self.VQE_in_DFT_energy = None
 
     def _generate_supersystem(self):
         """
@@ -853,8 +887,62 @@ class Supersystem():
 
         print(f"Supersystem FCI Energy: {self.FCI_energy:>4.8f}")
 
+    def Get_VQE_in_DFT_energy(self, qubit_transform):
+        """
 
-    def Run_full_embedded_WF_in_DFT_calc(self):
+        Calcualte WF in DFT energy by ONIOM method.
+            - Energy is calculated for the isolated subsystem A of interest using a expensive (high level) method
+            - Energy is calculated for the isolated subsystem A using a low level method
+
+        The full energy is then: E_total = E_{total}^{low-level} + E_{A}^{high-level} - E_{A}^{low-level}
+
+        returns:
+            WF in DFT energy
+
+        Attributes:
+
+        """
+        supersystem_energy = self.full_system_energy
+
+        print(f"DFT Supersystem calc: {supersystem_energy:>4.8f}")
+
+        sub_system_A = self.list_of_subsystems[0]
+        sub_system_A_environment_energy = sub_system_A.env_energy
+
+        modified_RHF_pyscf_obj = sub_system_A.Get_modified_RHF_scf_obj_with_embedding_Hamiltonian()
+
+        # run hartree fock
+        dmat = modified_RHF_pyscf_obj.get_init_guess()
+        modified_RHF_pyscf_obj.kernel(dm0=dmat)
+
+        # get qubit Hamiltonian energy
+        if modified_RHF_pyscf_obj.converged is not True:
+            raise ValueError('Hartree-Fock calculation not converged')
+
+        molecular_Hamiltonian = Get_molecular_hamiltonian(modified_RHF_pyscf_obj)
+        FermionicH = Get_Fermionic_Hamiltonian(molecular_Hamiltonian)
+        qubitH = Get_qubit_Hamiltonian(FermionicH, qubit_transform)
+        VQE_gs_energy = Get_qubitH_energy(qubitH)
+
+        # # TODO: compare to FCI calc! (something going wrong... may be due to hcore used includes 2electron terms!
+
+        # h1 = modified_RHF_pyscf_obj.mo_coeff.T.dot(modified_RHF_pyscf_obj.get_hcore()).dot(modified_RHF_pyscf_obj.mo_coeff)
+        # eri = ao2mo.kernel(modified_RHF_pyscf_obj.mol, modified_RHF_pyscf_obj.mo_coeff)
+        # cisolver = fci.direct_spin1.FCI(modified_RHF_pyscf_obj.mol)
+        # E_FCI, ci = cisolver.kernel(h1, eri, h1.shape[1], modified_RHF_pyscf_obj.mol.nelec, ecore=modified_RHF_pyscf_obj.mol.energy_nuc())
+        # print(E_FCI, 'VS', VQE_gs_energy)
+        #
+        # cisolver = fci.FCI(modified_RHF_pyscf_obj.mol, modified_RHF_pyscf_obj.mo_coeff)
+        # cisolver.kernel()
+
+
+        Energy_total = supersystem_energy - sub_system_A_environment_energy + VQE_gs_energy
+
+        self.VQE_in_DFT_energy = Energy_total # - modified_RHF_pyscf_obj.mol.energy_nuc()
+
+        print(f"VQE-in-DFT Energy: {Energy_total:>4.8f}")
+
+    def Run_full_embedded_WF_in_DFT_calc(self, qubit_transform='JW'):
 
         # Freeze and Thaw
         print("".center(80, '*'), '\n')
@@ -886,12 +974,160 @@ class Supersystem():
         self.Supersystem_FCI()
         print("".center(80, '*'), '\n')
 
+        #VQE-in-DFT energy
+        print("".center(80, '*'), '\n')
+        self.Get_VQE_in_DFT_energy(qubit_transform)
+        print("".center(80, '*'), '\n')
+
 
         print('Error in Supersystem KS-DFT calc:', self.FCI_energy - self.full_system_energy)
         print('Error in DFT-in-DFT calc:', self.FCI_energy - self.DFT_in_DFT_energy)
         print('Error in WF-in-DFT calc:', self.FCI_energy - self.WF_in_DFT_energy)
+        print('Error in VQE-in-DFT calc:', self.FCI_energy - self.VQE_in_DFT_energy)
         # print('Error in WF-in-DFT /w correction:', self.FCI_energy - self.WF_in_DFT_energy_corr)
 
 
 
+def Get_one_body_integrals(scf_obj):
+    """A 2D array for one-body Hamiltonian (H_core) in the MO
+    representation."""
+    mo_canonical_orbitals = scf_obj.mo_coeff
+    # canonical_orbital_energies = scf_obj.mo_energy
+
+    h_core = scf_obj.get_hcore()  #<-- not MODIFIED hcore
+    # h_core = scf.hf.get_hcore(scf_obj.mol) #<-- NOT modified hcore # TODO: check if this line OR one above is needed!
+
+    one_body_integrals = reduce(np.dot, (mo_canonical_orbitals.T, h_core, mo_canonical_orbitals))
+
+    n_orbitals = scf_obj.mo_coeff.shape[1]
+    one_body_integrals = one_body_integrals.reshape(n_orbitals,
+                                                    n_orbitals).astype(float)
+
+    return one_body_integrals
+
+def Get_two_body_integrals(scf_obj):
+    """A 4-dimension array for electron repulsion integrals in the MO
+    representation.  The integrals are computed as
+    h[p,q,r,s]=\int \phi_p(x)* \phi_q(y)* V_{elec-elec} \phi_r(y) \phi_s(x) dxdy
+    """
+
+    mo_canonical_orbitals = scf_obj.mo_coeff
+    n_orbitals = mo_canonical_orbitals.shape[1]
+    # mol = scf_obj.mol
+    # eri = ao2mo.kernel(mol, mo_canonical_orbitals)
+    # eri = ao2mo.restore(1,  # no permutation symmetry
+    #                     eri,
+    #                     n_orbitals)
+    # # See PQRS convention in OpenFermion.hamiltonians.molecular_data
+    # # h[p,q,r,s] = (ps|qr) = pyscf_eri[p,s,q,r]
+    # two_body_integrals = np.asarray(
+    #     eri.transpose(0, 2, 3, 1), order='C')
+
+    two_electron_compressed = ao2mo.kernel(scf_obj.mol,
+                                           scf_obj.mo_coeff)
+
+    two_electron_integrals = ao2mo.restore(
+        1, # no permutation symmetry
+        two_electron_compressed, n_orbitals)
+    # See PQRS convention in OpenFermion.hamiltonians._molecular_data
+    # h[p,q,r,s] = (ps|qr)
+    two_electron_integrals = np.asarray(
+        two_electron_integrals.transpose(0, 2, 3, 1), order='C')
+
+
+
+    return two_electron_integrals
+
+from openfermion.ops._interaction_operator import InteractionOperator
+## note this is edit from:
+# from openfermion.hamiltonians._molecular_data import MolecularData
+# MolecularData.get_molecular_hamiltonian()
+def Get_molecular_hamiltonian(scf_obj, EQ_TOLERANCE=1e-8):
+    """Output arrays of the second quantized Hamiltonian coefficients.
+
+    Args:
+        occupied_indices(list): A list of spatial orbital indices
+            indicating which orbitals should be considered doubly occupied.
+        active_indices(list): A list of spatial orbital indices indicating
+            which orbitals should be considered active.
+
+    Returns:
+        molecular_hamiltonian: An instance of the MolecularOperator class.
+
+    Note:
+        The indexing convention used is that even indices correspond to
+        spin-up (alpha) modes and odd indices correspond to spin-down
+        (beta) modes.
+    """
+    # Get active space integrals.
+    one_body_integrals = Get_one_body_integrals(scf_obj)
+    two_body_integrals = Get_two_body_integrals(scf_obj)
+    constant = scf_obj.mol.energy_nuc()
+
+    n_qubits = 2 * one_body_integrals.shape[0]
+
+    # Initialize Hamiltonian coefficients.
+    one_body_coefficients = np.zeros((n_qubits, n_qubits))
+    two_body_coefficients = np.zeros((n_qubits, n_qubits,
+                                         n_qubits, n_qubits))
+    # Loop through integrals.
+    for p in range(n_qubits // 2):
+        for q in range(n_qubits // 2):
+
+            # Populate 1-body coefficients. Require p and q have same spin.
+            one_body_coefficients[2 * p, 2 * q] = one_body_integrals[p, q]
+            one_body_coefficients[2 * p + 1, 2 * q +
+                                  1] = one_body_integrals[p, q]
+            # Continue looping to prepare 2-body coefficients.
+            for r in range(n_qubits // 2):
+                for s in range(n_qubits // 2):
+
+                    # Mixed spin
+                    two_body_coefficients[2 * p, 2 * q + 1, 2 * r + 1, 2 *
+                                          s] = (two_body_integrals[p, q, r, s])
+                    two_body_coefficients[2 * p + 1, 2 * q, 2 * r, 2 * s +
+                                          1] = (two_body_integrals[p, q, r, s])
+
+                    # Same spin
+                    two_body_coefficients[2 * p, 2 * q, 2 * r, 2 *
+                                          s] = (two_body_integrals[p, q, r, s])
+                    two_body_coefficients[2 * p + 1, 2 * q + 1, 2 * r +
+                                          1, 2 * s +
+                                          1] = (two_body_integrals[p, q, r, s])
+
+    # Truncate.
+    one_body_coefficients[
+        np.absolute(one_body_coefficients) < EQ_TOLERANCE] = 0.
+    two_body_coefficients[
+        np.absolute(two_body_coefficients) < EQ_TOLERANCE] = 0.
+
+    # Cast to InteractionOperator class and return.
+    molecular_hamiltonian = InteractionOperator(
+        constant, one_body_coefficients, 1/2 * two_body_coefficients)
+
+    return molecular_hamiltonian
+
+from openfermion.transforms import get_fermion_operator
+def Get_Fermionic_Hamiltonian(mol_hamiltonian_matrix):
+    return get_fermion_operator(mol_hamiltonian_matrix)
+
+from openfermion.transforms import jordan_wigner, bravyi_kitaev
+def Get_qubit_Hamiltonian(Fermionic_op, transform):
+    if transform=='JW':
+        qubitH = jordan_wigner(Fermionic_op)
+    elif transform=='JW':
+        qubitH = bravyi_kitaev(Fermionic_op)
+    else:
+        raise ValueError(f'unknown transformation: {transform}')
+
+    return qubitH
+
+from openfermion import qubit_operator_sparse
+from scipy.sparse.linalg import eigsh
+def Get_qubitH_energy(qubitH):
+    Hamilt_mat = qubit_operator_sparse(qubitH)
+    eigvals, eigvecs = eigsh(Hamilt_mat)#, k=1)
+
+    ground_energy = min(eigvals)
+    return ground_energy
 
