@@ -994,7 +994,7 @@ def Get_one_body_integrals(scf_obj):
     mo_canonical_orbitals = scf_obj.mo_coeff
     # canonical_orbital_energies = scf_obj.mo_energy
 
-    h_core = scf_obj.get_hcore()  #<-- not MODIFIED hcore
+    h_core = scf_obj.get_hcore()  #<-- MODIFIED hcore
     # h_core = scf.hf.get_hcore(scf_obj.mol) #<-- NOT modified hcore # TODO: check if this line OR one above is needed!
 
     one_body_integrals = reduce(np.dot, (mo_canonical_orbitals.T, h_core, mo_canonical_orbitals))
