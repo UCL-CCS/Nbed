@@ -254,6 +254,7 @@ class subsystem():
 
         ### first need restricted Hartree fock
         high_level_scf = scf.RHF(self.mol)
+        high_level_scf.max_cycle=500
         # high_level_scf.run()
         # print('TEST', high_level_scf.get_veff())
         # print('TEST2', high_level_scf.make_rdm1())
@@ -378,7 +379,7 @@ class subsystem():
 
         print(f"High level energy: {CC_energy:>4.8f}")
 
-        self.H_A_in_B = high_level_scf.get_hcore() # TODO: not correct, as now building embedded Fock
+        self.H_A_in_B = high_level_scf.get_hcore() # TODO: check how modifying embedding Fock matrix... if changing Hcore then this is correct
 
         return CC_energy
 
@@ -911,6 +912,21 @@ class Supersystem():
 
         modified_RHF_pyscf_obj = sub_system_A.Get_modified_RHF_scf_obj_with_embedding_Hamiltonian()
 
+        # ##### get modified 2e- integrals
+        # # get modfified Hcore and subtract standard Hcore... combine this with 2e- integrals
+        # eri = modified_RHF_pyscf_obj.mol.intor('int2e_sph', aosym='s1')
+        # from pyscf.fci.direct_spin1 import absorb_h1e
+        # eri_new = absorb_h1e(modified_RHF_pyscf_obj.get_hcore()- scf.hf.get_hcore(modified_RHF_pyscf_obj.mol),
+        #                      eri,
+        #                      modified_RHF_pyscf_obj.mol.nao_nr(),
+        #                      modified_RHF_pyscf_obj.mol.nelectron,
+        #                      fac=1)
+        # eri_new = ao2mo.restore(1, eri_new, modified_RHF_pyscf_obj.mol.nao_nr())
+        # modified_RHF_pyscf_obj._eri = eri_new
+        # # print('CHECKING eri difference:', np.allclose(eri_new, eri))
+        # # print('CHECKING eri shapes:', np.allclose(eri_new.shape, eri.shape))
+        # ###
+
         # run hartree fock
         dmat = modified_RHF_pyscf_obj.get_init_guess()
         modified_RHF_pyscf_obj.kernel(dm0=dmat)
@@ -1126,7 +1142,7 @@ from openfermion import qubit_operator_sparse
 from scipy.sparse.linalg import eigsh
 def Get_qubitH_energy(qubitH):
     Hamilt_mat = qubit_operator_sparse(qubitH)
-    eigvals, eigvecs = eigsh(Hamilt_mat)#, k=1)
+    eigvals, eigvecs = eigsh(Hamilt_mat, which='SA')#, k=1)
 
     ground_energy = min(eigvals)
     return ground_energy
