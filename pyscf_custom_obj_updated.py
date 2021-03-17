@@ -3,6 +3,7 @@ from copy import deepcopy as copy
 import numpy as np
 import scipy as sp
 from functools import reduce
+from scipy.sparse import csc_matrix
 
 class subsystem():
     """
@@ -716,7 +717,7 @@ class Supersystem():
                 # if verbose is True:
                 e_proj = subsystem.get_env_projection_energy()
                 print(
-                    f"iter:{freeze_thaw_iter:>3d}:   subsystem:{i:<2d}  |ddm|:{freeze_thaw_error:12.6e}   |Tr[DP]|:{e_proj:12.6e}")
+                    f"iter:{freeze_thaw_iter:>3d}:   subsystem:{i:<2d}  |δ_dmat|:{freeze_thaw_error:12.6e}   |Tr[dmat.P]|:{e_proj:12.6e}")
 
 
         # check convergence
@@ -1147,3 +1148,315 @@ def Get_qubitH_energy(qubitH):
     ground_energy = min(eigvals)
     return ground_energy
 
+
+from openfermion.utils._sparse_tools import jw_hartree_fock_state
+def Get_JW_HartreeF_state(n_electrons, n_orbitals):
+    jw_state = jw_hartree_fock_state(n_electrons, n_orbitals).reshape(2**n_orbitals,1)
+    return csc_matrix(jw_state)
+
+from openfermion.ops import FermionOperator
+def Get_UCCSD_ia_terms(n_electrons, n_orbitals):
+    """
+    background: https://iopscience.iop.org/article/10.1088/2058-9565/aad3e4/pdf
+    eqn:  T1 = ∑_{i ∈ occupied} ∑_{A ∈ unoccupied}  t_{A}^{i} a†_{A} a_{i}
+
+    """
+    Sec_Quant_CC_ia_ops = []  # second quantised single e- CC operators
+    theta_parameters_ia = []
+
+    # single_amplitudes and double_amplitudes from Get_CCSD_Amplitudes Hamiltonian function!
+    orbitals_index = range(0, n_orbitals)
+
+    alph_occs = [k for k in orbitals_index if k % 2 == 0 and k < n_electrons]  # spin up occupied
+    beta_occs = [k for k in orbitals_index if k % 2 == 1 and k < n_electrons]  # spin down UN-occupied
+    alph_noccs = [k for k in orbitals_index if k % 2 == 0 and k >= n_electrons]  # spin down occupied
+    beta_noccs = [k for k in orbitals_index if k % 2 == 1 and k >= n_electrons]  # spin up UN-occupied
+
+    # SINGLE electron excitation: spin UP transition
+    for i in alph_occs:
+        for a in alph_noccs:
+            one_elec = FermionOperator(((a, 1), (i, 0))) - FermionOperator(((i, 1), (a, 0)))
+
+            theta_parameters_ia.append(0)
+            Sec_Quant_CC_ia_ops.append(one_elec)
+
+    # SINGLE electron excitation: spin DOWN transition
+    for i in beta_occs:
+        for a in beta_noccs:
+            # NO filtering
+            one_elec = FermionOperator(((a, 1), (i, 0))) - FermionOperator(((i, 1), (a, 0)))
+
+            theta_parameters_ia.append(0)
+            Sec_Quant_CC_ia_ops.append(one_elec)
+
+    return Sec_Quant_CC_ia_ops, theta_parameters_ia
+
+def Get_UCCSD_ijab_terms(n_electrons, n_orbitals):
+    """
+    background: https://iopscience.iop.org/article/10.1088/2058-9565/aad3e4/pdf
+    eqn:  T2 = ∑_{i,j ∈ occupied} ∑_{A,B ∈ unoccupied}  t_{AB}^{ij} a†_{A} a†_{B} a_{i} a_{j}
+
+          T2 = ∑_{i=0}^{n_electrons-1} ∑_{j=0}^{i-1} ∑_{A=n_electrons}^{n_orbitals-1} ∑_{B=0}^{A-1}  t_{A}^{i} a†_{A} a_{i}
+
+    """
+    Sec_Quant_CC_ijab_ops = []  # second quantised two e- CC operators
+    theta_parameters_ijab = []
+
+    for i in range(n_electrons):
+        for j in range(n_electrons):
+            if (i > j):
+                for A in range(n_electrons, n_orbitals):
+                    for B in range(n_electrons, n_orbitals):
+                        if (A > B):
+                            if (i % 2 == 0) and (j % 2 == 0) and (A % 2 == 0) and (B % 2 == 0):  # UP UP --> UP UP
+                                op =  FermionOperator(((A, 1), (B, 1), (i, 0), (j, 0)))
+                                op_dag = FermionOperator(((j, 1), (i, 1), (B, 0), (A, 0)))
+                                two_elec = op - op_dag
+                            elif (i % 2 != 0) and (j % 2 != 0) and (A % 2 != 0) and (B % 2 != 0):  # DOWN DOWN --> DOWN DOWN
+                                op =  FermionOperator(((A, 1), (B, 1), (i, 0), (j, 0)))
+                                op_dag = FermionOperator(((j, 1), (i, 1), (B, 0), (A, 0)))
+                                two_elec = op - op_dag
+                            elif (i % 2 == 0) and (j % 2 != 0) and (A % 2 == 0) and (B % 2 != 0):  # UP DOWN --> UP DOWN
+                                op =  FermionOperator(((A, 1), (B, 1), (i, 0), (j, 0)))
+                                op_dag = FermionOperator(((j, 1), (i, 1), (B, 0), (A, 0)))
+                                two_elec = op - op_dag
+                            elif (i % 2 != 0) and (j % 2 == 0) and (A % 2 != 0) and (B % 2 == 0):  # DOWN UP --> DOWN UP
+                                op =  FermionOperator(((A, 1), (B, 1), (i, 0), (j, 0)))
+                                op_dag = FermionOperator(((j, 1), (i, 1), (B, 0), (A, 0)))
+                                two_elec = op - op_dag
+                            else:
+                                continue  # spin forbidden transitions!
+
+                            theta_parameters_ijab.append(0)
+                            Sec_Quant_CC_ijab_ops.append(two_elec)
+
+
+    return Sec_Quant_CC_ijab_ops, theta_parameters_ijab
+
+
+from openfermion.transforms import get_sparse_operator
+from scipy.sparse.linalg import expm as sparse_expm
+from scipy.sparse import identity as sparse_eye
+
+def single_Trott_step_UCCSD(list_fermionic_ia_ops, list_fermionic_ijab_ops, list_theta_ia, list_theta_ijab, n_qubits, doubles_first=True):
+    # pg 5 https://arxiv.org/pdf/1910.10329.pdf shows doubles before singles can work better!
+
+    # UCC_singles = csc_matrix((2**n_qubits, 2**n_qubits))
+    UCC_singles = sparse_eye(2 ** n_qubits, dtype=complex)
+    for ia_Fermonic_op, theta_ia in zip(list_fermionic_ia_ops, list_theta_ia):
+        ferm_ia_matrix = get_sparse_operator(ia_Fermonic_op, n_qubits=n_qubits)
+        UCC_singles=UCC_singles.dot(sparse_expm(ferm_ia_matrix * theta_ia))
+        del ferm_ia_matrix
+
+
+    # UCC_doubles = csc_matrix((2**n_qubits, 2**n_qubits))
+    UCC_doubles = sparse_eye(2 ** n_qubits, dtype=complex)
+    for ijab_Fermonic_op, theta_ijab in zip(list_fermionic_ijab_ops, list_theta_ijab):
+        ferm_ijab_matrix = get_sparse_operator(ijab_Fermonic_op, n_qubits=n_qubits)
+        UCC_doubles=UCC_doubles.dot(sparse_expm(ferm_ijab_matrix * theta_ijab))
+        del ferm_ijab_matrix
+
+    if doubles_first:
+        UCCSD_operator = np.dot(UCC_doubles,UCC_singles)
+    else:
+        UCCSD_operator = np.dot(UCC_singles,UCC_doubles)
+
+    return UCCSD_operator
+
+def Get_VQE_run_energy(UCCSD_operator, HartreeFock_state, MolecularH):
+    ansatz_state = UCCSD_operator.dot(HartreeFock_state)
+    rho_ansatz = ansatz_state.dot(ansatz_state.T)
+
+    rhoH = MolecularH.dot(rho_ansatz)
+    trace = rhoH.diagonal().sum()
+    return trace.real
+
+
+from scipy.optimize import minimize
+class VQE_experiment():
+    def __init__(self, HF_state_vec, Hamiltonian, n_qubits, list_fermionic_ia_ops, list_fermionic_ijab_ops):
+        self.HF_state_vec = HF_state_vec
+        self.Hamiltonian = Hamiltonian
+        self.n_qubits = n_qubits
+        self.list_fermionic_ia_ops = list_fermionic_ia_ops
+        self.list_fermionic_ijab_ops=list_fermionic_ijab_ops
+        self.iteration=0
+
+
+    def _VQE_single_run(self, ia_ijab_thetas, doubles_first=True):
+        """
+
+        Args:
+            ia_ijab_thetas (list): theta_ia first then theta_ijab
+
+        Returns:
+
+        """
+        n_ia_ops=len(self.list_fermionic_ia_ops)
+        n_ijab_ops=len(self.list_fermionic_ijab_ops)
+        theta_ia_list = [ia_ijab_thetas[i] for i in range(n_ia_ops)]
+        theta_ijab_list = [ia_ijab_thetas[i] for i in range(n_ia_ops, n_ia_ops+n_ijab_ops)]
+
+        UCCSD_op = single_Trott_step_UCCSD(self.list_fermionic_ia_ops,
+                                           self.list_fermionic_ijab_ops,
+                                           theta_ia_list,
+                                           theta_ijab_list,
+                                           self.n_qubits,
+                                           doubles_first=doubles_first)
+
+        VQE_run_energy = Get_VQE_run_energy(UCCSD_op,
+                                 self.HF_state_vec,
+                                 self.Hamiltonian)
+
+        return VQE_run_energy
+
+    def Run_VQE(self, INITIAL_ia_ijab_thetas, max_iter, opt_method, doubles_first=True):
+        energy_function = lambda theta_list: self._VQE_single_run(theta_list, doubles_first=doubles_first)
+
+        display_convergence_message=True
+        options = {'maxiter': max_iter,
+                   'disp': display_convergence_message}
+
+        def callback_func(xk):
+            self.iteration +=1
+            energy = energy_function(xk)
+            print(f"iter:{self.iteration:>3d}:  var:{[np.around(v,3) for v in xk]}:   Energy:{energy:12.6e} ")
+            return None
+
+        self.iteration = 0
+        optimizer = minimize(energy_function,
+                             INITIAL_ia_ijab_thetas,
+                             args=(),
+                             method=opt_method,
+                             jac=None,
+                             hess=None,
+                             hessp=None,
+                             bounds=None,
+                             constraints=(),
+                             tol=None,
+                             callback=callback_func,
+                             options=options)
+        return optimizer
+
+class Scipy_Optimizer():
+
+    def __init__(self, function_to_minimize,
+                         X0,
+                        opt_method,
+                         args=(),
+                         jac=None,
+                         hess=None,
+                         hessp=None,
+                         bounds=None,
+                         constraints=(),
+                         tol=None,
+                        callback=True,
+                       display_convergence_message=True,
+                        store_steps=True):
+
+        self.function_to_minimize=function_to_minimize
+        self.args = args
+        self.X0 = X0
+        self.opt_method = opt_method
+        self.jac=jac
+        self.hess=hess
+        self.hessp=hessp
+        self.bounds= bounds
+        self.constraints=constraints
+        self.tol=tol
+        self.display_convergence_message=display_convergence_message
+        self.store_steps=store_steps
+
+        ###
+        self.iteration=0
+        self.callback=callback
+
+        self.list_outputs=[]
+        self.list_variables=[]
+
+    def Run_optimzer(self, max_iter):
+        self.iteration = 0
+        options = {'maxiter': max_iter,
+                   'disp': self.display_convergence_message}
+
+        self.iteration=0
+        optimizer = minimize(self.function_to_minimize,
+                             self.X0,
+                             args=self.args,
+                             method=self.opt_method,
+                             jac=self.jac,
+                             hess=self.hess,
+                             hessp=self.hessp,
+                             bounds=self.bounds,
+                             constraints=self.constraints,
+                             tol=self.tol,
+                             callback=self.callback_func if self.callback is True else None,
+                             options=options)
+        return optimizer
+
+    def callback_func(self, xk):
+        self.iteration += 1
+        out = self.function_to_minimize(xk, *self.args)
+        print(f"iter:{self.iteration:>3d}:  var:{[np.around(v, 3) for v in xk]}:   output:{out:12.6e} ")
+
+        if self.store_steps is True:
+            self.list_outputs.append(out)
+            self.list_variables.append(xk)
+
+class VQE_Experiment_UPDATED():
+    def __init__(self, HF_state_vec, Hamiltonian, n_qubits, list_fermionic_ia_ops, list_fermionic_ijab_ops):
+        self.HF_state_vec = HF_state_vec
+        self.Hamiltonian = Hamiltonian
+        self.n_qubits = n_qubits
+        self.list_fermionic_ia_ops = list_fermionic_ia_ops
+        self.list_fermionic_ijab_ops=list_fermionic_ijab_ops
+
+    def _VQE_single_run(self, ia_ijab_thetas, doubles_first=True):
+        """
+
+        Args:
+            ia_ijab_thetas (list): theta_ia first then theta_ijab
+
+        Returns:
+
+        """
+        n_ia_ops=len(self.list_fermionic_ia_ops)
+        n_ijab_ops=len(self.list_fermionic_ijab_ops)
+
+        theta_ia_list = [ia_ijab_thetas[i] for i in range(n_ia_ops)]
+        theta_ijab_list = [ia_ijab_thetas[i] for i in range(n_ia_ops, n_ia_ops+n_ijab_ops)]
+
+        UCCSD_op = single_Trott_step_UCCSD(self.list_fermionic_ia_ops,
+                                           self.list_fermionic_ijab_ops,
+                                           theta_ia_list,
+                                           theta_ijab_list,
+                                           self.n_qubits,
+                                           doubles_first=doubles_first)
+
+        VQE_run_energy = Get_VQE_run_energy(UCCSD_op,
+                                 self.HF_state_vec,
+                                 self.Hamiltonian)
+
+        return VQE_run_energy
+
+    def Run_VQE(self, INITIAL_ia_ijab_thetas, max_iter, opt_method, doubles_first=True):
+
+        energy_function = lambda theta_list: self._VQE_single_run(theta_list, doubles_first=doubles_first)
+
+        opt = Scipy_Optimizer(energy_function,
+                         INITIAL_ia_ijab_thetas,
+                         opt_method,
+                         args=(),
+                         jac=None,
+                         hess=None,
+                         hessp=None,
+                         bounds=None,
+                         constraints=(),
+                         tol=None,
+                         callback=True,
+                         display_convergence_message=True,
+                         store_steps=True)
+
+        opt.Run_optimzer(max_iter)
+
+        return opt
