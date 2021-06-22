@@ -1,10 +1,8 @@
 """ Base class for fragmenter algorithms """
 
 import logging
-from dataclasses import dataclass
 from pyscf import gto
-from pathlib import Path
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
 
@@ -12,11 +10,12 @@ logger = logging.getLogger(__name__)
 class FragmentPair(ABC):
     """
     Two fragments in a tuple.
-    
-    TODO - once we know what the fragment objects can / should look like, 
+
+    TODO - once we know what the fragment objects can / should look like,
     this can be subclassed into appropriate types.
     """
     pass
+
 
 class Fragmenter(ABC):
     """
