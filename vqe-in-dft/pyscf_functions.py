@@ -63,7 +63,6 @@ def Generate_supersystem_and_indices(mol_A, mol_B):
                     # jb = ib + nssl[i][a]
                     sub2sup[i][i_a:j_a] = range(i_b, j_b)
 
-            assert match, 'no atom match!'
+            assert match, "no atom match!"
 
     return supersystem, sub2sup
-
