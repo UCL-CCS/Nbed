@@ -1,3 +1,4 @@
-from .fragmenter_base import Fragmenter
+from .fragmenter import Fragmenter
+from .fragment_pair import FragmentPair
 
 __all__ = [Fragmenter]
