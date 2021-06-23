@@ -5,6 +5,7 @@ Logging config for whole package.
 import logging
 from pathlib import Path
 
+
 def setup_logs() -> None:
     "Initialise logging"
 
