@@ -1,7 +1,7 @@
 """ Base class for fragmenter algorithms """
 
 import logging
-from pyscf import gto
+from pyscf import gto, dft
 from .enums import FragMethods
 from .fragment_pair import FragmentPair
 from ..utils.exceptions import FragmenterError
@@ -25,13 +25,19 @@ class Fragmenter:
         self._fragments = {}
 
     @property
+    def mol(self) -> gto.Mol:
+        return self._molecule
+
+    @property
     def molecule(self) -> gto.Mol:
         return self._molecule
 
+    @mol.getter
     @molecule.getter
     def get_molecule(self) -> gto.Mol:
         return self._molecule
 
+    @mol.setter
     @molecule.setter
     def set_molecule(self) -> None:
         logger.error(
@@ -71,7 +77,11 @@ class Fragmenter:
         return frag_method()
 
     def _absolute_localisation(self) -> FragmentPair:
-        "Fragmentation by absolute localisation."
+        """Fragmentation by absolute localisation.
+        
+        Steps to fragmentation.
+
+        """
         logger.debug("Fragmenting with Absolute Localisation")
         raise NotImplementedError
 
