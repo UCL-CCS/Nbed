@@ -367,3 +367,49 @@ class Embed():
             self.n_cl_shell = self.keywords['n_cl_shell']
         return self.max_shell, self.n_cl_shell
 
+    def save_details(self, 
+        v_emb=None, 
+        alpha_v_emb=None, 
+        beta_v_emb=None,
+        act_orbitals=None, 
+        alpha_act_orbitals=None,
+        beta_act_orbitals=None,
+        ) -> None:
+        """
+        If needed, save the requested information
+        """
+        if self.keywords['save_embedding_potential']:
+            np.savetxt('embedding_potential.txt', v_emb)
+            self.outfile.write(' Embedding potential saved to '
+                + 'embedding_potential.txt.\n') 
+
+        if self.keywords['save_embedded_h_core']:
+            if v_emb:
+                np.savetxt('embedded_h_core.txt', self.h_core + v_emb)
+                self.outfile.write(' Embedded core Hamiltonian saved to '
+                    + 'embedded_h_core.txt.\n') 
+            if alpha_v_emb and beta_v_emb:
+                np.savetxt('alpha_embedding_potential.txt', alpha_v_emb)
+                self.outfile.write(' Alpha embedding potential saved to '
+                    + 'alpha_embedding_potential.txt.\n')
+                np.savetxt('beta_embedding_potential.txt', beta_v_emb)
+                self.outfile.write(' Beta embedding potential saved to '
+                    + 'beta_embedding_potential.txt.\n')
+
+        if self.keywords['save_embedded_orbitals']:
+            if act_orbitals:
+                np.savetxt('embedded_orbitals.txt', act_orbitals)
+                self.outfile.write(' Embedded orbitals saved to '
+                    + 'embedded_orbitals.txt.\n') 
+            if alpha_act_orbitals and beta_act_orbitals:
+                np.savetxt('alpha_embedded_orbitals.txt', alpha_act_orbitals)
+                self.outfile.write(' Alpha embedded orbitals saved to '
+                    + 'alpha_embedded_orbitals.txt.\n') 
+                np.savetxt('beta_embedded_orbitals.txt', beta_act_orbitals)
+                self.outfile.write(' Beta embedded orbitals saved to '
+                    + 'beta_embedded_orbitals.txt.\n')
+                
+        if self.keywords['run_high_level'] == False:
+            self.outfile.write(' Requested files generated. Ending Psiself.\n\n') 
+            raise SystemExit(0)
+

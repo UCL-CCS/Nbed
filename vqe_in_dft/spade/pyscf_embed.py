@@ -58,8 +58,8 @@ class PySCFEmbed(Embed):
             self._mean_field.kernel()
             
             #It seems like these two aren't used
-            #self.v_xc_total = self._mean_field.get_veff()
-            #self.e_xc_total = self._mean_field.get_veff().exc
+            self.v_xc_total = self._mean_field.get_veff()
+            self.e_xc_total = self._mean_field.get_veff().exc
 
         # If no embedding potential is provided, run the high-level calculation
         else: 
@@ -183,6 +183,7 @@ class PySCFEmbed(Embed):
         j = self._mean_field.get_j(dm = density)
         k = np.zeros([self._n_basis_functions, self._n_basis_functions])
         two_e_term =  self._mean_field.get_veff(self._mol, density)
+        print(two_e_term)
         e_xc = two_e_term.exc
         v_xc = two_e_term - j 
 
