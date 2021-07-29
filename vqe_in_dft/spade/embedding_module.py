@@ -44,26 +44,6 @@ def subsystem_orbitals_densities(keywords: Dict, embed: Embed):
 
     return (act_orbitals, act_density, env_orbitals, env_density)
 
-def save_details(keywords, embed: Embed, v_emb, act_orbitals) -> None:
-    """
-    If needed, save the requested information
-    """
-    if keywords['save_embedding_potential']:
-        np.savetxt('embedding_potential.txt', v_emb)
-        embed.outfile.write(' Embedding potential saved to '
-            + 'embedding_potential.txt.\n') 
-    if keywords['save_embedded_h_core']:
-        np.savetxt('embedded_h_core.txt', embed.h_core + v_emb)
-        embed.outfile.write(' Embedded core Hamiltonian saved to '
-            + 'embedded_h_core.txt.\n') 
-    if keywords['save_embedded_orbitals']:
-        np.savetxt('embedded_orbitals.txt', act_orbitals)
-        embed.outfile.write(' Embedded orbitals saved to '
-            + 'embedded_orbitals.txt.\n') 
-    if keywords['run_high_level'] == False:
-        embed.outfile.write(' Requested files generated. Ending PsiEmbed.\n\n') 
-        raise SystemExit(0)
-
 def run_closed_shell(keywords):
     """
     Runs embedded calculation for closed shell references.
@@ -112,7 +92,7 @@ def run_closed_shell(keywords):
         + projector)
     #h_core_emb = h_core + embedding_potential + projector
 
-    save_details(keywords, embed, v_emb, act_orbitals)
+    embed.save_details(v_emb=v_emb, act_orbitals=act_orbitals)
 
     embed.run_mean_field(v_emb)
 
@@ -247,32 +227,37 @@ def run_open_shell(keywords):
         embed = Psi4Embed(keywords)
     else:
         embed = PySCFEmbed(keywords)
+    
+    # First we run a mean field calculation to 
+    # get the initial orbitals
     embed.run_mean_field()
-    embed.header()
+
     alpha_occupied_orbitals = embed.alpha_occupied_orbitals
     beta_occupied_orbitals = embed.beta_occupied_orbitals
 
     # Whether or not to project occupied orbitals onto another (minimal) basis
     if 'occupied_projection_basis' in keywords:
+        op_basis = keywords['occupied_projection_basis']
+
         alpha_projection_orbitals = embed.basis_projection(
-            alpha_occupied_orbitals, keywords['occupied_projection_basis'])
+            alpha_occupied_orbitals, op_basis)
         beta_projection_orbitals = embed.basis_projection(
-            beta_occupied_orbitals, keywords['occupied_projection_basis'])
-        ao_overlap = embed.ao_overlap
-        n_act_aos = embed.count_active_aos(
-            keywords['occupied_projection_basis'])
+            beta_occupied_orbitals, op_basis)
+        n_act_aos = embed.count_active_aos(op_basis)
     else:
         alpha_projection_orbitals = alpha_occupied_orbitals
         beta_projection_orbitals = beta_occupied_orbitals
-        ao_overlap = embed.ao_overlap
         n_act_aos = embed.count_active_aos(keywords['basis'])
+
+    ao_overlap = embed.ao_overlap
 
     # Orbital rotation and partition into subsystems A and B
     alpha_rotation_matrix, alpha_sigma = embed.orbital_rotation(
         alpha_projection_orbitals, n_act_aos, ao_overlap)
     beta_rotation_matrix, beta_sigma = embed.orbital_rotation(
         beta_projection_orbitals, n_act_aos, ao_overlap)
-    alpha_n_act_mos, alpha_n_env_mos, beta_n_act_mos, beta_n_env_mos = (
+
+    alpha_n_act_mos, _, beta_n_act_mos, _ = (
         embed.orbital_partition(alpha_sigma, beta_sigma))
 
     alpha_act_orbitals = (alpha_occupied_orbitals
@@ -311,6 +296,8 @@ def run_open_shell(keywords):
             + matrix_dot(alpha_k_env, alpha_act_density)
             + matrix_dot(beta_k_env, beta_act_density))
     xc_cross = embed.e_xc_total - e_xc_act - e_xc_env
+    
+    # This term corresponds to g[\gamma^A, \gamma^B] in the paper
     two_e_cross = j_cross + k_cross + xc_cross
 
     # Defining the embedding potential
@@ -324,23 +311,14 @@ def run_open_shell(keywords):
     beta_v_emb = (alpha_j_env + beta_j_env - embed.alpha*beta_k_env
                 + beta_projector + embed.beta_v_xc_total - beta_v_xc_act)
 
-    if keywords['save_embedded_h_core']:
-        embed.outfile.write(' Cannot save embedded core Hamiltonian for '
-            + 'open-shells. Saving the embedding potentials instead.\n') 
-    if keywords['save_embedding_potential'] or keywords['save_embedded_h_core']:
-        np.savetxt('alpha_embedding_potential.txt', v_emb)
-        embed.outfile.write(' Alpha embedding potential saved to '
-            + 'alpha_embedding_potential.txt.\n') 
-        np.savetxt('beta_embedding_potential.txt', v_emb)
-        embed.outfile.write(' Beta embedding potential saved to '
-            + 'beta_embedding_potential.txt.\n') 
-    if keywords['save_embedded_orbitals']:
-        np.savetxt('alpha_embedded_orbitals.txt', act_orbitals)
-        embed.outfile.write(' Alpha embedded orbitals saved to '
-            + 'alpha_embedded_orbitals.txt.\n') 
-        np.savetxt('beta_embedded_orbitals.txt', act_orbitals)
-        embed.outfile.write(' Beta embedded orbitals saved to '
-            + 'beta_embedded_orbitals.txt.\n') 
+    # Save any details we need
+    embed.save_details(
+        alpha_v_emb=alpha_v_emb,
+        beta_v_emb=beta_v_emb,
+        alpha_act_orbitals=alpha_act_orbitals, 
+        beta_act_orbitals=beta_act_orbitals,
+        )
+
     if keywords['run_high_level'] == False:
         embed.outfile.write(' Requested files generated. Ending PsiEmbed.\n\n') 
         raise SystemExit(0)
@@ -355,18 +333,19 @@ def run_open_shell(keywords):
         @ embed.alpha_occupied_orbitals.T)
     beta_density_emb = (embed.beta_occupied_orbitals
         @ embed.beta_occupied_orbitals.T)
-    alpha_j_emb = embed.alpha_j
-    beta_j_emb = embed.beta_j
-    alpha_k_emb = embed.alpha_k
-    beta_k_emb = embed.beta_k
+    alpha_j_emb, beta_j_emb = embed.alpha_j, embed.beta_j
+    alpha_k_emb, beta_k_emb = embed.alpha_k, embed.beta_k
+
     h_core = embed.h_core
     e_act_emb = (matrix_dot(alpha_density_emb + beta_density_emb, h_core)
                 + 0.5*matrix_dot(alpha_density_emb + beta_density_emb,
                 alpha_j_emb + beta_j_emb)
                 - 0.5*(matrix_dot(alpha_density_emb, alpha_k_emb)
                 + matrix_dot(beta_density_emb, beta_k_emb)))
+
     correction = (matrix_dot(alpha_v_emb, alpha_density_emb - alpha_act_density)
                 + matrix_dot(beta_v_emb, beta_density_emb - beta_act_density))
+
     e_mf_emb = e_act_emb + e_env + two_e_cross + embed.nre + correction
     embed.print_scf(e_act, e_env, two_e_cross, e_act_emb, correction)
 
