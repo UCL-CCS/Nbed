@@ -326,7 +326,7 @@ class Embed():
         beta_orbitals : numpy.array (None)
             Beta orbitals, if running with references other than RHF.
         """
-        if self.keywords['high_level_reference'] == 'rhf', and beta_orbitals == None:
+        if self.keywords['high_level_reference'] == 'rhf' and beta_orbitals == None:
             overlap = self.occupied_orbitals.T @ self.ao_overlap @ orbitals
             u, s, vh = np.linalg.svd(overlap)
             self._determinant_overlap = (
