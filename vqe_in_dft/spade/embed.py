@@ -22,7 +22,7 @@ class Embed():
         return None
 
     @staticmethod
-    def dot(A, B):
+    def matrix_dot(A, B):
         """
         (Deprecated) Computes the trace (dot or Hadamard product) 
         of matrices A and B.
@@ -40,6 +40,7 @@ class Embed():
 
         """
         return np.einsum('ij, ij', A, B)
+
 
     def orbital_rotation(self, orbitals, n_active_aos, ao_overlap = None):
         """
@@ -252,7 +253,7 @@ class Embed():
             format(self.keywords['low_level'].upper(),
             e_act_emb + e_env + two_e_cross + self.nre + correction))
         self.outfile.write(' <SD_before|SD_after> \t\t = {:>16.10f}\n'.format(
-            abs(self.determinant_overlap)))
+            abs(self._determinant_overlap)))
         self.outfile.write('\n')
         return None
 
@@ -313,7 +314,7 @@ class Embed():
         self.outfile.write('\n')
         return None
 
-    def determinant_overlap(self, orbitals, beta_orbitals = None):
+    def get_determinant_overlap(self, orbitals, beta_orbitals = None):
         """
         Compute the overlap between determinants formed from the
         provided orbitals and the embedded orbitals
@@ -325,24 +326,24 @@ class Embed():
         beta_orbitals : numpy.array (None)
             Beta orbitals, if running with references other than RHF.
         """
-        if self.keywords['high_level_reference'] == 'rhf' and beta_orbitals == None:
+        if self.keywords['high_level_reference'] == 'rhf', and beta_orbitals == None:
             overlap = self.occupied_orbitals.T @ self.ao_overlap @ orbitals
             u, s, vh = np.linalg.svd(overlap)
-            self.determinant_overlap = (
+            self._determinant_overlap = (
                 np.linalg.det(u)*np.linalg.det(vh)*np.prod(s))
         else:
             assert beta_orbitals is not None, '\nProvide beta orbitals.'
             alpha_overlap = (self.alpha_occupied_orbitals.T @ self.ao_overlap
                 @ beta_orbitals)
             u, s, vh = np.linalg.svd(alpha_overlap)
-            self.determinant_overlap = 0.5*(
+            self._determinant_overlap = 0.5*(
                 np.linalg.det(u)*np.linalg.det(vh)*np.prod(s))
             beta_overlap = (self.beta_occupied_orbitals.T @ self.ao_overlap
                 @ beta_orbitals)
             u, s, vh = np.linalg.svd(beta_overlap)
-            self.determinant_overlap += 0.5*(
+            self._determinant_overlap += 0.5*(
                 np.linalg.det(u)*np.linalg.det(vh)*np.prod(s))
-        return None
+        return self._determinant_overlap
 
     def count_shells(self):
         """

@@ -14,8 +14,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-matrix_dot = lambda A, B: np.einsum('ij,ij', A, B)
-
 def subsystem_orbitals_densities(keywords: Dict, embed: Embed):
     # Whether or not to project occupied orbitals onto another (minimal) basis
     low_level_orbitals = embed.occupied_orbitals
@@ -71,12 +69,12 @@ def run_closed_shell(keywords):
         embed.closed_shell_subsystem(env_orbitals))
 
     # Computing cross subsystem terms
-    j_cross = 0.5 * (matrix_dot(act_density, j_env)
-            + matrix_dot(env_density, j_act))
+    j_cross = 0.5 * (embed.matrix_dot(act_density, j_env)
+            + embed.matrix_dot(env_density, j_act))
 
     if keywords['package'].lower() == 'psi4':
-        k_cross = 0.5 * embed.alpha * (matrix_dot(act_density, k_env)
-                + matrix_dot(env_density, k_act))
+        k_cross = 0.5 * embed.alpha * (embed.matrix_dot(act_density, k_env)
+                + embed.matrix_dot(env_density, k_act))
     else:
         k_cross = 0.0
 
@@ -102,12 +100,12 @@ def run_closed_shell(keywords):
     # Computing the embedded SCF energy
     density_emb = 2.0 * embed.occupied_orbitals @ embed.occupied_orbitals.T
     if keywords['package'].lower() == 'psi4':
-        e_act_emb = matrix_dot(density_emb, embed.h_core + embed.j - 0.5 * embed.k)
+        e_act_emb = embed.matrix_dot(density_emb, embed.h_core + embed.j - 0.5 * embed.k)
     else:
-        e_act_emb = matrix_dot(density_emb, embed.h_core + 0.5 * embed.j - 0.25 * embed.k)
+        e_act_emb = embed.matrix_dot(density_emb, embed.h_core + 0.5 * embed.j - 0.25 * embed.k)
     
     # Compute the total energy
-    correction = (matrix_dot(v_emb, density_emb - act_density))
+    correction = (embed.matrix_dot(v_emb, density_emb - act_density))
     e_mf_emb = e_act_emb + e_env + two_e_cross + embed.nre + correction
     embed.print_scf(e_act, e_env, two_e_cross, e_act_emb, correction)
 
@@ -205,7 +203,7 @@ def run_closed_shell(keywords):
                 format(virtual_span.shape[1], e_mf_emb + e_correlation))
 
         embed.print_summary(e_mf_emb)
-        projected_env_correction = matrix_dot(projector,
+        projected_env_correction = embed.matrix_dot(projector,
             act_density - density_emb)
         embed.outfile.write(' Correction from the projected B\t = {:>16.2e}\n'.
             format(projected_env_correction))
@@ -283,18 +281,18 @@ def run_open_shell(keywords):
         embed.open_shell_subsystem(alpha_env_orbitals, beta_env_orbitals))
 
     # Computing cross subsystem terms
-    j_cross = 0.5*(matrix_dot(alpha_j_act, alpha_env_density)
-            + matrix_dot(alpha_j_act, beta_env_density)
-            + matrix_dot(beta_j_act, alpha_env_density)
-            + matrix_dot(beta_j_act, beta_env_density)
-            + matrix_dot(alpha_j_env, alpha_act_density)
-            + matrix_dot(alpha_j_env, beta_act_density)
-            + matrix_dot(beta_j_env, alpha_act_density)
-            + matrix_dot(beta_j_env, beta_act_density))
-    k_cross = -0.5*embed.alpha*(matrix_dot(alpha_k_act, alpha_env_density)
-            + matrix_dot(beta_k_act, beta_env_density)
-            + matrix_dot(alpha_k_env, alpha_act_density)
-            + matrix_dot(beta_k_env, beta_act_density))
+    j_cross = 0.5*(embed.matrix_dot(alpha_j_act, alpha_env_density)
+            + embed.matrix_dot(alpha_j_act, beta_env_density)
+            + embed.matrix_dot(beta_j_act, alpha_env_density)
+            + embed.matrix_dot(beta_j_act, beta_env_density)
+            + embed.matrix_dot(alpha_j_env, alpha_act_density)
+            + embed.matrix_dot(alpha_j_env, beta_act_density)
+            + embed.matrix_dot(beta_j_env, alpha_act_density)
+            + embed.matrix_dot(beta_j_env, beta_act_density))
+    k_cross = -0.5*embed.alpha*(embed.matrix_dot(alpha_k_act, alpha_env_density)
+            + embed.matrix_dot(beta_k_act, beta_env_density)
+            + embed.matrix_dot(alpha_k_env, alpha_act_density)
+            + embed.matrix_dot(beta_k_env, beta_act_density))
     xc_cross = embed.e_xc_total - e_xc_act - e_xc_env
     
     # This term corresponds to g[\gamma^A, \gamma^B] in the paper
@@ -326,7 +324,7 @@ def run_open_shell(keywords):
     embed.run_mean_field([alpha_v_emb, beta_v_emb])
 
     # Overlap between the C_A determinant and the embedded determinant
-    embed.determinant_overlap(alpha_act_orbitals, beta_act_orbitals)
+    embed.get_determinant_overlap(orbitals=alpha_act_orbitals, beta_orbitals=beta_act_orbitals)
     
     # Computing the embedded SCF energy
     alpha_density_emb = (embed.alpha_occupied_orbitals
@@ -337,14 +335,14 @@ def run_open_shell(keywords):
     alpha_k_emb, beta_k_emb = embed.alpha_k, embed.beta_k
 
     h_core = embed.h_core
-    e_act_emb = (matrix_dot(alpha_density_emb + beta_density_emb, h_core)
-                + 0.5*matrix_dot(alpha_density_emb + beta_density_emb,
+    e_act_emb = (embed.matrix_dot(alpha_density_emb + beta_density_emb, h_core)
+                + 0.5*embed.matrix_dot(alpha_density_emb + beta_density_emb,
                 alpha_j_emb + beta_j_emb)
-                - 0.5*(matrix_dot(alpha_density_emb, alpha_k_emb)
-                + matrix_dot(beta_density_emb, beta_k_emb)))
+                - 0.5*(embed.matrix_dot(alpha_density_emb, alpha_k_emb)
+                + embed.matrix_dot(beta_density_emb, beta_k_emb)))
 
-    correction = (matrix_dot(alpha_v_emb, alpha_density_emb - alpha_act_density)
-                + matrix_dot(beta_v_emb, beta_density_emb - beta_act_density))
+    correction = (embed.matrix_dot(alpha_v_emb, alpha_density_emb - alpha_act_density)
+                + embed.matrix_dot(beta_v_emb, beta_density_emb - beta_act_density))
 
     e_mf_emb = e_act_emb + e_env + two_e_cross + embed.nre + correction
     embed.print_scf(e_act, e_env, two_e_cross, e_act_emb, correction)

@@ -188,7 +188,7 @@ class PySCFEmbed(Embed):
         v_xc = two_e_term - j 
 
         # Energy
-        e = self.dot(density, self.h_core + j/2) + e_xc
+        e = self.matrix_dot(density, self.h_core + j/2) + e_xc
         return e, e_xc, j, k, v_xc
 
     def open_shell_subsystem(self, alpha_orbitals, beta_orbitals):
