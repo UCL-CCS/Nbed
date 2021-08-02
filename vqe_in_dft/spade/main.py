@@ -130,12 +130,13 @@ def driver(keywords):
         Writes embedded orbitals to embedded_orbitals.txt in numpy format.
     """
     
-    init_logs()
-
     keywords = fill_defaults(keywords)
 
-    if (keywords['low_level_reference'] == 'rhf' and 
-            keywords['high_level_reference'] == 'rhf'):
+    llr = keywords['low_level_reference']
+    hlr = keywords['high_level_reference']
+    closed_methods = ['rhf','rks']
+
+    if (llr in closed_methods and hlr in closed_methods):
         run_closed_shell(keywords)
     else:
         run_open_shell(keywords)
