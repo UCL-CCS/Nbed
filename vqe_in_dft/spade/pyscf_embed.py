@@ -61,7 +61,7 @@ class PySCFEmbed(Embed):
             self.v_xc_total = self._mean_field.get_veff()
             self.e_xc_total = self._mean_field.get_veff().exc
 
-        # If no embedding potential is provided, run the high-level calculation
+        # If an embedding potential is provided, run the high-level calculation
         else: 
             ref = reference_methods['hf'][hlr]
             self._mean_field = ref(self._mol)
