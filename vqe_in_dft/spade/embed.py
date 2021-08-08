@@ -22,7 +22,7 @@ class Embed():
         return None
 
     @staticmethod
-    def matrix_dot(A, B):
+    def trace(A, B):
         """
         (Deprecated) Computes the trace (dot or Hadamard product) 
         of matrices A and B.
