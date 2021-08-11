@@ -1,6 +1,7 @@
 """
 PySCF subclasses of Embed
 """
+from typing import Tuple
 import numpy as np
 from pyscf import gto, dft, scf, lib, mp, cc
 
@@ -105,7 +106,7 @@ class PySCFEmbed(Embed):
         self.h_core = self._mean_field.get_hcore(self._mol)
         return None
 
-    def count_active_aos(self, basis=None):
+    def count_active_aos(self, basis: str = None) -> int:
         """
         Computes the number of AOs from active atoms.
 
@@ -133,7 +134,7 @@ class PySCFEmbed(Embed):
             ][3]
         return self.n_active_aos
 
-    def basis_projection(self, orbitals, projection_basis):
+    def basis_projection(self, orbitals: np.ndarray) -> np.ndarray:
         """
         Defines a projection of orbitals in one basis onto another.
         
@@ -160,7 +161,9 @@ class PySCFEmbed(Embed):
         )
         return projected_orbitals
 
-    def closed_shell_subsystem(self, orbitals):
+    def closed_shell_subsystem(
+        self, subsystem_orbitals: np.ndarray
+    ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
         """
         Computes the potential matrices J, K, and V and subsystem energies.
 
@@ -182,7 +185,7 @@ class PySCFEmbed(Embed):
         v_xc : numpy.array
             Kohn-Sham potential matrix of subsystem.
         """
-        density = 2.0 * orbitals @ orbitals.T
+        density = 2.0 * subsystem_orbitals @ subsystem_orbitals.T
         # It seems that PySCF lumps J and K in the J array
         j = self._mean_field.get_j(dm=density)
         k = np.zeros([self._n_basis_functions, self._n_basis_functions])
@@ -192,10 +195,21 @@ class PySCFEmbed(Embed):
         v_xc = two_e_term - j
 
         # Energy
-        e = self.matrix_dot(density, self.h_core + j / 2) + e_xc
+        e = self.trace(density, self.h_core + j / 2) + e_xc
         return e, e_xc, j, k, v_xc
 
-    def open_shell_subsystem(self, alpha_orbitals, beta_orbitals):
+    def open_shell_subsystem(
+        self, alpha_orbitals: np.ndarray, beta_orbitals: np.ndarray
+    ) -> Tuple[
+        float,
+        float,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+    ]:
         """
         Computes the potential matrices J, K, and V and subsystem
         energies for open shell cases.
