@@ -24,7 +24,7 @@ class Embed:
         return None
 
     @staticmethod
-    def trace(A:np.ndarray, B: np.ndarray) -> np.ndarray:
+    def trace(A: np.ndarray, B: np.ndarray) -> np.ndarray:
         """
         (Deprecated) Computes the trace (dot or Hadamard product) 
         of matrices A and B.
@@ -44,7 +44,7 @@ class Embed:
         return np.einsum("ij, ij", A, B)
 
     def orbital_rotation(
-        self, orbitals: np.ndarray, n_active_aos: int, ao_overlap:np.ndarray=None
+        self, orbitals: np.ndarray, n_active_aos: int, ao_overlap: np.ndarray = None
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         SVD orbitals projected onto active AOs to rotate orbitals.
@@ -74,14 +74,15 @@ class Embed:
             s_half = scipy.linalg.fractional_matrix_power(ao_overlap, 0.5)
             orthogonal_orbitals = (s_half @ orbitals)[:n_active_aos, :]
 
-        _, s, v = np.linalg.svd(orthogonal_orbitals, full_matrices=True)
-        rotation_matrix = v
-        singular_values = s
+        _, singular_values, rotation_matrix = np.linalg.svd(
+            orthogonal_orbitals, full_matrices=True
+        )
+
         return rotation_matrix, singular_values
 
     def orbital_partition(
         self, sigma: np.ndarray, beta_sigma: np.ndarray = None
-    ) -> Tuple[int,int,int,int]:
+    ) -> Tuple[int, int, int, int]:
         """
         Partition the orbital space by SPADE or all AOs in the
         projection basis. Beta variables are only used for open shells.
@@ -122,6 +123,7 @@ class Embed:
         # Check for closed shells.
         if self.keywords["low_level_reference"] == "rhf":
             return self.n_act_mos, self.n_env_mos
+
         else:
             assert beta_sigma is not None, "Provide beta singular values"
             if self.keywords["partition_method"] == "spade":
@@ -145,7 +147,14 @@ class Embed:
                 self.beta_n_env_mos,
             )
 
-    def print_scf(self, e_act: float, e_env: float, two_e_cross: float, e_act_emb: float, correction: float) -> None:
+    def print_scf(
+        self,
+        e_act: float,
+        e_env: float,
+        two_e_cross: float,
+        e_act_emb: float,
+        correction: float,
+    ) -> None:
         """
         Prints mean-field info from before and after embedding.
 
@@ -337,7 +346,9 @@ class Embed:
         self.outfile.write("\n")
         return None
 
-    def get_determinant_overlap(self, orbitals: np.ndarray, beta_orbitals: np.ndarray=None):
+    def get_determinant_overlap(
+        self, orbitals: np.ndarray, beta_orbitals: np.ndarray = None
+    ):
         """
         Compute the overlap between determinants formed from the
         provided orbitals and the embedded orbitals
