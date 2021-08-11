@@ -2,42 +2,44 @@ from .embedding_module import run_closed_shell, run_open_shell
 from typing import Dict
 
 import logging
+
 logger = logging.getLogger(__name__)
+
 
 def fill_defaults(keywords) -> Dict[str, str]:
     "Fills in the default keyword values"
     # Default keywords
     default_keywords = {}
-    default_keywords['package'] = 'pyscf'
-    default_keywords['num_threads'] = 1
-    default_keywords['memory'] = 1000
-    default_keywords['charge'] = 0
-    default_keywords['multiplicity'] = 1
-    default_keywords['low_level_reference'] = 'rhf'
-    default_keywords['high_level_reference'] = 'rhf'
-    default_keywords['partition_method'] = 'spade'
-    default_keywords['e_convergence'] = 1e-6
-    default_keywords['d_convergence'] = 1e-6
-    default_keywords['eri'] = 'df'
-    default_keywords['ints_tolerance'] = 1e-10
-    default_keywords['driver_output'] = 'output.dat'
-    default_keywords['embedding_output'] = 'embedding.log'
-    default_keywords['operator'] = 'F'
-    default_keywords['level_shift'] = 1.0e6
-    default_keywords['low_level_damping_percentage'] = 0
-    default_keywords['high_level_damping_percentage'] = 0
-    default_keywords['low_level_soscf'] = 'False'
-    default_keywords['high_level_soscf'] = 'False'
-    default_keywords['molden'] = False
-    default_keywords['print_level'] = 1
-    default_keywords['cc_type'] = 'df'
-    default_keywords['save_embedding_potential'] = False
-    default_keywords['save_embedded_h_core'] = False
-    default_keywords['save_embedded_orbitals'] = False
-    default_keywords['run_high_level'] = True
+    default_keywords["package"] = "pyscf"
+    default_keywords["num_threads"] = 1
+    default_keywords["memory"] = 1000
+    default_keywords["charge"] = 0
+    default_keywords["multiplicity"] = 1
+    default_keywords["low_level_reference"] = "rhf"
+    default_keywords["high_level_reference"] = "rhf"
+    default_keywords["partition_method"] = "spade"
+    default_keywords["e_convergence"] = 1e-6
+    default_keywords["d_convergence"] = 1e-6
+    default_keywords["eri"] = "df"
+    default_keywords["ints_tolerance"] = 1e-10
+    default_keywords["driver_output"] = "output.dat"
+    default_keywords["embedding_output"] = "embedding.log"
+    default_keywords["operator"] = "F"
+    default_keywords["level_shift"] = 1.0e6
+    default_keywords["low_level_damping_percentage"] = 0
+    default_keywords["high_level_damping_percentage"] = 0
+    default_keywords["low_level_soscf"] = "False"
+    default_keywords["high_level_soscf"] = "False"
+    default_keywords["molden"] = False
+    default_keywords["print_level"] = 1
+    default_keywords["cc_type"] = "df"
+    default_keywords["save_embedding_potential"] = False
+    default_keywords["save_embedded_h_core"] = False
+    default_keywords["save_embedded_orbitals"] = False
+    default_keywords["run_high_level"] = True
 
     # Checking if the necessary keywords have been defined
-    required = ['low_level','high_level','basis','n_active_atoms']
+    required = ["low_level", "high_level", "basis", "n_active_atoms"]
     if not all([key in keywords for key in required]):
         raise KeyError("You must include keys for each of:\n%s", required)
     # assert 'low_level' in keywords, ('\n Choose level of theory',
@@ -45,16 +47,15 @@ def fill_defaults(keywords) -> Dict[str, str]:
     # assert 'high_level' in keywords, ('\n Choose level of theory',
     #                                 'for the active region')
     # assert 'basis' in keywords, '\n Choose a basis set'
-    # assert 'n_active_atoms' in keywords, ('\n Provide the number of active', 
+    # assert 'n_active_atoms' in keywords, ('\n Provide the number of active',
     #     'atoms, which the first atoms in your coordinates string')
 
     for key in default_keywords.keys():
         if key not in keywords:
             keywords[key] = default_keywords[key]
 
-    if ('n_cl_shell' in keywords and 
-        'virtual_projection_basis' not in keywords):
-        keywords['virtual_projection_basis'] = keywords['basis']
+    if "n_cl_shell" in keywords and "virtual_projection_basis" not in keywords:
+        keywords["virtual_projection_basis"] = keywords["basis"]
 
     return keywords
 
@@ -129,18 +130,18 @@ def driver(keywords):
     write_embedded_orbitals : bool (False)
         Writes embedded orbitals to embedded_orbitals.txt in numpy format.
     """
-    
+
     keywords = fill_defaults(keywords)
 
-    llr = keywords['low_level_reference']
-    hlr = keywords['high_level_reference']
-    closed_methods = ['rhf','rks']
+    llr = keywords["low_level_reference"]
+    hlr = keywords["high_level_reference"]
+    closed_methods = ["rhf", "rks"]
 
-    if (llr in closed_methods and hlr in closed_methods):
+    if llr in closed_methods and hlr in closed_methods:
         run_closed_shell(keywords)
     else:
         run_open_shell(keywords)
-    '''
+    """
     elif (keywords['low_level_reference'] == 'uhf' and 
             keywords['high_level_reference'] == 'uhf' or
             keywords['low_level_reference'] == 'uhf' and 
@@ -150,4 +151,4 @@ def driver(keywords):
         raise Exception(' The allowed combinations of ' 
             + 'low/high_level_reference keywords are: RHF/RHF, UHF/UHF, '
             + 'and UHF/ROHF.')
-    '''
+    """
