@@ -61,7 +61,6 @@ def run_closed_shell(keywords):
         embed = PySCFEmbed(keywords)
 
     embed.run_mean_field()
-    embed.header()
 
     act_orbitals, act_density, env_orbitals, env_density = subsystem_orbitals_densities(
         keywords, embed
@@ -73,7 +72,7 @@ def run_closed_shell(keywords):
 
     # Computing cross subsystem terms
     j_cross = 0.5 * (
-        embed.matrix_dot(act_density, j_env) + embed.matrix_dot(env_density, j_act)
+        embed.trace(act_density, j_env) + embed.trace(env_density, j_act)
     )
 
     if keywords["package"].lower() == "psi4":
@@ -81,8 +80,8 @@ def run_closed_shell(keywords):
             0.5
             * embed.alpha
             * (
-                embed.matrix_dot(act_density, k_env)
-                + embed.matrix_dot(env_density, k_act)
+                embed.trace(act_density, k_env)
+                + embed.trace(env_density, k_act)
             )
         )
     else:
@@ -105,23 +104,27 @@ def run_closed_shell(keywords):
     embed.run_mean_field(v_emb)
 
     # Overlap between the C_A determinant and the embedded determinant
-    embed.determinant_overlap(act_orbitals)
+    embed.get_determinant_overlap(act_orbitals)
 
     # Computing the embedded SCF energy
     density_emb = 2.0 * embed.occupied_orbitals @ embed.occupied_orbitals.T
     if keywords["package"].lower() == "psi4":
-        e_act_emb = embed.matrix_dot(
+        e_act_emb = embed.trace(
             density_emb, embed.h_core + embed.j - 0.5 * embed.k
         )
     else:
-        e_act_emb = embed.matrix_dot(
+        e_act_emb = embed.trace(
             density_emb, embed.h_core + 0.5 * embed.j - 0.25 * embed.k
         )
 
     # Compute the total energy
-    correction = embed.matrix_dot(v_emb, density_emb - act_density)
-    e_mf_emb = e_act_emb + e_env + two_e_cross + embed.nre + correction
+    correction = embed.trace(v_emb, density_emb - act_density)
+    e_nuc = embed._mol.energy_nuc()
+    e_mf_emb = e_act_emb + e_env + two_e_cross + correction + e_nuc
     embed.print_scf(e_act, e_env, two_e_cross, e_act_emb, correction)
+    print(f"E with embedded density={e_act_emb}")
+    print(f"{e_env=}, {two_e_cross=}, {correction=}, {e_nuc=}")
+    print(f"Final energy={e_mf_emb}")
 
     # --- Post embedded HF calculation ---
     if "n_cl_shell" not in keywords:
@@ -132,6 +135,7 @@ def run_closed_shell(keywords):
                 keywords["high_level"].upper(), keywords["low_level"].upper(), e_total
             )
         )
+        print(f"{e_total=}")
     else:
         assert isinstance(keywords["n_cl_shell"], int)
         embed.outfile.write(
@@ -238,7 +242,7 @@ def run_closed_shell(keywords):
             )
 
         embed.print_summary(e_mf_emb)
-        projected_env_correction = embed.matrix_dot(
+        projected_env_correction = embed.trace(
             projector, act_density - density_emb
         )
         embed.outfile.write(
@@ -345,23 +349,23 @@ def run_open_shell(keywords):
 
     # Computing cross subsystem terms
     j_cross = 0.5 * (
-        embed.matrix_dot(alpha_j_act, alpha_env_density)
-        + embed.matrix_dot(alpha_j_act, beta_env_density)
-        + embed.matrix_dot(beta_j_act, alpha_env_density)
-        + embed.matrix_dot(beta_j_act, beta_env_density)
-        + embed.matrix_dot(alpha_j_env, alpha_act_density)
-        + embed.matrix_dot(alpha_j_env, beta_act_density)
-        + embed.matrix_dot(beta_j_env, alpha_act_density)
-        + embed.matrix_dot(beta_j_env, beta_act_density)
+        embed.trace(alpha_j_act, alpha_env_density)
+        + embed.trace(alpha_j_act, beta_env_density)
+        + embed.trace(beta_j_act, alpha_env_density)
+        + embed.trace(beta_j_act, beta_env_density)
+        + embed.trace(alpha_j_env, alpha_act_density)
+        + embed.trace(alpha_j_env, beta_act_density)
+        + embed.trace(beta_j_env, alpha_act_density)
+        + embed.trace(beta_j_env, beta_act_density)
     )
     k_cross = (
         -0.5
         * embed.alpha
         * (
-            embed.matrix_dot(alpha_k_act, alpha_env_density)
-            + embed.matrix_dot(beta_k_act, beta_env_density)
-            + embed.matrix_dot(alpha_k_env, alpha_act_density)
-            + embed.matrix_dot(beta_k_env, beta_act_density)
+            embed.trace(alpha_k_act, alpha_env_density)
+            + embed.trace(beta_k_act, beta_env_density)
+            + embed.trace(alpha_k_env, alpha_act_density)
+            + embed.trace(beta_k_env, beta_act_density)
         )
     )
     xc_cross = embed.e_xc_total - e_xc_act - e_xc_env
@@ -421,23 +425,23 @@ def run_open_shell(keywords):
 
     h_core = embed.h_core
     e_act_emb = (
-        embed.matrix_dot(alpha_density_emb + beta_density_emb, h_core)
+        embed.trace(alpha_density_emb + beta_density_emb, h_core)
         + 0.5
-        * embed.matrix_dot(
+        * embed.trace(
             alpha_density_emb + beta_density_emb, alpha_j_emb + beta_j_emb
         )
         - 0.5
         * (
-            embed.matrix_dot(alpha_density_emb, alpha_k_emb)
-            + embed.matrix_dot(beta_density_emb, beta_k_emb)
+            embed.trace(alpha_density_emb, alpha_k_emb)
+            + embed.trace(beta_density_emb, beta_k_emb)
         )
     )
 
-    correction = embed.matrix_dot(
+    correction = embed.trace(
         alpha_v_emb, alpha_density_emb - alpha_act_density
-    ) + embed.matrix_dot(beta_v_emb, beta_density_emb - beta_act_density)
+    ) + embed.trace(beta_v_emb, beta_density_emb - beta_act_density)
 
-    e_mf_emb = e_act_emb + e_env + two_e_cross + embed.nre + correction
+    e_mf_emb = e_act_emb + e_env + two_e_cross + correction
     embed.print_scf(e_act, e_env, two_e_cross, e_act_emb, correction)
 
     # --- Post embedded HF calculation ---
@@ -554,7 +558,7 @@ def run_open_shell(keywords):
             )
 
         embed.print_summary(e_mf_emb)
-        projected_env_correction = matrix_dot(projector, act_density - density_emb)
+        projected_env_correction = trace(projector, act_density - density_emb)
         embed.outfile.write(
             " Correction from the projected B\t = {:>16.2e}\n".format(
                 projected_env_correction

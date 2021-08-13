@@ -29,6 +29,7 @@ class PySCFEmbed(Embed):
         self._mol.atom = self.keywords["geometry"]
         self._mol.max_memory = self.keywords["memory"]
         self._mol.basis = self.keywords["basis"]
+        self._mol.build()
 
         reference_methods = {
             "hf": {"rhf": scf.RHF, "uhf": scf.UHF, "rohf": scf.ROHF,},
@@ -104,6 +105,7 @@ class PySCFEmbed(Embed):
         self.nre = self._mol.energy_nuc()
         self.ao_overlap = self._mean_field.get_ovlp(self._mol)
         self.h_core = self._mean_field.get_hcore(self._mol)
+        print(f"{self._mean_field.e_tot=}")
         return None
 
     def count_active_aos(self, basis: str = None) -> int:
