@@ -104,6 +104,7 @@ class PySCFEmbed(Embed):
         self.nre = self._mol.energy_nuc()
         self.ao_overlap = self._mean_field.get_ovlp(self._mol)
         self.h_core = self._mean_field.get_hcore(self._mol)
+        print(f"{self._mean_field.e_tot=}")
         return None
 
     def count_active_aos(self, basis: str = None) -> int:
