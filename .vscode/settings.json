@@ -1,0 +1,4 @@
+{
+    "python.pythonPath": "~/anaconda3/envs/mres3.8/bin/python3",
+    "jupyter.jupyterServerType": "local"
+}
