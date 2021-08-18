@@ -1,10 +1,11 @@
 from copy import copy
 from typing import Dict
-from .spade import fill_defaults
+from spade import fill_defaults
 import numpy as np
 from scipy import linalg
 from pyscf import gto, scf, cc, ao2mo, fci
-
+import matplotlib.pyplot as plt
+import pandas as pd
 
 
 def get_exact_energy(mol: gto.Mole, keywords: Dict):
@@ -16,12 +17,12 @@ def get_exact_energy(mol: gto.Mole, keywords: Dict):
 
     return fci_result[0]
 
-def spade_localisation(scf, keywords):
-    n_occupied_orbitals = np.count_nonzero(scf.mo_occ == 2)
-    occupied_orbitals = scf.mo_coeff[:, :n_occupied_orbitals]
+def spade_localisation(scf_method, keywords):
+    n_occupied_orbitals = np.count_nonzero(scf_method.mo_occ == 2)
+    occupied_orbitals = scf_method.mo_coeff[:, :n_occupied_orbitals]
 
-    n_act_aos = scf.mol.aoslice_by_atom()[keywords['n_active_atoms']-1][-1]
-    ao_overlap = scf.get_ovlp()
+    n_act_aos = scf_method.mol.aoslice_by_atom()[keywords['n_active_atoms']-1][-1]
+    ao_overlap = scf_method.get_ovlp()
 
     # Orbital rotation and partition into subsystems A and B
     #rotation_matrix, sigma = embed.orbital_rotation(occupied_orbitals,
@@ -42,16 +43,16 @@ def spade_localisation(scf, keywords):
     env_density = 2.0 * env_orbitals @ env_orbitals.T
     return n_act_mos, n_env_mos, act_density, env_density
 
-def closed_shell_subsystem(scf, density):
+def closed_shell_subsystem(scf_method, density):
     #It seems that PySCF lumps J and K in the J array 
-    j = scf.get_j(dm = density)
+    j = scf_method.get_j(dm = density)
     k = np.zeros(np.shape(j))
-    two_e_term =  scf.get_veff(scf.mol, density)
+    two_e_term =  scf_method.get_veff(scf_method.mol, density)
     e_xc = two_e_term.exc
     v_xc = two_e_term - j
 
     # Energy
-    e = np.einsum("ij,ij", density, scf.get_hcore() + j/2) + e_xc
+    e = np.einsum("ij,ij", density, scf_method.get_hcore() + j/2) + e_xc
     return e, e_xc, j, k, v_xc
 
 def run_sim(mol: gto.Mole, keywords: Dict):
@@ -68,15 +69,15 @@ def run_sim(mol: gto.Mole, keywords: Dict):
 
     mol_copy = copy(mol)
 
-    expected_energy = get_exact_energy(mol_copy)
+    expected_energy = get_exact_energy(mol_copy, keywords)
 
-    n_act_mos, n_env_mos, act_density, env_density = spade_localisation(ks)
+    n_act_mos, n_env_mos, act_density, env_density = spade_localisation(ks, keywords)
 
     # Get cross terms from the initial density
     e_act, e_xc_act, j_act, k_act, v_xc_act = (
-    closed_shell_subsystem(scf, act_density))
+    closed_shell_subsystem(ks, act_density))
     e_env, e_xc_env, j_env, k_env, v_xc_env = (
-    closed_shell_subsystem(scf, env_density))
+    closed_shell_subsystem(ks, env_density))
 
     # Computing cross subsystem terms
     # Note that the matrix dot product is equivalent to the trace.
@@ -85,11 +86,10 @@ def run_sim(mol: gto.Mole, keywords: Dict):
 
     k_cross = 0.0
 
-    xc_cross = scf.get_veff().exc - e_xc_act - e_xc_env
+    xc_cross = ks.get_veff().exc - e_xc_act - e_xc_env
     two_e_cross = j_cross + k_cross + xc_cross
 
     # Define the mu-projector
-    print(f"{keywords['level_shift']=}")
     projector = keywords['level_shift'] * (ks.get_ovlp() @ env_density
         @ ks.get_ovlp())
 
@@ -155,7 +155,7 @@ def run_sim(mol: gto.Mole, keywords: Dict):
     print(f"Full system low-level Energy:\t{e_initial}\n")
     print(f"FCI Energy:\t\t\t{expected_energy}")
     print(f"Embedding Energy:\t\t{e_mf_emb}")
-    print(f"Error:\t\t\t\t{(expected_energy-e_mf_emb)*100/expected_energy:.2f}%")
+    print(f"Error:\t\t\t\t{(expected_energy-e_mf_emb)*100/expected_energy:.2f}%\n\n")
 
     return e_initial, expected_energy, e_mf_emb
 
@@ -184,6 +184,7 @@ def main():
         
     distances = np.linspace(0.1, 1.5, 20)
     values = {"FCI":[], "Embedding":[], "DFT":[]}
+
     for distance in distances:
         options['geometry'] = f"""
         Li 0.0 0.0 0.0
@@ -198,6 +199,11 @@ def main():
         values["FCI"].append(expected_energy)
         values["Embedding"].append(e_mf_emb)
     
+    # Make a dataframe and write to file
+    df = pd.DataFrame([values["FCI"], values["Embedding"], values["DFT"]], columns=["FCI", "Embedding", "DFT"],index=distances)
+    filepath = Path(__file__).parent / f"data-{pd.Timestamp.now()}.csv"
+    df.to_csv(filepath, mode = "w")
+
     # Plot the results
     plt.plot(distances, values["DFT"], label="DFT")
     plt.plot(distances, values["FCI"], label="FCI")
