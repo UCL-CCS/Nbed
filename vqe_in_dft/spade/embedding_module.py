@@ -66,6 +66,8 @@ def run_closed_shell(keywords):
         keywords, embed
     )
 
+    initial_h_core = embed.h_core
+
     # Retrieving the subsytem energy terms and potential matrices
     e_act, e_xc_act, j_act, k_act, v_xc_act = embed.closed_shell_subsystem(act_orbitals)
     e_env, e_xc_env, j_env, k_env, v_xc_env = embed.closed_shell_subsystem(env_orbitals)
@@ -110,22 +112,23 @@ def run_closed_shell(keywords):
     density_emb = 2.0 * embed.occupied_orbitals @ embed.occupied_orbitals.T
     if keywords["package"].lower() == "psi4":
         e_act_emb = embed.trace(
-            density_emb, embed.h_core + embed.j - 0.5 * embed.k
+            density_emb, initial_h_core + embed.j - 0.5 * embed.k
         )
     else:
         e_act_emb = embed.trace(
-            density_emb, embed.h_core + 0.5 * embed.j - 0.25 * embed.k
+            density_emb, initial_h_core + 0.5 * embed.j - 0.25 * embed.k
         )
-
     # Compute the total energy
     correction = embed.trace(v_emb, density_emb - act_density)
-    e_nuc = embed._mol.energy_nuc()
-    e_mf_emb = e_act_emb + e_env + two_e_cross + correction + e_nuc
+    e_mf_emb = e_act_emb + e_env + two_e_cross + embed.nre + correction
     embed.print_scf(e_act, e_env, two_e_cross, e_act_emb, correction)
     print(f"E with embedded density={e_act_emb}")
     print(f"{e_env=}, {two_e_cross=}, {correction=}, {e_nuc=}")
     print(f"Final energy={e_mf_emb}")
 
+    print(f"Final energy: {e_mf_emb}")
+    print(f"{e_act_emb=}, {e_env=}, {two_e_cross=}, {embed.nre=}, {correction=}")
+    
     # --- Post embedded HF calculation ---
     if "n_cl_shell" not in keywords:
         e_correlation = embed.correlation_energy()
