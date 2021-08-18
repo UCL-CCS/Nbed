@@ -123,7 +123,7 @@ def run_closed_shell(keywords):
     e_mf_emb = e_act_emb + e_env + two_e_cross + embed.nre + correction
     embed.print_scf(e_act, e_env, two_e_cross, e_act_emb, correction)
     print(f"E with embedded density={e_act_emb}")
-    print(f"{e_env=}, {two_e_cross=}, {correction=}, {e_nuc=}")
+    print(f"{e_env=}, {two_e_cross=}, {correction=}, {embed.nre=}")
     print(f"Final energy={e_mf_emb}")
 
     print(f"Final energy: {e_mf_emb}")
@@ -256,6 +256,8 @@ def run_closed_shell(keywords):
         embed.outfile.close()
     if keywords["package"].lower() == "psi4":
         os.system("rm newH.dat")
+
+    return e_mf_emb + e_correlation
 
 
 def run_open_shell(keywords):
