@@ -4,8 +4,13 @@ from spade import fill_defaults
 import numpy as np
 from scipy import linalg
 from pyscf import gto, scf, cc, ao2mo, fci
-import matplotlib.pyplot as plt
 import pandas as pd
+from pathlib import Path
+
+# Xserver is not set up on my WSL so turn of display
+import matplotlib as mpl
+mpl.use("Agg")
+import matplotlib.pyplot as plt
 
 
 def get_exact_energy(mol: gto.Mole, keywords: Dict):
@@ -111,7 +116,14 @@ def run_sim(mol: gto.Mole, keywords: Dict):
 
     embedded_occ_orbs = embedded_scf.mo_coeff[:, embedded_scf.mo_occ>0]
     embedded_density = 2*embedded_occ_orbs @ embedded_occ_orbs.T
-
+    
+    if "complex" in embedded_occ_orbs.dtype.name:
+        act_density = act_density.real
+        env_density = env_density.real
+        embedded_density = embedded_density.real
+        embedded_scf.mo_coeff = embedded_scf.mo_coeff.real
+        print("WARNING - IMAGINARY PARTS TO DENSITY")
+    
     # Calculate energy correction
     # - There are two versions used for different embeddings
     wf_correction = np.einsum("ij,ij", v_emb, embedded_density - act_density)
@@ -125,10 +137,7 @@ def run_sim(mol: gto.Mole, keywords: Dict):
     # Can use either of these methods 
     # This needs to change if we're not using PySCFEmbed
     # The j and k matrices are defined differently in PySCF and Psi4
-    e_act_emb_explicit = np.einsum("ij,ij", embedded_density,  initial_h_core + 0.5 * embedded_scf.get_j() - 0.25 * embedded_scf.get_k())
     e_act_emb = embedded_scf.energy_elec(dm=embedded_density, vhf=embedded_scf.get_veff())[0]
-    print(f"E_HF = {e_act_emb}")
-    print(f"Difference between HF methods: {e_act_emb - e_act_emb_explicit}")
 
     # Run CCSD as WF method
     ccsd = cc.CCSD(embedded_scf)
@@ -182,34 +191,48 @@ def main():
     # Assuming we want to look at water later.
     options['geometry'] = water_geometry
         
-    distances = np.linspace(0.1, 1.5, 20)
+    distances = np.linspace(1, 2.5, 15)
     values = {"FCI":[], "Embedding":[], "DFT":[]}
 
+    mol_name = "CO"
     for distance in distances:
+        print(f"Calculating with {distance=}")
         options['geometry'] = f"""
-        Li 0.0 0.0 0.0
-        H  0.0 0.0 {distance}
+        C 0.0 0.0 0.0
+        O  0.0 0.0 {distance}
         """
+        try:
+            mol = gto.Mole(atom=keywords['geometry'], basis=keywords['basis'], charge=0).build()
 
-        mol = gto.Mole(atom=keywords['geometry'], basis=keywords['basis'], charge=0).build()
+            e_initial, expected_energy, e_mf_emb = run_sim(mol, keywords)
 
-        e_initial, expected_energy, e_mf_emb = run_sim(mol, keywords)
-
-        values["DFT"].append(e_initial)
-        values["FCI"].append(expected_energy)
-        values["Embedding"].append(e_mf_emb)
+            values["DFT"].append(e_initial)
+            values["FCI"].append(expected_energy)
+            values["Embedding"].append(e_mf_emb)
+        except np.linalg.LinAlgError:
+            values["DFT"].append(None)
+            values["FCI"].append(None)
+            values["Embedding"].append(None)
     
     # Make a dataframe and write to file
-    df = pd.DataFrame([values["FCI"], values["Embedding"], values["DFT"]], columns=["FCI", "Embedding", "DFT"],index=distances)
-    filepath = Path(__file__).parent / f"data-{pd.Timestamp.now()}.csv"
-    df.to_csv(filepath, mode = "w")
+    df = pd.DataFrame(data=values, columns=["FCI", "Embedding", "DFT"], index=distances)
+    datapath = Path(__file__).parent / f"data/{mol_name}-{pd.Timestamp.now()}.csv"
+    df.to_csv(datapath, mode = "w")
+
+    dft_min = min(values["DFT"])
+    fci_min = min(values["FCI"])
+    emb_min = min(values["Embedding"])
 
     # Plot the results
-    plt.plot(distances, values["DFT"], label="DFT")
-    plt.plot(distances, values["FCI"], label="FCI")
-    plt.plot(distances, values["Embedding"], label="Embedding")
+    plt.plot(distances, values["FCI"], label=f"FCI min={fci_min:.3f}")
+    plt.plot(distances, values["Embedding"], label=f"Embedding min={emb_min:.3f}")
+    plt.plot(distances, values["DFT"], label=f"DFT min={dft_min:.3f}")
     plt.legend()
-    plt.show()
+    plt.xlabel("Distance (Angstrom)")
+    plt.ylabel("Energy")
+    plt.title(f"{mol_name} WF-in-DFT Embedding")
+    figpath = Path(__file__).parent / f"data/{mol_name}-{pd.Timestamp.now()}.png"
+    plt.savefig(figpath)
 
 
 if __name__ == "__main__":
