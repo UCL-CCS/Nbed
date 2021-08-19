@@ -6,6 +6,8 @@
 # gitignore template for Jupyter Notebooks
 # website: http://jupyter.org/
 
+# Data directory
+vqe_in_dft/data/
 
 tmp*
 
