@@ -4,12 +4,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from copy import deepcopy
-from openfermion.ops.representations import InteractionOperator
 from openfermion.transforms import jordan_wigner
+from openfermion.ops import FermionOperator
+import py3Dmol
+from pyscf.tools import cubegen
+import os
 
-class human():
-    def __init__(self, size):
-        hello
+# pip install py3Dmol
+# conda install conda-forge rdkit
+
+# may need to do:
+# pip install protobuf==3.13.0
 
 class standard_full_system_molecule():
 
@@ -105,18 +110,35 @@ class standard_full_system_molecule():
         self.e_xc_total = two_e_term_total.exc
         self.v_xc_total = two_e_term_total - self.full_system_scf.get_j() 
 
-    def plot_molecule_3D(self):
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
 
-        for i in range(self.N_active_atoms):
-            ax.scatter(*self.geometry[i][1:][0], marker='o', color='green', label='systemA')
+    def _get_xyz_format(self):
 
-        for coord in self.geometry[self.N_active_atoms:]:
-            ax.scatter(*coord[1:][0], marker='o', color='red', label='systemB')
+        if isinstance(self.geometry, str):
+            # if already xzy format
+            return self.geometry
+        
+        n_atoms = len(self.geometry)
+        xyz_str=f'{n_atoms}'
+        xyz_str+='\n \n'
+        for atom, xyz in self.geometry:
+            xyz_str+= f'{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n'
+        
+        return xyz_str
 
-        plt.legend()
-        plt.show()
+    def draw_molecule_3D(self, width=400, height=400, jupyter_notebook=False):
+
+        if jupyter_notebook is True:
+            import rdkit
+            from rdkit.Chem import Draw
+            from rdkit.Chem.Draw import IPythonConsole
+            rdkit.Chem.Draw.IPythonConsole.ipython_3d = True  # enable py3Dmol inline visualization
+
+        xyz_geom = self._get_xyz_format()
+        view = py3Dmol.view(width=width, height=height)
+        view.addModel(xyz_geom, "xyz")
+        view.setStyle({'stick':{}})
+        view.zoomTo()
+        return(view.show())
 
 
     def _run_fci(self):
@@ -132,10 +154,48 @@ class standard_full_system_molecule():
 
         self.E_FCI = self.my_fci.e_tot
 
+        # myci = ci.CISD(HF_scf).run() # this is UCISD
+        # print('UCISD total energy = ', myci.e_tot)
         return self.my_fci.e_tot
 
-# myci = ci.CISD(HF_scf).run() # this is UCISD
-# print('UCISD total energy = ', myci.e_tot)
+    def Draw_cube_orbital(self, xyz_string, cube_file, width=400, height=400):
+
+        view = py3Dmol.view(width=width, height=height)
+        view.addModel(xyz_string, "xyz")
+        view.setStyle({'stick':{}})
+        
+        with open(cube_file, 'r') as f:
+            view.addVolumetricData(f.read(), "cube", {'isoval': -0.02, 'color': "red", 'opacity': 0.75})
+        with open(cube_file, 'r') as f2:
+            view.addVolumetricData(f2.read(), "cube", {'isoval': 0.02, 'color': "blue", 'opacity': 0.75})
+        view.zoomTo()
+        return view.show()
+
+    def plot_orbital(self, C_matrix, index):
+        
+
+        xyz_geom = self._get_xyz_format()
+        if not isinstance(index, int):
+            raise ValueError(f'index: {index} required for slice is not an integar')
+        if  C_matrix.shape[1]<=index:
+            raise ValueError('index is outside of C_matrix shape')
+
+
+        File_name = f'temp_MO_orbital_index{index}.cube'
+        cubegen.orbital(self.full_system_mol, File_name, C_matrix[:, index])
+        self.Draw_cube_orbital(xyz_geom, File_name)
+        os.remove(File_name) # delete file once orbital is drawn
+
+        return None
+
+    def plot_all_orbitals(self, C_matrix):
+        
+        for MO_ind in range(C_matrix.shape[1]):
+            self.plot_orbital(C_matrix, MO_ind)
+        
+        return None
+
+
 
 class embedded_molecular_system(standard_full_system_molecule):
 
@@ -162,7 +222,9 @@ class embedded_molecular_system(standard_full_system_molecule):
             self.density_emb_active = None
 
 
-        def _Localize_orbitals(self, localization_method, sanity_check=False, save_localized_orbs=False):
+        def _Localize_orbitals(self, localization_method, sanity_check=False, save_localized_MO_orbs=False):
+
+            AO_slice_matrix = self.full_system_mol.aoslice_by_atom()
 
             # Take occupied orbitals of global system calc
             occupied_orbs = self.full_system_scf.mo_coeff[:,self.full_system_scf.mo_occ>0]
@@ -170,28 +232,21 @@ class embedded_molecular_system(standard_full_system_molecule):
             # run localization scheme
             if localization_method.lower() == 'spade':
 
-                # PsiEmbed
-                orthogonal_orbitals = occupied_orbs[:self.N_active_atoms, :] # take active rows and all columns
+                # Get active AO indices
+                N_active_AO = AO_slice_matrix[self.N_active_atoms-1][3]  # find max AO index for active atoms (neg 1 as python indexs from 0)
 
-                #### Alexis
-                # AO_slice_matrix = self.full_system_mol.aoslice_by_atom()
-                # # active_ao_ind=[]
-                # # for atm_i, atm_str in enumerate([atom_str for atom_str, _ in self.full_system_mol.atom][:self.N_active_atoms]):
-                # #     slice_ind = list(range(AO_slice_matrix[atm_i, 2], AO_slice_matrix[atm_i, 3]))
-                # #     active_ao_ind = [*active_ao_ind, *slice_ind]
-                # # active_ao_ind = np.array(active_ao_ind)
+                
+                S_half = sp.linalg.fractional_matrix_power(self.S_ovlp, 0.5)
+                orthogonal_orbitals = (S_half@occupied_orbs)[:N_active_AO, :] # Get rows (the active AO) of orthogonal orbs 
 
-                # active_ao_ind = np.arange(AO_slice_matrix[0,2], AO_slice_matrix[self.N_active_atoms,3]) # gets first and final ind 
-                # orthogonal_orbitals = occupied_orbs[active_ao_ind, :]
-
-                # Correct from here
+                # Comute singular vals
                 u, singular_values, rotation_matrix = np.linalg.svd(orthogonal_orbitals, full_matrices=True)
 
                 # find where largest step change 
                 # delta_s = singular_values[1:] - singular_values[:-1]
                 delta_s = [(i, (singular_values[i] - singular_values[i+1] )) for i in range(len(singular_values) - 1)] # contains (index, delta_s)
 
-                self.n_act_mos = max(delta_s, key=lambda x: x[0])[0] + 1 # finds index where largest step change is! (adds 1 for python indexing)
+                self.n_act_mos = max(delta_s, key=lambda x: x[0])[0] + 1 # finds index where largest step change is! (adds 1 due to python indexing going from 0)
                 self.n_env_mos = len(singular_values) - self.n_act_mos
 
                 # define active and environment orbitals from localization
@@ -200,46 +255,77 @@ class embedded_molecular_system(standard_full_system_molecule):
 
                 self.C_matrix_all_localized_orbitals = occupied_orbs @ rotation_matrix.T
 
-                self.active_ao_ind  = np.arange(self.n_act_mos)
-                self.enviro_ao_ind = np.arange(self.n_act_mos, self.n_act_mos+self.n_env_mos)
+                self.active_MO_inds  = np.arange(self.n_act_mos)
+                self.enviro_MO_inds = np.arange(self.n_act_mos, self.n_act_mos+self.n_env_mos)
 
             else:
+                THRESHOLD = 0.9
 
-                THRESHOLD = 1.5 # TODO: Remove this
+                # Take C matrix from SCF calc
+                # opt_C = self.full_system_scf.mo_coeff
 
-                PM = lo.PipekMezey(self.full_system_mol, occupied_orbs)
-                PM.pop_method = localization_method # 'mulliken', 'meta-lowdin', 'iao', 'becke'
-                C_loc_occ = PM.kernel() # <--  NEW C matrix (where orbitals are localized to atoms)
+                # run localization scheme
+                if localization_method.lower() == 'pipekmezey':
+                    ### PipekMezey
+                    PM = lo.PipekMezey(self.full_system_mol, occupied_orbs)
+                    PM.pop_method = 'mulliken' # 'meta-lowdin', 'iao', 'becke'
+                    C_loc_occ = PM.kernel() # includes virtual orbs too!
 
-                dm_localised = 2* C_loc_occ @ C_loc_occ.conj().T
-                PS_matrix = dm_localised @ self.S_ovlp
+                elif localization_method.lower() == 'boys':
+                    ### Boys
+                    boys_SCF = lo.boys.Boys(self.full_system_mol, occupied_orbs)
+                    C_loc_occ  = boys_SCF.kernel()
 
-                AO_slice_matrix = self.full_system_mol.aoslice_by_atom()
-                active_ao_ind=[]
-                atomic_charges_list = self.full_system_mol.atom_charges()
-                for atm_i, atm_str in enumerate([atom_str for atom_str, _ in self.full_system_mol.atom][:self.N_active_atoms]):
-                    slice_ind = list(range(AO_slice_matrix[atm_i, 2], AO_slice_matrix[atm_i, 3]))
+                elif localization_method.lower() == 'ibo':
+                    ### intrinsic bonding orbs
+                    C_loc = lo.ibo.ibo(self.full_system_mol, sum(self.full_system_scf.mo_occ)//2, locmethod='IBO', verbose=1)
+                    C_loc_occ = C_loc[:,self.full_system_scf.mo_occ>0]
+                else:
+                    raise ValueError(f'unknown localization method {localization_method}')
+                
+                                
+                # find indices of AO of active atoms
+                ao_active_inds = np.arange(AO_slice_matrix[0,2], AO_slice_matrix[self.N_active_atoms-1,3])
+
+                #### use einsum to be faster!
+
+                # MO_active_inds = []
+                # for mo_orb_loc_ind in range(C_loc_occ.shape[1]):
                     
-                    # print(atm_str)
-                    qA = atomic_charges_list[atm_i] #atomic charge of atom_i
-                    for k in slice_ind:
-                        mulliken_charge = qA - PS_matrix[k,k]  # mulliken charge of ao centred on atom_i
-                        mulliken_population = PS_matrix[k,k]  # mulliken pop of ao centred on atom_i
-                #         print(mulliken_charge)
-                        # print(mulliken_population)
-                        if mulliken_population>THRESHOLD: ### <--- not sure about this THRESHOLD
-                            active_ao_ind.append(k)
+                #     mo_overlap_with_active_ao = sum(C_loc_occ[ao_active_inds , mo_orb_loc_ind])
+                #     print(mo_overlap_with_active_ao)
+                #     if mo_overlap_with_active_ao>THRESHOLD:
+                #         mo_overlap_with_active_ao.append(mo_orb_loc_ind)
 
-                self.active_ao_ind = active_ao_ind
-                self.enviro_ao_ind = [ind for ind in range(C_loc_occ.shape[1]) if ind not in active_ao_ind]
+                #### 
 
-                self.n_act_mos = len(self.active_ao_ind)
-                self.n_env_mos = len(self.enviro_ao_ind)
-                # define active and environment orbitals from localization
-                self.act_orbitals = C_loc_occ[:, self.active_ao_ind]
-                self.env_orbitals = C_loc_occ[:, self.enviro_ao_ind]
+                # note only using OCCUPIED C_loc_occ
+                
+                # active_AO_MO_overlap = np.einsum('ij->j', C_loc_occ[ao_active_inds, :]) # (take active rows (active AOs) and all columns) sum  down columns (to give MO contibution from active AO)
+                S_half = sp.linalg.fractional_matrix_power(self.S_ovlp, 0.5)
+                ortho_localized_orbs =  S_half@C_loc_occ # make sure localized MOs are orthogonal!
+                # sum(np.abs(ortho_localized_orbs[:,ind])**2) # should equal 1 for any ind as normalized!
 
+                # TODO: Check this code here!!!!!
+                # active_AO_MO_overlap = np.einsum('ij->j', ortho_localized_orbs[ao_active_inds, :])# (take active rows (active AOs) and all columns) sum  down columns (to give MO contibution from active AO)
+                active_AO_MO_overlap = np.sqrt(np.einsum('ij->j', np.abs(ortho_localized_orbs[ao_active_inds, :])**2))
+
+                # IMPORTANT CHANGE HERE
+
+                # threshold to check which MOs have a high character from the active AOs 
+                self.active_MO_inds = np.where(active_AO_MO_overlap>THRESHOLD)[0]
+                self.enviro_MO_inds = np.array([i for i in range(C_loc_occ.shape[1]) if i not in self.active_MO_inds]) # get all non active MOs
+
+                # define active MO orbs and environment
+                self.act_orbitals = C_loc_occ[:, self.active_MO_inds] # take MO (columns of C_matrix) that have high dependence from active AOs
+                self.env_orbitals = C_loc_occ[:, self.enviro_MO_inds]
+                
                 self.C_matrix_all_localized_orbitals = C_loc_occ
+
+                self.n_act_mos = len(self.active_MO_inds)
+                self.n_env_mos = len(self.enviro_MO_inds)
+
+
 
             self.dm_active =  2 * self.act_orbitals @ self.act_orbitals.T
             self.dm_enviro =  2 * self.env_orbitals @ self.env_orbitals.T
@@ -258,7 +344,7 @@ class embedded_molecular_system(standard_full_system_molecule):
                     raise ValueError('gamma_full != gamma_active + gamma_enviro')
             
 
-            if save_localized_orbs:
+            if save_localized_MO_orbs:
                 # Save localized orbitals as molden file
                 with open('LOCALIZED_orbs.molden', 'w') as outfile:
                     tools.molden.header(self.full_system_mol,
@@ -267,8 +353,8 @@ class embedded_molecular_system(standard_full_system_molecule):
                                         self.full_system_mol,
                                          outfile, 
                                          self.act_orbitals, # <- active orbitals!
-                                         ene=self.full_system_scf.mo_energy[np.array(self.active_ao_ind)],
-                                         occ=self.full_system_scf.mo_occ[np.array(self.active_ao_ind)])
+                                         ene=self.full_system_scf.mo_energy[self.active_MO_inds],
+                                         occ=self.full_system_scf.mo_occ[self.active_MO_inds])
 
             return None
 
@@ -292,7 +378,7 @@ class embedded_molecular_system(standard_full_system_molecule):
 
             g_A = self.full_system_scf.get_veff(dm=self.dm_active)
 
-            # V_embed = G[𝛾_act + 𝛾_env] − G[𝛾_act]+Projector
+            # V_embed = G[𝛾_act + 𝛾_env] − G[𝛾_act] + Projector
             self.v_emb = g_A_and_B - g_A + projector
 
             return None
@@ -324,7 +410,7 @@ class embedded_molecular_system(standard_full_system_molecule):
 
 
             if self.dm_active is None:
-                _Localize_orbitals()
+                self._Localize_orbitals()
 
             # Define embedded system
             self.full_system_mol_EMBEDDED = gto.Mole(atom= self.geometry,
@@ -336,7 +422,7 @@ class embedded_molecular_system(standard_full_system_molecule):
             self.full_system_mol_EMBEDDED.build()
 
             # RE-DEFINE number of electrons in system
-            self.full_system_mol_EMBEDDED.nelectron = 2*len(self.active_ao_ind)
+            self.full_system_mol_EMBEDDED.nelectron = 2*len(self.active_MO_inds)
 
 
             if (self.low_level_scf_method == 'RKS' and self.high_level_scf_method=='RKS'):
@@ -344,7 +430,7 @@ class embedded_molecular_system(standard_full_system_molecule):
                 self.full_system_EMBEDDED_scf.verbose = self.pyscf_print_level
                 self.full_system_EMBEDDED_scf.max_memory= self.memory
                 self.full_system_EMBEDDED_scf.conv_tol = self.E_convergence_tol
-                self.full_system_EMBEDDED_scf.xc = self.low_level_xc_functional
+                self.full_system_EMBEDDED_scf.xc = self.low_level_xc_functional # <-- LOW level calculation (TODO: could change to high level)
 
             elif (self.low_level_scf_method == 'RKS' and self.high_level_scf_method=='CCSD'):
                 self.full_system_EMBEDDED_scf = scf.RHF(self.full_system_mol_EMBEDDED) # <-- HF calculation
@@ -393,16 +479,17 @@ class embedded_molecular_system(standard_full_system_molecule):
                # trygve helgaker pgs 20 - 23
                 RDM1_CC = embedded_cc_obj.make_rdm1() # from coupled cluster calc
                 # The diagonal elements of the **spin-orbital** one electron density matrix are the expectation values of the occupation-number operators!
-                if not np.isclose(np.trace(RDM1_CC), 2*len(self.active_ao_ind)):
+                if not np.isclose(np.trace(RDM1_CC), 2*len(self.active_MO_inds)):
                     raise ValueError('number of electrons in CC gamma_active not correct')
                 
 
 
                 RDM2_CC = embedded_cc_obj.make_rdm2() # from coupled cluster calc
                 RDM2_CC_transformed = np.transpose(RDM2_CC, (0, 2, 1, 3)).reshape([RDM2_CC.shape[0]**2, RDM2_CC.shape[0]**2])   # ijkl --> ij, kl matrix 
-                N=2*len(self.active_ao_ind)    
+                N=2*len(self.active_MO_inds)    
                 if not np.isclose(0.5*np.trace(RDM2_CC_transformed), 0.5*N*(N-1)):
                     raise ValueError('RDM 2e CC gamma_active not correct')        
+
 
             # Get gamma_active embedded
             EMBEDDED_occupied_orbs = self.full_system_EMBEDDED_scf.mo_coeff[:,self.full_system_EMBEDDED_scf.mo_occ>0]
@@ -411,7 +498,7 @@ class embedded_molecular_system(standard_full_system_molecule):
             self.density_emb_active = 2 * EMBEDDED_occupied_orbs @ EMBEDDED_occupied_orbs.conj().T
 
             ## check number of electrons makes sense:
-            if not np.isclose(np.trace(self.density_emb_active@self.S_ovlp), 2*len(self.active_ao_ind)):
+            if not np.isclose(np.trace(self.density_emb_active@self.S_ovlp), 2*len(self.active_MO_inds)):
                 raise ValueError('number of electrons in gamma_active not correct')
 
             return None
@@ -457,7 +544,7 @@ class embedded_molecular_system(standard_full_system_molecule):
             if self.high_level_scf_method == 'RKS':
 
                 pyscf_mol_input = deepcopy(self.full_system_mol)
-                pyscf_mol_input.nelectron = 2*len(self.active_ao_ind) # re-define number of electrons!
+                pyscf_mol_input.nelectron = 2*len(self.active_MO_inds) # re-define number of electrons!
 
                 self.full_system_scf_HIGH_LEVEL = scf.RKS(pyscf_mol_input)
                 self.full_system_scf_HIGH_LEVEL.verbose = self.pyscf_print_level
@@ -471,7 +558,7 @@ class embedded_molecular_system(standard_full_system_molecule):
             elif self.high_level_scf_method == 'CCSD':
 
                 pyscf_mol_input = deepcopy(self.full_system_mol)
-                pyscf_mol_input.nelectron = 2*len(self.active_ao_ind) # re-define number of electrons!
+                pyscf_mol_input.nelectron = 2*len(self.active_MO_inds) # re-define number of electrons!
 
                 self.full_system_scf_HIGH_LEVEL = scf.RHF(pyscf_mol_input) # <-- HF calc
                 self.full_system_scf_HIGH_LEVEL.verbose = self.pyscf_print_level
@@ -499,157 +586,194 @@ class embedded_molecular_system(standard_full_system_molecule):
 
 
 
-class VQE_embedded(embedded_molecular_system):
+class VQE_embedded():
 
-    def __init__(self, geometry, N_active_atoms, localization_method, projection_method, mu_level_shift=1e6,
-
-               low_level_scf_method='RKS', low_level_xc_functional= 'lda, vwn', E_convergence_tol = 1e-6, basis = 'STO-3G', output_file_name='output.dat',
-                unit= 'angstrom', pyscf_print_level=1, memory=4000, charge=0, spin=0, run_fci=False):
-
-        high_level_scf_method = 'CCSD'
-        high_level_xc_functional= None
-        super().__init__(geometry, N_active_atoms, localization_method, projection_method, high_level_scf_method, high_level_xc_functional, mu_level_shift,
-                           low_level_scf_method, low_level_xc_functional, E_convergence_tol, basis, output_file_name,
-                            unit, pyscf_print_level, memory, charge, spin, run_fci)
+    def __init__(self, C_matrix_optimized_embedded_OCC_and_VIRT, H_core_standard, nuclear_energy, PySCF_full_system_mol_obj, active_MO_inds):
 
 
+        self.C_matrix_optimized_embedded_OCC_and_VIRT = C_matrix_optimized_embedded_OCC_and_VIRT
+        self.H_core_standard = H_core_standard
+        self.H_fermionic = None
+        self.H_qubit = None
+        self.nuclear_energy = nuclear_energy
+        self.active_MO_inds =  active_MO_inds # in spatial (NOT spin) basis
 
-    def Get_one_and_two_body_integrals_embedded(self):
-        #2D array for one-body Hamiltonian (H_core) in the MO representation
-        # A 4-dimension array for electron repulsion integrals in the MO
-        # representation.  The integrals are computed as
-        # h[p,q,r,s]=\int \phi_p(x)* \phi_q(y)* V_{elec-elec} \phi_r(y) \phi_s(x) dxdy
-        if self.dm_active is None:
-            self._Get_embedded_potential()
+        self.full_system_mol = PySCF_full_system_mol_obj
 
 
-        canonical_orbitals  = self.C_matrix_all_localized_orbitals
-
-        # one_body_integrals
-        embedded_hcore = self.v_emb + self.standard_hcore 
-        one_body_integrals = canonical_orbitals.conj().T @ embedded_hcore @ canonical_orbitals
-
-        # two_body_integrals
-        pyscf_mol_input = deepcopy(self.full_system_mol)
-        pyscf_mol_input.nelectron = 2*len(self.active_ao_ind) # re-define number of electrons!
-
-        eri = ao2mo.kernel(pyscf_mol_input,
-                            canonical_orbitals)
-
-        n_orbitals = canonical_orbitals.shape[1]
-        eri = ao2mo.restore(1, # no permutation symmetry
-                              eri, 
-                            n_orbitals)
-
-        two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order='C')
-
-        return one_body_integrals, two_body_integrals
-
-    def Get_one_and_two_body_integrals_STANDARD(self):
+    def Get_one_and_two_body_integrals(self):
         #2D array for one-body Hamiltonian (H_core) in the MO representation
         # A 4-dimension array for electron repulsion integrals in the MO
         # representation.  The integrals are computed as
         # h[p,q,r,s]=\int \phi_p(x)* \phi_q(y)* V_{elec-elec} \phi_r(y) \phi_s(x) dxdy
 
-        canonical_orbitals  = self.full_system_scf.mo_coeff[:,self.full_system_scf.mo_occ>0]
-        
+        canonical_orbitals  = self.C_matrix_optimized_embedded_OCC_and_VIRT # includes virtual MOs!
+
 
         # one_body_integrals
-        one_body_integrals = canonical_orbitals.conj().T @ self.standard_hcore @ canonical_orbitals
+        one_body_integrals =  canonical_orbitals.conj().T @ self.H_core_standard @ canonical_orbitals # < psi_MO | H_core | psi)MO > # one_body_integrals
 
         # two_body_integrals
         eri = ao2mo.kernel(self.full_system_mol,
                             canonical_orbitals)
 
         n_orbitals = canonical_orbitals.shape[1]
-        eri = ao2mo.restore(1, # no permutation symmetry
+        two_body_integrals = ao2mo.restore(1, # no permutation symmetry
                               eri, 
                             n_orbitals)
 
-        two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order='C')
+        # two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order='C') # change to physists ordering
 
         return one_body_integrals, two_body_integrals
 
-    def spinorb_from_spatial(self, one_body_integrals, two_body_integrals):
-        EQ_TOLERANCE=1e-8
-        n_qubits = 2 * one_body_integrals.shape[0]
+    def get_active_space_integrals(self, one_body_integrals,
+                                   two_body_integrals,
+                                   occupied_indices=None,
+                                   active_indices=None):
+        """Restricts a molecule at a spatial orbital level to an active space
+        This active space may be defined by a list of active indices and
+            doubly occupied indices. Note that one_body_integrals and
+            two_body_integrals must be defined
+            n an orthonormal basis set.
+        Args:
+            one_body_integrals: One-body integrals of the target Hamiltonian
+            two_body_integrals: Two-body integrals of the target Hamiltonian
+            occupied_indices: A list of spatial orbital indices
+                indicating which orbitals should be considered doubly occupied.
+            active_indices: A list of spatial orbital indices indicating
+                which orbitals should be considered active.
+        Returns:
+            tuple: Tuple with the following entries:
+            **core_constant**: Adjustment to constant shift in Hamiltonian
+            from integrating out core orbitals
+            **one_body_integrals_new**: one-electron integrals over active
+            space.
+            **two_body_integrals_new**: two-electron integrals over active
+            space.
+        """
+        # Fix data type for a few edge cases
+        occupied_indices = [] if occupied_indices is None else occupied_indices
+        if (len(active_indices) < 1):
+            raise ValueError('Some active indices required for reduction.')
 
-        # Initialize Hamiltonian coefficients.
-        one_body_coefficients = np.zeros((n_qubits, n_qubits))
-        two_body_coefficients = np.zeros(
-            (n_qubits, n_qubits, n_qubits, n_qubits))
-        # Loop through integrals.
-        for p in range(n_qubits // 2):
-            for q in range(n_qubits // 2):
+        # Determine core constant
+        core_constant = 0.0
+        for i in occupied_indices:
+            core_constant += 2 * one_body_integrals[i, i]
+            for j in occupied_indices:
+                core_constant += (2 * two_body_integrals[i, j, j, i] -
+                                  two_body_integrals[i, j, i, j])
 
-                # Populate 1-body coefficients. Require p and q have same spin.
-                one_body_coefficients[2 * p, 2 * q] = one_body_integrals[p, q]
-                one_body_coefficients[2 * p + 1, 2 * q +
-                                      1] = one_body_integrals[p, q]
-                # Continue looping to prepare 2-body coefficients.
-                for r in range(n_qubits // 2):
-                    for s in range(n_qubits // 2):
+        # Modified one electron integrals
+        one_body_integrals_new = np.copy(one_body_integrals)
+        for u in active_indices:
+            for v in active_indices:
+                for i in occupied_indices:
+                    one_body_integrals_new[u, v] += (
+                        2 * two_body_integrals[i, u, v, i] -
+                        two_body_integrals[i, u, i, v])
 
-                        # Mixed spin
-                        two_body_coefficients[2 * p, 2 * q + 1, 2 * r + 1, 2 *
-                                              s] = (two_body_integrals[p, q, r, s])
-                        two_body_coefficients[2 * p + 1, 2 * q, 2 * r, 2 * s +
-                                              1] = (two_body_integrals[p, q, r, s])
-
-                        # Same spin
-                        two_body_coefficients[2 * p, 2 * q, 2 * r, 2 *
-                                              s] = (two_body_integrals[p, q, r, s])
-                        two_body_coefficients[2 * p + 1, 2 * q + 1, 2 * r +
-                                              1, 2 * s +
-                                              1] = (two_body_integrals[p, q, r, s])
-
-        # Truncate.
-        one_body_coefficients[
-            np.absolute(one_body_coefficients) < EQ_TOLERANCE] = 0.
-        two_body_coefficients[
-            np.absolute(two_body_coefficients) < EQ_TOLERANCE] = 0.
-
-        return one_body_coefficients, two_body_coefficients
+        # Restrict integral ranges and change M appropriately
+        return (core_constant,
+                one_body_integrals_new[np.ix_(active_indices, active_indices)],
+                two_body_integrals[np.ix_(active_indices, active_indices,
+                                             active_indices, active_indices)])
 
 
+    def spatial_to_spin(self, one_body_integrals, two_body_integrals):
+        """
+        Convert from spatial MOs to spin MOs
+        """
+        n_qubits = 2*one_body_integrals.shape[0]
 
-    def Get_H_embedded_for_VQE(self):
+        one_body_terms = np.zeros((n_qubits, n_qubits))
+        two_body_terms = np.zeros((n_qubits, n_qubits, n_qubits, n_qubits))
+
+        for p in range(n_qubits//2):
+            for q in range(n_qubits//2):
+                
+                one_body_terms[2*p, 2*q] = one_body_integrals[p,q] # spin UP
+                one_body_terms[(2*p + 1), (2*q +1)] = one_body_integrals[p,q] # spin DOWN
+                
+                # continue 2-body terms
+                for r in range(n_qubits//2):
+                    for s in range(n_qubits//2):
+                                        
+                        ### SAME spin                
+                        two_body_terms[2*p, 2*q , 2*r, 2*s] = two_body_integrals[p,q,r,s] # up up up up
+                        two_body_terms[(2*p+1), (2*q +1) , (2*r + 1), (2*s +1)] = two_body_integrals[p,q,r,s] # down down down down
+                        
+                        ### mixed spin                
+                        two_body_terms[2*p, 2*q , (2*r + 1), (2*s +1)] = two_body_integrals[p,q,r,s] # up up down down
+                        two_body_terms[(2*p+1), (2*q +1) , 2*r, 2*s] = two_body_integrals[p,q,r,s] # down down up up            
+                        
+        ### remove vanishing terms
+        EQ_Tolerance=1e-8
+        one_body_terms[np.abs(one_body_terms)<EQ_Tolerance]=0
+        two_body_terms[np.abs(two_body_terms)<EQ_Tolerance]=0
+
+        return one_body_terms, two_body_terms
+
+    def Get_H_fermionic(self):
         
 
-        constant = self.full_system_scf.energy_nuc() 
+        one_body_integrals_FULL, two_body_integrals_FULL = self.Get_one_and_two_body_integrals()
 
-        one_body_integrals, two_body_integrals = self.Get_one_and_two_body_integrals_embedded()
+        active_space_const, one_body_integrals_active, two_body_integrals_active = self.get_active_space_integrals(one_body_integrals_FULL,
+                                                                                                                   two_body_integrals_FULL,
+                                                                                                                   occupied_indices=None,
+                                                                                                                   active_indices=self.active_MO_inds) # only consider active MOs
 
-        one_body_coefficients, two_body_coefficients = self.spinorb_from_spatial(one_body_integrals, two_body_integrals)
+        # convert to spin orbs
+        one_body_terms, two_body_terms = self.spatial_to_spin(one_body_integrals_active, two_body_integrals_active)
 
-        molecular_hamiltonian = InteractionOperator(constant,
-                                                    one_body_coefficients,
-                                                    1 / 2 * two_body_coefficients)
 
-        # n_qubits = two_body_coefficients.shape[0]
+        # build fermionic Hamiltonian
+        H_fermionic = FermionOperator((),  self.nuclear_energy + active_space_const)
+        # two_body_terms = two_body_terms.transpose(0,2,3,1) # for physist notation!
 
+        # one body terms
+        for p in range(one_body_terms.shape[0]):
+            for q in range(one_body_terms.shape[0]):
+                
+                H_fermionic += one_body_terms[p,q] * FermionOperator(((p, 1), (q, 0)))
+                
+                # two body terms
+                for r in range(two_body_terms.shape[0]):
+                    for s in range(two_body_terms.shape[0]):
+                        
+                        ######## physist notation
+                        ## (requires:
+                        ##           two_body_terms transpose (0,2,3,1) before loop starts!
+                        ##)
+        #                 H_qubit += 0.5*two_body_terms[p,q,r,s] * FermionOperator(((p, 1), (q, 1), (r,0), (s, 0)))
+                        
+                        ######## chemist notation
+                        H_fermionic += 0.5*two_body_terms[p,q,r,s] * FermionOperator(((p, 1), (r, 1), (s,0), (q, 0)))
+
+        self.H_fermionic = H_fermionic
+        return None
+
+    def Get_H_qubit(self):
         
-        Qubit_Hamiltonian = jordan_wigner(molecular_hamiltonian)
+        if self.H_fermionic is None:
+            self.Get_H_fermionic()
 
-        return Qubit_Hamiltonian
+        self.H_qubit = jordan_wigner(self.H_fermionic)
+        return None
 
 
-    def Get_H_standard_for_VQE(self):
-        
+    def Get_qubit_Energy(self):
+        from openfermion.linalg import get_sparse_operator
 
-        constant = self.full_system_scf.energy_nuc() 
+        if self.H_qubit is None:
+            self.Get_H_qubit()
 
-        one_body_integrals, two_body_integrals = self.Get_one_and_two_body_integrals_STANDARD()
+        H_JW_mat = get_sparse_operator(self.H_qubit)
+        eigvals_EMBED, eigvecs_EMBED = sp.sparse.linalg.eigsh(H_JW_mat, which='SA', k=1)
 
-        one_body_coefficients, two_body_coefficients = self.spinorb_from_spatial(one_body_integrals, two_body_integrals)
+        # print(np.binary_repr(np.where(eigvecs_EMBED>1e-2)[0][0]).count('1') )
+        # print(eigvals_EMBED)
 
-        molecular_hamiltonian = InteractionOperator(constant,
-                                                    one_body_coefficients,
-                                                    1 / 2 * two_body_coefficients)
+        return eigvals_EMBED, eigvecs_EMBED
 
-        # n_qubits = two_body_coefficients.shape[0]
-
-        
-        Qubit_Hamiltonian = jordan_wigner(molecular_hamiltonian)
-
-        return Qubit_Hamiltonian
