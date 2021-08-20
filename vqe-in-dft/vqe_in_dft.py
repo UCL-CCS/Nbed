@@ -226,11 +226,13 @@ class embedded_molecular_system(standard_full_system_molecule):
 
             AO_slice_matrix = self.full_system_mol.aoslice_by_atom()
 
-            # Take occupied orbitals of global system calc
-            occupied_orbs = self.full_system_scf.mo_coeff[:,self.full_system_scf.mo_occ>0]
+            
 
             # run localization scheme
             if localization_method.lower() == 'spade':
+
+                # Take occupied orbitals of global system calc
+                occupied_orbs = self.full_system_scf.mo_coeff[:,self.full_system_scf.mo_occ>0]
 
                 # Get active AO indices
                 N_active_AO = AO_slice_matrix[self.N_active_atoms-1][3]  # find max AO index for active atoms (neg 1 as python indexs from 0)
@@ -262,19 +264,21 @@ class embedded_molecular_system(standard_full_system_molecule):
                 THRESHOLD = 0.9
 
                 # Take C matrix from SCF calc
-                # opt_C = self.full_system_scf.mo_coeff
+                opt_C = self.full_system_scf.mo_coeff
 
                 # run localization scheme
                 if localization_method.lower() == 'pipekmezey':
                     ### PipekMezey
-                    PM = lo.PipekMezey(self.full_system_mol, occupied_orbs)
+                    PM = lo.PipekMezey(self.full_system_mol, opt_C)
                     PM.pop_method = 'mulliken' # 'meta-lowdin', 'iao', 'becke'
-                    C_loc_occ = PM.kernel() # includes virtual orbs too!
+                    C_loc = PM.kernel() # includes virtual orbs too!
+                    C_loc_occ = C_loc[:,self.full_system_scf.mo_occ>0]
 
                 elif localization_method.lower() == 'boys':
                     ### Boys
-                    boys_SCF = lo.boys.Boys(self.full_system_mol, occupied_orbs)
-                    C_loc_occ  = boys_SCF.kernel()
+                    boys_SCF = lo.boys.Boys(self.full_system_mol, opt_C)
+                    C_loc  = boys_SCF.kernel()
+                    C_loc_occ = C_loc[:,self.full_system_scf.mo_occ>0]
 
                 elif localization_method.lower() == 'ibo':
                     ### intrinsic bonding orbs
@@ -301,19 +305,36 @@ class embedded_molecular_system(standard_full_system_molecule):
 
                 # note only using OCCUPIED C_loc_occ
                 
-                # active_AO_MO_overlap = np.einsum('ij->j', C_loc_occ[ao_active_inds, :]) # (take active rows (active AOs) and all columns) sum  down columns (to give MO contibution from active AO)
-                S_half = sp.linalg.fractional_matrix_power(self.S_ovlp, 0.5)
-                ortho_localized_orbs =  S_half@C_loc_occ # make sure localized MOs are orthogonal!
-                # sum(np.abs(ortho_localized_orbs[:,ind])**2) # should equal 1 for any ind as normalized!
+                # # active_AO_MO_overlap = np.einsum('ij->j', C_loc_occ[ao_active_inds, :]) # (take active rows (active AOs) and all columns) sum  down columns (to give MO contibution from active AO)
+                # S_half = sp.linalg.fractional_matrix_power(self.S_ovlp, 0.5)
+                # ortho_localized_orbs =  S_half@C_loc_occ # make sure localized MOs are orthogonal!
+                # # sum(np.abs(ortho_localized_orbs[:,ind])**2) # should equal 1 for any ind as normalized!
 
-                # TODO: Check this code here!!!!!
-                # active_AO_MO_overlap = np.einsum('ij->j', ortho_localized_orbs[ao_active_inds, :])# (take active rows (active AOs) and all columns) sum  down columns (to give MO contibution from active AO)
-                active_AO_MO_overlap = np.sqrt(np.einsum('ij->j', np.abs(ortho_localized_orbs[ao_active_inds, :])**2))
+                # # TODO: Check this code here!!!!!
+                # # active_AO_MO_overlap = np.einsum('ij->j', ortho_localized_orbs[ao_active_inds, :])# (take active rows (active AOs) and all columns) sum  down columns (to give MO contibution from active AO)
+                # # active_AO_MO_overlap = np.sqrt(np.einsum('ij->j', np.abs(ortho_localized_orbs[ao_active_inds, :])**2))
+                # active_AO_MO_overlap = np.einsum('ij->j', C_loc_occ[ao_active_inds, :])
+                # print(active_AO_MO_overlap)
 
-                # IMPORTANT CHANGE HERE
+                # # threshold to check which MOs have a high character from the active AOs 
+                # # self.active_MO_inds = np.where(active_AO_MO_overlap>THRESHOLD)[0]
+                # # IMPORTANT CHANGE HERE
+
+                active_MO_ind_list=[]
+                for mo_ind in range(C_loc_occ.shape[1]):
+                    MO_orb = C_loc_occ[:, mo_ind] # MO coefficients (c_j)
+                    MO_active_AO_overlap=0
+                    for active_AO_index in ao_active_inds:
+                        bra_aoI_ket_All_AOs = self.S_ovlp[active_AO_index, :] # [ < ϕ_AO_SELECTED | ϕ_AO_0> , < ϕ_AO_SELECTED | ϕ_AO_1>, ..., < ϕ_AO_SELECTED | ϕ_AO_M> ]
+                        AO_i_overlap_MO = np.dot(bra_aoI_ket_All_AOs.T, MO_orb) # < ϕ_AO_i |ψ_MO> = Σ_j  (c_j < ϕ_AO_i | ϕ_AO_j >) # aka summation of ci and overlap
+                        MO_active_AO_overlap+=AO_i_overlap_MO
+                    if MO_active_AO_overlap>THRESHOLD:
+                        active_MO_ind_list.append(mo_ind)
+
+                self.active_MO_inds = np.array(active_MO_ind_list)
 
                 # threshold to check which MOs have a high character from the active AOs 
-                self.active_MO_inds = np.where(active_AO_MO_overlap>THRESHOLD)[0]
+                # self.active_MO_inds = np.where(active_AO_MO_overlap>THRESHOLD)[0]
                 self.enviro_MO_inds = np.array([i for i in range(C_loc_occ.shape[1]) if i not in self.active_MO_inds]) # get all non active MOs
 
                 # define active MO orbs and environment
