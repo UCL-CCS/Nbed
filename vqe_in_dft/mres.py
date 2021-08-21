@@ -1,16 +1,34 @@
 from copy import copy
-from typing import Dict
+from ctypes import wstring_at
+from typing import Dict, Optional
 from spade import fill_defaults
 import numpy as np
 from scipy import linalg
 from pyscf import gto, scf, cc, ao2mo, fci
 import pandas as pd
 from pathlib import Path
+from pyscf import ao2mo
+from openfermion.ops.representations import InteractionOperator, get_active_space_integrals
+from openfermion.linalg import eigenspectrum, expectation
+from openfermion.transforms import jordan_wigner
+from typing import List, Dict, Any
 
 # Xserver is not set up on my WSL so turn of display
 import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
+
+import argparse
+
+def parse():
+    parser = argparse.ArgumentParser(description="Get results for MRes")
+    parser.add_argument("--comparison", type=str, choices=["method", "space"], default=2, help="Number of active atoms")
+    parser.add_argument("--as_reduction", type=int, default=0, help="Number of orbitals to remove from active space.")
+    parser.add_argument("--save", action="store_true", default=False, help="Save the results to a csv file.")
+    parser.add_argument("--plot", action="store_true", default=False, help="Plot the results.")
+    args = parser.parse_args()
+
+    return args
 
 
 def get_exact_energy(mol: gto.Mole, keywords: Dict):
@@ -36,6 +54,8 @@ def spade_localisation(scf_method, keywords):
     rotated_orbitals = linalg.fractional_matrix_power(ao_overlap, 0.5) @ occupied_orbitals
     _, sigma, right_vectors = linalg.svd(rotated_orbitals[:n_act_aos, :])
 
+    print(f"Singular Values: {sigma}")
+
     #n_act_mos, n_env_mos = embed.orbital_partition(sigma)
     value_diffs = sigma[1:]-sigma[:-1]
     n_act_mos = np.argmin(value_diffs) + 1
@@ -47,6 +67,7 @@ def spade_localisation(scf_method, keywords):
     act_density = 2.0 * act_orbitals @ act_orbitals.T
     env_density = 2.0 * env_orbitals @ env_orbitals.T
     return n_act_mos, n_env_mos, act_density, env_density
+
 
 def closed_shell_subsystem(scf_method, density):
     #It seems that PySCF lumps J and K in the J array 
@@ -60,21 +81,59 @@ def closed_shell_subsystem(scf_method, density):
     e = np.einsum("ij,ij", density, scf_method.get_hcore() + j/2) + e_xc
     return e, e_xc, j, k, v_xc
 
-def run_sim(mol: gto.Mole, keywords: Dict):
+
+def get_active_indices(scf_method, n_act_mos: int, n_env_mos: int, reduction: Optional[int]=None) -> np.ndarray:
+    nao = scf_method.mol.nao
+    max_reduction = nao-n_act_mos-n_env_mos
+
+    # Check that the reduction is sensible
+    # Needs to set to none for slice
+    if reduction > max_reduction:
+        raise Exception(f"Active space reduction too large. Max size {max_reduction}")
+    
+    # Find the active indices
+    env_indices = [i + n_act_mos for i in range(n_env_mos)]
+    active_indices = [i for i in range(nao) if i not in env_indices]
+
+    if reduction:
+        active_indices = active_indices[:-reduction]
+
+    return np.array(active_indices)
+
+
+def get_qubit_hamiltonian(scf_method, active_indices: List[int]):
+    one_body_ints = scf_method.mo_coeff.T @ scf_method.get_hcore() @ scf_method.mo_coeff
+    
+    # Get the 1e and 2e integrals for whole system
+    eri = scf_method.mol.intor("int2e", aosym=1)
+    mo_eri = ao2mo.incore.full(eri, scf_method.mo_coeff, compact=False)
+    nao = scf_method.mol.nao
+    two_body_ints = mo_eri.reshape(nao, nao, nao, nao)
+    _, act_one_body, act_two_body = get_active_space_integrals(one_body_ints, 
+        two_body_ints,
+        active_indices=active_indices
+        )
+    
+    molecular_hamiltonian = InteractionOperator(0,
+                                            act_one_body,
+                                            0.5 * act_two_body)
+
+    Qubit_Hamiltonian = jordan_wigner(molecular_hamiltonian)
+
+    return Qubit_Hamiltonian
+
+
+def run_sim(mol: gto.Mole, keywords: Dict[str, Any], orbital_reduction: int=None):
+
+    if orbital_reduction is None:
+        orbital_reduction=0
+
+    e_nuc = mol.energy_nuc()
 
     ks = scf.RKS(mol)
     ks.conv_tol = keywords["e_convergence"]
     ks.xc = keywords["low_level"]
     e_initial = ks.kernel()
-
-    # Store the initial value of h core as this is needed later,
-    # but is overwritten
-
-    initial_h_core = ks.get_hcore()
-
-    mol_copy = copy(mol)
-
-    expected_energy = get_exact_energy(mol_copy, keywords)
 
     n_act_mos, n_env_mos, act_density, env_density = spade_localisation(ks, keywords)
 
@@ -83,6 +142,8 @@ def run_sim(mol: gto.Mole, keywords: Dict):
     closed_shell_subsystem(ks, act_density))
     e_env, e_xc_env, j_env, k_env, v_xc_env = (
     closed_shell_subsystem(ks, env_density))
+
+    active_indices = get_active_indices(ks, n_act_mos, n_env_mos, orbital_reduction)
 
     # Computing cross subsystem terms
     # Note that the matrix dot product is equivalent to the trace.
@@ -117,27 +178,35 @@ def run_sim(mol: gto.Mole, keywords: Dict):
     embedded_occ_orbs = embedded_scf.mo_coeff[:, embedded_scf.mo_occ>0]
     embedded_density = 2*embedded_occ_orbs @ embedded_occ_orbs.T
     
-    if "complex" in embedded_occ_orbs.dtype.name:
-        act_density = act_density.real
-        env_density = env_density.real
-        embedded_density = embedded_density.real
-        embedded_scf.mo_coeff = embedded_scf.mo_coeff.real
-        print("WARNING - IMAGINARY PARTS TO DENSITY")
+    # if "complex" in embedded_occ_orbs.dtype.name:
+    #     act_density = act_density.real
+    #     env_density = env_density.real
+    #     embedded_density = embedded_density.real
+    #     embedded_scf.mo_coeff = embedded_scf.mo_coeff.real
+    #     print("WARNING - IMAGINARY PARTS TO DENSITY")
     
     # Calculate energy correction
     # - There are two versions used for different embeddings
-    wf_correction = np.einsum("ij,ij", v_emb, embedded_density - act_density)
-    dft_correction = np.einsum("ij,ij", act_density, v_emb)
+    dm_correction = np.einsum("ij,ij", v_emb, embedded_density - act_density)
+    wf_correction = np.einsum("ij,ij", act_density, v_emb)
 
-    print(f"{wf_correction=}, {dft_correction=}")
+    print(f"{wf_correction=}, {dm_correction=}")
 
+    # WF Method
     # Calculate the energy of embedded A
     embedded_scf.get_hcore = lambda *args, **kwargs: h_core
+
+    # Quantum Method
+    q_ham = get_qubit_hamiltonian(embedded_scf, active_indices)
+    e_vqe_act = eigenspectrum(q_ham)[0]
 
     # Can use either of these methods 
     # This needs to change if we're not using PySCFEmbed
     # The j and k matrices are defined differently in PySCF and Psi4
-    e_act_emb = embedded_scf.energy_elec(dm=embedded_density, vhf=embedded_scf.get_veff())[0]
+    e_wf_act = embedded_scf.energy_elec(dm=embedded_density, vhf=embedded_scf.get_veff())[0]
+    
+    # Add all the parts up
+    e_vqe_emb = e_vqe_act + e_env + two_e_cross - wf_correction + e_nuc
 
     # Run CCSD as WF method
     ccsd = cc.CCSD(embedded_scf)
@@ -148,27 +217,54 @@ def run_sim(mol: gto.Mole, keywords: Dict):
     fos = [i for i in range(shift, mol.nao)]
     ccsd.frozen = fos
 
-    ccsd.run()
-    correlation = ccsd.e_corr
-    e_act_emb += correlation
+    try:
+        ccsd.run()
+        correlation = ccsd.e_corr
+        e_wf_act += correlation
+    except np.linalg.LinAlgError as e:
+        print("\n====CCSD ERROR====\n")
+        print(e)
 
+    # Add up the parts again
+    e_wf_emb = e_wf_act + e_env + two_e_cross + e_nuc + dm_correction
 
-    # Add all the parts up
-    e_nuc = mol.energy_nuc()
-
-    e_mf_emb = e_act_emb + e_env + two_e_cross + wf_correction + e_nuc
     print("Component contributions")
-    print(f"{e_act_emb=}, {e_env=}, {two_e_cross=}, {wf_correction=}, {e_nuc=}\n")
+    print(f"{e_vqe_emb=}, {e_wf_emb=}, {e_env=}, {two_e_cross=}, {wf_correction=}, {e_nuc=}\n")
 
-    # Print out the final value.
-    print(f"Full system low-level Energy:\t{e_initial}\n")
-    print(f"FCI Energy:\t\t\t{expected_energy}")
-    print(f"Embedding Energy:\t\t{e_mf_emb}")
-    print(f"Error:\t\t\t\t{(expected_energy-e_mf_emb)*100/expected_energy:.2f}%\n\n")
+    return e_initial, e_vqe_emb, e_wf_emb
 
-    return e_initial, expected_energy, e_mf_emb
+def plot_methods(distances, values, mol_name):
+    # Plot the results with no active space reduction
+    mins = {}
+    fig = plt.figure()
+    for key, data in values[0].items():
+        mins[key] = min([i for i in data if i is not None])
+        plt.plot(distances, data, label=f"{key} (min={mins[key]:.3f})")
 
-def main():
+    plt.legend()
+    plt.xlabel("Distance (Angstrom)")
+    plt.ylabel("Energy")
+    plt.title(f"{mol_name} Embedding Methods")
+    figpath = Path(__file__).parent / f"data/{mol_name}-{0}-{pd.Timestamp.now()}.png"
+    plt.savefig(figpath)
+
+def plot_vqe_reductions(distances, values, mol_name, mo_reduction):
+    # Plot vqe with reduced active space
+    mins = {}
+    fig = plt.figure()
+    vqe_data = {i: values[i]["VQE"] for i in mo_reduction}
+    for key, data in vqe_data.items():
+        mins[key] = min([i for i in data if i is not None])
+        plt.plot(distances, data, label=f"Space Reduction={key} (min={mins[key]:.3f})")
+
+    plt.legend()
+    plt.xlabel("Distance (Angstrom)")
+    plt.ylabel("Energy")
+    plt.title(f"{mol_name} VQE Active Space Reduction")
+    figpath = Path(__file__).parent / f"data/{mol_name}-VQE-{pd.Timestamp.now()}.png"
+    plt.savefig(figpath)
+
+def main(mo_reduction: List[int] =None, save=False, plot=False):
     "Run for some molecule and a range of values"
 
     water_geometry = """
@@ -191,49 +287,54 @@ def main():
     # Assuming we want to look at water later.
     options['geometry'] = water_geometry
         
-    distances = np.linspace(1, 2.5, 15)
-    values = {"FCI":[], "Embedding":[], "DFT":[]}
+    distances = np.linspace(0.5, 3, 25)
 
-    mol_name = "CO"
-    for distance in distances:
-        print(f"Calculating with {distance=}")
+    values = {i: {"FCI":[], "DFT":[], "WF":[], "VQE":[]} for i in mo_reduction}
+    mol_name = "LiH"
+    for distance in distances[0:1]:
         options['geometry'] = f"""
-        C 0.0 0.0 0.0
-        O  0.0 0.0 {distance}
+        Li 0.0 0.0 0.0
+        H 0.0 0.0 {distance}
         """
-        try:
+        options["geometry"] = water_geometry
+
+        mol = gto.Mole(atom=keywords['geometry'], basis=keywords['basis'], charge=0).build()
+        expected_energy = get_exact_energy(mol, keywords)
+
+        for reduction in mo_reduction:
             mol = gto.Mole(atom=keywords['geometry'], basis=keywords['basis'], charge=0).build()
 
-            e_initial, expected_energy, e_mf_emb = run_sim(mol, keywords)
+            e_initial, e_vqe_emb, e_wf_emb = run_sim(mol, keywords, reduction)
 
-            values["DFT"].append(e_initial)
-            values["FCI"].append(expected_energy)
-            values["Embedding"].append(e_mf_emb)
-        except np.linalg.LinAlgError:
-            values["DFT"].append(None)
-            values["FCI"].append(None)
-            values["Embedding"].append(None)
-    
-    # Make a dataframe and write to file
-    df = pd.DataFrame(data=values, columns=["FCI", "Embedding", "DFT"], index=distances)
-    datapath = Path(__file__).parent / f"data/{mol_name}-{pd.Timestamp.now()}.csv"
-    df.to_csv(datapath, mode = "w")
+            # Print out the final value.
+            print(f"Calculating with {distance=}")
+            print(f"Active space {reduction=}")
+            print(f"FCI Energy:\t\t\t{expected_energy}\n")
+            print(f"Full system low-level Energy:\t{e_initial}")
+            print(f"Error:\t\t\t\t{(expected_energy-e_initial)*100/expected_energy:.2f}%\n")
+            print(f"VQE-in-DFT Energy:\t\t{e_vqe_emb}")
+            print(f"Error:\t\t\t\t{(expected_energy-e_vqe_emb)*100/expected_energy:.2f}%\n")
+            print(f"WF-in-DFT Energy:\t\t{e_wf_emb}")
+            print(f"Error:\t\t\t\t{(expected_energy-e_wf_emb)*100/expected_energy:.2f}%\n\n")
 
-    dft_min = min(values["DFT"])
-    fci_min = min(values["FCI"])
-    emb_min = min(values["Embedding"])
+            values[reduction]["FCI"].append(expected_energy)
+            values[reduction]["DFT"].append(e_initial)
+            values[reduction]["WF"].append(e_wf_emb)
+            values[reduction]["VQE"].append(e_vqe_emb)
 
-    # Plot the results
-    plt.plot(distances, values["FCI"], label=f"FCI min={fci_min:.3f}")
-    plt.plot(distances, values["Embedding"], label=f"Embedding min={emb_min:.3f}")
-    plt.plot(distances, values["DFT"], label=f"DFT min={dft_min:.3f}")
-    plt.legend()
-    plt.xlabel("Distance (Angstrom)")
-    plt.ylabel("Energy")
-    plt.title(f"{mol_name} WF-in-DFT Embedding")
-    figpath = Path(__file__).parent / f"data/{mol_name}-{pd.Timestamp.now()}.png"
-    plt.savefig(figpath)
+    if save:
+        for reduction in mo_reduction:
+            # Make a dataframe and write to file
+            df = pd.DataFrame(data=values[reduction], columns=["FCI", "DFT", "WF", "VQE"], index=distances)
+            datapath = Path(__file__).parent / f"data/{mol_name}-{reduction=}-{pd.Timestamp.now()}.csv"
+            df.to_csv(datapath, mode = "w")
 
+    if plot:
+        plot_methods(distances, values, mol_name)
+
+        plot_vqe_reductions(distances, values, mol_name, mo_reduction)
 
 if __name__ == "__main__":
-    main()
+    args = parse()
+    args.mo_reduction = [2]
+    main(args.mo_reduction)
