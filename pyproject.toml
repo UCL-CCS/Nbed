@@ -7,6 +7,12 @@ authors = ["Michael Williams <michael.williams.20@ucl.ac.uk>"]
 [tool.poetry.dependencies]
 python = "^3.9"
 pyscf = "=1.7.6.post1"
+openfermion = "<1.1.0"
+qiskit = "^0.29.0"
+qiskit-nature = "^0.2.0"
+PennyLane = "^0.17.0"
+PennyLane-Qchem = "^0.17.0"
+tequila-basic = "^1.6.0"
 
 [tool.poetry.dev-dependencies]
 black = "^21.6b0"
@@ -14,6 +20,7 @@ flake8 = "^3.9.2"
 pydocstyle = "^6.1.1"
 pytest = "^6.2.4"
 mypy = "^0.902"
+bpython = "^0.21"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
