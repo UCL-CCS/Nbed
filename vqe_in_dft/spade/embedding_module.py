@@ -66,11 +66,15 @@ def run_closed_shell(keywords):
         keywords, embed
     )
 
+    print(f"{act_orbitals.shape=}, {env_orbitals.shape=}")
+
     initial_h_core = embed.h_core
 
     # Retrieving the subsytem energy terms and potential matrices
     e_act, e_xc_act, j_act, k_act, v_xc_act = embed.closed_shell_subsystem(act_orbitals)
     e_env, e_xc_env, j_env, k_env, v_xc_env = embed.closed_shell_subsystem(env_orbitals)
+
+    print(f"{e_act=}, {e_env=}")
 
     # Computing cross subsystem terms
     j_cross = 0.5 * (
@@ -99,6 +103,8 @@ def run_closed_shell(keywords):
         embed.ao_overlap @ env_density @ embed.ao_overlap
     )
     v_emb = j_env - embed.alpha * k_env + embed.v_xc_total - v_xc_act + projector
+    print(f"{np.mean(v_emb)=}")
+    
     # h_core_emb = h_core + embedding_potential + projector
 
     embed.save_details(v_emb=v_emb, act_orbitals=act_orbitals)
@@ -118,15 +124,15 @@ def run_closed_shell(keywords):
         e_act_emb = embed.trace(
             density_emb, initial_h_core + 0.5 * embed.j - 0.25 * embed.k
         )
+    print(embed._mean_field.mo_energy)
     # Compute the total energy
     correction = embed.trace(v_emb, density_emb - act_density)
     e_mf_emb = e_act_emb + e_env + two_e_cross + embed.nre + correction
     embed.print_scf(e_act, e_env, two_e_cross, e_act_emb, correction)
     print(f"E with embedded density={e_act_emb}")
     print(f"{e_env=}, {two_e_cross=}, {correction=}, {embed.nre=}")
-    print(f"Final energy={e_mf_emb}")
+    print(f"E embedded HF={e_mf_emb}")
 
-    print(f"Final energy: {e_mf_emb}")
     print(f"{e_act_emb=}, {e_env=}, {two_e_cross=}, {embed.nre=}, {correction=}")
     
     # --- Post embedded HF calculation ---
@@ -138,7 +144,7 @@ def run_closed_shell(keywords):
                 keywords["high_level"].upper(), keywords["low_level"].upper(), e_total
             )
         )
-        print(f"{e_total=}")
+        print(f"E embedded + correlation={e_total}")
     else:
         assert isinstance(keywords["n_cl_shell"], int)
         embed.outfile.write(
