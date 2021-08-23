@@ -57,9 +57,9 @@ def spade_localisation(scf_method, keywords):
     print(f"Singular Values: {sigma}")
 
     #n_act_mos, n_env_mos = embed.orbital_partition(sigma)
-    value_diffs = sigma[1:]-sigma[:-1]
-    n_act_mos = np.argmin(value_diffs) + 1
-    n_env_mos = len(sigma) - n_act_mos
+    value_diffs = sigma[:-1]-sigma[1:]
+    n_act_mos = np.argmax(value_diffs) + 1
+    n_env_mos = n_occupied_orbitals - n_act_mos
 
     # Defining active and environment orbitals and density
     act_orbitals = occupied_orbitals @ right_vectors.T[:, :n_act_mos]
@@ -291,12 +291,12 @@ def main(mo_reduction: List[int] =None, save=False, plot=False):
 
     values = {i: {"FCI":[], "DFT":[], "WF":[], "VQE":[]} for i in mo_reduction}
     mol_name = "LiH"
-    for distance in distances[0:1]:
+    for distance in distances:
         options['geometry'] = f"""
         Li 0.0 0.0 0.0
         H 0.0 0.0 {distance}
         """
-        options["geometry"] = water_geometry
+        #options["geometry"] = water_geometry
 
         mol = gto.Mole(atom=keywords['geometry'], basis=keywords['basis'], charge=0).build()
         expected_energy = get_exact_energy(mol, keywords)
@@ -320,7 +320,8 @@ def main(mo_reduction: List[int] =None, save=False, plot=False):
             values[reduction]["FCI"].append(expected_energy)
             values[reduction]["DFT"].append(e_initial)
             values[reduction]["WF"].append(e_wf_emb)
-            values[reduction]["VQE"].append(e_vqe_emb)
+            # TODO fix this back
+            values[reduction]["VQE"].append(e_wf_emb)
 
     if save:
         for reduction in mo_reduction:
@@ -336,5 +337,4 @@ def main(mo_reduction: List[int] =None, save=False, plot=False):
 
 if __name__ == "__main__":
     args = parse()
-    args.mo_reduction = [2]
-    main(args.mo_reduction)
+    main(mo_reduction=[0], plot=True, save=False)
