@@ -7,7 +7,7 @@ from typing import Tuple
 
 
 class Embed:
-    """ Class with package-independent embedding methods."""
+    """Class with package-independent embedding methods."""
 
     def __init__(self, keywords: dict):
         """
@@ -26,9 +26,9 @@ class Embed:
     @staticmethod
     def trace(A: np.ndarray, B: np.ndarray) -> np.ndarray:
         """
-        (Deprecated) Computes the trace (dot or Hadamard product) 
+        (Deprecated) Computes the trace (dot or Hadamard product)
         of matrices A and B.
-        This has now been replaced by a lambda function in 
+        This has now been replaced by a lambda function in
         embedding_module.py.
 
         Parameters
@@ -51,7 +51,7 @@ class Embed:
 
         If ao_overlap is not provided, C is assumed to be in an
         orthogonal basis.
-        
+
         Parameters
         ----------
         orbitals : numpy.array

@@ -32,7 +32,11 @@ class PySCFEmbed(Embed):
         self._mol.build()
 
         reference_methods = {
-            "hf": {"rhf": scf.RHF, "uhf": scf.UHF, "rohf": scf.ROHF,},
+            "hf": {
+                "rhf": scf.RHF,
+                "uhf": scf.UHF,
+                "rohf": scf.ROHF,
+            },
             "_": {"rhf": dft.RKS, "uhf": dft.UKS, "rohf": dft.ROKS},
         }
         # Alias the keywords for neatness
@@ -116,7 +120,7 @@ class PySCFEmbed(Embed):
         ----------
         basis : str
             Name of basis set from which to count active AOs.
-        
+
         Returns
         -------
             self.n_active_aos : int
@@ -139,7 +143,7 @@ class PySCFEmbed(Embed):
     def basis_projection(self, orbitals: np.ndarray) -> np.ndarray:
         """
         Defines a projection of orbitals in one basis onto another.
-        
+
         Parameters
         ----------
         orbitals : numpy.array
@@ -274,7 +278,7 @@ class PySCFEmbed(Embed):
         """
         Computes the correlation energy for the current set of active
         virtual orbitals.
-        
+
         Parameters
         ----------
         span_orbitals : numpy.array
@@ -363,7 +367,7 @@ class PySCFEmbed(Embed):
         """
         Returns pseudocanonical orbitals and the corresponding
         orbital energies.
-        
+
         Parameters
         ----------
         orbitals : numpy.array

@@ -137,7 +137,7 @@ class Psi4Embed(Embed):
         ----------
         basis : str
             Name of basis set from which to count active AOs.
-        
+
         Returns
         -------
             self.n_active_aos : int
@@ -162,7 +162,7 @@ class Psi4Embed(Embed):
     def basis_projection(self, orbitals, projection_basis):
         """
         Defines a projection of orbitals in one basis onto another.
-        
+
         Parameters
         ----------
         orbitals : numpy.array
@@ -252,7 +252,7 @@ class Psi4Embed(Embed):
         """
         Returns pseudocanonical orbitals and the corresponding
         orbital energies.
-        
+
         Parameters
         ----------
         orbitals : numpy.array
@@ -474,7 +474,7 @@ class Psi4Embed(Embed):
         """
         Computes the correlation energy for the current set of active
         virtual orbitals.
-        
+
         Parameters
         ----------
         span_orbitals : numpy.array
