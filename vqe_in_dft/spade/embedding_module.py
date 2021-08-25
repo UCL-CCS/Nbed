@@ -77,18 +77,13 @@ def run_closed_shell(keywords):
     print(f"{e_act=}, {e_env=}")
 
     # Computing cross subsystem terms
-    j_cross = 0.5 * (
-        embed.trace(act_density, j_env) + embed.trace(env_density, j_act)
-    )
+    j_cross = 0.5 * (embed.trace(act_density, j_env) + embed.trace(env_density, j_act))
 
     if keywords["package"].lower() == "psi4":
         k_cross = (
             0.5
             * embed.alpha
-            * (
-                embed.trace(act_density, k_env)
-                + embed.trace(env_density, k_act)
-            )
+            * (embed.trace(act_density, k_env) + embed.trace(env_density, k_act))
         )
     else:
         k_cross = 0.0
@@ -104,7 +99,7 @@ def run_closed_shell(keywords):
     )
     v_emb = j_env - embed.alpha * k_env + embed.v_xc_total - v_xc_act + projector
     print(f"{np.mean(v_emb)=}")
-    
+
     # h_core_emb = h_core + embedding_potential + projector
 
     embed.save_details(v_emb=v_emb, act_orbitals=act_orbitals)
@@ -117,9 +112,7 @@ def run_closed_shell(keywords):
     # Computing the embedded SCF energy
     density_emb = 2.0 * embed.occupied_orbitals @ embed.occupied_orbitals.T
     if keywords["package"].lower() == "psi4":
-        e_act_emb = embed.trace(
-            density_emb, initial_h_core + embed.j - 0.5 * embed.k
-        )
+        e_act_emb = embed.trace(density_emb, initial_h_core + embed.j - 0.5 * embed.k)
     else:
         e_act_emb = embed.trace(
             density_emb, initial_h_core + 0.5 * embed.j - 0.25 * embed.k
@@ -134,7 +127,7 @@ def run_closed_shell(keywords):
     print(f"E embedded HF={e_mf_emb}")
 
     print(f"{e_act_emb=}, {e_env=}, {two_e_cross=}, {embed.nre=}, {correction=}")
-    
+
     # --- Post embedded HF calculation ---
     if "n_cl_shell" not in keywords:
         e_correlation = embed.correlation_energy()
@@ -251,9 +244,7 @@ def run_closed_shell(keywords):
             )
 
         embed.print_summary(e_mf_emb)
-        projected_env_correction = embed.trace(
-            projector, act_density - density_emb
-        )
+        projected_env_correction = embed.trace(projector, act_density - density_emb)
         embed.outfile.write(
             " Correction from the projected B\t = {:>16.2e}\n".format(
                 projected_env_correction
@@ -438,9 +429,7 @@ def run_open_shell(keywords):
     e_act_emb = (
         embed.trace(alpha_density_emb + beta_density_emb, h_core)
         + 0.5
-        * embed.trace(
-            alpha_density_emb + beta_density_emb, alpha_j_emb + beta_j_emb
-        )
+        * embed.trace(alpha_density_emb + beta_density_emb, alpha_j_emb + beta_j_emb)
         - 0.5
         * (
             embed.trace(alpha_density_emb, alpha_k_emb)

@@ -62,7 +62,7 @@ def fill_defaults(keywords) -> Dict[str, str]:
 
 def driver(keywords):
     """
-    Checks for the control keywords and calls the 
+    Checks for the control keywords and calls the
     appropriate embedding routine.
     keywords is of dict type and takes the following keys:
 
@@ -86,24 +86,24 @@ def driver(keywords):
     partition_method : str ('spade')
         Partition method for the occupied space.
     e_convergence : float (1.0e-6)
-        SCF energy convergence threshold. 
+        SCF energy convergence threshold.
     d_convergence : float (1.0e-6)
-        SCF density convergence threshold. 
+        SCF density convergence threshold.
     eri : str ('df')
         Algorithm for computing electron repulsion integrals.
     ints_tolerance : float (1.0e-10)
         Threshold below which ERI's are neglected.
     driver_output : str ('output.dat')
-        Output file for 'package'. 
+        Output file for 'package'.
     embedding_output : str
         Output of the embedded calculation.
     operator : str ('F')
-        One-particle operator for CL shells. 
+        One-particle operator for CL shells.
         Can be F (Fock), K (exchange), V (electron-nuclei potential),
         H (core Hamiltonian), and K_orb (K-orbitals).
     level_shift : float (1.0e6)
         Level shift parameter to orthogonalize subsystems.
-    low_level_damping_percentage : int (0) 
+    low_level_damping_percentage : int (0)
         Percentage of damping in the low level calculation.
     high_level_damping_percentage : int (0)
         Percentage of damping in the high level calculation.
@@ -124,7 +124,7 @@ def driver(keywords):
         Algorithm for ERI MO transformation for coupled cluster
         calculations.
     write_embedded_potential : bool (False)
-        Writes embedded potential to embedding_potential.txt in numpy format. 
+        Writes embedded potential to embedding_potential.txt in numpy format.
     write_embedded_h_core : bool (False)
         Writes embedded core Hamiltonian to embedded_h_core.txt in numpy format.
     write_embedded_orbitals : bool (False)
