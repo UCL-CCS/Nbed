@@ -13,6 +13,7 @@ from openfermion.ops.representations import (
     get_active_space_integrals,
 )
 from openfermion.linalg import eigenspectrum, expectation
+from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.transforms import jordan_wigner
 from typing import List, Dict, Any
 
@@ -130,18 +131,29 @@ def get_active_indices(
 
 
 def get_qubit_hamiltonian(scf_method, active_indices: List[int]):
-    one_body_ints = scf_method.mo_coeff.T @ scf_method.get_hcore() @ scf_method.mo_coeff
 
-    # Get the 1e and 2e integrals for whole system
-    eri = scf_method.mol.intor("int2e", aosym=1)
-    mo_eri = ao2mo.incore.full(eri, scf_method.mo_coeff, compact=False)
-    nao = scf_method.mol.nao
-    two_body_ints = mo_eri.reshape(nao, nao, nao, nao)
-    _, act_one_body, act_two_body = get_active_space_integrals(
-        one_body_ints, two_body_ints, active_indices=active_indices
-    )
+    n_orbs = len(active_indices)
 
-    molecular_hamiltonian = InteractionOperator(0, act_one_body, 0.5 * act_two_body)
+    mo_coeff = scf_method.mo_coeff[:, active_indices]
+
+    one_body_integrals = mo_coeff.T @ scf_method.get_hcore() @ mo_coeff
+
+    #temp_scf.get_hcore = lambda *args, **kwargs : initial_h_core
+    scf_method.mol.incore_anyway == True
+
+    # Get two electron integrals in compressed format.
+    two_body_compressed = ao2mo.kernel(scf_method.mol, mo_coeff)
+
+    two_body_integrals = ao2mo.restore(1, # no permutation symmetry
+        two_body_compressed, n_orbs)
+
+    # Openfermion uses pysicist notation whereas pyscf uses chemists
+    two_body_integrals = np.asarray(
+        two_body_integrals.transpose(0, 2, 3, 1), order='C')
+
+    one_body_coefficients, two_body_coefficients = spinorb_from_spatial(one_body_integrals, two_body_integrals)
+
+    molecular_hamiltonian = InteractionOperator(0, one_body_coefficients, 0.5 * two_body_coefficients)
 
     Qubit_Hamiltonian = jordan_wigner(molecular_hamiltonian)
 
@@ -248,7 +260,7 @@ def run_sim(
     
     # WF Method
     # Calculate the energy of embedded A
-    embedded_scf.get_hcore = lambda *args, **kwargs: h_core
+    #embedded_scf.get_hcore = lambda *args, **kwargs: h_core
 
     # Quantum Method
     q_ham = get_qubit_hamiltonian(embedded_scf, active_indices)
@@ -340,8 +352,8 @@ def main(
 
     if not test:
         # max runs is presumptively 100
-        #num_runs = int(10 * (dmax - dmin)) if dmax-dmin < max_runs / 10 else max_runs 
-        distances = np.concatenate((np.linspace(0.5, 1.49, 9), np.linspace(1.50, 1.6, 40), np.linspace(1.7, 3, 13)))
+        num_runs = int(10 * (dmax - dmin)) if dmax-dmin < (max_runs / 10) else max_runs 
+        distances = np.concatenate((np.linspace(0.5, 1.49, 16), np.linspace(1.50, 1.6, 40), np.linspace(1.7, 3, 13)))
         #distances = np.linspace(dmin, dmax, num_runs)
     else:
         distances = np.linspace(dmin, dmax, 3)
@@ -354,7 +366,7 @@ def main(
             "FCI": [],
             "DFT": [],
             "WF-in-DFT": [],
-            #"VQE-in-DFT": [],
+            "VQE-in-DFT": [],
         }
         for i in mo_reduction
     }
@@ -401,7 +413,7 @@ def main(
             values[reduction]["DFT"].append(e_initial)
             values[reduction]["WF-in-DFT"].append(e_wf_emb)
             # TODO fix VQE bit
-            #values[reduction]["VQE-in-DFT"].append(e_vqe_emb)
+            values[reduction]["VQE-in-DFT"].append(e_vqe_emb)
 
     if save:
         for reduction in mo_reduction:
@@ -423,4 +435,4 @@ def main(
 
 if __name__ == "__main__":
     args = parse()
-    main(mo_reduction=[0], plot=True, save=False, dmin=1, dmax=5, max_runs=200)
+    main(mo_reduction=[0], plot=True, save=True, dmin=1, dmax=3, max_runs=200)
