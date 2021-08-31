@@ -149,9 +149,11 @@ class standard_full_system_molecule():
         HF_scf.conv_tol = self.E_convergence_tol
         HF_scf.kernel()
 
-        self.my_fci = fci.FCI(HF_scf).run()
-        # print('E(UHF-FCI) = %.12f' % self.my_fci.e_tot)
+        # self.my_fci = fci.FCI(HF_scf).run()
+        # # print('E(UHF-FCI) = %.12f' % self.my_fci.e_tot)
+        # self.E_FCI = self.my_fci.e_tot
 
+        self.my_fci = ci.CISD(HF_scf).run()
         self.E_FCI = self.my_fci.e_tot
 
         # myci = ci.CISD(HF_scf).run() # this is UCISD
@@ -245,10 +247,19 @@ class embedded_molecular_system(standard_full_system_molecule):
                 u, singular_values, rotation_matrix = np.linalg.svd(orthogonal_orbitals, full_matrices=True)
 
                 # find where largest step change 
-                # delta_s = singular_values[1:] - singular_values[:-1]
-                delta_s = [(i, (singular_values[i] - singular_values[i+1] )) for i in range(len(singular_values) - 1)] # contains (index, delta_s)
+                delta_s = singular_values[:-1] - singular_values[1:] # σ_i - σ_(i+1)
+                print(delta_s)
+                self.n_act_mos = np.argmax(delta_s)+1 # add one due to python indexing
 
-                self.n_act_mos = max(delta_s, key=lambda x: x[0])[0] + 1 # finds index where largest step change is! (adds 1 due to python indexing going from 0)
+                # delta_s = [(i, (singular_values[i] - singular_values[i+1] )) for i in range(len(singular_values) - 1)] # contains (index, delta_s)
+                # print(delta_s)
+
+                # delta_s_TEST = [-(singular_values[i+1] - singular_values[i]) for i in range(len(singular_values) - 1)]
+                # n_act_mos_TEST = np.argpartition(delta_s_TEST, -1)[-1] + 1
+                # print(n_act_mos_TEST)
+                # print(max(delta_s, key=lambda x: x[0])[0] + 1)
+
+                # self.n_act_mos = max(delta_s, key=lambda x: x[0])[0] + 1 # finds index where largest step change is! (adds 1 due to python indexing going from 0)
                 self.n_env_mos = len(singular_values) - self.n_act_mos
 
                 # define active and environment orbitals from localization
@@ -261,7 +272,7 @@ class embedded_molecular_system(standard_full_system_molecule):
                 self.enviro_MO_inds = np.arange(self.n_act_mos, self.n_act_mos+self.n_env_mos)
 
             else:
-                THRESHOLD = 0.9
+                THRESHOLD = 0.4#0.25
 
                 # Take C matrix from SCF calc
                 opt_C = self.full_system_scf.mo_coeff
@@ -326,12 +337,49 @@ class embedded_molecular_system(standard_full_system_molecule):
                     MO_active_AO_overlap=0
                     for active_AO_index in ao_active_inds:
                         bra_aoI_ket_All_AOs = self.S_ovlp[active_AO_index, :] # [ < ϕ_AO_SELECTED | ϕ_AO_0> , < ϕ_AO_SELECTED | ϕ_AO_1>, ..., < ϕ_AO_SELECTED | ϕ_AO_M> ]
-                        AO_i_overlap_MO = np.dot(bra_aoI_ket_All_AOs.T, MO_orb) # < ϕ_AO_i |ψ_MO> = Σ_j  (c_j < ϕ_AO_i | ϕ_AO_j >) # aka summation of ci and overlap
+                        AO_i_overlap_MO = np.dot(bra_aoI_ket_All_AOs.T, MO_orb) # < ϕ_AO_i |ψ_MO> = Σ_j  (c_j < ϕ_AO_i | ϕ_AO_j >) # aka summation of ci and overlap (MO_orb are the c_j terms!)
                         MO_active_AO_overlap+=AO_i_overlap_MO
+                    print(MO_active_AO_overlap)
                     if MO_active_AO_overlap>THRESHOLD:
                         active_MO_ind_list.append(mo_ind)
 
                 self.active_MO_inds = np.array(active_MO_ind_list)
+
+
+                # active_MO_ind_list=[]
+                # for mo_ind in range(C_loc_occ.shape[1]):
+                #     MO_orb = C_loc_occ[:, mo_ind] # MO coefficients (c_j)
+                #     MO_orb = MO_orb/np.linalg.norm(MO_orb) # <--- NORMALIZE WAVEFUNCTION!
+                #     MO_active_AO_overlap=0
+                #     for active_AO_index in ao_active_inds:
+                #         bra_aoI_ket_All_AOs = self.S_ovlp[active_AO_index, :] # [ < ϕ_AO_SELECTED | ϕ_AO_0> , < ϕ_AO_SELECTED | ϕ_AO_1>, ..., < ϕ_AO_SELECTED | ϕ_AO_M> ]
+                #         AO_i_overlap_MO = np.dot(bra_aoI_ket_All_AOs.T, MO_orb) # < ϕ_AO_i |ψ_MO> = Σ_j  (c_j < ϕ_AO_i | ϕ_AO_j >) # aka summation of ci and overlap (MO_orb are the c_j terms!)
+                #         # MO_active_AO_overlap+=abs(AO_i_overlap_MO)
+                #         MO_active_AO_overlap+=AO_i_overlap_MO # <--- NOT absolute val !
+                #     print(MO_active_AO_overlap)
+                #     if MO_active_AO_overlap>THRESHOLD:
+                #         active_MO_ind_list.append(mo_ind)
+
+                # self.active_MO_inds = np.array(active_MO_ind_list)
+
+                # active_MO_ind_list=[]
+                # S_half = sp.linalg.fractional_matrix_power(self.S_ovlp, 0.5)
+                # C_loc_occ_ORTHO = S_half@C_loc_occ # Get orbs in an orthogonal basis!
+                # # diagonal_elements = np.diag(C_loc_occ_ORTHO)[ao_active_inds]
+                # # print(diagonal_elements)
+                # # self.active_MO_inds = np.where(diagonal_elements>THRESHOLD)[0]
+                # for mo_ind in range(C_loc_occ_ORTHO.shape[1]):
+                #     MO_orb = C_loc_occ_ORTHO[:, mo_ind] # MO coefficients (c_j) in orthogonal basis!
+                #     MO_active_AO_overlap=0
+                #     for active_AO_index in ao_active_inds:
+                #         bra_aoI_ket_All_AOs = self.S_ovlp[active_AO_index, :] # [ < ϕ_AO_SELECTED | ϕ_AO_0> , < ϕ_AO_SELECTED | ϕ_AO_1>, ..., < ϕ_AO_SELECTED | ϕ_AO_M> ]
+                #         AO_i_overlap_MO = np.dot(bra_aoI_ket_All_AOs.T, MO_orb) # < ϕ_AO_i |ψ_MO> = Σ_j  (c_j < ϕ_AO_i | ϕ_AO_j >) # aka summation of ci and overlap
+                #         MO_active_AO_overlap+=AO_i_overlap_MO
+                #     print(MO_active_AO_overlap)
+                #     if MO_active_AO_overlap>THRESHOLD:
+                #         active_MO_ind_list.append(mo_ind)
+                # self.active_MO_inds = np.array(active_MO_ind_list)
+
 
                 # threshold to check which MOs have a high character from the active AOs 
                 # self.active_MO_inds = np.where(active_AO_MO_overlap>THRESHOLD)[0]
