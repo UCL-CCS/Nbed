@@ -121,8 +121,7 @@ def get_active_indices(
         raise Exception(f"Active space reduction too large. Max size {max_reduction}")
 
     # Find the active indices
-    env_indices = [i + n_act_mos for i in range(n_env_mos)]
-    active_indices = [i for i in range(nao) if i not in env_indices]
+    active_indices = [i for i in range(len(scf_method.mo_occ)-n_env_mos)]
 
     if reduction:
         active_indices = active_indices[:-reduction]
@@ -164,10 +163,8 @@ def run_sim(
     mol: gto.Mole,
     keywords: Dict[str, Any],
     orbital_reduction: int = None,
+    run_ccsd: bool = True,
 ):
-
-    if orbital_reduction is None:
-        orbital_reduction = 0
 
     e_nuc = mol.energy_nuc()
 
@@ -183,6 +180,7 @@ def run_sim(
     e_env, e_xc_env, j_env, k_env, v_xc_env = closed_shell_subsystem(ks, env_density)
 
     active_indices = get_active_indices(ks, n_act_mos, n_env_mos, orbital_reduction)
+    print(f"{active_indices=}")
 
     # Computing cross subsystem terms
     # Note that the matrix dot product is equivalent to the trace.
@@ -241,22 +239,29 @@ def run_sim(
         dm=embedded_density, vhf=embedded_scf.get_veff()
     )[0]
 
-    # Run CCSD as WF method
-    ccsd = cc.CCSD(embedded_scf)
-    ccsd.conv_tol = keywords["e_convergence"]
+    if run_ccsd:
+        # Run CCSD as WF method
+        ccsd = cc.CCSD(embedded_scf)
+        ccsd.conv_tol = keywords["e_convergence"]
 
-    # Set which orbitals are to be frozen
-    shift = mol.nao - n_env_mos
-    fos = [i for i in range(shift, mol.nao)]
-    ccsd.frozen = fos
+        # Set which orbitals are to be frozen
+        shift = mol.nao - n_env_mos
+        fos = [i for i in range(shift, mol.nao)]
+        ccsd.frozen = fos
 
-    try:
-        ccsd.run()
-        correlation = ccsd.e_corr
-        e_wf_act += correlation
-    except np.linalg.LinAlgError as e:
-        print("\n====CCSD ERROR====\n")
-        print(e)
+        try:
+            ccsd.run()
+            correlation = ccsd.e_corr
+            e_wf_act += correlation
+        except np.linalg.LinAlgError as e:
+            print("\n====CCSD ERROR====\n")
+            print(e)
+
+        # Add up the parts again
+        e_wf_emb = e_wf_act + e_env + two_e_cross + e_nuc - wf_correction
+    else:
+        e_wf_emb = 0
+
     
     # WF Method
     # Calculate the energy of embedded A
@@ -264,14 +269,14 @@ def run_sim(
 
     # Quantum Method
     q_ham = get_qubit_hamiltonian(embedded_scf, active_indices)
+
+    # Can run a full VQE sim here or just take ground state
     e_vqe_act = eigenspectrum(q_ham)[0]
 
     # Add all the parts up
     e_vqe_emb = e_vqe_act + e_env + two_e_cross - wf_correction + e_nuc
 
 
-    # Add up the parts again
-    e_wf_emb = e_wf_act + e_env + two_e_cross + e_nuc - wf_correction
 
     print("Component contributions")
     print(
@@ -304,7 +309,7 @@ def plot_vqe_reductions(distances, values, mol_name, mo_reduction):
     # Plot vqe with reduced active space
     mins = {}
     fig = plt.figure()
-    vqe_data = {i: values[i]["VQE"] for i in mo_reduction}
+    vqe_data = {i: values[i]["VQE-in-DFT"] for i in mo_reduction}
     for key, data in vqe_data.items():
         mins[key] = min([i for i in data if i is not None])
         plt.plot(distances, data, label=f"Space Reduction={key} (min={mins[key]:.3f})")
@@ -352,12 +357,12 @@ def main(
 
     if not test:
         # max runs is presumptively 100
-        num_runs = int(10 * (dmax - dmin)) if dmax-dmin < (max_runs / 10) else max_runs 
-        distances = np.concatenate((np.linspace(0.5, 1.49, 16), np.linspace(1.50, 1.6, 40), np.linspace(1.7, 3, 13)))
+        #num_runs = int(10 * (dmax - dmin)) if dmax-dmin < (max_runs / 10) else max_runs 
+        distances = np.concatenate((np.linspace(1, 2.5, 25), np.linspace(2.5, 2.7, 50), np.linspace(2.7, 5, 40)))
         #distances = np.linspace(dmin, dmax, num_runs)
     else:
         distances = np.linspace(dmin, dmax, 3)
-        mo_reduction = mo_reduction[:1]
+        mo_reduction = [0]
         save = False
         plot = True
 
@@ -365,18 +370,18 @@ def main(
         i: {
             "FCI": [],
             "DFT": [],
-            "WF-in-DFT": [],
+            #"WF-in-DFT": [],
             "VQE-in-DFT": [],
         }
         for i in mo_reduction
     }
-    mol_name = "LiH"
+    mol_name = "Li2"
     for distance in distances:
         options[
             "geometry"
         ] = f"""
         Li 0.0 0.0 0.0
-        H 0.0 0.0 {distance}
+        Li 0.0 0.0 {distance}
         """
         # options["geometry"] = water_geometry
 
@@ -390,7 +395,7 @@ def main(
                 atom=keywords["geometry"], basis=keywords["basis"], charge=0
             ).build()
 
-            e_initial, e_vqe_emb, e_wf_emb = run_sim(mol, keywords, reduction)
+            e_initial, e_vqe_emb, e_wf_emb = run_sim(mol, keywords, reduction, run_ccsd=False)
 
             # Print out the final value.
             print(f"Calculating with {distance=}")
@@ -404,14 +409,14 @@ def main(
             print(
                 f"Error:\t\t\t\t{(expected_energy-e_vqe_emb)*100/expected_energy:.2f}%\n"
             )
-            print(f"WF-in-DFT Energy:\t\t{e_wf_emb}")
-            print(
-                f"Error:\t\t\t\t{(expected_energy-e_wf_emb)*100/expected_energy:.2f}%\n\n"
-            )
+            #print(f"WF-in-DFT Energy:\t\t{e_wf_emb}")
+            #print(
+            #    f"Error:\t\t\t\t{(expected_energy-e_wf_emb)*100/expected_energy:.2f}%\n\n"
+            #)
 
             values[reduction]["FCI"].append(expected_energy)
             values[reduction]["DFT"].append(e_initial)
-            values[reduction]["WF-in-DFT"].append(e_wf_emb)
+            #values[reduction]["WF-in-DFT"].append(e_wf_emb)
             # TODO fix VQE bit
             values[reduction]["VQE-in-DFT"].append(e_vqe_emb)
 
@@ -435,4 +440,4 @@ def main(
 
 if __name__ == "__main__":
     args = parse()
-    main(mo_reduction=[0], plot=True, save=True, dmin=1, dmax=3, max_runs=200)
+    main(mo_reduction=[6,5,4], plot=True, save=True, dmin=0.5, dmax=3, max_runs=200)
