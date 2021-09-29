@@ -12,6 +12,7 @@ from pyscf.tools import cubegen
 import os
 from copy import deepcopy
 
+from tqdm import tqdm
 # pip install py3Dmol
 # conda install conda-forge rdkit
 
@@ -53,11 +54,12 @@ def Localize_orbitals(localization_method, PySCF_scf_obj, N_active_atoms, THRESH
     S_ovlp = PySCF_scf_obj.get_ovlp()
     AO_slice_matrix = PySCF_scf_obj.mol.aoslice_by_atom()
 
+    occupied_orbs = PySCF_scf_obj.mo_coeff[:,PySCF_scf_obj.mo_occ>0]
     # run localization scheme
     if localization_method.lower() == 'spade':
 
         # Take occupied orbitals of global system calc
-        occupied_orbs = PySCF_scf_obj.mo_coeff[:,PySCF_scf_obj.mo_occ>0]
+        
 
         # Get active AO indices
         N_active_AO = AO_slice_matrix[N_active_atoms-1][3]  # find max AO index for active atoms (neg 1 as python indexs from 0)
@@ -90,38 +92,32 @@ def Localize_orbitals(localization_method, PySCF_scf_obj, N_active_atoms, THRESH
         if not isinstance(THRESHOLD, float):
             raise ValueError ('if localization method is not SPADE then a threshold parameter is requried to choose active system')
 
-        # Take C (FULL) matrix from SCF calc 
-        opt_C = PySCF_scf_obj.mo_coeff
 
         # run localization scheme
         if localization_method.lower() == 'pipekmezey':
             ### PipekMezey
-            PM = lo.PipekMezey(PySCF_scf_obj.mol, opt_C)
+            PM = lo.PipekMezey(PySCF_scf_obj.mol, occupied_orbs)
             PM.pop_method = 'mulliken' # 'meta-lowdin', 'iao', 'becke'
-            C_loc = PM.kernel() # includes virtual orbs too!
-            C_loc_occ = C_loc[:,PySCF_scf_obj.mo_occ>0]
+            C_loc_occ = PM.kernel() # includes virtual orbs too!
 
         elif localization_method.lower() == 'boys':
             ### Boys
-            boys_SCF = lo.boys.Boys(PySCF_scf_obj.mol, opt_C)
-            C_loc  = boys_SCF.kernel()
-            C_loc_occ = C_loc[:,PySCF_scf_obj.mo_occ>0]
+            boys_SCF = lo.boys.Boys(PySCF_scf_obj.mol, occupied_orbs)
+            C_loc_occ  = boys_SCF.kernel()
 
         elif localization_method.lower() == 'ibo':
             ### intrinsic bonding orbs
             #
-            # mo_occ = PySCF_scf_obj.mo_coeff[:,PySCF_scf_obj.mo_occ>0]
-            # iaos = lo.iao.iao(PySCF_scf_obj.mol, mo_occ)
-            # # Orthogonalize IAO
-            # iaos = lo.vec_lowdin(iaos, S_ovlp)
-            # C_loc_occ = lo.ibo.ibo(PySCF_scf_obj.mol, mo_occ, locmethod='IBO', iaos=iaos)#.kernel()
-
-
-            iaos = lo.iao.iao(PySCF_scf_obj.mol, PySCF_scf_obj.mo_coeff)
+            iaos = lo.iao.iao(PySCF_scf_obj.mol, occupied_orbs)
             # Orthogonalize IAO
             iaos = lo.vec_lowdin(iaos, S_ovlp)
-            C_loc = lo.ibo.ibo(PySCF_scf_obj.mol, PySCF_scf_obj.mo_coeff, locmethod='IBO', iaos=iaos)#.kernel()
-            C_loc_occ = C_loc[:,PySCF_scf_obj.mo_occ>0]
+            C_loc_occ = lo.ibo.ibo(PySCF_scf_obj.mol, occupied_orbs, locmethod='IBO', iaos=iaos)#.kernel()
+
+            # iaos = lo.iao.iao(PySCF_scf_obj.mol, PySCF_scf_obj.mo_coeff)
+            # # Orthogonalize IAO
+            # iaos = lo.vec_lowdin(iaos, S_ovlp)
+            # C_loc = lo.ibo.ibo(PySCF_scf_obj.mol, PySCF_scf_obj.mo_coeff, locmethod='IBO', iaos=iaos)#.kernel()
+            # C_loc_occ = C_loc[:,PySCF_scf_obj.mo_occ>0]
         else:
             raise ValueError(f'unknown localization method {localization_method}')
         
@@ -130,17 +126,15 @@ def Localize_orbitals(localization_method, PySCF_scf_obj, N_active_atoms, THRESH
         ao_active_inds = np.arange(AO_slice_matrix[0,2], AO_slice_matrix[N_active_atoms-1,3])
 
 
-
-
         #### my method using S_matrix ####
-        MO_AO_overlap = S_ovlp@C_loc_occ  #  < ϕ_AO_i | ψ_MO_j >
-        MO_active_AO_overlap = np.einsum('ij->j', MO_AO_overlap[ao_active_inds]) # sum over rows of active AOs of MOs!
+        # MO_AO_overlap = S_ovlp@C_loc_occ  #  < ϕ_AO_i | ψ_MO_j >
+        # MO_active_AO_overlap = np.einsum('ij->j', MO_AO_overlap[ao_active_inds]) # sum over rows of active AOs of MOs!
 
-        print('\noverlap:', MO_active_AO_overlap)
-        print(f'threshold for active part: {THRESHOLD} \n')
+        # print('\noverlap:', MO_active_AO_overlap)
+        # print(f'threshold for active part: {THRESHOLD} \n')
 
-        active_MO_inds = np.where(MO_active_AO_overlap>THRESHOLD)[0]
-        enviro_MO_inds = np.array([i for i in range(C_loc_occ.shape[1]) if i not in active_MO_inds]) # get all non active MOs
+        # active_MO_inds = np.where(MO_active_AO_overlap>THRESHOLD)[0]
+        # enviro_MO_inds = np.array([i for i in range(C_loc_occ.shape[1]) if i not in active_MO_inds]) # get all non active MOs
 
         # #### mulliken charge method ####
         # # Use threshold of 1
@@ -153,17 +147,38 @@ def Localize_orbitals(localization_method, PySCF_scf_obj, N_active_atoms, THRESH
         # enviro_MO_inds = np.array([i for i in range(C_loc_occ.shape[1]) if i not in active_MO_inds]) # get all non active MOs
 
 
+        ### New method
+        numerator_all = np.einsum('ij->j', (C_loc_occ[ao_active_inds, :])**2) # active AOs
+        denominator_all = np.einsum('ij->j', C_loc_occ**2) # all AOs
 
+        MO_active_percentage = numerator_all/denominator_all
+
+        print('\n(active_AO^2)/(all_AO^2):', np.around(MO_active_percentage,4))
+        print(f'threshold for active part: {THRESHOLD} \n')
+
+        active_MO_inds = np.where(MO_active_percentage>THRESHOLD)[0]
+        enviro_MO_inds = np.array([i for i in range(C_loc_occ.shape[1]) if i not in active_MO_inds]) # get all non active MOs
 
 
         # define active MO orbs and environment
-        act_orbitals = C_loc[:, active_MO_inds] # take MO (columns of C_matrix) that have high dependence from active AOs
-        env_orbitals = C_loc[:, enviro_MO_inds]
+        act_orbitals = C_loc_occ[:, active_MO_inds] # take MO (columns of C_matrix) that have high dependence from active AOs
+        env_orbitals = C_loc_occ[:, enviro_MO_inds]
         
         C_matrix_all_localized_orbitals = C_loc_occ
 
         n_act_mos = len(active_MO_inds)
         n_env_mos = len(enviro_MO_inds)
+
+        # ####  NEW
+        # u, singular_values, rotation_matrix = np.linalg.svd(C_loc_occ, full_matrices=True)
+
+        # act_orbitals = C_loc_occ @ rotation_matrix.T[:, active_MO_inds]
+        # env_orbitals = C_loc_occ @ rotation_matrix.T[:, enviro_MO_inds]
+        
+        # C_matrix_all_localized_orbitals = C_loc_occ
+
+        # n_act_mos = len(active_MO_inds)
+        # n_env_mos = len(enviro_MO_inds)
 
 
     print(f'number of active MOs: {n_act_mos}')
@@ -422,12 +437,17 @@ def Get_SpinOrbs_from_Spatial(one_body_integrals, two_body_integrals, physists_n
 
     return one_body_terms, two_body_terms
 
-def Get_fermionic_H(one_body_terms, two_body_terms, Nuclear_energy, core_constant=0,  physists_notation=False):
+def Get_fermionic_H(one_body_terms, two_body_terms, Nuclear_energy, core_constant=0,  physists_notation=False, jupyter_notebook=False):
+    
+    if jupyter_notebook:
+        from tqdm.notebook import tqdm
+
     H_fermionic = FermionOperator((),  Nuclear_energy + core_constant)
 
     # one body terms
     if physists_notation:
-        for p in range(one_body_terms.shape[0]):
+        # for p in range(one_body_terms.shape[0]):
+        for p in tqdm(range(one_body_terms.shape[0]), ascii=True, desc='Building fermionic H'):
             for q in range(one_body_terms.shape[0]):
 
                 H_fermionic += one_body_terms[p,q] * FermionOperator(((p, 1), (q, 0)))
@@ -441,7 +461,8 @@ def Get_fermionic_H(one_body_terms, two_body_terms, Nuclear_energy, core_constan
                         H_fermionic += 0.5*two_body_terms[p,q,r,s] * FermionOperator(((p, 1), (q, 1), (r,0), (s, 0)))
     else:
         # one body terms
-        for p in range(one_body_terms.shape[0]):
+        # for p in range(one_body_terms.shape[0]):
+        for p in tqdm(range(one_body_terms.shape[0]), ascii=True, desc='Building fermionic H'):
             for q in range(one_body_terms.shape[0]):
 
                 H_fermionic += one_body_terms[p,q] * FermionOperator(((p, 1), (q, 0)))
@@ -513,6 +534,7 @@ class embeddeding_SCF_driver():
         self.charge = charge 
         self.spin = spin
         self.N_active_atoms = N_active_atoms
+        self.pyscf_print_level =  pyscf_print_level
 
 
         # SCF info
@@ -531,9 +553,18 @@ class embeddeding_SCF_driver():
 
         self.E_convergence_tol = E_convergence_tol
 
+        self.FCI_obj = self._run_fci() if run_fci else None
+        self.CISD_obj = self._run_cisd() if run_cisd else None
+
+        self.C_active = None
+        self.C_envrio = None
+        self.C_all_localized = None
+        self.active_MO_inds = None
+        self.enviro_MO_inds = None
+
         # file_system and print
         self.output_file_name = output_file_name
-        self.pyscf_print_level =  pyscf_print_level
+
 
         ## QC info
         self.physists_notation=physists_notation
@@ -553,8 +584,9 @@ class embeddeding_SCF_driver():
 
         return full_system_mol
 
-    def Draw_molecule(self, PySCF_mol_obj, width=400, height=400, jupyter_notebook=True):
-        xyz_string = Get_xyz_string(PySCF_mol_obj)
+    def Draw_molecule(self, width=400, height=400, jupyter_notebook=True):
+        full_system_mol = self.initialize_PySCF_molecule_obj()
+        xyz_string = Get_xyz_string(full_system_mol)
         return Draw_molecule(xyz_string, width=width, height=400, jupyter_notebook=jupyter_notebook)
 
     def _run_cheap_global_calc(self, PySCF_mol_obj, cheap_global_SCF_method, cheap_global_DFT_xc=None):
@@ -575,6 +607,31 @@ class embeddeding_SCF_driver():
 
         full_system_scf.kernel()
         return full_system_scf
+
+    def _run_fci(self):
+
+        full_system_mol = self.initialize_PySCF_molecule_obj()
+        HF_scf = scf.RHF(full_system_mol)
+        HF_scf.verbose= self.pyscf_print_level
+        HF_scf.max_memory= self.memory
+        HF_scf.conv_tol = self.E_convergence_tol
+        HF_scf.kernel()
+
+        my_fci = fci.FCI(HF_scf).run()
+        print('E(UHF-FCI) = %.12f' % my_fci.e_tot)
+        return my_fci
+
+    def _run_cisd(self):
+        full_system_mol = self.initialize_PySCF_molecule_obj()
+        HF_scf = scf.RHF(full_system_mol)
+        HF_scf.verbose= self.pyscf_print_level
+        HF_scf.max_memory= self.memory
+        HF_scf.conv_tol = self.E_convergence_tol
+        HF_scf.kernel()
+
+        my_CISD = ci.CISD(HF_scf).run()
+        print('UCISD total energy = ', my_CISD.e_tot)
+        return my_CISD
 
     def _localize_orbitals(self, PySCF_scf_obj, localization_method, orbtial_loc_threshold=0.9, localized_orb_sanity_check=True):
          (C_active, 
@@ -681,7 +738,8 @@ class embeddeding_SCF_driver():
 
     def run_experiment(self, localization_method,
                             orbtial_loc_threshold=0.9, localized_orb_sanity_check=True, dm_localized_sanity_check=True,
-                            check_Hcore_is_correct_Vembed=False, check_Vembed=True, check_HFock_embedded=True, check_expensive_WF_HF_calc=True):
+                            check_Hcore_is_correct_Vembed=False, check_Vembed=True, check_HFock_embedded=True, check_expensive_WF_HF_calc=True,
+                            jupyter_notebook=False):
 
         ###### 1. Define full system mol obj
         full_system_mol = self.initialize_PySCF_molecule_obj()
@@ -693,11 +751,11 @@ class embeddeding_SCF_driver():
 
         Nuclear_energy =  full_system_scf_cheap.energy_nuc()
         ###### 3. Localize orbitals #######
-        (C_active, 
-         C_envrio, 
-         C_all_localized, 
-         active_MO_inds,
-         enviro_MO_inds)= self._localize_orbitals(full_system_scf_cheap,
+        (self.C_active, 
+         self.C_envrio, 
+         self.C_all_localized, 
+         self.active_MO_inds,
+         self.enviro_MO_inds)= self._localize_orbitals(full_system_scf_cheap,
                                                  localization_method, 
                                                  orbtial_loc_threshold=orbtial_loc_threshold, 
                                                  localized_orb_sanity_check=localized_orb_sanity_check)
@@ -705,9 +763,9 @@ class embeddeding_SCF_driver():
         ####### 4. Get active and enviro  density matrices #######
         dm_active, dm_enviro = Get_active_and_envrio_dm(
                                                 full_system_scf_cheap,
-                                                C_active, 
-                                                C_envrio, 
-                                                C_all_localized, 
+                                                self.C_active, 
+                                                self.C_envrio, 
+                                                self.C_all_localized, 
                                                 sanity_check=dm_localized_sanity_check)
 
         ####### 5. Get active, enviro  and cross terms #######
@@ -743,7 +801,7 @@ class embeddeding_SCF_driver():
         ####### 7. Define embedded molecular system _localize_orbitals
         full_system_mol_EMBEDDED = self.initialize_PySCF_molecule_obj()
         # OVERWRITE number of electrons! (VERY IMPORTANT STEP)
-        full_system_mol_EMBEDDED.nelectron = 2*len(active_MO_inds) 
+        full_system_mol_EMBEDDED.nelectron = 2*len(self.active_MO_inds) 
 
 
         ####### 8. Run SCF with V_embed to get optimized embedded e- density #######
@@ -757,7 +815,7 @@ class embeddeding_SCF_driver():
         density_emb = 2 * EMBEDDED_occ_orbs @ EMBEDDED_occ_orbs.conj().T
 
         ## check number of electrons makes sense:
-        electron_check = np.isclose(np.trace(density_emb@full_system_scf_cheap.get_ovlp()), 2*len(active_MO_inds))
+        electron_check = np.isclose(np.trace(density_emb@full_system_scf_cheap.get_ovlp()), 2*len(self.active_MO_inds))
         print(f'\nnumber of e- in gamma_embedded is correct: {electron_check}\n')
 
 
@@ -789,7 +847,7 @@ class embeddeding_SCF_driver():
         ####### 14. Prepare WF calculation - Hartree Fock first
         HFock_mol_embedded = self.initialize_PySCF_molecule_obj()
         # OVERWRITE number of electrons! (VERY IMPORTANT STEP)
-        HFock_mol_embedded.nelectron =  2*len(active_MO_inds) 
+        HFock_mol_embedded.nelectron =  2*len(self.active_MO_inds) 
 
         HFock_scf_embedded = self._get_HF_scf_with_embedded_dm( HFock_mol_embedded, 
                                                                 embedded_DFT_scf,
@@ -805,7 +863,7 @@ class embeddeding_SCF_driver():
 
 
         ####### 15. Run CCSD calcualtion
-        frozen_orbitals = [i for i in range(HFock_scf_embedded.mol.nao - len(enviro_MO_inds),
+        frozen_orbitals = [i for i in range(HFock_scf_embedded.mol.nao - len(self.enviro_MO_inds),
                                            HFock_scf_embedded.mol.nao)] # note NOT spin orbs here!
 
         e_correlation_WF, t1, t2, embedded_WF_SCF_obj = self._run_expensive_WF_calculation(HFock_scf_embedded, list_frozen_orbitals=frozen_orbitals)
@@ -828,7 +886,7 @@ class embeddeding_SCF_driver():
         
         ##################### QC part ########################
 
-        N_enviroment_MOs = len(enviro_MO_inds) 
+        N_enviroment_MOs = len(self.enviro_MO_inds) 
         one_body_integrals, two_body_integrals = Get_embedded_one_and_two_body_integrals_MO_basis(HFock_scf_embedded,
                                                                                             N_enviroment_MOs,
                                                                                             physists_notation=self.physists_notation)
@@ -843,18 +901,21 @@ class embeddeding_SCF_driver():
                                              two_body_terms, 
                                              Nuclear_energy,
                                              core_constant=0, 
-                                             physists_notation=self.physists_notation)
+                                             physists_notation=self.physists_notation,
+                                             jupyter_notebook=jupyter_notebook)
+
+        print(f'\nNo terms in Fermionic H : {len(list(H_fermionic))}\n')
 
         H_sparse = get_sparse_operator(H_fermionic)
 
-        if H_sparse.shape[0]>(2**9):
+        if H_sparse.shape[0]>(2**13):
             raise ValueError('diagonlizing LARGE matrix')
 
         eigvals_EMBED, eigvecs_EMBED = sp.sparse.linalg.eigsh(H_sparse, which='SA', k=1)
 
         E_VQE = eigvals_EMBED[0]  + E_env + two_e_cross - WF_correction
         
-        N_electrons_expected = 2*len(active_MO_inds)
+        N_electrons_expected = 2*len(self.active_MO_inds)
         N_electrons_Q_state = np.binary_repr(np.where(np.abs(eigvecs_EMBED)>1e-2)[0][0]).count('1')  
 
         print(f'expect {N_electrons_expected} electrons')
@@ -864,83 +925,83 @@ class embeddeding_SCF_driver():
         where=np.where(np.around(eigvecs_EMBED, 4)>0)[0]
         print('superposition states:', where)
 
-        return e_act_emb, E_DFT_emb_high_lvl, E_WF, E_VQE
+        return e_act_emb, E_DFT_emb_high_lvl, E_WF, E_VQE, H_fermionic
 
-class embeddeding_SCF_experiment():
+# class embeddeding_SCF_experiment():
 
-    def __init__(self, geometry,
-                 N_active_atoms, 
-                 low_level_scf_method='RKS', 
-                 low_level_xc_functional= 'lda, vwn',
-                 high_level_xc_functional = 'b3lyp',
-                 E_convergence_tol = 1e-6,
-                 basis = 'STO-3G',
-                 output_file_name='output.dat',
-                 unit= 'angstrom',
-                 pyscf_print_level=1,
-                 memory=4000,
-                 charge=0,
-                 spin=0,
-                 run_fci=False,
-                 run_cisd=False):
-        """
-        Initialize the full molecular system.
+#     def __init__(self, geometry,
+#                  N_active_atoms, 
+#                  low_level_scf_method='RKS', 
+#                  low_level_xc_functional= 'lda, vwn',
+#                  high_level_xc_functional = 'b3lyp',
+#                  E_convergence_tol = 1e-6,
+#                  basis = 'STO-3G',
+#                  output_file_name='output.dat',
+#                  unit= 'angstrom',
+#                  pyscf_print_level=1,
+#                  memory=4000,
+#                  charge=0,
+#                  spin=0,
+#                  run_fci=False,
+#                  run_cisd=False):
+#         """
+#         Initialize the full molecular system.
 
-            Args:
-                geometry (list): A list of tuples giving atom (str) and coordinates (tuple of floats).
-                                 An example is [('H', (0, 0, 0)), ('H', (0, 0, 0.7414))].
-                                 IMPORTANT: First N atoms must be the active system (to be treated at higher level later)
+#             Args:
+#                 geometry (list): A list of tuples giving atom (str) and coordinates (tuple of floats).
+#                                  An example is [('H', (0, 0, 0)), ('H', (0, 0, 0.7414))].
+#                                  IMPORTANT: First N atoms must be the active system (to be treated at higher level later)
 
-                low_level_scf_method (str): String defining cheap SCF method.
+#                 low_level_scf_method (str): String defining cheap SCF method.
 
-                E_convergence_tol (float): Energy convergence threshold. 
+#                 E_convergence_tol (float): Energy convergence threshold. 
 
-                den_convergence_tol (float): Density convergence threshold. 
+#                 den_convergence_tol (float): Density convergence threshold. 
 
-                basis (str): A string defining the basis set. An example is 'cc-pvtz'.
+#                 basis (str): A string defining the basis set. An example is 'cc-pvtz'.
 
-                output_file_name (str): string of output file name
+#                 output_file_name (str): string of output file name
 
-                unit (str): Units for coordinates of input atoms (geometry). Should be either: "angstrom" or "bohr"
+#                 unit (str): Units for coordinates of input atoms (geometry). Should be either: "angstrom" or "bohr"
 
-                pyscf_print_level (int): pyscf print level. 0 (no output - quiet) to 9 (lots of print information - noisy)
+#                 pyscf_print_level (int): pyscf print level. 0 (no output - quiet) to 9 (lots of print information - noisy)
 
-                memory (int): memory usage in MB
+#                 memory (int): memory usage in MB
 
-                charge (int): Charge of molecule, note this effects the number of electrons.
+#                 charge (int): Charge of molecule, note this effects the number of electrons.
 
-                spin (int): The number of unpaired electrons: 2S, i.e. the difference between the number of alpha and beta electrons.
+#                 spin (int): The number of unpaired electrons: 2S, i.e. the difference between the number of alpha and beta electrons.
 
-                run_fci (bool): whether to run FCI calculation.
-        """
+#                 run_fci (bool): whether to run FCI calculation.
+#         """
 
-        self.geometry = geometry
-        self.basis = basis
-        self.unit = unit
-        self.memory = memory # RAM in MB
-        self.charge = charge 
-        self.spin = spin
-        self.N_active_atoms = N_active_atoms
+#         self.geometry = geometry
+#         self.basis = basis
+#         self.unit = unit
+#         self.memory = memory # RAM in MB
+#         self.charge = charge 
+#         self.spin = spin
+#         self.N_active_atoms = N_active_atoms
 
-        # SCF info
-        self.low_level_scf_method = low_level_scf_method
-        self.low_level_xc_functional = None if low_level_scf_method=='RHF' else low_level_xc_functional
-
-
-        self.E_convergence_tol = E_convergence_tol
-
-        # file_system and print
-        self.output_file_name = output_file_name
-        self.pyscf_print_level =  pyscf_print_level
+#         # SCF info
+#         self.low_level_scf_method = low_level_scf_method
+#         self.low_level_xc_functional = None if low_level_scf_method=='RHF' else low_level_xc_functional
 
 
-        self._init_pyscf_system()
+#         self.E_convergence_tol = E_convergence_tol
 
-        self.E_FCI = self._run_fci() if run_fci else None
-        self.E_CISD = self._run_cisd() if run_cisd else None
+#         # file_system and print
+#         self.output_file_name = output_file_name
+#         self.pyscf_print_level =  pyscf_print_level
 
-    def TODO():
-        pass
+
+#         self._init_pyscf_system()
+
+#         self.E_FCI = self._run_fci() if run_fci else None
+#         self.E_CISD = self._run_cisd() if run_cisd else None
+
+#     def TODO():
+#         pass
 
 
 
