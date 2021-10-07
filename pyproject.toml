@@ -5,7 +5,7 @@ description = ""
 authors = ["Michael Williams <michael.williams.20@ucl.ac.uk>"]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.7"
 pyscf = "=1.7.6.post1"
 openfermion = "<1.1.0"
 qiskit = "^0.29.0"
@@ -21,6 +21,7 @@ pydocstyle = "^6.1.1"
 pytest = "^6.2.4"
 mypy = "^0.902"
 bpython = "^0.21"
+isort = "^5.9.3"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

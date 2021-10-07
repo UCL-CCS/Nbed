@@ -1,0 +1,8 @@
+---
+nbed:
+  geometry: molecules/water.xyz
+  active-atoms: 2
+  basis-set: STO-3G
+  xc-functional: b3lyp
+  convergence: 1e-6
+  output-format: openfermion
