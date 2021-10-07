@@ -2,7 +2,9 @@ import argparse
 from copy import copy
 from ctypes import wstring_at
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable, Tuple
+from pyscf.gto import basis
+from pyscf.lib.misc import alias
 import yaml
 
 import matplotlib as mpl
@@ -21,36 +23,52 @@ from scipy import linalg
 
 
 def parse():
-    parser = argparse.ArgumentParser(description="Get results for MRes")
+    parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
     parser.add_argument(
-        "--comparison",
+        "--config",
         type=str,
-        choices=["method", "space"],
-        default=2,
-        help="Number of active atoms",
+        help="Path to a config file. Overwrites other arguments."
     )
     parser.add_argument(
-        "--as_reduction",
+        "--geometry",
+        type=str,
+        help="Path to an XYZ file.",
+    )
+    parser.add_argument(
+        "--active_atoms",
+        "--active",
         type=int,
-        default=0,
-        help="Number of orbitals to remove from active space.",
+        help="Number of atoms to include in active region.",
     )
     parser.add_argument(
-        "--save",
-        action="store_true",
-        default=False,
-        help="Save the results to a csv file.",
+        "--basis",
+        type=str,
+        help="Basis set to use.",
     )
     parser.add_argument(
-        "--plot", action="store_true", default=False, help="Plot the results."
+        "--xc_functional",
+        "--xc",
+        "--functional",
+        type=str,
+        help="Exchange correlation functional to use in DFT calculations.",
+    )
+    parser.add_argument(
+        "--convergence",
+        "--conv",
+        type=float,
+        help="Convergence tolerance for calculations.",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        choice=["openfermion"],
+        help="Quantum computing backend to output the qubit hamiltonian for.",
     )
     args = parser.parse_args()
 
+    if args.config:
+        args = yaml.safe_load(args.config)
     return args
-
-def read_config(filepath: Path) -> Dict[str: Any]:
-    "Read the config.yaml and fill defualts."
-
 
 def get_exact_energy(mol: gto.Mole, keywords: Dict):
     hf = mol.RHF().run()
@@ -62,11 +80,11 @@ def get_exact_energy(mol: gto.Mole, keywords: Dict):
     return fci_result[0]
 
 
-def spade_localisation(scf_method, keywords):
+def spade_localisation(scf_method: Callable, active_atoms: int):
     n_occupied_orbitals = np.count_nonzero(scf_method.mo_occ == 2)
     occupied_orbitals = scf_method.mo_coeff[:, :n_occupied_orbitals]
 
-    n_act_aos = scf_method.mol.aoslice_by_atom()[keywords["n_active_atoms"] - 1][-1]
+    n_act_aos = scf_method.mol.aoslice_by_atom()[active_atoms - 1][-1]
     ao_overlap = scf_method.get_ovlp()
 
     # Orbital rotation and partition into subsystems A and B
@@ -93,7 +111,7 @@ def spade_localisation(scf_method, keywords):
     return n_act_mos, n_env_mos, act_density, env_density
 
 
-def closed_shell_subsystem(scf_method, density):
+def closed_shell_subsystem(scf_method: Callable, density: np.ndarray):
     # It seems that PySCF lumps J and K in the J array
     j = scf_method.get_j(dm=density)
     k = np.zeros(np.shape(j))
@@ -107,7 +125,7 @@ def closed_shell_subsystem(scf_method, density):
 
 
 def get_active_indices(
-    scf_method, n_act_mos: int, n_env_mos: int, reduction: Optional[int] = None
+    scf_method: Callable, n_act_mos: int, n_env_mos: int, reduction: Optional[int] = None
 ) -> np.ndarray:
     nao = scf_method.mol.nao
     max_reduction = nao - n_act_mos - n_env_mos
@@ -126,7 +144,7 @@ def get_active_indices(
     return np.array(active_indices)
 
 
-def get_qubit_hamiltonian(scf_method, active_indices: List[int]):
+def get_qubit_hamiltonian(scf_method: Callable, active_indices: List[int]):
 
     n_orbs = len(active_indices)
 
@@ -161,27 +179,34 @@ def get_qubit_hamiltonian(scf_method, active_indices: List[int]):
 
 
 def embedding_hamiltonian(
-    mol: gto.Mole,
-    keywords: Dict[str, Any],
-    orbital_reduction: int = None,
-    run_ccsd: bool = True,
-):
+    geometry: Path,
+    active_atoms: int,
+    basis: str,
+    xc_functional: str,
+    convergence: float,
+    output: str,
+    level_shift: float = 1e6,
+    run_ccsd: bool = False,
+    ) -> Tuple[Object, float]:
+    """
+    Function to return the embedding Qubit Hamiltonian.
+    """
+
+    mol: gto.Mole = gto.Mole(atom=geometry, basis=basis, charge=0).build()
 
     e_nuc = mol.energy_nuc()
 
     ks = scf.RKS(mol)
-    ks.conv_tol = keywords["e_convergence"]
-    ks.xc = keywords["low_level"]
-    e_initial = ks.kernel()
+    ks.conv_tol = convergence
+    ks.xc = xc_functional
 
-    n_act_mos, n_env_mos, act_density, env_density = spade_localisation(ks, keywords)
+    n_act_mos, n_env_mos, act_density, env_density = spade_localisation(ks, active_atoms)
 
     # Get cross terms from the initial density
     e_act, e_xc_act, j_act, k_act, v_xc_act = closed_shell_subsystem(ks, act_density)
     e_env, e_xc_env, j_env, k_env, v_xc_env = closed_shell_subsystem(ks, env_density)
 
-    active_indices = get_active_indices(ks, n_act_mos, n_env_mos, orbital_reduction)
-    print(f"{active_indices=}")
+    active_indices = get_active_indices(ks, n_act_mos, n_env_mos, 0)
 
     # Computing cross subsystem terms
     # Note that the matrix dot product is equivalent to the trace.
@@ -195,7 +220,7 @@ def embedding_hamiltonian(
     two_e_cross = j_cross + k_cross + xc_cross
 
     # Define the mu-projector
-    projector = keywords["level_shift"] * (ks.get_ovlp() @ env_density @ ks.get_ovlp())
+    projector = level_shift * (ks.get_ovlp() @ env_density @ ks.get_ovlp())
 
     v_xc_total = ks.get_veff() - ks.get_j()
 
@@ -204,7 +229,7 @@ def embedding_hamiltonian(
 
     # Run RHF with Vemb to do embedding
     embedded_scf = scf.RHF(mol)
-    embedded_scf.conv_tol = keywords["e_convergence"]
+    embedded_scf.conv_tol = convergence
     embedded_scf.mol.nelectron = 2 * n_act_mos
 
     h_core = embedded_scf.get_hcore()
@@ -230,11 +255,6 @@ def embedding_hamiltonian(
     dm_correction = np.einsum("ij,ij", v_emb, embedded_density - act_density)
     wf_correction = np.einsum("ij,ij", act_density, v_emb)
 
-    print(f"{wf_correction=}, {dm_correction=}")
-
-    # Can use either of these methods
-    # This needs to change if we're not using PySCFEmbed
-    # The j and k matrices are defined differently in PySCF and Psi4
     e_wf_act = embedded_scf.energy_elec(
         dm=embedded_density, vhf=embedded_scf.get_veff()
     )[0]
@@ -242,7 +262,7 @@ def embedding_hamiltonian(
     if run_ccsd:
         # Run CCSD as WF method
         ccsd = cc.CCSD(embedded_scf)
-        ccsd.conv_tol = keywords["e_convergence"]
+        ccsd.conv_tol = convergence
 
         # Set which orbitals are to be frozen
         shift = mol.nao - n_env_mos
@@ -269,7 +289,11 @@ def embedding_hamiltonian(
     # Quantum Method
     q_ham = get_qubit_hamiltonian(embedded_scf, active_indices)
 
+    classical_energy = e_env + two_e_cross + e_nuc - wf_correction
+
+    return q_ham, classical_energy
 
 if __name__ == "__main__":
     args = parse()
+    embedding_hamiltonian(args**)
 
