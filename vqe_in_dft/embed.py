@@ -61,7 +61,7 @@ def parse():
     parser.add_argument(
         "--output",
         type=str,
-        choice=["openfermion"],
+        choices=["openfermion"],
         help="Quantum computing backend to output the qubit hamiltonian for.",
     )
     args = parser.parse_args()
@@ -187,7 +187,7 @@ def embedding_hamiltonian(
     output: str,
     level_shift: float = 1e6,
     run_ccsd: bool = False,
-    ) -> Tuple[Object, float]:
+    ) -> Tuple[object, float]:
     """
     Function to return the embedding Qubit Hamiltonian.
     """
@@ -295,5 +295,5 @@ def embedding_hamiltonian(
 
 if __name__ == "__main__":
     args = parse()
-    embedding_hamiltonian(args**)
+    qham, e_classical = embedding_hamiltonian(**args)
 
