@@ -6,3 +6,4 @@ nbed:
   xc-functional: b3lyp
   convergence: 1e-6
   output-format: openfermion
+  level-shift: 1e6
