@@ -1,29 +1,23 @@
+import argparse
 from copy import copy
 from ctypes import wstring_at
-from typing import Dict, Optional
-from spade import fill_defaults
-import numpy as np
-from scipy import linalg
-from pyscf import gto, scf, cc, ao2mo, fci
-import pandas as pd
 from pathlib import Path
-from pyscf import ao2mo
+from typing import Any, Dict, List, Optional
+import yaml
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from openfermion.chem.molecular_data import spinorb_from_spatial
+from openfermion.linalg import eigenspectrum, expectation
 from openfermion.ops.representations import (
     InteractionOperator,
     get_active_space_integrals,
 )
-from openfermion.linalg import eigenspectrum, expectation
-from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.transforms import jordan_wigner
-from typing import List, Dict, Any
-
-# Xserver is not set up on my WSL so turn of display
-import matplotlib as mpl
-
-mpl.use("Agg")
-import matplotlib.pyplot as plt
-
-import argparse
+from pyscf import ao2mo, cc, fci, gto, scf
+from scipy import linalg
 
 
 def parse():
@@ -53,6 +47,9 @@ def parse():
     args = parser.parse_args()
 
     return args
+
+def read_config(filepath: Path) -> Dict[str: Any]:
+    "Read the config.yaml and fill defualts."
 
 
 def get_exact_energy(mol: gto.Mole, keywords: Dict):
@@ -121,7 +118,7 @@ def get_active_indices(
         raise Exception(f"Active space reduction too large. Max size {max_reduction}")
 
     # Find the active indices
-    active_indices = [i for i in range(len(scf_method.mo_occ)-n_env_mos)]
+    active_indices = [i for i in range(len(scf_method.mo_occ) - n_env_mos)]
 
     if reduction:
         active_indices = active_indices[:-reduction]
@@ -137,29 +134,33 @@ def get_qubit_hamiltonian(scf_method, active_indices: List[int]):
 
     one_body_integrals = mo_coeff.T @ scf_method.get_hcore() @ mo_coeff
 
-    #temp_scf.get_hcore = lambda *args, **kwargs : initial_h_core
+    # temp_scf.get_hcore = lambda *args, **kwargs : initial_h_core
     scf_method.mol.incore_anyway == True
 
     # Get two electron integrals in compressed format.
     two_body_compressed = ao2mo.kernel(scf_method.mol, mo_coeff)
 
-    two_body_integrals = ao2mo.restore(1, # no permutation symmetry
-        two_body_compressed, n_orbs)
+    two_body_integrals = ao2mo.restore(
+        1, two_body_compressed, n_orbs  # no permutation symmetry
+    )
 
     # Openfermion uses pysicist notation whereas pyscf uses chemists
-    two_body_integrals = np.asarray(
-        two_body_integrals.transpose(0, 2, 3, 1), order='C')
+    two_body_integrals = np.asarray(two_body_integrals.transpose(0, 2, 3, 1), order="C")
 
-    one_body_coefficients, two_body_coefficients = spinorb_from_spatial(one_body_integrals, two_body_integrals)
+    one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
+        one_body_integrals, two_body_integrals
+    )
 
-    molecular_hamiltonian = InteractionOperator(0, one_body_coefficients, 0.5 * two_body_coefficients)
+    molecular_hamiltonian = InteractionOperator(
+        0, one_body_coefficients, 0.5 * two_body_coefficients
+    )
 
     Qubit_Hamiltonian = jordan_wigner(molecular_hamiltonian)
 
     return Qubit_Hamiltonian
 
 
-def run_sim(
+def embedding_hamiltonian(
     mol: gto.Mole,
     keywords: Dict[str, Any],
     orbital_reduction: int = None,
@@ -224,7 +225,6 @@ def run_sim(
 
     embedded_scf.get_hcore = lambda *args, **kwargs: h_core + v_emb
 
-
     # Calculate energy correction
     # - There are two versions used for different embeddings
     dm_correction = np.einsum("ij,ij", v_emb, embedded_density - act_density)
@@ -262,182 +262,14 @@ def run_sim(
     else:
         e_wf_emb = 0
 
-    
     # WF Method
     # Calculate the energy of embedded A
-    #embedded_scf.get_hcore = lambda *args, **kwargs: h_core
+    # embedded_scf.get_hcore = lambda *args, **kwargs: h_core
 
     # Quantum Method
     q_ham = get_qubit_hamiltonian(embedded_scf, active_indices)
 
-    # Can run a full VQE sim here or just take ground state
-    e_vqe_act = eigenspectrum(q_ham)[0]
-
-    # Add all the parts up
-    e_vqe_emb = e_vqe_act + e_env + two_e_cross - wf_correction + e_nuc
-
-
-
-    print("Component contributions")
-    print(
-        f"{e_vqe_act=}, {e_wf_act=}, {e_env=}, {two_e_cross=}, {wf_correction=}, {e_nuc=}\n"
-    )
-
-    return e_initial, e_vqe_emb, e_wf_emb
-
-
-def plot_methods(distances, values, mol_name):
-    # Plot the results with no active space reduction
-    mins = {}
-    lengths = {}
-    fig = plt.figure()
-    for key, data in values[0].items():
-        mins[key] = min([i for i in data if i is not None])
-        lengths[key] = distances[np.argmin(data)]
-        plt.plot(distances, data, label=f"{key} (Length={lengths[key]:.3f} Emin={mins[key]:.3f})")
-
-
-    plt.legend()
-    plt.xlabel(r"Distance ($a_0$)")
-    plt.ylabel("Energy (Ha)")
-    plt.title(f"{mol_name} Embedding Methods")
-    figpath = Path(__file__).parent / f"data/{mol_name}-{0}-{pd.Timestamp.now()}.png"
-    plt.savefig(figpath)
-
-
-def plot_vqe_reductions(distances, values, mol_name, mo_reduction):
-    # Plot vqe with reduced active space
-    mins = {}
-    fig = plt.figure()
-    vqe_data = {i: values[i]["VQE-in-DFT"] for i in mo_reduction}
-    for key, data in vqe_data.items():
-        mins[key] = min([i for i in data if i is not None])
-        plt.plot(distances, data, label=f"Space Reduction={key} (min={mins[key]:.3f})")
-
-    plt.legend()
-    plt.xlabel(r"Distance ($a_0$)")
-    plt.ylabel("Energy (Ha)")
-    plt.title(f"{mol_name} VQE Active Space Reduction")
-    figpath = Path(__file__).parent / f"data/{mol_name}-VQE-{pd.Timestamp.now()}.png"
-    plt.savefig(figpath)
-
-
-def main(
-    dmin: int,
-    dmax: int,
-    mo_reduction: List[int] = None, 
-    save: bool = False, 
-    plot: bool = False,
-    test: bool = False,
-    max_runs: int = 100,
-    ):
-    "Run for some molecule and a range of values"
-
-    water_geometry = """
-    O          0.00000        0.00000        0.1653507
-    H          0.00000        0.7493682     -0.4424329
-    H          0.00000       -0.7493682     -0.4424329
-        """
-
-    options = {}
-    options["basis"] = "STO-6G"  # basis set
-    options["low_level"] = "b3lyp"  # level of theory of the environment
-    options["high_level"] = "mp2"  # level of theory of the embedded system
-    options[
-        "n_active_atoms"
-    ] = 1  # number of active atoms (first n atoms in the geometry string)
-    options["low_level_reference"] = "rhf"
-    options["high_level_reference"] = "rhf"
-    options["package"] = "pyscf"
-
-    keywords = fill_defaults(options)
-
-    # Assuming we want to look at water later.
-    options["geometry"] = water_geometry
-
-    if not test:
-        # max runs is presumptively 100
-        #num_runs = int(10 * (dmax - dmin)) if dmax-dmin < (max_runs / 10) else max_runs 
-        distances = np.concatenate((np.linspace(1, 2.5, 25), np.linspace(2.5, 2.7, 50), np.linspace(2.7, 5, 40)))
-        #distances = np.linspace(dmin, dmax, num_runs)
-    else:
-        distances = np.linspace(dmin, dmax, 3)
-        mo_reduction = [0]
-        save = False
-        plot = True
-
-    values = {
-        i: {
-            "FCI": [],
-            "DFT": [],
-            #"WF-in-DFT": [],
-            "VQE-in-DFT": [],
-        }
-        for i in mo_reduction
-    }
-    mol_name = "Li2"
-    for distance in distances:
-        options[
-            "geometry"
-        ] = f"""
-        Li 0.0 0.0 0.0
-        Li 0.0 0.0 {distance}
-        """
-        # options["geometry"] = water_geometry
-
-        mol = gto.Mole(
-            atom=keywords["geometry"], basis=keywords["basis"], charge=0
-        ).build()
-        expected_energy = get_exact_energy(mol, keywords)
-
-        for reduction in mo_reduction:
-            mol = gto.Mole(
-                atom=keywords["geometry"], basis=keywords["basis"], charge=0
-            ).build()
-
-            e_initial, e_vqe_emb, e_wf_emb = run_sim(mol, keywords, reduction, run_ccsd=False)
-
-            # Print out the final value.
-            print(f"Calculating with {distance=}")
-            print(f"Active space {reduction=}")
-            print(f"FCI Energy:\t\t\t{expected_energy}\n")
-            print(f"Full system low-level Energy:\t{e_initial}")
-            print(
-                f"Error:\t\t\t\t{(expected_energy-e_initial)*100/expected_energy:.2f}%\n"
-            )
-            print(f"VQE-in-DFT Energy:\t\t{e_vqe_emb}")
-            print(
-                f"Error:\t\t\t\t{(expected_energy-e_vqe_emb)*100/expected_energy:.2f}%\n"
-            )
-            #print(f"WF-in-DFT Energy:\t\t{e_wf_emb}")
-            #print(
-            #    f"Error:\t\t\t\t{(expected_energy-e_wf_emb)*100/expected_energy:.2f}%\n\n"
-            #)
-
-            values[reduction]["FCI"].append(expected_energy)
-            values[reduction]["DFT"].append(e_initial)
-            #values[reduction]["WF-in-DFT"].append(e_wf_emb)
-            # TODO fix VQE bit
-            values[reduction]["VQE-in-DFT"].append(e_vqe_emb)
-
-    if save:
-        for reduction in mo_reduction:
-            # Make a dataframe and write to file
-            df = pd.DataFrame(data=values[reduction], index=distances)
-            datapath = (
-                Path(__file__).parent
-                / f"data/{mol_name}-{reduction=}-{pd.Timestamp.now()}.csv"
-            )
-            df.to_csv(datapath, mode="w")
-
-
-    if plot:
-        plot_methods(distances, values, mol_name)
-
-        # can use this when vqe works...
-        #plot_vqe_reductions(distances, values, mol_name, mo_reduction)
-
 
 if __name__ == "__main__":
     args = parse()
-    main(mo_reduction=[6,5,4], plot=True, save=True, dmin=0.5, dmax=3, max_runs=200)
+
