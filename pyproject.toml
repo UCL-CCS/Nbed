@@ -13,6 +13,7 @@ qiskit-nature = "^0.2.0"
 PennyLane = "^0.17.0"
 PennyLane-Qchem = "^0.17.0"
 tequila-basic = "^1.6.0"
+PyYAML = "^5.4.1"
 
 [tool.poetry.dev-dependencies]
 black = "^21.6b0"

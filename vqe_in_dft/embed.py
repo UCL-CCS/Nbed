@@ -67,7 +67,9 @@ def parse():
     args = parser.parse_args()
 
     if args.config:
-        args = yaml.safe_load(args.config)
+        filepath = Path(args.config).absolute()
+        stream = open(filepath, 'r')
+        args = yaml.safe_load(stream)['nbed']
     return args
 
 def get_exact_energy(mol: gto.Mole, keywords: Dict):
