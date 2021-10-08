@@ -8,11 +8,8 @@ authors = ["Michael Williams <michael.williams.20@ucl.ac.uk>"]
 python = "^3.7"
 pyscf = "=1.7.6.post1"
 openfermion = "<1.1.0"
-qiskit = "^0.29.0"
-qiskit-nature = "^0.2.0"
 PennyLane = "^0.17.0"
 PennyLane-Qchem = "^0.17.0"
-tequila-basic = "^1.6.0"
 PyYAML = "^5.4.1"
 
 [tool.poetry.dev-dependencies]
@@ -29,4 +26,4 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-comparesamples = "vqe_in_dft.embed:cli"
+nbed = "vqe_in_dft.embed:cli"
