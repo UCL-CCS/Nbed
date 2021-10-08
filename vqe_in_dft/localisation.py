@@ -46,4 +46,5 @@ def mullikan(scf_method: Callable, active_atoms: int) -> Tuple[int, int, np.ndar
 def boys(scf_method: Callable, active_atoms: int) -> Tuple[int, int, np.ndarray, np.ndarray]:
     raise NotImplementedError("Boys localisation is not implemented, use spade.")
 
-def ibo
+def ibo(scf_method: Callable, active_atoms: int) -> Tuple[int, int, np.ndarray, np.ndarray]:
+    raise NotImplementedError("IBO localisation is not implemented, use spade.")

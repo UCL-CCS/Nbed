@@ -6,4 +6,7 @@ nbed:
   xc-functional: b3lyp
   convergence: 1e-6
   output: openfermion
+  localisation: spade
   level-shift: 1e6
+  # optionally add
+  # run_ccsd: True
