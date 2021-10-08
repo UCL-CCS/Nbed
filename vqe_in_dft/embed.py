@@ -9,79 +9,7 @@ from openfermion.ops.representations import InteractionOperator
 from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, cc, fci, gto, scf
 
-from vqe_in_dft.localisation import spade, mullikan, boys, ibo
-
-
-def parse():
-    parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
-    parser.add_argument(
-        "--config", type=str, help="Path to a config file. Overwrites other arguments."
-    )
-    parser.add_argument(
-        "--geometry",
-        type=str,
-        help="Path to an XYZ file.",
-    )
-    parser.add_argument(
-        "--active_atoms",
-        "--active",
-        type=int,
-        help="Number of atoms to include in active region.",
-    )
-    parser.add_argument(
-        "--basis",
-        type=str,
-        help="Basis set to use.",
-    )
-    parser.add_argument(
-        "--xc_functional",
-        "--xc",
-        "--functional",
-        type=str,
-        help="Exchange correlation functional to use in DFT calculations.",
-    )
-    parser.add_argument(
-        "--convergence",
-        "--conv",
-        type=float,
-        help="Convergence tolerance for calculations.",
-    )
-    parser.add_argument(
-        "--output",
-        type=str.lower,
-        choices=["openfermion"],  # TODO "qiskit", "pennylane",],
-        help="Quantum computing backend to output the qubit hamiltonian for.",
-    )
-    parser.add_argument(
-        "--localization",
-        "--loc",
-        type=str.lower,
-        choices=["spade"],  # TODO "mullikan", "ibo", "boys",],
-        help="Method of localisation to use.",
-    )
-    parser.add_argument(
-        "--ccsd",
-        type=bool,
-        action="set_true",
-        help="Include if you want to run a ccsd calculation of the whole system.",
-    )
-    args = parser.parse_args()
-
-    if args.config:
-        filepath = Path(args.config).absolute()
-        stream = open(filepath, "r")
-        args = yaml.safe_load(stream)["nbed"]
-    return args
-
-
-def get_exact_energy(mol: gto.Mole, keywords: Dict):
-    hf = mol.RHF().run()
-
-    ref_fci = fci.FCI(hf)
-    ref_fci.conv_tol = keywords["e_convergence"]
-    fci_result = ref_fci.kernel()
-
-    return fci_result[0]
+from localisation import *
 
 
 def closed_shell_subsystem(scf_method: Callable, density: np.ndarray):
@@ -177,7 +105,9 @@ def embedding_hamiltonian(
     ks.conv_tol = convergence
     ks.xc = xc_functional
 
-    n_act_mos, n_env_mos, act_density, env_density = spade(ks, active_atoms)
+    # Function names must be the same as the imput choices.
+    loc_method = globals()[localisation]
+    n_act_mos, n_env_mos, act_density, env_density = loc_method(ks, active_atoms)
 
     # Get cross terms from the initial density
     e_act, e_xc_act, j_act, k_act, v_xc_act = closed_shell_subsystem(ks, act_density)
