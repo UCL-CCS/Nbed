@@ -1,25 +1,16 @@
 import argparse
-from copy import copy
-from ctypes import wstring_at
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Callable, Tuple
-from pyscf.gto import basis
-from pyscf.lib.misc import alias
-import yaml
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import yaml
 from openfermion.chem.molecular_data import spinorb_from_spatial
-from openfermion.linalg import eigenspectrum, expectation
-from openfermion.ops.representations import (
-    InteractionOperator,
-    get_active_space_integrals,
-)
+from openfermion.ops.representations import InteractionOperator
 from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, cc, fci, gto, scf
-from scipy import linalg
 
 from vqe_in_dft.localisation import spade
 
@@ -27,9 +18,7 @@ from vqe_in_dft.localisation import spade
 def parse():
     parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
     parser.add_argument(
-        "--config",
-        type=str,
-        help="Path to a config file. Overwrites other arguments."
+        "--config", type=str, help="Path to a config file. Overwrites other arguments."
     )
     parser.add_argument(
         "--geometry",
@@ -63,29 +52,30 @@ def parse():
     parser.add_argument(
         "--output",
         type=str.lower,
-        choices=["openfermion"], # TODO "qiskit", "pennylane",],
+        choices=["openfermion"],  # TODO "qiskit", "pennylane",],
         help="Quantum computing backend to output the qubit hamiltonian for.",
     )
     parser.add_argument(
         "--localization",
         "--loc",
         type=str.lower,
-        choices=["spade"], # TODO "mullikan", "ibo", "boys",],
+        choices=["spade"],  # TODO "mullikan", "ibo", "boys",],
         help="Method of localisation to use.",
     )
     parser.add_argument(
         "--ccsd",
         type=bool,
         action="set_true",
-        help="Include if you want to run a ccsd calculation of the whole system."
+        help="Include if you want to run a ccsd calculation of the whole system.",
     )
     args = parser.parse_args()
 
     if args.config:
         filepath = Path(args.config).absolute()
-        stream = open(filepath, 'r')
-        args = yaml.safe_load(stream)['nbed']
+        stream = open(filepath, "r")
+        args = yaml.safe_load(stream)["nbed"]
     return args
+
 
 def get_exact_energy(mol: gto.Mole, keywords: Dict):
     hf = mol.RHF().run()
@@ -111,7 +101,10 @@ def closed_shell_subsystem(scf_method: Callable, density: np.ndarray):
 
 
 def get_active_indices(
-    scf_method: Callable, n_act_mos: int, n_env_mos: int, reduction: Optional[int] = None
+    scf_method: Callable,
+    n_act_mos: int,
+    n_env_mos: int,
+    reduction: Optional[int] = None,
 ) -> np.ndarray:
     nao = scf_method.mol.nao
     max_reduction = nao - n_act_mos - n_env_mos
@@ -174,7 +167,7 @@ def embedding_hamiltonian(
     localisation: str = "spade",
     level_shift: float = 1e6,
     run_ccsd: bool = False,
-    ) -> Tuple[object, float]:
+) -> Tuple[object, float]:
     """
     Function to return the embedding Qubit Hamiltonian.
     """
@@ -280,16 +273,17 @@ def embedding_hamiltonian(
 
     return q_ham, classical_energy
 
+
 if __name__ == "__main__":
     args = parse()
-    qham, e_classical = embedding_hamiltonian(geometry=args.geometry,
-        active_atoms = args.active,
-        basis = args.basis,
-        xc_functional = args.xc_functonal,
-        output = args.output,
-        localisation= args.localisation,
-        convergence = args.convergence,
-        level_shift = args.level_shift,
-        run_ccsd = args.run_ccsd,
-        )
-
+    qham, e_classical = embedding_hamiltonian(
+        geometry=args.geometry,
+        active_atoms=args.active,
+        basis=args.basis,
+        xc_functional=args.xc_functonal,
+        output=args.output,
+        localisation=args.localisation,
+        convergence=args.convergence,
+        level_shift=args.level_shift,
+        run_ccsd=args.run_ccsd,
+    )

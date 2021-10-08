@@ -3,11 +3,14 @@ File to contain localisations.
 """
 
 from typing import Callable, Tuple
-from scipy import linalg
+
 import numpy as np
+from scipy import linalg
 
 
-def spade(scf_method: Callable, active_atoms: int) -> Tuple[int, int, np.ndarray, np.ndarray]:
+def spade(
+    scf_method: Callable, active_atoms: int
+) -> Tuple[int, int, np.ndarray, np.ndarray]:
     n_occupied_orbitals = np.count_nonzero(scf_method.mo_occ == 2)
     occupied_orbitals = scf_method.mo_coeff[:, :n_occupied_orbitals]
 
@@ -37,14 +40,23 @@ def spade(scf_method: Callable, active_atoms: int) -> Tuple[int, int, np.ndarray
     env_density = 2.0 * env_orbitals @ env_orbitals.T
     return n_act_mos, n_env_mos, act_density, env_density
 
-def mullikan(scf_method: Callable, active_atoms: int) -> Tuple[int, int, np.ndarray, np.ndarray]:
+
+def mullikan(
+    scf_method: Callable, active_atoms: int
+) -> Tuple[int, int, np.ndarray, np.ndarray]:
     """
     Localise using Mullikan population analysis.
     """
     raise NotImplementedError("Mullikan localisation is not implemented, use spade.")
 
-def boys(scf_method: Callable, active_atoms: int) -> Tuple[int, int, np.ndarray, np.ndarray]:
+
+def boys(
+    scf_method: Callable, active_atoms: int
+) -> Tuple[int, int, np.ndarray, np.ndarray]:
     raise NotImplementedError("Boys localisation is not implemented, use spade.")
 
-def ibo(scf_method: Callable, active_atoms: int) -> Tuple[int, int, np.ndarray, np.ndarray]:
+
+def ibo(
+    scf_method: Callable, active_atoms: int
+) -> Tuple[int, int, np.ndarray, np.ndarray]:
     raise NotImplementedError("IBO localisation is not implemented, use spade.")
