@@ -21,6 +21,8 @@ from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, cc, fci, gto, scf
 from scipy import linalg
 
+from vqe_in_dft.localisation import spade
+
 
 def parse():
     parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
@@ -60,9 +62,22 @@ def parse():
     )
     parser.add_argument(
         "--output",
-        type=str,
-        choices=["openfermion"],
+        type=str.lower,
+        choices=["openfermion"], # TODO "qiskit", "pennylane",],
         help="Quantum computing backend to output the qubit hamiltonian for.",
+    )
+    parser.add_argument(
+        "--localization",
+        "--loc",
+        type=str.lower,
+        choices=["spade"], # TODO "mullikan", "ibo", "boys",],
+        help="Method of localisation to use.",
+    )
+    parser.add_argument(
+        "--ccsd",
+        type=bool,
+        action="set_true",
+        help="Include if you want to run a ccsd calculation of the whole system."
     )
     args = parser.parse_args()
 
@@ -80,37 +95,6 @@ def get_exact_energy(mol: gto.Mole, keywords: Dict):
     fci_result = ref_fci.kernel()
 
     return fci_result[0]
-
-
-def spade_localisation(scf_method: Callable, active_atoms: int):
-    n_occupied_orbitals = np.count_nonzero(scf_method.mo_occ == 2)
-    occupied_orbitals = scf_method.mo_coeff[:, :n_occupied_orbitals]
-
-    n_act_aos = scf_method.mol.aoslice_by_atom()[active_atoms - 1][-1]
-    ao_overlap = scf_method.get_ovlp()
-
-    # Orbital rotation and partition into subsystems A and B
-    # rotation_matrix, sigma = embed.orbital_rotation(occupied_orbitals,
-    #    n_act_aos, ao_overlap)
-
-    rotated_orbitals = (
-        linalg.fractional_matrix_power(ao_overlap, 0.5) @ occupied_orbitals
-    )
-    _, sigma, right_vectors = linalg.svd(rotated_orbitals[:n_act_aos, :])
-
-    print(f"Singular Values: {sigma}")
-
-    # n_act_mos, n_env_mos = embed.orbital_partition(sigma)
-    value_diffs = sigma[:-1] - sigma[1:]
-    n_act_mos = np.argmax(value_diffs) + 1
-    n_env_mos = n_occupied_orbitals - n_act_mos
-
-    # Defining active and environment orbitals and density
-    act_orbitals = occupied_orbitals @ right_vectors.T[:, :n_act_mos]
-    env_orbitals = occupied_orbitals @ right_vectors.T[:, n_act_mos:]
-    act_density = 2.0 * act_orbitals @ act_orbitals.T
-    env_density = 2.0 * env_orbitals @ env_orbitals.T
-    return n_act_mos, n_env_mos, act_density, env_density
 
 
 def closed_shell_subsystem(scf_method: Callable, density: np.ndarray):
@@ -146,7 +130,7 @@ def get_active_indices(
     return np.array(active_indices)
 
 
-def get_qubit_hamiltonian(scf_method: Callable, active_indices: List[int]):
+def get_qubit_hamiltonian(scf_method: Callable, active_indices: List[int]) -> Callabe:
 
     n_orbs = len(active_indices)
 
@@ -185,8 +169,9 @@ def embedding_hamiltonian(
     active_atoms: int,
     basis: str,
     xc_functional: str,
-    convergence: float,
     output: str,
+    convergence: float = 1e-6,
+    localisation: str = "spade",
     level_shift: float = 1e6,
     run_ccsd: bool = False,
     ) -> Tuple[object, float]:
@@ -202,7 +187,7 @@ def embedding_hamiltonian(
     ks.conv_tol = convergence
     ks.xc = xc_functional
 
-    n_act_mos, n_env_mos, act_density, env_density = spade_localisation(ks, active_atoms)
+    n_act_mos, n_env_mos, act_density, env_density = spade(ks, active_atoms)
 
     # Get cross terms from the initial density
     e_act, e_xc_act, j_act, k_act, v_xc_act = closed_shell_subsystem(ks, act_density)
@@ -281,8 +266,8 @@ def embedding_hamiltonian(
 
         # Add up the parts again
         e_wf_emb = e_wf_act + e_env + two_e_cross + e_nuc - wf_correction
-    else:
-        e_wf_emb = 0
+
+        print("CCSD Energy:\n\t%s", e_wf_emb)
 
     # WF Method
     # Calculate the energy of embedded A
@@ -297,5 +282,14 @@ def embedding_hamiltonian(
 
 if __name__ == "__main__":
     args = parse()
-    qham, e_classical = embedding_hamiltonian(**args)
+    qham, e_classical = embedding_hamiltonian(geometry=args.geometry,
+        active_atoms = args.active,
+        basis = args.basis,
+        xc_functional = args.xc_functonal,
+        output = args.output,
+        localisation= args.localisation,
+        convergence = args.convergence,
+        level_shift = args.level_shift,
+        run_ccsd = args.run_ccsd,
+        )
 
