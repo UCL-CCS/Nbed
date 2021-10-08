@@ -3,12 +3,12 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
-from localisation import *
+from vqe_in_dft.localisation import *
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
 from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, cc, fci, gto, scf
-from utils import parse, setup_logs
+from vqe_in_dft.utils import parse, setup_logs
 
 logger = logging.getLogger(__name__)
 setup_logs()
@@ -219,10 +219,12 @@ def embedding_hamiltonian(
 
     return q_ham, classical_energy
 
-
-if __name__ == "__main__":
+def cli() -> None:
+    """
+    CLI Interface
+    """
+    setup_logs()
     args = parse()
-
     qham, e_classical = embedding_hamiltonian(
         geometry=args['geometry'],
         active_atoms=args['active_atoms'],
@@ -237,3 +239,6 @@ if __name__ == "__main__":
     print(f"Qubit Hamiltonian:")
     print(qham)
     print(f"Classical Energy (Ha): {e_classical}")
+
+if __name__ == "__main__":
+    cli()
