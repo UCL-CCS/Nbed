@@ -2,4 +2,4 @@
 Init for package
 """
 
-from localisation import spade, mullikan, boys, ibo
+from localisation import boys, ibo, mullikan, spade
