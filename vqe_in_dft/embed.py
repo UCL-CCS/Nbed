@@ -1,18 +1,22 @@
-import argparse
+import logging
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
-import yaml
+from localisation import *
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
 from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, cc, fci, gto, scf
+from utils import parse, setup_logs
 
-from localisation import *
+logger = logging.getLogger(__name__)
+setup_logs()
 
-
-def closed_shell_subsystem(scf_method: Callable, density: np.ndarray):
+def closed_shell_subsystem(scf_method: Callable, density: np.ndarray) -> Tuple[float]:
+    """
+    Calculate the components of subsystem energy.
+    """
     # It seems that PySCF lumps J and K in the J array
     j = scf_method.get_j(dm=density)
     k = np.zeros(np.shape(j))
@@ -29,27 +33,36 @@ def get_active_indices(
     scf_method: Callable,
     n_act_mos: int,
     n_env_mos: int,
-    reduction: Optional[int] = None,
+    qubits: Optional[int] = None,
 ) -> np.ndarray:
+    """
+    Return an array of active indices for QHam construction.
+    """
     nao = scf_method.mol.nao
-    max_reduction = nao - n_act_mos - n_env_mos
-
-    # Check that the reduction is sensible
-    # Needs to set to none for slice
-    if reduction > max_reduction:
-        raise Exception(f"Active space reduction too large. Max size {max_reduction}")
 
     # Find the active indices
     active_indices = [i for i in range(len(scf_method.mo_occ) - n_env_mos)]
 
-    if reduction:
-        active_indices = active_indices[:-reduction]
+
+    # This is not the best way to simplify.
+    # TODO some more sophisticated thing with frozen core
+    # rather than just cutting high level MOs
+    if qubits:
+        # Check that the reduction is sensible
+        # Needs 1 qubit per spin state
+        if qubits < 2*n_act_mos:
+            raise Exception(f"Not enouch qubits for active MOs, minimum {2*n_act_mos}.")
+
+        logger.info("Restricting to low level MOs for %s qubits.", qubits)
+        active_indices = active_indices[:qubits//2]
 
     return np.array(active_indices)
 
 
-def get_qubit_hamiltonian(scf_method: Callable, active_indices: List[int]) -> Callabe:
-
+def get_qubit_hamiltonian(scf_method: Callable, active_indices: List[int]) -> Callable:
+    """
+    Return the qubit hamiltonian.
+    """
     n_orbs = len(active_indices)
 
     mo_coeff = scf_method.mo_coeff[:, active_indices]
@@ -92,28 +105,34 @@ def embedding_hamiltonian(
     localisation: str = "spade",
     level_shift: float = 1e6,
     run_ccsd: bool = False,
+    qubits=None,
 ) -> Tuple[object, float]:
     """
     Function to return the embedding Qubit Hamiltonian.
     """
 
+    logger.debug("Construcing molecule.")
     mol: gto.Mole = gto.Mole(atom=geometry, basis=basis, charge=0).build()
 
     e_nuc = mol.energy_nuc()
+    logger.debug(f"Nuclear energy: {e_nuc}.")
 
     ks = scf.RKS(mol)
     ks.conv_tol = convergence
     ks.xc = xc_functional
+    ks.run()
 
     # Function names must be the same as the imput choices.
+    logger.debug(f"Using {localisation} localisation method.")
     loc_method = globals()[localisation]
     n_act_mos, n_env_mos, act_density, env_density = loc_method(ks, active_atoms)
 
     # Get cross terms from the initial density
+    logger.debug("Calculating cross subsystem terms.")
     e_act, e_xc_act, j_act, k_act, v_xc_act = closed_shell_subsystem(ks, act_density)
     e_env, e_xc_env, j_env, k_env, v_xc_env = closed_shell_subsystem(ks, env_density)
 
-    active_indices = get_active_indices(ks, n_act_mos, n_env_mos, 0)
+    active_indices = get_active_indices(ks, n_act_mos, n_env_mos, qubits)
 
     # Computing cross subsystem terms
     # Note that the matrix dot product is equivalent to the trace.
@@ -203,14 +222,18 @@ def embedding_hamiltonian(
 
 if __name__ == "__main__":
     args = parse()
+
     qham, e_classical = embedding_hamiltonian(
-        geometry=args.geometry,
-        active_atoms=args.active,
-        basis=args.basis,
-        xc_functional=args.xc_functonal,
-        output=args.output,
-        localisation=args.localisation,
-        convergence=args.convergence,
-        level_shift=args.level_shift,
-        run_ccsd=args.run_ccsd,
+        geometry=args['geometry'],
+        active_atoms=args['active_atoms'],
+        basis=args['basis'],
+        xc_functional=args['xc_functional'],
+        output=args['output'],
+        localisation=args['localisation'],
+        convergence=args['convergence'],
+        run_ccsd=args['ccsd'],
+        qubits=args['qubits'],
     )
+    print(f"Qubit Hamiltonian:")
+    print(qham)
+    print(f"Classical Energy (Ha): {e_classical}")
