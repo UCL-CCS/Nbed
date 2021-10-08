@@ -2,17 +2,14 @@ import argparse
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import yaml
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
 from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, cc, fci, gto, scf
 
-from vqe_in_dft.localisation import spade
+from vqe_in_dft.localisation import spade, mullikan, boys, ibo
 
 
 def parse():
