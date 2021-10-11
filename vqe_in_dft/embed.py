@@ -215,7 +215,9 @@ def embedding_hamiltonian(
     # Quantum Method
     q_ham = get_qubit_hamiltonian(embedded_scf, active_indices)
 
-    import pdb; pdb.set_trace()
+    # TODO Change the output type here
+    if output:
+        pass
 
     classical_energy = e_env + two_e_cross + e_nuc - wf_correction
 
