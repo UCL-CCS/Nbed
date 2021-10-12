@@ -10,7 +10,7 @@ from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, cc, fci, gto, scf
 from vqe_in_dft.utils import parse, setup_logs
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) #test
 setup_logs()
 
 def closed_shell_subsystem(scf_method: Callable, density: np.ndarray) -> Tuple[float]:
