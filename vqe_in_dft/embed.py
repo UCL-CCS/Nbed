@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from vqe_in_dft.localisation import *
@@ -8,14 +8,17 @@ from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
 from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, cc, fci, gto, scf
+from pyscf.lib import StreamObject
 from vqe_in_dft.utils import parse, setup_logs
 
 logger = logging.getLogger(__name__)
 setup_logs()
 
-def closed_shell_subsystem(scf_method: Callable, density: np.ndarray) -> Tuple[float]:
+def closed_shell_subsystem(scf_method: StreamObject, density: np.ndarray) -> Tuple[float]:
     """
     Calculate the components of subsystem energy.
+
+    scf_method (StreamObject): A self consistent method from pyscf.
     """
     # It seems that PySCF lumps J and K in the J array
     j = scf_method.get_j(dm=density)
@@ -30,7 +33,7 @@ def closed_shell_subsystem(scf_method: Callable, density: np.ndarray) -> Tuple[f
 
 
 def get_active_indices(
-    scf_method: Callable,
+    scf_method: StreamObject,
     n_act_mos: int,
     n_env_mos: int,
     qubits: Optional[int] = None,
@@ -59,9 +62,11 @@ def get_active_indices(
     return np.array(active_indices)
 
 
-def get_qubit_hamiltonian(scf_method: Callable, active_indices: List[int]) -> Callable:
+def get_qubit_hamiltonian(scf_method: StreamObject, active_indices: List[int]) -> StreamObject:
     """
     Return the qubit hamiltonian.
+
+    scf_method (StreamObject)
     """
     n_orbs = len(active_indices)
 
