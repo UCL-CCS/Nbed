@@ -1,0 +1,40 @@
+10
+Glycine
+N    -1.476   0.232   0.252  0  0  0  0
+C    -0.012   0.296   0.348  0  0  0  0
+C     0.596  -0.652  -0.648  0  0  0  0
+O    -0.124  -1.320  -1.368  0  0  0  0
+O     1.916  -0.760  -0.740  0  0  0  0
+H    -1.736  -0.252  -0.592  0  0  0  0
+H     0.292   0.020   1.364  0  0  0  0
+H     0.320   1.320   0.132  0  0  0  0
+H    -1.636  -0.236   1.132  0  0  0  0
+H    -1.916   1.136   0.272  0  0  0  0
+bond  0  5
+bond  0  8
+bond  0  9
+bond  0  1
+bond  1  2
+bond  2  3
+bond  2  4
+bond  1  6
+bond  1  7
+angle  3  2  4
+angle  1  2  3
+angle  1  2  4
+angle  2  1  0
+angle  2  1  6
+angle  2  1  7
+angle  1  0  5
+angle  1  0  8
+angle  1  0  9
+angle  5  0  8
+angle  5  0  9
+angle  8  0  9
+torsion  5  0  1  2
+torsion  5  0  1  6
+torsion  5  0  1  7
+torsion  0  1  2  3
+torsion  0  1  2  4
+torsion  8  0  1  2
+torsion  9  0  1  2
