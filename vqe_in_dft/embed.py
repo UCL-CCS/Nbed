@@ -1,34 +1,40 @@
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import numpy as np
 from vqe_in_dft.localisation import *
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
 from openfermion.transforms import jordan_wigner
-from pyscf import ao2mo, cc, fci, gto, scf
+from pyscf import ao2mo, cc, gto, scf
 from pyscf.lib import StreamObject
 from vqe_in_dft.utils import parse, setup_logs
 
 logger = logging.getLogger(__name__)
 setup_logs()
 
-def closed_shell_subsystem(scf_method: StreamObject, density: np.ndarray) -> Tuple[float]:
+def closed_shell_subsystem(scf_method: StreamObject, density: np.ndarray) -> Tuple[float, np.ndarray]:
     """
     Calculate the components of subsystem energy.
 
-    scf_method (StreamObject): A self consistent method from pyscf.
+    Args:
+        scf_method (StreamObject): A self consistent method from pyscf.
+        density (np.ndarray): Density matrix for the subsystem.
+    
+    Returns:
+        Tuple(float, float, np.ndarray, np.ndarray, np.ndarray)
+
     """
     # It seems that PySCF lumps J and K in the J array
-    j = scf_method.get_j(dm=density)
-    k = np.zeros(np.shape(j))
-    two_e_term = scf_method.get_veff(scf_method.mol, density)
-    e_xc = two_e_term.exc
-    v_xc = two_e_term - j
+    j: np.ndarray = scf_method.get_j(dm=density)
+    k: np.ndarray = np.zeros(np.shape(j))
+    two_e_term: np.ndarray = scf_method.get_veff(scf_method.mol, density)
+    e_xc: float = two_e_term.exc
+    v_xc: np.ndarray = two_e_term - j
 
     # Energy
-    e = np.einsum("ij,ij", density, scf_method.get_hcore() + j / 2) + e_xc
+    e: float = np.einsum("ij,ij", density, scf_method.get_hcore() + j / 2) + e_xc
     return e, e_xc, j, k, v_xc
 
 
@@ -40,8 +46,16 @@ def get_active_indices(
 ) -> np.ndarray:
     """
     Return an array of active indices for QHam construction.
+
+    Args:
+        scf_method (StreamObject): A pyscf self consisten method.
+        n_act_mos (int): Number of active-space moleclar orbitals.
+        n_env_mos (int): Number of environment moleclar orbitals.
+        qubits (int): Number of qubits to be used in final calclation.
+    
+    Returns:
+        np.ndarray: A 1D array of integer indices.
     """
-    nao = scf_method.mol.nao
 
     # Find the active indices
     active_indices = [i for i in range(len(scf_method.mo_occ) - n_env_mos)]
@@ -62,11 +76,16 @@ def get_active_indices(
     return np.array(active_indices)
 
 
-def get_qubit_hamiltonian(scf_method: StreamObject, active_indices: List[int]) -> StreamObject:
+def get_qubit_hamiltonian(scf_method: StreamObject, active_indices: List[int]) -> object:
     """
     Return the qubit hamiltonian.
 
-    scf_method (StreamObject)
+    Args:
+        scf_method (StreamObject): A pyscf self-consistent method.
+        active_indices (list[int]): A list of integer indices of active moleclar orbitals.
+    
+    Returns:
+        object: A qubit hamiltonian.
     """
     n_orbs = len(active_indices)
 
@@ -114,6 +133,14 @@ def embedding_hamiltonian(
 ) -> Tuple[object, float]:
     """
     Function to return the embedding Qubit Hamiltonian.
+
+    Args:
+        geometry (Path): A path to an .xyz file describing moleclar geometry.
+        active_atoms (int): The number of atoms to include in the active region.
+        basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
+        xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
+        output (str): one of "Openfermion"
+
     """
 
     logger.debug("Construcing molecule.")
@@ -221,8 +248,8 @@ def embedding_hamiltonian(
     q_ham = get_qubit_hamiltonian(embedded_scf, active_indices)
 
     # TODO Change the output type here
-    if output:
-        pass
+    if output.lower() != "openfermion":
+        raise NotImplementedError("No output format other than 'OpenFermion' is implemented.")
 
     classical_energy = e_env + two_e_cross + e_nuc - wf_correction
 
