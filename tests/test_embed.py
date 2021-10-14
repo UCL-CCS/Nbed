@@ -1,8 +1,9 @@
 """
 File to contain tests of the embed.py script.
 """
-from vqe_in_dft import nbed
 from pathlib import Path
+
+from vqe_in_dft import nbed
 
 water_filepath = Path("molecules/water.xyz").absolute()
 

@@ -1,15 +1,17 @@
 import logging
+import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
-import os
-from pyscf.tools import cubegen
+
 import numpy as np
 import py3Dmol
 # rdkit import is weird and requires each part to be imported before going deeper
 import rdkit
+from pyscf import gto
+from pyscf.tools import cubegen
 from rdkit.Chem import Draw
 from rdkit.Chem.Draw import IPythonConsole
-from pyscf import gto
+
 
 def Draw_molecule(xyz_string: str, width: int=400, height: int=400, jupyter_notebook: bool=False) -> py3Dmol.view:
 	"""
