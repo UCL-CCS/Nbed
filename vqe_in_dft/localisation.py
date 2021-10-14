@@ -286,8 +286,7 @@ def Get_orb_change_basis_operator(PySCF_scf_obj: gto.Mole, N_active_atoms: int,
                                   sanity_check=False) -> np.ndarray:
 
     """
-    Localise virtual (unoccupied) orbitals using different localization scheme.
-    This maximizes the sum of orbital-dependent partial charges on the nuclei.
+    Get operator that changes from standard cannoncial orbitals (C_matrix standard) to Localized orbitals (C_matrix_localized)
 
     Args:
         PySCF_scf_obj (gto.Mole): PySCF molecule object
