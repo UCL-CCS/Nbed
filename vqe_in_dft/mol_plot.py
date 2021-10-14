@@ -32,7 +32,7 @@ def Draw_molecule(xyz_string, width=400, height=400, jupyter_notebook=False):
 	view.zoomTo()
 	return view
 
-def Draw_cube_orbital(PySCF_mol_obj, xyz_string, C_matrix, index_list, 
+def Draw_cube_orbital(PySCF_mol_obj: gto.Mole, xyz_string: str, C_matrix: np.ndarray, index_list: List[int], 
 					  width=400, height=400, jupyter_notebook=False):
 	"""
 	Draw orbials given a C_matrix (columns contain molecular orbs) and xyz string of molecule.
