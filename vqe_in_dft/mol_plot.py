@@ -10,7 +10,7 @@ from rdkit.Chem import Draw
 from rdkit.Chem.Draw import IPythonConsole
 from pyscf import gto
 
-def Draw_molecule(xyz_string: str, width: int=400, height: int=400, jupyter_notebook: bool=False):
+def Draw_molecule(xyz_string: str, width: int=400, height: int=400, jupyter_notebook: bool=False) -> py3Dmol.view:
 	"""
 	Draw molecule from xyz string
 
@@ -34,7 +34,7 @@ def Draw_molecule(xyz_string: str, width: int=400, height: int=400, jupyter_note
 	return view
 
 def Draw_cube_orbital(PySCF_mol_obj: gto.Mole, xyz_string: str, C_matrix: np.ndarray, index_list: List[int], 
-					  width: int=400, height: int=400, jupyter_notebook: bool=False):
+					  width: int=400, height: int=400, jupyter_notebook: bool=False) -> List:
 	"""
 	Draw orbials given a C_matrix (columns contain molecular orbs) and xyz string of molecule.
 	This function writes orbitals to tempory cube files then deletes them.
@@ -50,7 +50,7 @@ def Draw_cube_orbital(PySCF_mol_obj: gto.Mole, xyz_string: str, C_matrix: np.nda
 		jupyter_notebook (bool): Whether to allow plotting in Jupyter notebooks
 
 	Returns:
-		plotted_orbitals (List): List of plotted orbitals ordered the same way as in index_list
+		plotted_orbitals (List): List of plotted orbitals (py3Dmol.view) ordered the same way as in index_list
 
 	"""
 	if jupyter_notebook is True:
