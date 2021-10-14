@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
-from vqe_in_dft.localisation import *
+from vqe_in_dft.localisation import spade, mullikan, boys, ibo
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
 from openfermion.transforms import jordan_wigner
@@ -49,7 +49,7 @@ def get_active_indices(
     qubits: Optional[int] = None,
 ) -> np.ndarray:
     """Return an array of active indices for QHam construction.
-    
+
     Args:
         scf_method (StreamObject): A pyscf self consisten method.
         n_act_mos (int): Number of active-space moleclar orbitals.
@@ -96,7 +96,7 @@ def get_qubit_hamiltonian(
     one_body_integrals = mo_coeff.T @ scf_method.get_hcore() @ mo_coeff
 
     # temp_scf.get_hcore = lambda *args, **kwargs : initial_h_core
-    scf_method.mol.incore_anyway == True
+    scf_method.mol.incore_anyway is True
 
     # Get two electron integrals in compressed format.
     two_body_compressed = ao2mo.kernel(scf_method.mol, mo_coeff)
