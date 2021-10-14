@@ -6,11 +6,11 @@ authors = ["Michael Williams <michael.williams.20@ucl.ac.uk>"]
 
 [tool.poetry.dependencies]
 python = "^3.7"
-pyscf = "=1.7.6.post1"
 openfermion = "<1.1.0"
 PennyLane = "^0.17.0"
 PennyLane-Qchem = "^0.17.0"
 PyYAML = "^5.4.1"
+pyscf = "1.7.6"
 
 [tool.poetry.dev-dependencies]
 black = "^21.6b0"
