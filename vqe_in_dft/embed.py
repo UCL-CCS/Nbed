@@ -129,7 +129,7 @@ def embedding_hamiltonian(
     localisation: str = "spade",
     level_shift: float = 1e6,
     run_ccsd: bool = False,
-    qubits=None,
+    qubits: int =None,
 ) -> Tuple[object, float]:
     """
     Function to return the embedding Qubit Hamiltonian.
@@ -139,7 +139,15 @@ def embedding_hamiltonian(
         active_atoms (int): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
-        output (str): one of "Openfermion"
+        output (str): one of "Openfermion" (TODO other options)
+        convergence (float): The convergence tolerance for energy calculations.
+        localisation (str): Orbital Localisation method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
+        level_shift (float): Level shift parameter to use for mu-projector.
+        run_ccsd (bool): Whether or not to find the CCSD energy of the system for reference.
+        qubits (int): The number of qubits available for the output hamiltonian.
+    
+    Returns:
+        (object, float): A Qubit Hamiltonian of some kind and the classical contribution to the total energy.
 
     """
 
@@ -257,7 +265,7 @@ def embedding_hamiltonian(
 
 def cli() -> None:
     """
-    CLI Interface
+    CLI Interface.
     """
     setup_logs()
     args = parse()
