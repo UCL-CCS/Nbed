@@ -14,14 +14,17 @@ from vqe_in_dft.utils import parse, setup_logs
 logger = logging.getLogger(__name__)
 setup_logs()
 
-def closed_shell_subsystem(scf_method: StreamObject, density: np.ndarray) -> Tuple[float, np.ndarray]:
+
+def closed_shell_subsystem(
+    scf_method: StreamObject, density: np.ndarray
+) -> Tuple[float, np.ndarray]:
     """
     Calculate the components of subsystem energy.
 
     Args:
         scf_method (StreamObject): A self consistent method from pyscf.
         density (np.ndarray): Density matrix for the subsystem.
-    
+
     Returns:
         Tuple(float, float, np.ndarray, np.ndarray, np.ndarray)
 
@@ -52,7 +55,7 @@ def get_active_indices(
         n_act_mos (int): Number of active-space moleclar orbitals.
         n_env_mos (int): Number of environment moleclar orbitals.
         qubits (int): Number of qubits to be used in final calclation.
-    
+
     Returns:
         np.ndarray: A 1D array of integer indices.
     """
@@ -60,30 +63,31 @@ def get_active_indices(
     # Find the active indices
     active_indices = [i for i in range(len(scf_method.mo_occ) - n_env_mos)]
 
-
     # This is not the best way to simplify.
     # TODO some more sophisticated thing with frozen core
     # rather than just cutting high level MOs
     if qubits:
         # Check that the reduction is sensible
         # Needs 1 qubit per spin state
-        if qubits < 2*n_act_mos:
+        if qubits < 2 * n_act_mos:
             raise Exception(f"Not enouch qubits for active MOs, minimum {2*n_act_mos}.")
 
         logger.info("Restricting to low level MOs for %s qubits.", qubits)
-        active_indices = active_indices[:qubits//2]
+        active_indices = active_indices[: qubits // 2]
 
     return np.array(active_indices)
 
 
-def get_qubit_hamiltonian(scf_method: StreamObject, active_indices: List[int]) -> object:
+def get_qubit_hamiltonian(
+    scf_method: StreamObject, active_indices: List[int]
+) -> object:
     """
     Return the qubit hamiltonian.
 
     Args:
         scf_method (StreamObject): A pyscf self-consistent method.
         active_indices (list[int]): A list of integer indices of active moleclar orbitals.
-    
+
     Returns:
         object: A qubit hamiltonian.
     """
@@ -129,7 +133,7 @@ def embedding_hamiltonian(
     localisation: str = "spade",
     level_shift: float = 1e6,
     run_ccsd: bool = False,
-    qubits: int =None,
+    qubits: int = None,
 ) -> Tuple[object, float]:
     """
     Function to return the embedding Qubit Hamiltonian.
@@ -145,9 +149,10 @@ def embedding_hamiltonian(
         level_shift (float): Level shift parameter to use for mu-projector.
         run_ccsd (bool): Whether or not to find the CCSD energy of the system for reference.
         qubits (int): The number of qubits available for the output hamiltonian.
-    
+
     Returns:
-        (object, float): A Qubit Hamiltonian of some kind and the classical contribution to the total energy.
+        object: A Qubit Hamiltonian of some kind
+        float: The classical contribution to the total energy.
 
     """
 
@@ -257,11 +262,14 @@ def embedding_hamiltonian(
 
     # TODO Change the output type here
     if output.lower() != "openfermion":
-        raise NotImplementedError("No output format other than 'OpenFermion' is implemented.")
+        raise NotImplementedError(
+            "No output format other than 'OpenFermion' is implemented."
+        )
 
     classical_energy = e_env + two_e_cross + e_nuc - wf_correction
 
     return q_ham, classical_energy
+
 
 def cli() -> None:
     """
@@ -270,19 +278,20 @@ def cli() -> None:
     setup_logs()
     args = parse()
     qham, e_classical = embedding_hamiltonian(
-        geometry=args['geometry'],
-        active_atoms=args['active_atoms'],
-        basis=args['basis'],
-        xc_functional=args['xc_functional'],
-        output=args['output'],
-        localisation=args['localisation'],
-        convergence=args['convergence'],
-        run_ccsd=args['ccsd'],
-        qubits=args['qubits'],
+        geometry=args["geometry"],
+        active_atoms=args["active_atoms"],
+        basis=args["basis"],
+        xc_functional=args["xc_functional"],
+        output=args["output"],
+        localisation=args["localisation"],
+        convergence=args["convergence"],
+        run_ccsd=args["ccsd"],
+        qubits=args["qubits"],
     )
     print(f"Qubit Hamiltonian:")
     print(qham)
     print(f"Classical Energy (Ha): {e_classical}")
+
 
 if __name__ == "__main__":
     cli()
