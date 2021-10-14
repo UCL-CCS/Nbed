@@ -56,8 +56,6 @@ nbed:
   xc_functional: b3lyp
   output: openfermion
   localisation: spade
-  # optionally add
-  # run_ccsd: True
 ```
 
 Alternatively you can provide each of the components to the command line.
@@ -70,6 +68,22 @@ The options for `output` and `localisation` can be seen in the command help.
 
 ```
 nbed --help
+```
+
+Additionally, to output a CCSD reference value for the whole system energy, add a line to the yaml file when using `--config`
+
+```
+---
+nbed:
+  ...
+  ccsd: true
+
+```
+
+or use the the `--ccsd` flag when inputing values manually.
+
+```
+nbed --config <path to config file> -
 ```
 
 ## Structure
