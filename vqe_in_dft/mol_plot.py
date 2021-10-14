@@ -8,8 +8,9 @@ import py3Dmol
 import rdkit
 from rdkit.Chem import Draw
 from rdkit.Chem.Draw import IPythonConsole
+from pyscf import gto
 
-def Draw_molecule(xyz_string, width=400, height=400, jupyter_notebook=False):
+def Draw_molecule(xyz_string: str, width: int=400, height: int=400, jupyter_notebook: bool=False):
 	"""
 	Draw molecule from xyz string
 
@@ -33,7 +34,7 @@ def Draw_molecule(xyz_string, width=400, height=400, jupyter_notebook=False):
 	return view
 
 def Draw_cube_orbital(PySCF_mol_obj: gto.Mole, xyz_string: str, C_matrix: np.ndarray, index_list: List[int], 
-					  width=400, height=400, jupyter_notebook=False):
+					  width: int=400, height: int=400, jupyter_notebook: bool=False):
 	"""
 	Draw orbials given a C_matrix (columns contain molecular orbs) and xyz string of molecule.
 	This function writes orbitals to tempory cube files then deletes them.
