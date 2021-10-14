@@ -72,9 +72,14 @@ The options for `output` and `localisation` can be seen in the command help.
 nbed --help
 ```
 
-
-
 ## Structure
+
+```
+VQE_IN_DFT
+    notebooks
+    tests
+    vqe_in_dft
+```
 
 ### Notebooks
 
