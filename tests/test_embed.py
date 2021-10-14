@@ -1,14 +1,14 @@
 """
 File to contain tests of the embed.py script.
 """
-from vqe_in_dft import embedding_terms
+from vqe_in_dft import nbed
 from pathlib import Path
 
 water_filepath = Path("molecules/water.xyz").absolute()
 
 
-def test_embedding_terms() -> None:
-    q_ham, e_classical = embedding_terms(
+def test_nbed() -> None:
+    q_ham, e_classical = nbed(
         geometry=str(water_filepath),
         active_atoms=2,
         basis="sto-3g",

@@ -121,7 +121,7 @@ def get_qubit_hamiltonian(
     return Qubit_Hamiltonian
 
 
-def embedding_hamiltonian(
+def nbed(
     geometry: Path,
     active_atoms: int,
     basis: str,
@@ -271,7 +271,7 @@ def cli() -> None:
     """CLI Interface."""
     setup_logs()
     args = parse()
-    qham, e_classical = embedding_hamiltonian(
+    qham, e_classical = nbed(
         geometry=args["geometry"],
         active_atoms=args["active_atoms"],
         basis=args["basis"],

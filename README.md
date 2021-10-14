@@ -5,7 +5,16 @@ This package contains a method for embedding quantum simulation algorithms withi
 Note: PySCF is not supported on Windows, so until alternative chemistry backends are implemented, this package will work only for Linux and MacOS.
 ## Use
 
-The package has three main interfaces, each to the same function ``. By imorting the package into a python file, 
+The package has three main interfaces, each to the same function `embed/embedding_terms`. This function is accessable by importing the package into a python file
+
+```
+from nbed import nbed
+...
+
+nbed(...)
+```
+
+Installing this package also exposes a command line tool `nbed`
 
 
 
