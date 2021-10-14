@@ -4,6 +4,7 @@ This package provides methods to fragment molecular Hamiltonians and to simulate
 
 ## Use
 
+Note: PySCF is not supported on Windows, so until alternative chemistry backends are implemented, this package will work only for Linux and MacOS.
 ### Poetry
 
 Poetry is a packaging and dependency manager, to install it from the command line run::
