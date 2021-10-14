@@ -5,12 +5,13 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
-from vqe_in_dft.localisation import spade, mullikan, boys, ibo
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
 from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, cc, gto, scf
 from pyscf.lib import StreamObject
+
+from vqe_in_dft.localisation import boys, ibo, mullikan, spade
 from vqe_in_dft.utils import parse, setup_logs
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,7 @@ def get_qubit_hamiltonian(
     return Qubit_Hamiltonian
 
 
-def embedding_hamiltonian(
+def nbed(
     geometry: Path,
     active_atoms: int,
     basis: str,
@@ -271,7 +272,7 @@ def cli() -> None:
     """CLI Interface."""
     setup_logs()
     args = parse()
-    qham, e_classical = embedding_hamiltonian(
+    qham, e_classical = nbed(
         geometry=args["geometry"],
         active_atoms=args["active_atoms"],
         basis=args["basis"],
