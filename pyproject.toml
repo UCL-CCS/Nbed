@@ -11,6 +11,7 @@ PennyLane = "^0.17.0"
 PennyLane-Qchem = "^0.17.0"
 PyYAML = "^5.4.1"
 pyscf = "1.7.6"
+types-PyYAML = "^5.4.11"
 
 [tool.poetry.dev-dependencies]
 black = "^21.6b0"

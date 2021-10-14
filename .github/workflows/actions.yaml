@@ -24,3 +24,5 @@ jobs:
       - name: Linting
         run: |
           poetry run pydocstyle --convention=google
+          poetry run isort . --check
+          poetry run black . --check
