@@ -1,3 +1,5 @@
+"""Main embedding functionality."""
+
 import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -18,8 +20,7 @@ setup_logs()
 def closed_shell_subsystem(
     scf_method: StreamObject, density: np.ndarray
 ) -> Tuple[float, np.ndarray]:
-    """
-    Calculate the components of subsystem energy.
+    """Calculate the components of subsystem energy.
 
     Args:
         scf_method (StreamObject): A self consistent method from pyscf.
