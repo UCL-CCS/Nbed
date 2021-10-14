@@ -20,8 +20,7 @@ jobs:
       - name: Poetry install package
         run: |
           pip install poetry
-          poetry shell
           poetry install
       - name: Linting
         run: |
-          pydocstyle --convention=google
+          poetry run pydocstyle --convention=google
