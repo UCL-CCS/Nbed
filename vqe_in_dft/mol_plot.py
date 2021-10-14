@@ -15,6 +15,7 @@ from rdkit.Chem.Draw import IPythonConsole
 
 logger = logging.getLogger(__name__)
 
+
 def Draw_molecule(
     xyz_string: str, width: int = 400, height: int = 400, jupyter_notebook: bool = False
 ) -> py3Dmol.view:
