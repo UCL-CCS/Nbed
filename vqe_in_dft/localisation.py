@@ -1,6 +1,4 @@
-"""
-File to contain localisations.
-"""
+"""Orbital localisation methods."""
 
 from typing import Tuple
 
@@ -16,8 +14,7 @@ logger = logging.getLogger(__name__)
 def spade(
     scf_method: StreamObject, active_atoms: int
 ) -> Tuple[int, int, np.ndarray, np.ndarray]:
-    """
-    Localise orbitals using SPADE.
+    """Localise orbitals using SPADE.
 
     Args:
         scf_method (StreamObject): A pyscf self consistent field method.
@@ -67,8 +64,7 @@ def spade(
 def mullikan(
     scf_method: StreamObject, active_atoms: int
 ) -> Tuple[int, int, np.ndarray, np.ndarray]:
-    """
-    Localise orbitals using Mullikan population analysis.#
+    """Localise orbitals using Mullikan population analysis.
 
     Args:
         scf_method (StreamObject): A pyscf self consistent field method.
@@ -86,8 +82,7 @@ def mullikan(
 def boys(
     scf_method: StreamObject, active_atoms: int
 ) -> Tuple[int, int, np.ndarray, np.ndarray]:
-    """
-    Localise orbitals using Mullikan population analysis.#
+    """Localise orbitals using Mullikan population analysis.
 
     Args:
         scf_method (StreamObject): A pyscf self consistent field method.
@@ -99,15 +94,13 @@ def boys(
         np.ndarray: Active region density matrix
         np.ndarray: Environment density matrix
     """
-
     raise NotImplementedError("Boys localisation is not implemented, use spade.")
 
 
 def ibo(
     scf_method: StreamObject, active_atoms: int
 ) -> Tuple[int, int, np.ndarray, np.ndarray]:
-    """
-    Localise orbitals using Mullikan population analysis.#
+    """Localise orbitals using Mullikan population analysis.
 
     Args:
         scf_method (StreamObject): A pyscf self consistent field method.

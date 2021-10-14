@@ -1,6 +1,4 @@
-"""
-Helper functions for the package.
-"""
+"""Helper functions for the package."""
 
 import argparse
 import logging
@@ -13,10 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def setup_logs() -> None:
-    """
-    Initialise logging.
-    """
-
+    """Initialise logging."""
     config_dict = {
         "version": 1,
         "disable_existing_loggers": False,
@@ -43,9 +38,7 @@ def setup_logs() -> None:
 
 
 def parse():
-    """
-    Parse arguments from command line interface.
-    """
+    """Parse arguments from command line interface."""
     parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
     parser.add_argument(
         "--config", type=str, help="Path to a config file. Overwrites other arguments."

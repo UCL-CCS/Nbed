@@ -48,9 +48,8 @@ def get_active_indices(
     n_env_mos: int,
     qubits: Optional[int] = None,
 ) -> np.ndarray:
-    """
-    Return an array of active indices for QHam construction.
-
+    """Return an array of active indices for QHam construction.
+    
     Args:
         scf_method (StreamObject): A pyscf self consisten method.
         n_act_mos (int): Number of active-space moleclar orbitals.
@@ -60,7 +59,6 @@ def get_active_indices(
     Returns:
         np.ndarray: A 1D array of integer indices.
     """
-
     # Find the active indices
     active_indices = [i for i in range(len(scf_method.mo_occ) - n_env_mos)]
 
@@ -82,8 +80,7 @@ def get_active_indices(
 def get_qubit_hamiltonian(
     scf_method: StreamObject, active_indices: List[int]
 ) -> object:
-    """
-    Return the qubit hamiltonian.
+    """Return the qubit hamiltonian.
 
     Args:
         scf_method (StreamObject): A pyscf self-consistent method.
@@ -136,8 +133,7 @@ def embedding_hamiltonian(
     run_ccsd: bool = False,
     qubits: int = None,
 ) -> Tuple[object, float]:
-    """
-    Function to return the embedding Qubit Hamiltonian.
+    """Function to return the embedding Qubit Hamiltonian.
 
     Args:
         geometry (Path): A path to an .xyz file describing moleclar geometry.
@@ -156,7 +152,6 @@ def embedding_hamiltonian(
         float: The classical contribution to the total energy.
 
     """
-
     logger.debug("Construcing molecule.")
     mol: gto.Mole = gto.Mole(atom=geometry, basis=basis, charge=0).build()
 
@@ -273,9 +268,7 @@ def embedding_hamiltonian(
 
 
 def cli() -> None:
-    """
-    CLI Interface.
-    """
+    """CLI Interface."""
     setup_logs()
     args = parse()
     qham, e_classical = embedding_hamiltonian(
