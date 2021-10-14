@@ -817,7 +817,7 @@ python-versions = ">=3.6"
 
 [[package]]
 name = "pyscf"
-version = "1.7.6.post1"
+version = "1.7.6"
 description = "PySCF: Python-based Simulations of Chemistry Framework"
 category = "main"
 optional = false
@@ -1074,7 +1074,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "6789ce1a8823416ecd7ae9ece6235124ca2bfb3c2aaa23a4a333fca166945a56"
+content-hash = "cc194f128b557f846b0b0ff0a04ff352b7d68acd1a9d77d80b23085d17afb771"
 
 [metadata.files]
 appdirs = [
@@ -1693,13 +1693,20 @@ pyrsistent = [
     {file = "pyrsistent-0.18.0.tar.gz", hash = "sha256:773c781216f8c2900b42a7b638d5b517bb134ae1acbebe4d1e8f1f41ea60eb4b"},
 ]
 pyscf = [
-    {file = "pyscf-1.7.6.post1-cp27-cp27m-manylinux1_x86_64.whl", hash = "sha256:e578346eea493a1e25037ad00d0628187c328186430983de393653668c5aa5f6"},
-    {file = "pyscf-1.7.6.post1-cp27-cp27mu-manylinux1_x86_64.whl", hash = "sha256:9ff6fd440fab88712df3d01f8e7274309f0467149e26af0f9a407ef2aec648c7"},
-    {file = "pyscf-1.7.6.post1-cp35-cp35m-manylinux1_x86_64.whl", hash = "sha256:8fb3db1d8b9627123642484560d6e3766c017dfef7cc2f552c9a7dc29c185838"},
-    {file = "pyscf-1.7.6.post1-cp36-cp36m-manylinux1_x86_64.whl", hash = "sha256:e468b55ec8fff45dad1b0c4cc69c41625bd47c6c9461c9d284978c423b092638"},
-    {file = "pyscf-1.7.6.post1-cp37-cp37m-manylinux1_x86_64.whl", hash = "sha256:2d72299fbec721e63754df9e42b1c3062d2133d1f77f1e77db4295df4f879b47"},
-    {file = "pyscf-1.7.6.post1-cp38-cp38-manylinux1_x86_64.whl", hash = "sha256:c99cff97c56d741e5e6fec337a7625d6dbfa39289c25a23dfb8c7d3faa8b6719"},
-    {file = "pyscf-1.7.6.post1-cp39-cp39-manylinux1_x86_64.whl", hash = "sha256:28131558a792292ce08692209373742ffbbcc5a3b1ee1b39c56bf36379b393d7"},
+    {file = "pyscf-1.7.6-cp27-cp27m-macosx_10_13_x86_64.whl", hash = "sha256:8102b469a2d2d89fc64f0ae1e92836f1e83f80c6ff36e7ddad95a90fa1bae044"},
+    {file = "pyscf-1.7.6-cp27-cp27m-manylinux1_x86_64.whl", hash = "sha256:60ea43a2df020a486a8a41518d6180dc2ef21849df95d09ea03cffd6305545fb"},
+    {file = "pyscf-1.7.6-cp27-cp27mu-manylinux1_x86_64.whl", hash = "sha256:c62dfa6f85c47c45aabc79d123536e858460851b2ed9957d444e6080d522a4f2"},
+    {file = "pyscf-1.7.6-cp35-cp35m-macosx_10_13_x86_64.whl", hash = "sha256:8acab12cf681c856becd5570730811f599ec4f70cf813b7df32a0166ca7959d7"},
+    {file = "pyscf-1.7.6-cp35-cp35m-manylinux1_x86_64.whl", hash = "sha256:72e5590de1a9e16662efe8c13716a6b7e5cb678777d503aa3e46dc7544d72139"},
+    {file = "pyscf-1.7.6-cp36-cp36m-macosx_10_13_x86_64.whl", hash = "sha256:6e8423684b2108a1040cf9a59bd9cb8fdbcf0031b566a8865b97473476e6c917"},
+    {file = "pyscf-1.7.6-cp36-cp36m-manylinux1_x86_64.whl", hash = "sha256:6752986bb5c71ba1af61a3726634434e6a25bb9c58e63d343cdc82e007c8a9cb"},
+    {file = "pyscf-1.7.6-cp37-cp37m-macosx_10_13_x86_64.whl", hash = "sha256:5b93068ac206f969e743895ffeb10e1365bf18624b8cb3d3fca87f2b7f8519d2"},
+    {file = "pyscf-1.7.6-cp37-cp37m-manylinux1_x86_64.whl", hash = "sha256:3175df08e910b899b744375a5e99da40bd3da4811ab26244c8b5ece0ed153e62"},
+    {file = "pyscf-1.7.6-cp38-cp38-macosx_10_13_x86_64.whl", hash = "sha256:91b31eebd2e74301e4a60ffdd09ebf09e102e6a1ba0447cba82941e99c731133"},
+    {file = "pyscf-1.7.6-cp38-cp38-manylinux1_x86_64.whl", hash = "sha256:08661450d404e00bb69f91965d5511c3332d6822aa729efc1df98ca617e99522"},
+    {file = "pyscf-1.7.6-cp39-cp39-macosx_10_13_x86_64.whl", hash = "sha256:a39d1a31354f04b195defcb02635bb4aacbbf05a4d484287b99bdfe3f99488ad"},
+    {file = "pyscf-1.7.6-cp39-cp39-manylinux1_x86_64.whl", hash = "sha256:fa5cf5c6d8649755a2e46653930e08c0b65c7b9f0743b1de9636685ff70a1228"},
+    {file = "pyscf-1.7.6.tar.gz", hash = "sha256:4a51c070e032d53cdb2a4a9ab0bb2f296abb3d14b92c9b1ad35d695e95f5c9b3"},
 ]
 pytest = [
     {file = "pytest-6.2.5-py3-none-any.whl", hash = "sha256:7310f8d27bc79ced999e760ca304d69f6ba6c6649c0b60fb0e04a4a77cacc134"},
