@@ -1,10 +1,23 @@
-# VQE-in-DFT
+# Nbed
 
-This package provides methods to fragment molecular Hamiltonians and to simulate these using Variational Qauntum Eigensolver algorithms embedded into Density Functional Theory.
-
-## Use
+This package contains a method for embedding quantum simulation algorithms within DFT.
 
 Note: PySCF is not supported on Windows, so until alternative chemistry backends are implemented, this package will work only for Linux and MacOS.
+## Use
+
+The package has three main interfaces, each to the same function ``. By imorting the package into a python file, 
+
+
+
+## Installation
+
+### Pip
+
+The package is installable from the top level directory using
+
+```
+pip install .
+```
 ### Poetry
 
 Poetry is a packaging and dependency manager, to install it from the command line run::
