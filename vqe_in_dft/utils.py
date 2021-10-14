@@ -11,8 +11,11 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+
 def setup_logs() -> None:
-    "Initialise logging"
+    """
+    Initialise logging.
+    """
 
     config_dict = {
         "version": 1,
@@ -40,6 +43,9 @@ def setup_logs() -> None:
 
 
 def parse():
+    """
+    Parse arguments from command line interface.
+    """
     parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
     parser.add_argument(
         "--config", type=str, help="Path to a config file. Overwrites other arguments."
@@ -59,7 +65,7 @@ def parse():
         "--qubits",
         "-q",
         type=int,
-        help="Maximum number of qubits to be used in Qubit Hamiltonian."
+        help="Maximum number of qubits to be used in Qubit Hamiltonian.",
     )
     parser.add_argument(
         "--basis",
@@ -106,18 +112,23 @@ def parse():
         args = yaml.safe_load(stream)["nbed"]
 
         # Optional argument defaults
-        args['ccsd'] = args.get('ccsd', False)
+        args["ccsd"] = args.get("ccsd", False)
     else:
         # Transform the namespace object to a dict.
         args = vars(args)
 
     if any([values is None for values in args.values()]):
-        logger.info(f"Missing values for argument {[key for key, value in args.items() if value is None]}")
-        print(f"\nMissing values for arguments: ".upper() + f"{[key for key, value in args.items() if value is None]}\n")
+        logger.info(
+            f"Missing values for argument {[key for key, value in args.items() if value is None]}"
+        )
+        print(
+            f"\nMissing values for arguments: ".upper()
+            + f"{[key for key, value in args.items() if value is None]}\n"
+        )
         raise Exception("Missing argument values.")
 
-    args['geometry'] = str(Path(args['geometry']).absolute())
-    args['convergence'] = float(args['convergence'])
+    args["geometry"] = str(Path(args["geometry"]).absolute())
+    args["convergence"] = float(args["convergence"])
 
     logger.debug(f"Arguments: {args}")
     return args
