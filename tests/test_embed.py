@@ -1,7 +1,6 @@
 """
 File to contain tests of the embed.py script.
 """
-import pytest
 from vqe_in_dft import embedding_hamiltonian
 from pathlib import Path
 
