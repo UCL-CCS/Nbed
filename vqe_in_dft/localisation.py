@@ -1,21 +1,30 @@
-"""
-File to contain localisations.
-"""
+"""Orbital localisation methods."""
 
-from typing import Callable, Tuple
+from typing import Tuple
 
 import numpy as np
 from scipy import linalg
 import logging
 
+from pyscf.lib import StreamObject
+
 logger = logging.getLogger(__name__)
 
 
 def spade(
-    scf_method: Callable, active_atoms: int
+    scf_method: StreamObject, active_atoms: int
 ) -> Tuple[int, int, np.ndarray, np.ndarray]:
-    """
-    Localise orbitals using SPADE.
+    """Localise orbitals using SPADE.
+
+    Args:
+        scf_method (StreamObject): A pyscf self consistent field method.
+        active_atoms (int): The number of atoms in the active region.
+
+    Returns:
+        int: Number of active molecular orbitals
+        int: Number of environment molecular orbital
+        np.ndarray: Active region density matrix
+        np.ndarray: Environment density matrix
     """
     logger.info("Localising with SPADE.")
     n_occupied_orbitals = np.count_nonzero(scf_method.mo_occ == 2)
@@ -53,21 +62,54 @@ def spade(
 
 
 def mullikan(
-    scf_method: Callable, active_atoms: int
+    scf_method: StreamObject, active_atoms: int
 ) -> Tuple[int, int, np.ndarray, np.ndarray]:
-    """
-    Localise orbitals using Mullikan population analysis.
+    """Localise orbitals using Mullikan population analysis.
+
+    Args:
+        scf_method (StreamObject): A pyscf self consistent field method.
+        active_atoms (int): The number of atoms in the active region.
+
+    Returns:
+        int: Number of active molecular orbitals
+        int: Number of environment molecular orbital
+        np.ndarray: Active region density matrix
+        np.ndarray: Environment density matrix
     """
     raise NotImplementedError("Mullikan localisation is not implemented, use spade.")
 
 
 def boys(
-    scf_method: Callable, active_atoms: int
+    scf_method: StreamObject, active_atoms: int
 ) -> Tuple[int, int, np.ndarray, np.ndarray]:
+    """Localise orbitals using Mullikan population analysis.
+
+    Args:
+        scf_method (StreamObject): A pyscf self consistent field method.
+        active_atoms (int): The number of atoms in the active region.
+
+    Returns:
+        int: Number of active molecular orbitals
+        int: Number of environment molecular orbital
+        np.ndarray: Active region density matrix
+        np.ndarray: Environment density matrix
+    """
     raise NotImplementedError("Boys localisation is not implemented, use spade.")
 
 
 def ibo(
-    scf_method: Callable, active_atoms: int
+    scf_method: StreamObject, active_atoms: int
 ) -> Tuple[int, int, np.ndarray, np.ndarray]:
+    """Localise orbitals using Mullikan population analysis.
+
+    Args:
+        scf_method (StreamObject): A pyscf self consistent field method.
+        active_atoms (int): The number of atoms in the active region.
+
+    Returns:
+        int: Number of active molecular orbitals
+        int: Number of environment molecular orbital
+        np.ndarray: Active region density matrix
+        np.ndarray: Environment density matrix
+    """
     raise NotImplementedError("IBO localisation is not implemented, use spade.")

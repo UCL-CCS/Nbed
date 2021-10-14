@@ -1,6 +1,4 @@
-"""
-Init for package
-"""
+"""Init for Nbed package."""
 
 from .embed import embedding_hamiltonian
 
