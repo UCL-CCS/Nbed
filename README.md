@@ -78,12 +78,17 @@ nbed --help
 
 ### Notebooks
 
-This folder contains examples of implementations using Jupyter notebooks
+This folder contains jupyter notebooks which explain the embedding procedure in detail, including relevant theory.
 
-### tests
+### Tests
 
 Contains all tests of the package
 
-### vqe-in-dft
+### vqe_in_dft
 
-The main content of the package are included here.
+Main functionality of the package.
+
+- embed - main functionality
+- localisation - methods of orbital localisation
+- mol_plot - functions to plot the systems localised molecular orbitals.
+- utils - log settings and cli parsing.
