@@ -1,5 +1,5 @@
 name: Nbed CICD
-on: [push]
+on: [pull_request]
 jobs:
   build:
     runs-on: ${{matrix.os}}
@@ -27,3 +27,7 @@ jobs:
           poetry run isort . --check
           poetry run black . --check
           poetry run flake8 . --ignore E501,F401 --count
+      - name: Testing
+        run: |
+          pip install pytest-cov
+          poetry run pytest --cov=com
