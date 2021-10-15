@@ -27,6 +27,7 @@ jobs:
           poetry run isort . --check
           poetry run black . --check
           poetry run flake8 . --ignore E501,F401 --count
+        continue-on-error: True
       - name: Testing
         run: |
           poetry run pytest
