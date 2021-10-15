@@ -26,3 +26,4 @@ jobs:
           poetry run pydocstyle --convention=google
           poetry run isort . --check
           poetry run black . --check
+          poetry run flake8 . --ignore E501,F401 --count

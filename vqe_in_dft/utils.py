@@ -114,10 +114,8 @@ def parse():
         logger.info(
             f"Missing values for argument {[key for key, value in args.items() if value is None]}"
         )
-        print(
-            f"\nMissing values for arguments: ".upper()
-            + f"{[key for key, value in args.items() if value is None]}\n"
-        )
+        print("\nMissing values for arguments: ".upper())
+        print(f"{[key for key, value in args.items() if value is None]}\n")
         raise Exception("Missing argument values.")
 
     args["geometry"] = str(Path(args["geometry"]).absolute())
