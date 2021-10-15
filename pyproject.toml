@@ -29,7 +29,8 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 nbed = "vqe_in_dft.embed:cli"
 
+# Once h5py is updated this can go
 [tool.pytest.ini_options]
 filterwarnings = [
-    "ignore::H5pyDeprecationWarning",
+    'ignore:.*U.*mode is deprecated.*:DeprecationWarning',
 ]
