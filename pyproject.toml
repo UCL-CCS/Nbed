@@ -28,3 +28,8 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 nbed = "vqe_in_dft.embed:cli"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::H5pyDeprecationWarning",
+]
