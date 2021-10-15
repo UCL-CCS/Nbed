@@ -29,5 +29,4 @@ jobs:
           poetry run flake8 . --ignore E501,F401 --count
       - name: Testing
         run: |
-          pip install pytest-cov
-          poetry run pytest --cov=com
+          poetry run pytest
