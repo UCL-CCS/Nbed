@@ -1,3 +1,5 @@
+[![CICD Status](https://github.com/AlexisRalli/VQE_in_DFT/actions/workflows/actions.yaml/badge.svg?branch=master)](https://github.com/AlexisRalli/VQE_in_DFT/actions/workflows/actions.yaml)
+
 # Nbed
 
 This package contains a method for embedding quantum simulation algorithms within DFT.

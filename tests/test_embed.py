@@ -3,9 +3,11 @@ File to contain tests of the embed.py script.
 """
 from pathlib import Path
 
+import numpy as np
+
 from vqe_in_dft import nbed
 
-water_filepath = Path("molecules/water.xyz").absolute()
+water_filepath = Path("tests/molecules/water.xyz").absolute()
 
 
 def test_nbed() -> None:
@@ -17,5 +19,11 @@ def test_nbed() -> None:
         output="openfermion",
         convergence=1e-8,
     )
-    assert e_classical == -3.5605837557207654
-    assert len(q_ham.terms) == 193
+    print(len(q_ham.terms))
+    assert len(q_ham.terms) == 1079
+    assert np.isclose(q_ham.constant, -45.42234047466274)
+    assert np.isclose(e_classical, -3.5605837557207654)
+
+
+if __name__ == "__main__":
+    pass
