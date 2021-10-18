@@ -40,5 +40,6 @@ def test_qiskit_output() -> None:
     assert np.isclose(q_ham.constant, -45.42234047466274)
     assert np.isclose(e_classical, -3.5605837557207654)
 
+
 if __name__ == "__main__":
     test_qiskit_output()
