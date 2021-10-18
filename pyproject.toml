@@ -32,5 +32,6 @@ nbed = "vqe_in_dft.embed:cli"
 # Once h5py is updated this can go
 [tool.pytest.ini_options]
 filterwarnings = [
-    'ignore:.*U.*mode is deprecated.*:DeprecationWarning',
+    #H5py throws a custom deprecation warning about default file mode
+    'ignore:.*Using default_file_mode.*instead:UserWarning',
 ]
