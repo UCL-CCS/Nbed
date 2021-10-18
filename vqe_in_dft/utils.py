@@ -81,7 +81,7 @@ def parse():
     parser.add_argument(
         "--output",
         type=str.lower,
-        choices=["openfermion", "qiskit", "pennylane",],
+        choices=["openfermion", "qiskit", "pennylane"],
         help="Quantum computing backend to output the qubit hamiltonian for.",
     )
     parser.add_argument(

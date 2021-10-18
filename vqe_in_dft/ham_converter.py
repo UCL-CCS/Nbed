@@ -1,4 +1,4 @@
-"""File to contain the qubit hamiltonian format"""
+"""File to contain the qubit hamiltonian format."""
 
 from typing import Dict, List
 
@@ -13,90 +13,41 @@ from pyscf import ao2mo
 from pyscf.lib import StreamObject
 from qiskit.opflow import I, X, Y, Z
 from qiskit_nature.operators.second_quantization import SpinOp
+from functools import cached_property
 
 
-class HamiltonianBuilder:
+class HamiltonianConverter:
     """Class to create and output qubit hamiltonians."""
 
     def __init__(
-        self, scf_method: StreamObject, active_indices: List[int], output_format: str
+        self, input_hamiltonian: openfermion.QubitOperator, output_format: str
     ) -> object:
-        self.openfermion = self._get_openfermion(scf_method, active_indices)
-        self.intermediate = self._of_to_int()
-        return self.qubit_hamiltonian(output_format)
-
-    def qubit_hamiltonian(self, output_format) -> object:
-        """Return the required qubit hamiltonian format.
-
+        """Initialise class and return output.
+        
         Args:
-            output_format (str): Name of the quantum backend to output a hamiltonian for.
+            input_hamiltonian (object): The input hamiltonian object.
+            output_format (str): The name of the desired output format.
+        """
+        self.openfermion = input_hamiltonian
+        self.output = output_format
+
+
+    def convert(self) -> object:
+        """Return the required qubit hamiltonian format.
 
         Returns:
             object: The qubit hamiltonian object of the selected backend.
         """
 
-        options = {
-            "openfermion": self.openfermion,
-            "qiskit": self.build_qiskit(),
-            "pennylane": self.build_pennylane(),
-        }
+        self.intermediate = self._of_to_int()
+    
+        output = getattr(self, self.output, None)
 
-        output = options.get(output_format, None)
-
-        if not output:
+        if output is None:
             raise NotImplementedError(
-                "The entered Hamiltonian output format is not valid"
+                f"{self.output} is not a valid hamiltonian output format."
             )
         return output
-
-    def _get_openfermion(
-        self, scf_method: StreamObject, active_indices: List[int]
-    ) -> openfermion.ops.QubitOperator:
-        """Construct the openfermion operator.
-
-        Args:
-            scf_method (StreamObject): A pyscf self-consistent method.
-            active_indices (list[int]): A list of integer indices of active moleclar orbitals.
-
-        Returns:
-            object: A qubit hamiltonian.
-        """
-        n_orbs = len(active_indices)
-
-        mo_coeff = scf_method.mo_coeff[:, active_indices]
-
-        one_body_integrals = mo_coeff.T @ scf_method.get_hcore() @ mo_coeff
-
-        # temp_scf.get_hcore = lambda *args, **kwargs : initial_h_core
-        scf_method.mol.incore_anyway is True
-
-        # Get two electron integrals in compressed format.
-        two_body_compressed = ao2mo.kernel(scf_method.mol, mo_coeff)
-
-        two_body_integrals = ao2mo.restore(
-            1, two_body_compressed, n_orbs  # no permutation symmetry
-        )
-
-        # Openfermion uses pysicist notation whereas pyscf uses chemists
-        two_body_integrals = np.asarray(
-            two_body_integrals.transpose(0, 2, 3, 1), order="C"
-        )
-
-        one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
-            one_body_integrals, two_body_integrals
-        )
-
-        molecular_hamiltonian = InteractionOperator(
-            0, one_body_coefficients, 0.5 * two_body_coefficients
-        )
-
-        Qubit_Hamiltonian = jordan_wigner(molecular_hamiltonian)
-
-        self.n_qubits = Qubit_Hamiltonian.many_body_order()
-
-        self.openfermion = Qubit_Hamiltonian
-
-        return self.openfermion
 
     def _of_to_int(self) -> Dict[str, float]:
         """Construct intermediate representation of qubit hamiltonian from openfermion representation.
@@ -121,7 +72,8 @@ class HamiltonianBuilder:
 
         return intermediate
 
-    def build_pennylane(self) -> qml.Hamiltonian:
+    @cached_property
+    def pennylane(self) -> qml.Hamiltonian:
         """Convert the intermediate representation to pennlyane Hamiltonian.
 
         Returns:
@@ -135,7 +87,7 @@ class HamiltonianBuilder:
         values = [v for v in self.intermediate.values()]
         operators = [Identity(self.n_qubits)]
 
-        for op, value in self.intermediate.items():
+        for op in self.intermediate.keys():
 
             if op == "I" * self.n_qubits:
                 continue
@@ -148,11 +100,12 @@ class HamiltonianBuilder:
 
             operators += pauli_product
 
-        self.pennylane = qml.Hamiltonian(values, operators)
+        hamiltonian = qml.Hamiltonian(values, operators)
 
-        return self.pennylane
+        return hamiltonian
 
-    def build_qiskit(self) -> SpinOp:
+    @cached_property
+    def qiskit(self) -> SpinOp:
         """Return Qiskit spin operator.
 
         Args:
@@ -161,7 +114,6 @@ class HamiltonianBuilder:
         Returns:
             qiskit_nature.operators.second_quantization.SpinOp
         """
-
         # opdict = {"I": I, "X": X, "Y": Y, "Z": Z}
 
         # # Initialise the operator with the identity contribution
@@ -182,8 +134,8 @@ class HamiltonianBuilder:
 
         # print(qiskit_op)
 
-        input_list = [(key, value) for key, value in intermediate.items()]
+        input_list = [(key, value) for key, value in self.intermediate.items()]
 
-        self.qiskit = SpinOp(input_list)
+        hamiltonian = SpinOp(input_list)
 
-        return self.qiskit
+        return hamiltonian
