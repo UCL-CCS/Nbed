@@ -1,5 +1,6 @@
 """File to contain the qubit hamiltonian format."""
 
+from functools import cached_property
 from typing import Dict, List
 
 import numpy as np
@@ -13,7 +14,6 @@ from pyscf import ao2mo
 from pyscf.lib import StreamObject
 from qiskit.opflow import I, X, Y, Z
 from qiskit_nature.operators.second_quantization import SpinOp
-from functools import cached_property
 
 
 class HamiltonianConverter:
@@ -23,7 +23,7 @@ class HamiltonianConverter:
         self, input_hamiltonian: openfermion.QubitOperator, output_format: str
     ) -> object:
         """Initialise class and return output.
-        
+
         Args:
             input_hamiltonian (object): The input hamiltonian object.
             output_format (str): The name of the desired output format.
@@ -31,16 +31,14 @@ class HamiltonianConverter:
         self.openfermion = input_hamiltonian
         self.output = output_format
 
-
     def convert(self) -> object:
         """Return the required qubit hamiltonian format.
 
         Returns:
             object: The qubit hamiltonian object of the selected backend.
         """
-
         self.intermediate = self._of_to_int()
-    
+
         output = getattr(self, self.output, None)
 
         if output is None:
