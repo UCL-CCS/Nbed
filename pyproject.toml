@@ -29,9 +29,9 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 nbed = "vqe_in_dft.embed:cli"
 
-# Once h5py is updated this can go
-[tool.pytest.ini_options]
-filterwarnings = [
-    #H5py throws a custom deprecation warning about default file mode
-    'ignore:.*Using default_file_mode.*instead:UserWarning',
-]
+# Ignore pytest warnings here
+#[tool.pytest.ini_options]
+#filterwarnings = [
+#    #H5py throws a custom deprecation warning about default file mode
+#    'ignore:.*Using default_file_mode.*instead:UserWarning',
+#]
