@@ -24,22 +24,5 @@ def test_openfermion_output() -> None:
     assert np.isclose(e_classical, -3.5605837557207654)
 
 
-def test_qiskit_output() -> None:
-    q_ham, e_classical = nbed(
-        geometry=str(water_filepath),
-        active_atoms=2,
-        basis="sto-3g",
-        xc_functional="b3lyp",
-        output="qiskit",
-        convergence=1e-8,
-    )
-    import pdb
-
-    pdb.set_trace()
-    assert len(q_ham._coeffs) == 1079
-    assert np.isclose(q_ham.constant, -45.42234047466274)
-    assert np.isclose(e_classical, -3.5605837557207654)
-
-
 if __name__ == "__main__":
-    test_qiskit_output()
+    test_openfermion_output()

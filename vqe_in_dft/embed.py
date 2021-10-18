@@ -257,7 +257,7 @@ def nbed(
 
     q_ham = get_qubit_hamiltonian(embedded_scf, active_indices)
 
-    q_ham = HamiltonianConverter(q_ham, output).convert()
+    q_ham = HamiltonianConverter(q_ham).convert(output)
 
     classical_energy = e_env + two_e_cross + e_nuc - wf_correction
 
