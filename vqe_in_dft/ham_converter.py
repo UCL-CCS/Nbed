@@ -19,9 +19,7 @@ from qiskit_nature.operators.second_quantization import SpinOp
 class HamiltonianConverter:
     """Class to create and output qubit hamiltonians."""
 
-    def __init__(
-        self, input_hamiltonian: openfermion.QubitOperator, output_format: str
-    ) -> object:
+    def __init__(self, input_hamiltonian: openfermion.QubitOperator) -> object:
         """Initialise class and return output.
 
         Args:
@@ -29,21 +27,19 @@ class HamiltonianConverter:
             output_format (str): The name of the desired output format.
         """
         self.openfermion = input_hamiltonian
-        self.output = output_format
+        self.intermediate = self._of_to_int()
 
-    def convert(self) -> object:
+    def convert(self, output_format: str) -> object:
         """Return the required qubit hamiltonian format.
 
         Returns:
             object: The qubit hamiltonian object of the selected backend.
         """
-        self.intermediate = self._of_to_int()
-
-        output = getattr(self, self.output, None)
+        output = getattr(self, output_format, None)
 
         if output is None:
             raise NotImplementedError(
-                f"{self.output} is not a valid hamiltonian output format."
+                f"{output_format} is not a valid hamiltonian output format."
             )
         return output
 
@@ -54,6 +50,7 @@ class HamiltonianConverter:
             Dict[str, float]: Generic representation of a qubit hamiltonian.
         """
         qh_terms = self.openfermion.terms
+        # TODO this isn't a good idea, it checks the number of operators used simultaneously and not the number of qubits used.
         n_qubits = self.openfermion.many_body_order()
 
         intermediate = {}
@@ -135,5 +132,4 @@ class HamiltonianConverter:
         input_list = [(key, value) for key, value in self.intermediate.items()]
 
         hamiltonian = SpinOp(input_list)
-
         return hamiltonian
