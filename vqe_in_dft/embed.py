@@ -220,7 +220,7 @@ def nbed(
 
     # Calculate energy correction
     # - There are two versions used for different embeddings
-    dm_correction = np.einsum("ij,ij", v_emb, embedded_density - act_density)
+    # dm_correction = np.einsum("ij,ij", v_emb, embedded_density - act_density)
     wf_correction = np.einsum("ij,ij", act_density, v_emb)
 
     e_wf_act = embedded_scf.energy_elec(
@@ -283,7 +283,7 @@ def cli() -> None:
         run_ccsd=args["ccsd"],
         qubits=args["qubits"],
     )
-    print(f"Qubit Hamiltonian:")
+    print("Qubit Hamiltonian:")
     print(qham)
     print(f"Classical Energy (Ha): {e_classical}")
 

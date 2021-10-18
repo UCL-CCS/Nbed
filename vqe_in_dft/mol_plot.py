@@ -6,6 +6,7 @@ from typing import List
 
 import numpy as np
 import py3Dmol
+
 # rdkit import is weird and requires each part to be imported before going deeper
 import rdkit
 from pyscf import gto
@@ -14,6 +15,7 @@ from rdkit.Chem import Draw
 from rdkit.Chem.Draw import IPythonConsole
 
 logger = logging.getLogger(__name__)
+
 
 def Draw_molecule(
     xyz_string: str, width: int = 400, height: int = 400, jupyter_notebook: bool = False

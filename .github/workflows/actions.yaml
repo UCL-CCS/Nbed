@@ -1,5 +1,5 @@
 name: Nbed CICD
-on: [push]
+on: [pull_request, push]
 jobs:
   build:
     runs-on: ${{matrix.os}}
@@ -24,3 +24,10 @@ jobs:
       - name: Linting
         run: |
           poetry run pydocstyle --convention=google
+          poetry run isort . --check
+          poetry run black . --check
+          poetry run flake8 . --ignore E501,F401 --count
+        continue-on-error: True
+      - name: Testing
+        run: |
+          poetry run pytest
