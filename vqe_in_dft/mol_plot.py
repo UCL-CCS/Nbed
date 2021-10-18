@@ -6,6 +6,7 @@ from typing import List
 
 import numpy as np
 import py3Dmol
+
 # rdkit import is weird and requires each part to be imported before going deeper
 import rdkit
 from pyscf import gto
