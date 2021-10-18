@@ -29,6 +29,10 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 nbed = "vqe_in_dft.embed:cli"
 
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
 # Ignore pytest warnings here
 #[tool.pytest.ini_options]
 #filterwarnings = [
