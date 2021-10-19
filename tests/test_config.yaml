@@ -10,4 +10,4 @@ nbed:
   localisation: spade
   # optionally add
   # run_ccsd: True
-  # savefile: tests/savefile
+  savefile: data/.savefile.json

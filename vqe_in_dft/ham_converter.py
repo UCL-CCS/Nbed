@@ -4,7 +4,6 @@ import json
 import logging
 from pathlib import Path
 from typing import Dict
-from numpy import _NumberType
 
 import openfermion
 import pennylane as qml
