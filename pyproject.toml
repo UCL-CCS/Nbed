@@ -29,7 +29,7 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-nbed = "vqe_in_dft.embed:cli"
+nbed = "nbed.embed:cli"
 
 [tool.isort]
 profile = "black"
