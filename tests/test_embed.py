@@ -4,6 +4,7 @@ File to contain tests of the embed.py script.
 from pathlib import Path
 
 import numpy as np
+import openfermion
 
 from vqe_in_dft import nbed
 
@@ -19,10 +20,10 @@ def test_openfermion_output() -> None:
         output="openfermion",
         convergence=1e-8,
     )
+    assert type(q_ham) is openfermion.QubitOperator
     assert len(q_ham.terms) == 1079
     assert np.isclose(q_ham.constant, -45.42234047466274)
     assert np.isclose(e_classical, -3.5605837557207654)
-
 
 if __name__ == "__main__":
     pass
