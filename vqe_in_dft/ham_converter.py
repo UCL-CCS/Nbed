@@ -2,18 +2,11 @@
 
 import logging
 from functools import cached_property
-from typing import Dict, List
+from typing import Dict
 
-import numpy as np
 import openfermion
 import pennylane as qml
-from openfermion.chem.molecular_data import spinorb_from_spatial
-from openfermion.ops.representations import InteractionOperator
-from openfermion.transforms import jordan_wigner
 from pennylane import Identity, PauliX, PauliY, PauliZ
-from pyscf import ao2mo
-from pyscf.lib import StreamObject
-from qiskit.opflow import I, X, Y, Z
 from qiskit_nature.operators.second_quantization import SpinOp
 
 logger = logging.getLogger(__name__)
