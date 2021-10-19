@@ -85,7 +85,7 @@ def get_new_RKS_Veff(pyscf_RKS: pyscf.dft.RKS, unitary_rot: np.array, dm=None,
     if check_result is True:
         veff_check = unitary_rot.conj().T @ v_eff.__array__() @ unitary_rot
         if not np.allclose(vxc, veff_check):
-            raise ValueError('Veff in new basis NOT correct')
+            raise ValueError('Veff in new basis does not match rotated PySCF value.')
 
     # note J matrix is in new basis!
     ecoul = np.einsum('ij,ji', dm, j_mat).real * .5
