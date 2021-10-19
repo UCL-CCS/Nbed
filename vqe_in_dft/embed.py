@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import scipy as sp
 import numpy as np
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
@@ -11,12 +12,11 @@ from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, cc, gto, scf
 from pyscf.lib import StreamObject
 
-from vqe_in_dft.localisation import boys, ibo, mullikan, spade
 from vqe_in_dft.utils import parse, setup_logs
 
 import pyscf
 
-from pyscf.dft.rks import get_veff as RKS_get_veff    
+from pyscf.dft.rks import get_veff as rks_get_veff
 from pyscf import lib
 from pyscf.dft import numint
 
@@ -24,28 +24,32 @@ logger = logging.getLogger(__name__)
 setup_logs()
 
 
-def Get_new_Hcore(H_core: np.array, Unitary_rot: np.array)-> np.array:
+def get_Hcore_new_basis(h_core: np.array, unitary_rot: np.array) -> np.array:
     """
     Function to get H_core in new basis
 
     Args:
-        H_core (np.array): standard core Hamiltonian
-        Unitary_rot (np.array): Operator to change basis  (in this code base this should be: cannonical basis to localized basis)
+        h_core (np.array): standard core Hamiltonian
+        unitary_rot (np.array): Operator to change basis  (in this code base this should be: cannonical basis to
+        localized basis)
 
     """
-    H_core_rot = Unitary_rot.conj().T @ H_core @Unitary_rot 
+    H_core_rot = unitary_rot.conj().T @ h_core @ unitary_rot
     return H_core_rot
 
-def Get_new_RKS_Veff(pyscf_RKS_obj: pyscf.dft.RKS, Unitary_rot: np.array, dm=None, check_result:bool=False) -> lib.tag_array:
+
+def get_new_RKS_Veff(pyscf_RKS: pyscf.dft.RKS, unitary_rot: np.array, dm=None,
+                     check_result: bool = False) -> lib.tag_array:
     """
-    Function to get V_eff in new basis. 
+    Function to get V_eff in new basis.  Note this function is based on: pyscf.dft.rks.get_veff
 
     Note in RKS calculation Veff = J + Vxc
     Whereas for RHF calc it is Veff = J - 0.5k
 
     Args:
-        pyscf_RKS_obj (pyscf.dft.RKS): PySCF RKS obj
-        Unitary_rot (np.array): Operator to change basis  (in this code base this should be: cannonical basis to localized basis)
+        pyscf_RKS (pyscf.dft.RKS): PySCF RKS obj
+        unitary_rot (np.array): Operator to change basis  (in this code base this should be: cannonical basis
+                                to localized basis)
         dm (np.array): Optional input density matrix. If not defined, finds whatever is available from pyscf_RKS_obj
         check_result (bool): Flag to check result against PySCF functions
 
@@ -53,54 +57,56 @@ def Get_new_RKS_Veff(pyscf_RKS_obj: pyscf.dft.RKS, Unitary_rot: np.array, dm=Non
         output (lib.tag_array): Tagged array containing J, K, E_coloumb, E_xcorr, Vxc
     """
     if dm is None:
-        if pyscf_RKS_obj.mo_coeff is not None:
-            density_mat = pyscf_RKS_obj.make_rdm1(pyscf_RKS_obj.mo_coeff, pyscf_RKS_obj.mo_occ)
+        if pyscf_RKS.mo_coeff is not None:
+            dm = pyscf_RKS.make_rdm1(pyscf_RKS.mo_coeff, pyscf_RKS.mo_occ)
         else:
-            density_mat = pyscf_RKS_obj.init_guess_by_1e()
-    else:
-        density_mat = dm
-    
-    
+            dm = pyscf_RKS.init_guess_by_1e()
+
     # Evaluate RKS/UKS XC functional and potential matrix on given meshgrids
     # for a set of density matrices.
-    nelec, exc, vxc = numint.nr_vxc(pyscf_RKS_obj.mol,
-                                            pyscf_RKS_obj.grids,
-                                            pyscf_RKS_obj.xc,
-                                            density_mat)
+    nelec, exc, vxc = numint.nr_vxc(pyscf_RKS.mol,
+                                    pyscf_RKS.grids,
+                                    pyscf_RKS.xc,
+                                    dm)
 
     # definition in new basis
-    vxc =  Unitary_rot.conj().T @ vxc @ Unitary_rot
+    vxc = unitary_rot.conj().T @ vxc @ unitary_rot
     
-    
-    Veff = RKS_get_veff(pyscf_RKS_obj, dm=density_mat)
-    if Veff.vk is not None:
-        K = Unitary_rot.conj().T @ Veff.vk @ Unitary_rot
-        J = Unitary_rot.conj().T @ Veff.vj @ Unitary_rot
-        vxc += J - K * .5
+    v_eff = rks_get_veff(pyscf_RKS, dm=dm)
+    if v_eff.vk is not None:
+        k_mat = unitary_rot.conj().T @ v_eff.vk @ unitary_rot
+        j_mat = unitary_rot.conj().T @ v_eff.vj @ unitary_rot
+        vxc += j_mat - k_mat * .5
     else:
-        J = Unitary_rot.conj().T @ Veff.vj @ Unitary_rot
-        K = None
-        vxc += J 
+        j_mat = unitary_rot.conj().T @ v_eff.vj @ unitary_rot
+        k_mat = None
+        vxc += j_mat
     
     if check_result is True:
-        M1 = Unitary_rot.conj().T @ Veff.__array__() @ Unitary_rot
-        if not np.allclose(vxc, M1):
+        veff_check = unitary_rot.conj().T @ v_eff.__array__() @ unitary_rot
+        if not np.allclose(vxc, veff_check):
             raise ValueError('Veff in new basis NOT correct')
+
+    # note J matrix is in new basis!
+    ecoul = np.einsum('ij,ji', dm, j_mat).real * .5
+    # this ecoul term changes if the full density matrix is NOT
+    #    (aka for dm_active and dm_enviroment we get different V_eff under different bases!)
     
-    ecoul = np.einsum('ij,ji', density_mat, J).real * .5 # note J matrix is in new basis!
-    ## this ecoul term changes if the full density matrix is NOT 
-    # (aka for dm_active and dm_enviroment we get different V_eff under different bases!)
-    
-    output = lib.tag_array(vxc, ecoul=ecoul, exc=Veff.exc, vj=J, vk=K)
+    output = lib.tag_array(vxc, ecoul=ecoul, exc=v_eff.exc, vj=j_mat, vk=k_mat)
     return output
 
-def Get_energy_and_matrices_from_dm_DFT(PySCF_RKS_obj: pyscf.dft.RKS, 
-            dm_matrix: np.array, check_E_with_pyscf:bool=True) -> Tuple[float, np.ndarray, np.ndarray, float, np.ndarray]:
+
+def calc_RKS_components_from_dm(pyscf_RKS: pyscf.dft.RKS,
+              dm_matrix: np.array, check_E_with_pyscf: bool = True) \
+              -> Tuple[float, np.ndarray, np.ndarray, float, np.ndarray]:
     """
-    Calculate the components of subsystem energy from a DFT calculation
+    Calculate the components of subsystem energy from a RKS DFT calculation.
+
+    For a given density matrix this function returns the electronic energy, exchange correlation energy and
+    J,K, V_xc matrices.
     
     Args:
-        PySCF_RKS_obj (pyscf.dft.RKS): PySCF RKS object
+        pyscf_RKS (pyscf.dft.RKS): PySCF RKS object
         dm_matrix (np.array): density matrix (to calculate all matrices from)
         check_E_with_pyscf (bool): optional flag to check manual energy calc against PySCF calc     
     Returns:
@@ -108,29 +114,30 @@ def Get_energy_and_matrices_from_dm_DFT(PySCF_RKS_obj: pyscf.dft.RKS,
         J_mat (np.array): J_matrix defined by input density matrix
         K_mat (np.array): K_matrix defined by input density matrix
         e_xc (float): exchange correlation energy defined by input density matrix 
-        v_xc (np.array): V_exchangeCorrelation matrix defined by input density matrix (note Coloumbic contribution (J_mat) has been subtracted to give this term)
+        v_xc (np.array): V_exchangeCorrelation matrix defined by input density matrix (note Coloumbic
+                         contribution (J_mat) has been subtracted to give this term)
     """
 
     # It seems that PySCF lumps J and K in the J array 
-    two_e_term =  PySCF_RKS_obj.get_veff(dm=dm_matrix)
-    J_mat = two_e_term.vj
-    K_mat = np.zeros_like(J_mat)
+    two_e_term = pyscf_RKS.get_veff(dm=dm_matrix)
+    j_mat = two_e_term.vj
+    k_mat = np.zeros_like(j_mat)
     
     e_xc = two_e_term.exc
-    v_xc = two_e_term - J_mat 
+    v_xc = two_e_term - j_mat
 
-    Energy_elec = (np.einsum('ij,ji->', PySCF_RKS_obj.get_hcore(), dm_matrix) + 
+    energy_elec = (np.einsum('ij,ji->', pyscf_RKS.get_hcore(), dm_matrix) +
                    two_e_term.ecoul + two_e_term.exc)
     
     if check_E_with_pyscf:
-        Energy_elec_pyscf = PySCF_RKS_obj.energy_elec(dm=dm_matrix)[0]
-        if not np.isclose(Energy_elec_pyscf, Energy_elec):
+        Energy_elec_pyscf = pyscf_RKS.energy_elec(dm=dm_matrix)[0]
+        if not np.isclose(Energy_elec_pyscf, energy_elec):
             raise ValueError('Energy calculation incorrect')
 
-    return Energy_elec, J_mat, K_mat, e_xc, v_xc
+    return energy_elec, j_mat, k_mat, e_xc, v_xc
 
 
-def Get_new_RHF_Veff(pyscf_RHF_obj: pyscf.hf.RHF, Unitary: np.array, dm=None, hermi:int=1) -> np.array:
+def get_new_RHF_Veff(pyscf_RHF: pyscf.hf.RHF, unitary_rot: np.array, dm=None, hermi: int = 1) -> np.array:
     """
     Function to get V_eff in new basis. 
 
@@ -138,49 +145,50 @@ def Get_new_RHF_Veff(pyscf_RHF_obj: pyscf.hf.RHF, Unitary: np.array, dm=None, he
     Whereas for RHF calc it is Veff = J - 0.5k
 
     Args:
-        pyscf_RHF_obj (pyscf.hf.RHF): PySCF RHF obj
-        Unitary_rot (np.array): Operator to change basis  (in this code base this should be: cannonical basis to localized basis)
+        pyscf_RHF (pyscf.hf.RHF): PySCF RHF obj
+        unitary_rot (np.array): Operator to change basis  (in this code base this should be: cannonical basis
+                                to localized basis)
         dm (np.array): Optional input density matrix. If not defined, finds whatever is available from pyscf_RKS_obj
         hermi (int): TODO
     """
     if dm is None:
-        if pyscf_obj.mo_coeff is not None:
-            density_mat = pyscf_obj.make_rdm1(pyscf_obj.mo_coeff, pyscf_obj.mo_occ)
+        if pyscf_RHF.mo_coeff is not None:
+            dm = pyscf_RHF.make_rdm1(pyscf_RHF.mo_coeff, pyscf_RHF.mo_occ)
         else:
-            density_mat = pyscf_obj.init_guess_by_1e()
-    else:
-        density_mat = dm
-    
-    vj, vk = pyscf_obj.get_jk(dm=density_mat, hermi=hermi)
-    Veff = vj - vk * .5
-    
-    # Veff = pyscf_obj.get_veff(dm=density_mat)
-    Veff_new = Unitary.conj().T @ Veff @ Unitary
+            dm = pyscf_RHF.init_guess_by_1e()
 
-    return Veff_new
+    vj, vk = pyscf_RHF.get_jk(dm=dm, hermi=hermi)
+    v_eff = vj - vk * .5
+    
+    # v_eff = pyscf_obj.get_veff(dm=dm)
+    v_eff_new = unitary_rot.conj().T @ v_eff @ unitary_rot
 
-def Get_cross_terms_DFT(PySCF_RKS_obj: pyscf.dft.RKS, dm_active: np.array, dm_enviro: np.array, 
-                    J_env: np.array, J_act: np.array, e_xc_act: float, e_xc_env: float) -> float:
+    return v_eff_new
+
+
+def get_cross_terms_DFT(pyscf_RKS: pyscf.dft.RKS, dm_active: np.ndarray, dm_enviro: np.ndarray,
+                        j_env: np.ndarray, j_act: np.ndarray, e_xc_act: float, e_xc_env: float) -> float:
     """
     Get two electron cross term energy. As Veff = J + Vxc, need Colombic cross term energy (J_cross) 
     and XC cross term energy
 
     Args:
-        PySCF_RKS_obj (pyscf.dft.RKS): PySCF RKS object
-        dm_active (np.array): density matrix of active subsystem
-        dm_enviro (np.array): density matrix of enironment subsystem
-        J_env (np.array): J_matrix defined by enviornemnt density
-        J_act (np.array): J_matrix defined by active density 
+        pyscf_RKS (pyscf.dft.RKS): PySCF RKS object
+        dm_active (np.ndarray): density matrix of active subsystem
+        dm_enviro (np.ndarray): density matrix of enironment subsystem
+        j_env (np.ndarray): J_matrix defined by enviornemnt density
+        j_act (np.ndarray): J_matrix defined by active density
         e_xc_act (float): exchange correlation energy defined by input active density matrix 
         e_xc_env (float): exchange correlation energy defined by input enviornemnt density matrix 
 
     Returns:
-        two_e_cross (float): two electron energy from cross terms (includes exchange correlation and Coloumb contribution)
+        two_e_cross (float): two electron energy from cross terms (includes exchange correlation
+                             and Coloumb contribution)
     """
-    two_e_term_total =  PySCF_RKS_obj.get_veff(dm=dm_active+dm_enviro)
+    two_e_term_total = pyscf_RKS.get_veff(dm=dm_active+dm_enviro)
     e_xc_total = two_e_term_total.exc
 
-    j_cross = 0.5 * ( np.einsum('ij,ij', dm_active, J_env) + np.einsum('ij,ij', dm_enviro, J_act) )
+    j_cross = 0.5 * (np.einsum('ij,ij', dm_active, j_env) + np.einsum('ij,ij', dm_enviro, j_act))
     k_cross = 0.0
 
     xc_cross = e_xc_total - e_xc_act - e_xc_env
@@ -190,15 +198,16 @@ def Get_cross_terms_DFT(PySCF_RKS_obj: pyscf.dft.RKS, dm_active: np.array, dm_en
     
     return two_e_cross
 
-def Enivornment_projector(C_loc_occ_and_virt, S_mat, active_MO_inds, enviro_MO_inds):
+
+def get_enivornment_projector(c_loc_occ_and_virt, s_mat, active_MO_inds, enviro_MO_inds):
     """
-    Get Projector onto environement MOs
+    Get projector onto environement MOs
 
     P_env = Σ_{i ∈ env} |MO_i> <MO_i| 
     
     Args:
-        C_loc_occ_and_virt (np.array): C_matrix of localized MO (virtual and occupied)
-        S_mat (np.array): AO overlap matrix
+        c_loc_occ_and_virt (np.array): C_matrix of localized MO (virtual and occupied)
+        s_mat (np.array): AO overlap matrix
         active_MO_inds (np.array): 1D array of active MO indices
         enviro_MO_inds (np.array): 1D array of enviornemnt MO indices
 
@@ -206,48 +215,39 @@ def Enivornment_projector(C_loc_occ_and_virt, S_mat, active_MO_inds, enviro_MO_i
         projector (np.array): Operator that projects environement MOs onto themselves and ative MOs onto zero vector
     """
 
-    ## 1. convert to orthogonal C_matrix
-    S_half = sp.linalg.fractional_matrix_power(S_mat, 0.5)
-    S_neg_half = sp.linalg.fractional_matrix_power(S_mat, -0.5)
+    # 1. convert to orthogonal C_matrix
+    s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
 
-    Loc_Ortho = S_half@ C_loc_occ_and_virt # orthogonal C matrix (localized)
+    # orthogonal C matrix (localized)
+    c_loc_ortho = s_half @ c_loc_occ_and_virt
 
-    ## 2. Define projector that projects MO orbs of subsystem B onto themselves and system A onto zero state!
-    ##### (do this in orthongoal basis!)
-    ### not we only take MO environment indices!
-    PROJ_ortho = np.einsum('ik,jk->ij', Loc_Ortho[:, enviro_MO_inds], Loc_Ortho[:, enviro_MO_inds])
-    # PROJ_ortho = np.zeros_like(S_mat)
-    # for MO_ind in range(C_all_localized_and_virt.shape[1]):
-    #     if MO_ind in enviro_MO_inds:
-    #         outer = np.outer(Loc_Ortho[:, MO_ind], Loc_Ortho[:, MO_ind])
-    #         PROJ_ortho+=outer
-    #     else:
-    #         continue
+    # 2. Define projector that projects MO orbs of subsystem B onto themselves and system A onto zero state!
+    #    (do this in orthongoal basis!)
+    #    note we only take MO environment indices!
+    ortho_proj = np.einsum('ik,jk->ij', c_loc_ortho[:, enviro_MO_inds], c_loc_ortho[:, enviro_MO_inds])
 
+    # env projected onto itself
+    logger.info(f'''Are subsystem B (env) projected onto themselves in ORTHO basis: {
+            np.allclose(ortho_proj @ c_loc_ortho[:, enviro_MO_inds], 
+            c_loc_ortho[:, enviro_MO_inds])}''')
 
-    print(f'''Are subsystem B (env) projected onto themselves in ORTHO basis: {
-            np.allclose(PROJ_ortho@Loc_Ortho[:, enviro_MO_inds], 
-            Loc_Ortho[:, enviro_MO_inds])}''') # projected onto itself
+    # act projected onto zero vec
+    logger.info(f'''Is subsystem A traced out  in ORTHO basis?: {
+            np.allclose(ortho_proj @ c_loc_ortho[:, active_MO_inds], 
+            np.zeros_like(c_loc_ortho[:, active_MO_inds]))}''')
 
-    print(f'''Is subsystem A traced out  in ORTHO basis?: {
-            np.allclose(PROJ_ortho@Loc_Ortho[:, active_MO_inds], 
-            np.zeros_like(Loc_Ortho[:, active_MO_inds]))}''') # # projected onto zeros!
+    # 3. Define projector in standard (non-orthogonal basis)
+    projector = s_half @ ortho_proj  @ s_half
 
+    logger.info(f'''Are subsystem B (env) projected onto themselves in ORTHO basis: {
+            np.allclose(projector @ c_loc_occ_and_virt[:, enviro_MO_inds], 
+            c_loc_occ_and_virt[:, enviro_MO_inds])}''')
 
-
-    ##### 3. Define projector in standard (non-orthogonal basis)
-    projector = S_half @ PROJ_ortho  @ S_half
-
-    print(f'''Are subsystem B (env) projected onto themselves in ORTHO basis: {
-            np.allclose(projector@C_loc_occ_and_virt[:, enviro_MO_inds], 
-            C_loc_occ_and_virt[:, enviro_MO_inds])}''') # projected onto itself
-
-    print(f'''Is subsystem A traced out  in ORTHO basis?: {
-            np.allclose(PROJ_ortho@C_loc_occ_and_virt[:, active_MO_inds], 
-            np.zeros_like(C_loc_occ_and_virt[:, active_MO_inds]))}''') # # projected onto zeros!
+    logger.info(f'''Is subsystem A traced out  in ORTHO basis?: {
+            np.allclose(projector@c_loc_occ_and_virt[:, active_MO_inds], 
+            np.zeros_like(c_loc_occ_and_virt[:, active_MO_inds]))}''')
 
     return projector
-
 
 
 def get_active_indices(
