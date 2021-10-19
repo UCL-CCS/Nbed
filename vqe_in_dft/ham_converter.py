@@ -1,11 +1,11 @@
 """File to contain the qubit hamiltonian format."""
 
 import logging
-from functools import cached_property
 from typing import Dict
 
 import openfermion
 import pennylane as qml
+from cached_property import cached_property
 from pennylane import Identity, PauliX, PauliY, PauliZ
 from qiskit_nature.operators.second_quantization import SpinOp
 
