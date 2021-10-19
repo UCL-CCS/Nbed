@@ -60,7 +60,7 @@ class HamiltonianConverter:
             )
         return output
 
-    def _save(self, filepath: Path) -> None:
+    def save(self, filepath: Path) -> None:
         """Save the intermediate representation to file.
 
         Dump the IR using JSON so that it can be picked up again later.
