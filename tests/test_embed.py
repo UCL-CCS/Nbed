@@ -27,5 +27,6 @@ def test_nbed() -> None:
     # assert np.isclose(e_classical, -3.5605837557207654)
     pass
 
+
 if __name__ == "__main__":
     pass
