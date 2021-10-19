@@ -89,26 +89,22 @@ class HamiltonianConverter:
         Returns:
             qml.Hamiltonian: Hamiltonian pennylane object.
         """
-        # Pennylane
-
         opdict = {"I": Identity, "X": PauliX, "Y": PauliY, "Z": PauliZ}
 
         # Initialise the operator with the identity contribution
         values = [v for v in self.intermediate.values()]
-        operators = [Identity(self.n_qubits)]
+        operators = []
 
         for op in self.intermediate.keys():
 
-            if op == "I" * self.n_qubits:
-                continue
-
-            paulis = [opdict[pauli] for pauli in op]
+            # Construct a list like [PauliX(0), PauliY(1), Identity(3)]
+            paulis = [opdict[pauli](pos) for pos, pauli in enumerate(op)]
 
             pauli_product = paulis[0]
             for p in paulis[1:]:
                 pauli_product = pauli_product @ p
 
-            operators += pauli_product
+            operators.append(pauli_product)
 
         hamiltonian = qml.Hamiltonian(values, operators)
 
