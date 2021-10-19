@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "vqe-in-dft"
+name = "nbed"
 version = "0.0.1"
 description = ""
 authors = ["Michael Williams <michael.williams.20@ucl.ac.uk>"]
