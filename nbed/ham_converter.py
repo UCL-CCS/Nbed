@@ -10,15 +10,16 @@ import openfermion
 import pennylane as qml
 from cached_property import cached_property
 from openfermion.ops.operators.qubit_operator import QubitOperator
+from openfermion.utils import count_qubits
 from pennylane import Identity, PauliX, PauliY, PauliZ
 from qiskit_nature.operators.second_quantization import SpinOp
-from openfermion.utils import count_qubits
 
 logger = logging.getLogger(__name__)
 
 
 class HamiltonianConverterError(Exception):
     """Base Exception class."""
+
     pass
 
 
@@ -76,7 +77,7 @@ class HamiltonianConverter:
         with open(filepath, "w") as file:
             file.write(json_ir)
 
-    def _read_file(filepath) -> Dict[str, float]:
+    def _read_file(self, filepath) -> Dict[str, float]:
         """Read the Intermediate Representation from a file.
 
         Args:
@@ -117,9 +118,9 @@ class HamiltonianConverter:
             Dict[str, float]: Generic representation of a qubit hamiltonian.
         """
         intermediate: Dict[str, float] = {}
-        for term, value in qh_terms.items():
+        for term, value in self.openfermion.items():
             # Assume I for each qubit unless explicity stated
-            op_string = ["I"] * n_qubits
+            op_string = ["I"] * self.n_qubits
             for pauli in term:
                 position = pauli[0]
                 operator = pauli[1]
