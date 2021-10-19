@@ -44,6 +44,12 @@ def parse():
         "--config", type=str, help="Path to a config file. Overwrites other arguments."
     )
     parser.add_argument(
+        "--savefile",
+        "--save",
+        type=str,
+        help="Path to save file.",
+    )
+    parser.add_argument(
         "--geometry",
         type=str,
         help="Path to an XYZ file.",
@@ -118,6 +124,7 @@ def parse():
         print(f"{[key for key, value in args.items() if value is None]}\n")
         raise Exception("Missing argument values.")
 
+    args["savefile"] = str(Path(args["savefile"]).absolute())
     args["geometry"] = str(Path(args["geometry"]).absolute())
     args["convergence"] = float(args["convergence"])
 

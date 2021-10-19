@@ -1,7 +1,10 @@
 """File to contain the qubit hamiltonian format."""
 
+import json
 import logging
+from pathlib import Path
 from typing import Dict
+from numpy import _NumberType
 
 import openfermion
 import pennylane as qml
@@ -11,6 +14,9 @@ from qiskit_nature.operators.second_quantization import SpinOp
 
 logger = logging.getLogger(__name__)
 
+class HamiltonianConverterError(Exception):
+    """Base Exception class."""
+    pass
 
 class HamiltonianConverter:
     """Class to create and output qubit hamiltonians."""
@@ -41,6 +47,44 @@ class HamiltonianConverter:
                 f"{output_format} is not a valid hamiltonian output format."
             )
         return output
+
+    def save(self, filepath: Path) -> None:
+        """Save the intermediate representation to file.
+
+        Dump the IR using JSON so that it can be picked up again later.
+
+        Args:
+            filepath (Path): Path to the save file location.
+        """
+        json_ir = json.dumps(self.intermediate)
+
+        with open(filepath, "w") as file:
+            file.write(json_ir)
+
+
+    def read_file(self, filepath: Path) -> Dict[str, float]:
+        """Read the Intermediate Representation from a file.
+        
+        Args:
+            filepath (Path): Path to a .json file containing the IR.
+        """
+        with open(filepath, 'r') as file:
+            self.intermediate = json.load(file)
+
+        # Validate input
+        error_string = ""
+        keys = [key for key in self.intermediate.keys()]
+        if not all([type(key) is str for key in keys]):
+            error_string += "JSON file must use strings as operator keys.\n"
+
+        elif not all(len(key) == len(keys[0]) for key in keys):
+            error_string += "All operator keys must be of equal length.\n"
+        
+        elif not all([type(value) is int or type(value) is float for value in self.intermediate.values()]):
+            error_string += "All operator weights must be ints or floats.\n"
+
+        if error_string:
+            raise HamiltonianConverterError(error_string)
 
     def _of_to_int(self) -> Dict[str, float]:
         """Construct intermediate representation of qubit hamiltonian from openfermion representation.
