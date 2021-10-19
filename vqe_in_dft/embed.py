@@ -86,7 +86,7 @@ def get_new_RKS_Veff(pyscf_RKS: StreamObject, unitary_rot: np.ndarray, dm=None,
     if check_result is True:
         veff_check = unitary_rot.conj().T @ v_eff.__array__() @ unitary_rot
         if not np.allclose(vxc, veff_check):
-            raise ValueError('Veff in new basis NOT correct')
+            raise ValueError('Veff in new basis does not match rotated PySCF value.')
 
     # note J matrix is in new basis!
     ecoul = np.einsum('ij,ji', dm, j_mat).real * .5
@@ -131,8 +131,8 @@ def calc_RKS_components_from_dm(pyscf_RKS: StreamObject,
                    two_e_term.ecoul + two_e_term.exc)
     
     if check_E_with_pyscf:
-        Energy_elec_pyscf = pyscf_RKS.energy_elec(dm=dm_matrix)[0]
-        if not np.isclose(Energy_elec_pyscf, energy_elec):
+        energy_elec_pyscf = pyscf_RKS.energy_elec(dm=dm_matrix)[0]
+        if not np.isclose(energy_elec_pyscf, energy_elec):
             raise ValueError('Energy calculation incorrect')
 
     return energy_elec, j_mat, k_mat, e_xc, v_xc
