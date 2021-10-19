@@ -34,8 +34,10 @@ profile = "black"
 multi_line_output = 3
 
 # Ignore pytest warnings here
-#[tool.pytest.ini_options]
-#filterwarnings = [
-#    #H5py throws a custom deprecation warning about default file mode
-#    'ignore:.*Using default_file_mode.*instead:UserWarning',
-#]
+[tool.pytest.ini_options]
+filterwarnings = [
+    #H5py throws a custom deprecation warning about default file mode
+    'ignore:.*Using default_file_mode.*instead:UserWarning',
+    # Lots of downstream deprecation warnings
+    'ignore::DeprecationWarning'
+]
