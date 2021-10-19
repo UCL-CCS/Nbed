@@ -38,6 +38,8 @@ class HamiltonianConverter:
         elif type(input_hamiltonian) in [Path, str]:
             self.intermediate = self._read_file(input_hamiltonian)
             self.openfermion = self._int_to_of()
+        else:
+            raise HamiltonianConverterError("Input Hamiltonian must be an openfermion.QubitOperator or path.")
 
     def convert(self, output_format: str) -> object:
         """Return the required qubit hamiltonian format.
