@@ -58,12 +58,13 @@ nbed:
   xc_functional: b3lyp
   output: openfermion
   localisation: spade
+  savefile: data/savefile.json
 ```
 
 Alternatively you can provide each of the components to the command line.
 
 ```
-nbed --geometry tests/molecules/water.xyz --active_atoms 2 --convergence 1e-6 --qubits 8 --basis STO-3G--xc b3lyp --output openfermion --localisation spade
+nbed --geometry tests/molecules/water.xyz --active_atoms 2 --convergence 1e-6 --qubits 8 --basis STO-3G--xc b3lyp --output openfermion --localisation spade --savefile data/savefile.json
 ```
 
 The options for `output` and `localisation` can be seen in the command help.
@@ -71,6 +72,8 @@ The options for `output` and `localisation` can be seen in the command help.
 ```
 nbed --help
 ```
+
+### Reference Values
 
 Additionally, to output a CCSD reference value for the whole system energy, add a line to the yaml file when using `--config`
 
@@ -87,6 +90,12 @@ or use the the `--ccsd` flag when inputing values manually.
 ```
 nbed --config <path to config file> -
 ```
+
+### Save a Hamiltonian for later
+
+By including the `--savefile` flag or `savefile` item in your config file, you can specify the path to a location where you'd like to save a JSON file containing a description of the qubit Hamiltonian.
+
+Y
 
 ## Structure
 
