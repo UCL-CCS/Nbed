@@ -133,7 +133,8 @@ def nbed(
     localisation: str = "spade",
     level_shift: float = 1e6,
     run_ccsd: bool = False,
-    qubits: int = None,
+    qubits: Optional[int] = None,
+    savefile: Optional[Path] = None,
 ) -> Tuple[object, float]:
     """Function to return the embedding Qubit Hamiltonian.
 
@@ -257,7 +258,11 @@ def nbed(
 
     q_ham = get_qubit_hamiltonian(embedded_scf, active_indices)
 
-    q_ham = HamiltonianConverter(q_ham).convert(output)
+    converter = HamiltonianConverter(q_ham)
+    q_ham = converter.convert(output)
+
+    if savefile:
+        converter.save(savefile)
 
     classical_energy = e_env + two_e_cross + e_nuc - wf_correction
 
@@ -278,6 +283,7 @@ def cli() -> None:
         convergence=args["convergence"],
         run_ccsd=args["ccsd"],
         qubits=args["qubits"],
+        savefile=args["savefile"],
     )
     print("Qubit Hamiltonian:")
     print(qham)
