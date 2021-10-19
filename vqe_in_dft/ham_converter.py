@@ -12,13 +12,13 @@ from cached_property import cached_property
 from openfermion.ops.operators.qubit_operator import QubitOperator
 from pennylane import Identity, PauliX, PauliY, PauliZ
 from qiskit_nature.operators.second_quantization import SpinOp
+from openfermion.utils import count_qubits
 
 logger = logging.getLogger(__name__)
 
 
 class HamiltonianConverterError(Exception):
     """Base Exception class."""
-
     pass
 
 
@@ -37,6 +37,7 @@ class HamiltonianConverter:
         """
         if type(input_hamiltonian) is openfermion.QubitOperator:
             self.openfermion = input_hamiltonian
+            self.n_qubits = input_hamiltonian
             self.intermediate = self._of_to_int()
         elif type(input_hamiltonian) in [Path, str]:
             self.intermediate = self._read_file(input_hamiltonian)
@@ -68,7 +69,9 @@ class HamiltonianConverter:
         Args:
             filepath (Path): Path to the save file location.
         """
-        json_ir = json.dumps(self.intermediate)
+
+        data_to_save = {"qubits": self.n_qubits, "hamiltonian": self.intermediate}
+        json_ir = json.dumps(data_to_save)
 
         with open(filepath, "w") as file:
             file.write(json_ir)
@@ -80,7 +83,10 @@ class HamiltonianConverter:
             filepath (Path): Path to a .json file containing the IR.
         """
         with open(filepath, "r") as file:
-            intermediate = json.load(file)
+            file_data = json.load(file)
+
+        self.n_qubits = file_data["qubits"]
+        intermediate = file_data["hamiltonian"]
 
         # Validate input
         error_string = ""
@@ -110,19 +116,6 @@ class HamiltonianConverter:
         Returns:
             Dict[str, float]: Generic representation of a qubit hamiltonian.
         """
-        qh_terms = self.openfermion.terms
-        n_qubits: int = 0
-        for term in qh_terms.keys():
-            for pauli in term:
-                position = pauli[0]
-                if position > n_qubits:
-                    n_qubits = position
-        n_qubits += 1
-
-        self.n_qubits = n_qubits
-
-        logger.debug(f"{n_qubits} qubits found in hamiltonian.")
-
         intermediate: Dict[str, float] = {}
         for term, value in qh_terms.items():
             # Assume I for each qubit unless explicity stated
@@ -145,9 +138,6 @@ class HamiltonianConverter:
         Returns:
             openfermion.QubitOperator: Qubit Hamiltonian in openfermion form.
         """
-        keys = list(self.intermediate.keys())
-        self.n_qubits = len(keys[0])
-
         operator = self.intermediate["I" * self.n_qubits] * QubitOperator("")
         for key, value in self.intermediate.items():
             term = ""
