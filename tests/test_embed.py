@@ -25,4 +25,4 @@ def test_openfermion_output() -> None:
 
 
 if __name__ == "__main__":
-    test_openfermion_output()
+    pass
