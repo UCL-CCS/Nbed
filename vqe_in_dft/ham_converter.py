@@ -1,23 +1,26 @@
 """File to contain the qubit hamiltonian format."""
 
-from abc import abstractmethod
 import json
 import logging
+from abc import abstractmethod
 from pathlib import Path
 from typing import Dict
 
 import openfermion
-from openfermion.ops.operators.qubit_operator import QubitOperator
 import pennylane as qml
 from cached_property import cached_property
+from openfermion.ops.operators.qubit_operator import QubitOperator
 from pennylane import Identity, PauliX, PauliY, PauliZ
 from qiskit_nature.operators.second_quantization import SpinOp
 
 logger = logging.getLogger(__name__)
 
+
 class HamiltonianConverterError(Exception):
     """Base Exception class."""
+
     pass
+
 
 class HamiltonianConverter:
     """Class to create and output qubit hamiltonians."""
@@ -39,7 +42,9 @@ class HamiltonianConverter:
             self.intermediate = self._read_file(input_hamiltonian)
             self.openfermion = self._int_to_of()
         else:
-            raise HamiltonianConverterError("Input Hamiltonian must be an openfermion.QubitOperator or path.")
+            raise HamiltonianConverterError(
+                "Input Hamiltonian must be an openfermion.QubitOperator or path."
+            )
 
     def convert(self, output_format: str) -> object:
         """Return the required qubit hamiltonian format.
@@ -70,11 +75,11 @@ class HamiltonianConverter:
 
     def _read_file(filepath) -> Dict[str, float]:
         """Read the Intermediate Representation from a file.
-        
+
         Args:
             filepath (Path): Path to a .json file containing the IR.
         """
-        with open(filepath, 'r') as file:
+        with open(filepath, "r") as file:
             intermediate = json.load(file)
 
         # Validate input
@@ -85,8 +90,13 @@ class HamiltonianConverter:
 
         elif not all(len(key) == len(keys[0]) for key in keys):
             error_string += "All operator keys must be of equal length.\n"
-        
-        elif not all([type(value) is int or type(value) is float for value in intermediate.values()]):
+
+        elif not all(
+            [
+                type(value) is int or type(value) is float
+                for value in intermediate.values()
+            ]
+        ):
             error_string += "All operator weights must be ints or floats.\n"
 
         if error_string:
@@ -129,16 +139,16 @@ class HamiltonianConverter:
 
     def _int_to_of(self) -> openfermion.QubitOperator:
         """Convert from IR to openfermion.
-        
+
         This is needed for reading from file.
-        
+
         Returns:
             openfermion.QubitOperator: Qubit Hamiltonian in openfermion form.
         """
         keys = list(self.intermediate.keys())
         self.n_qubits = len(keys[0])
 
-        operator = self.intermediate["I"*self.n_qubits] * QubitOperator("")
+        operator = self.intermediate["I" * self.n_qubits] * QubitOperator("")
         for key, value in self.intermediate.items():
             term = ""
 

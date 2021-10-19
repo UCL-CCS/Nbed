@@ -133,9 +133,10 @@ def parse():
     logger.debug(f"Arguments: {args}")
     return args
 
+
 def load_hamiltonian(filepath: Path, output: str) -> object:
     """Create a Hamiltonian from a file.
-    
+
     Reads the input file and converts to the desired output format.
     """
     return HamiltonianConverter(filepath).convert(output)

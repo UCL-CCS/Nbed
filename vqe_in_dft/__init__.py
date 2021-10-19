@@ -1,5 +1,5 @@
 """Init for Nbed package."""
 
-from .embed import nbed, load_hamiltonian
+from .embed import load_hamiltonian, nbed
 
 __all__ = [nbed, load_hamiltonian]
