@@ -8,5 +8,6 @@ nbed:
   xc_functional: b3lyp
   output: openfermion
   localisation: spade
+  savefile: data/savefile.json
   # optionally add
   # run_ccsd: True
