@@ -25,7 +25,7 @@ def setup_logs() -> None:
                 "class": "logging.FileHandler",
                 "level": "DEBUG",
                 "formatter": "standard",
-                "filename": Path("../../vqe-in-dft.log"),
+                "filename": Path("../../nbed.log"),
                 "encoding": "utf-8",
             },
             "stream_handler": {
