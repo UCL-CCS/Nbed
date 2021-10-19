@@ -1,5 +1,6 @@
 """File to contain the qubit hamiltonian format."""
 
+import logging
 from functools import cached_property
 from typing import Dict, List
 
@@ -15,16 +16,21 @@ from pyscf.lib import StreamObject
 from qiskit.opflow import I, X, Y, Z
 from qiskit_nature.operators.second_quantization import SpinOp
 
+logger = logging.getLogger(__name__)
+
 
 class HamiltonianConverter:
     """Class to create and output qubit hamiltonians."""
 
-    def __init__(self, input_hamiltonian: openfermion.QubitOperator) -> object:
+    def __init__(self, input_hamiltonian: openfermion.QubitOperator) -> None:
         """Initialise class and return output.
 
         Args:
             input_hamiltonian (object): The input hamiltonian object.
             output_format (str): The name of the desired output format.
+
+        Returns:
+            None
         """
         self.openfermion = input_hamiltonian
         self.intermediate = self._of_to_int()
@@ -50,10 +56,19 @@ class HamiltonianConverter:
             Dict[str, float]: Generic representation of a qubit hamiltonian.
         """
         qh_terms = self.openfermion.terms
-        # TODO this isn't a good idea, it checks the number of operators used simultaneously and not the number of qubits used.
-        n_qubits = self.openfermion.many_body_order()
+        n_qubits: int = 0
+        for term in qh_terms.keys():
+            for pauli in term:
+                position = pauli[0]
+                if position > n_qubits:
+                    n_qubits = position
+        n_qubits += 1
 
-        intermediate = {}
+        self.n_qubits = n_qubits
+
+        logger.debug(f"{n_qubits} qubits found in hamiltonian.")
+
+        intermediate: Dict[str, float] = {}
         for term, value in qh_terms.items():
             # Assume I for each qubit unless explicity stated
             op_string = ["I"] * n_qubits
