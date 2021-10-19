@@ -4,7 +4,7 @@ import json
 import logging
 from abc import abstractmethod
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Union
 
 import openfermion
 import pennylane as qml
@@ -26,7 +26,7 @@ class HamiltonianConverterError(Exception):
 class HamiltonianConverter:
     """Class to create and output qubit hamiltonians."""
 
-    def __init__(self, input_hamiltonian: openfermion.QubitOperator) -> None:
+    def __init__(self, input_hamiltonian: Union[openfermion.QubitOperator, str, Path]) -> None:
         """Initialise class and return output.
 
         Args:
