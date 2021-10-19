@@ -190,26 +190,6 @@ class HamiltonianConverter:
         Returns:
             qiskit_nature.operators.second_quantization.SpinOp
         """
-        # opdict = {"I": I, "X": X, "Y": Y, "Z": Z}
-
-        # # Initialise the operator with the identity contribution
-        # qiskit_op = intermediate["I" * self.n_qubits] * I.tensorpower(self.n_qubits)
-
-        # for op, value in intermediate.items():
-
-        #     if op == "I" * self.n_qubits:
-        #         continue
-
-        #     paulis = [opdict[pauli] for pauli in op]
-
-        #     pauli_product = paulis[0]
-        #     for p in paulis[1:]:
-        #         pauli_product = pauli_product.tensor(p)
-
-        #     qiskit_op += value * pauli_product
-
-        # print(qiskit_op)
-
         input_list = [(key, value) for key, value in self.intermediate.items()]
 
         hamiltonian = SpinOp(input_list)
