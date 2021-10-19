@@ -1,11 +1,13 @@
 """File to contain the qubit hamiltonian format."""
 
+from abc import abstractmethod
 import json
 import logging
 from pathlib import Path
 from typing import Dict
 
 import openfermion
+from openfermion.ops.operators.qubit_operator import QubitOperator
 import pennylane as qml
 from cached_property import cached_property
 from pennylane import Identity, PauliX, PauliY, PauliZ
@@ -30,8 +32,13 @@ class HamiltonianConverter:
         Returns:
             None
         """
-        self.openfermion = input_hamiltonian
-        self.intermediate = self._of_to_int()
+        if type(input_hamiltonian) is openfermion.QubitOperator:
+            self.openfermion = input_hamiltonian
+            self.intermediate = self._of_to_int()
+            import pdb; pdb.set_trace()
+        elif type(input_hamiltonian) is Path:
+            self.intermediate = self._read_file(input_hamiltonian)
+            self.openfermion = self._int_to_of()
 
     def convert(self, output_format: str) -> object:
         """Return the required qubit hamiltonian format.
@@ -47,7 +54,7 @@ class HamiltonianConverter:
             )
         return output
 
-    def save(self, filepath: Path) -> None:
+    def _save(self, filepath: Path) -> None:
         """Save the intermediate representation to file.
 
         Dump the IR using JSON so that it can be picked up again later.
@@ -60,30 +67,31 @@ class HamiltonianConverter:
         with open(filepath, "w") as file:
             file.write(json_ir)
 
-
-    def read_file(self, filepath: Path) -> Dict[str, float]:
+    def _read_file(filepath) -> Dict[str, float]:
         """Read the Intermediate Representation from a file.
         
         Args:
             filepath (Path): Path to a .json file containing the IR.
         """
         with open(filepath, 'r') as file:
-            self.intermediate = json.load(file)
+            intermediate = json.load(file)
 
         # Validate input
         error_string = ""
-        keys = [key for key in self.intermediate.keys()]
+        keys = [key for key in intermediate.keys()]
         if not all([type(key) is str for key in keys]):
             error_string += "JSON file must use strings as operator keys.\n"
 
         elif not all(len(key) == len(keys[0]) for key in keys):
             error_string += "All operator keys must be of equal length.\n"
         
-        elif not all([type(value) is int or type(value) is float for value in self.intermediate.values()]):
+        elif not all([type(value) is int or type(value) is float for value in intermediate.values()]):
             error_string += "All operator weights must be ints or floats.\n"
 
         if error_string:
             raise HamiltonianConverterError(error_string)
+
+        return intermediate
 
     def _of_to_int(self) -> Dict[str, float]:
         """Construct intermediate representation of qubit hamiltonian from openfermion representation.
@@ -117,6 +125,31 @@ class HamiltonianConverter:
             intermediate["".join(op_string)] = value
 
         return intermediate
+
+    def _int_to_of(self) -> openfermion.QubitOperator:
+        """Convert from IR to openfermion.
+        
+        This is needed for reading from file.
+        
+        Returns:
+            openfermion.QubitOperator: Qubit Hamiltonian in openfermion form.
+        """
+        keys = list(self.intermediate.keys())
+        self.n_qubits = len(keys[0])
+
+        operator = self.intermediate["I"*self.n_qubits] * QubitOperator("")
+        for key, value in self.intermediate.items():
+            term = ""
+
+            if key == "I" * self.n_qubits:
+                continue
+
+            for pos, op in enumerate(key):
+                if op in ["X", "Y", "Z"]:
+                    term += op + str(pos) + " "
+            operator += value * QubitOperator(term)
+
+        return operator
 
     @cached_property
     def pennylane(self) -> qml.Hamiltonian:
