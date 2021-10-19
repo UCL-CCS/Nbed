@@ -39,4 +39,4 @@ def test_pennylane() -> None:
 
 
 if __name__ == "__main__":
-    test_pennylane()
+    pass
