@@ -97,7 +97,7 @@ def get_new_RKS_Veff(pyscf_RKS: pyscf.dft.RKS, unitary_rot: np.array, dm=None,
 
 
 def calc_RKS_components_from_dm(pyscf_RKS: pyscf.dft.RKS,
-              dm_matrix: np.array, check_E_with_pyscf: bool = True) \
+              dm_matrix: np.ndarray, check_E_with_pyscf: bool = True) \
               -> Tuple[float, np.ndarray, np.ndarray, float, np.ndarray]:
     """
     Calculate the components of subsystem energy from a RKS DFT calculation.
@@ -130,8 +130,8 @@ def calc_RKS_components_from_dm(pyscf_RKS: pyscf.dft.RKS,
                    two_e_term.ecoul + two_e_term.exc)
     
     if check_E_with_pyscf:
-        Energy_elec_pyscf = pyscf_RKS.energy_elec(dm=dm_matrix)[0]
-        if not np.isclose(Energy_elec_pyscf, energy_elec):
+        energy_elec_pyscf = pyscf_RKS.energy_elec(dm=dm_matrix)[0]
+        if not np.isclose(energy_elec_pyscf, energy_elec):
             raise ValueError('Energy calculation incorrect')
 
     return energy_elec, j_mat, k_mat, e_xc, v_xc
