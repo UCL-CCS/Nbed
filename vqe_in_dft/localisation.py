@@ -1,12 +1,11 @@
-"""
-File to contain localisations.
-"""
+"""Orbital localisation methods."""
 
-from typing import Callable, Tuple
+import logging
+from typing import Tuple
 
 import numpy as np
+from pyscf.lib import StreamObject
 from scipy import linalg
-import logging
 from pyscf import gto, lo
 from pyscf.lo import vvo
 import scipy as sp
@@ -14,13 +13,12 @@ import scipy as sp
 logger = logging.getLogger(__name__)
 
 
-def spade(scf_method: Callable, n_active_atoms: int
+def spade(scf_method: StreamObject, n_active_atoms: int
           ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Localise orbitals using SPADE.
+    """Localise orbitals using SPADE.
 
     Args:
-        scf_method (gto.Mole): PySCF SCF mol object
+        scf_method (StreamObject): PySCF SCF mol object
         n_active_atoms (int): Number of active atoms
     Returns:
         c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
@@ -31,7 +29,6 @@ def spade(scf_method: Callable, n_active_atoms: int
         active_MO_inds (np.array): 1D array of active occupied MO indices
         enviro_MO_inds (np.array): 1D array of environment occupied MO indices
     """
-
     logger.info("Localising with SPADE.")
     n_occupied_orbitals = np.count_nonzero(scf_method.mo_occ == 2)
     occupied_orbitals = scf_method.mo_coeff[:, :n_occupied_orbitals]
@@ -74,7 +71,7 @@ def spade(scf_method: Callable, n_active_atoms: int
     return c_active, c_enviro, c_loc_occ_full, dm_active, dm_enviro, active_MO_inds, enviro_MO_inds
 
 
-def pyscf_localization(pyscf_scf: gto.Mole,
+def pyscf_localization(pyscf_scf: StreamObject,
                        localization_method: str) -> Tuple[np.ndarray]:
     """
     Localise orbitals using PySCF localization schemes.
@@ -245,15 +242,12 @@ def localize_molecular_orbs(pyscf_scf: gto.Mole, n_active_atoms: int,
             c_loc_occ_and_virt, active_virtual_MO_inds, enviro_virtual_MO_inds)
 
 
-def localize_virtual_orbs(pyscf_scf: gto.Mole, n_active_atoms: int, virt_THRESHOLD: float = 0.95) \
+def localize_virtual_orbs(pyscf_scf: StreamObject, n_active_atoms: int, virt_THRESHOLD: float = 0.95) \
                            -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-
-    """
-    Localise virtual (unoccupied) orbitals using different localization schemes in PySCF
-
+    """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
 
     Args:
-        pyscf_scf (gto.Mole): PySCF molecule object
+        pyscf_scf (StreamObject): PySCF molecule object
         n_active_atoms (int): Number of active atoms
         virt_THRESHOLD (float): Threshold for selecting unoccupied (virtual) active regio
 
@@ -261,7 +255,6 @@ def localize_virtual_orbs(pyscf_scf: gto.Mole, n_active_atoms: int, virt_THRESHO
         c_virtual_loc (np.array): C matrix of localized virtual MOs (columns define MOs)
         active_virtual_MO_inds (np.array): 1D array of active virtual MO indices
         enviro_virtual_MO_inds (np.array): 1D array of environment virtual MO indices
-
     """
     if pyscf_scf.mo_coeff is None:
         raise ValueError('SCF calculation has not been performed. No optimized C_matrix')
@@ -307,7 +300,7 @@ def localize_virtual_orbs(pyscf_scf: gto.Mole, n_active_atoms: int, virt_THRESHO
     return c_virtual_loc, active_virtual_MO_inds, enviro_virtual_MO_inds
 
 
-def orb_change_basis_operator(pyscf_scf: gto.Mole,
+def orb_change_basis_operator(pyscf_scf: StreamObject,
                               c_all_localized_and_virt: np.array,
                               sanity_check=False) -> np.ndarray:
 
@@ -316,7 +309,7 @@ def orb_change_basis_operator(pyscf_scf: gto.Mole,
     Localized orbitals (C_matrix_localized)
 
     Args:
-        pyscf_scf (gto.Mole): PySCF molecule object
+        pyscf_scf (StreamObject): PySCF molecule object
         c_all_localized_and_virt (np.array): C_matrix of localized orbitals (includes occupied and virtual)
         sanity_check (bool): optional flag to check if change of basis is working properly
 
