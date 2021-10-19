@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-from vqe_in_dft.ham_converter import HamiltonianConverter
+from nbed.ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 

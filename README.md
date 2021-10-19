@@ -98,7 +98,7 @@ By including the `--savefile` flag or `savefile` item in your config file, you c
 Once you have a saved Hamiltonian you can use the `load_hamiltonian` function to create a python object of the desired type.
 
 ```
-from vqe_in_dft import load_hamiltonian
+from nbed import load_hamiltonian
 ...
 
 qham = load_hamiltonian(<path to hamiltonian JSON>, <output type>)
@@ -110,7 +110,7 @@ qham = load_hamiltonian(<path to hamiltonian JSON>, <output type>)
 VQE_IN_DFT
     notebooks
     tests
-    vqe_in_dft
+    nbed
 ```
 
 ### Notebooks
@@ -121,7 +121,7 @@ This folder contains jupyter notebooks which explain the embedding procedure in 
 
 Contains all tests of the package
 
-### vqe_in_dft
+### nbed
 
 Main functionality of the package.
 

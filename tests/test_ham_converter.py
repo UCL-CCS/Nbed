@@ -7,7 +7,7 @@ import pennylane as qml
 from openfermion import QubitOperator
 from qiskit_nature.operators.second_quantization.spin_op import SpinOp
 
-from vqe_in_dft.ham_converter import HamiltonianConverter
+from nbed.ham_converter import HamiltonianConverter
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 

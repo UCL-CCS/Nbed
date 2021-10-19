@@ -11,9 +11,9 @@ from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, cc, gto, scf
 from pyscf.lib import StreamObject
 
-from vqe_in_dft.ham_converter import HamiltonianConverter
-from vqe_in_dft.localisation import boys, ibo, mullikan, spade
-from vqe_in_dft.utils import parse, setup_logs
+from nbed.ham_converter import HamiltonianConverter
+from nbed.localisation import boys, ibo, mullikan, spade
+from nbed.utils import parse, setup_logs
 
 logger = logging.getLogger(__name__)
 setup_logs()
