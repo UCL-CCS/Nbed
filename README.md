@@ -95,7 +95,14 @@ nbed --config <path to config file> -
 
 By including the `--savefile` flag or `savefile` item in your config file, you can specify the path to a location where you'd like to save a JSON file containing a description of the qubit Hamiltonian.
 
-Y
+Once you have a saved Hamiltonian you can use the `load_hamiltonian` function to create a python object of the desired type.
+
+```
+from vqe_in_dft import load_hamiltonian
+...
+
+qham = load_hamiltonian(<path to hamiltonian JSON>, <output type>)
+```
 
 ## Structure
 
@@ -119,6 +126,7 @@ Contains all tests of the package
 Main functionality of the package.
 
 - embed - main functionality
+- ham_converter - class to convert between Hamiltonian formats as well as save to and read from JSON.
 - localisation - methods of orbital localisation
 - mol_plot - functions to plot the systems localised molecular orbitals.
 - utils - log settings and cli parsing.

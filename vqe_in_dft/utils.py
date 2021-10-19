@@ -138,4 +138,4 @@ def load_hamiltonian(filepath: Path, output: str) -> object:
     
     Reads the input file and converts to the desired output format.
     """
-    converter = HamiltonianConverter()
+    return HamiltonianConverter(filepath).convert(output)
