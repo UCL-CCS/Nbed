@@ -35,7 +35,7 @@ class HamiltonianConverter:
         if type(input_hamiltonian) is openfermion.QubitOperator:
             self.openfermion = input_hamiltonian
             self.intermediate = self._of_to_int()
-        elif type(input_hamiltonian) is Path:
+        elif type(input_hamiltonian) in [Path, str]:
             self.intermediate = self._read_file(input_hamiltonian)
             self.openfermion = self._int_to_of()
 
