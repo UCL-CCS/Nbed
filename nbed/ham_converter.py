@@ -70,7 +70,6 @@ class HamiltonianConverter:
         Args:
             filepath (Path): Path to the save file location.
         """
-
         data_to_save = {"qubits": self.n_qubits, "hamiltonian": self.intermediate}
         json_ir = json.dumps(data_to_save)
 
