@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from vqe_in_dft.ham_converter import HamiltonianConverter
+
 logger = logging.getLogger(__name__)
 
 
@@ -130,3 +132,10 @@ def parse():
 
     logger.debug(f"Arguments: {args}")
     return args
+
+def load_hamiltonian(filepath: Path, output: str) -> object:
+    """Create a Hamiltonian from a file.
+    
+    Reads the input file and converts to the desired output format.
+    """
+    converter = HamiltonianConverter()
