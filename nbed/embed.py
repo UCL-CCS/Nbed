@@ -407,8 +407,8 @@ def nbed(
     # Get cross terms from the initial density
     logger.debug("Calculating cross subsystem terms.")
     # TODO this is broken !
-    e_act, e_xc_act, j_act, k_act, v_xc_act = closed_shell_subsystem(ks, act_density)
-    e_env, e_xc_env, j_env, k_env, v_xc_env = closed_shell_subsystem(ks, env_density)
+    e_act, e_xc_act, j_act, k_act, v_xc_act = [None] * 5
+    e_env, e_xc_env, j_env, k_env, v_xc_env = [None] * 5
 
     active_indices = get_active_indices(ks, n_act_mos, n_env_mos, qubits)
 
