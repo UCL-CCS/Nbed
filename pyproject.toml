@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "vqe-in-dft"
+name = "nbed"
 version = "0.0.1"
 description = ""
 authors = ["Michael Williams <michael.williams.20@ucl.ac.uk>"]
@@ -12,6 +12,8 @@ PennyLane-Qchem = "^0.17.0"
 PyYAML = "^5.4.1"
 pyscf = "1.7.6"
 types-PyYAML = "^5.4.11"
+qiskit-nature = "^0.2.2"
+cached-property = "^1.5.2"
 
 [tool.poetry.dev-dependencies]
 black = "^21.6b0"
@@ -27,15 +29,17 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-nbed = "vqe_in_dft.embed:cli"
+nbed = "nbed.embed:cli"
 
 [tool.isort]
 profile = "black"
 multi_line_output = 3
 
 # Ignore pytest warnings here
-#[tool.pytest.ini_options]
-#filterwarnings = [
-#    #H5py throws a custom deprecation warning about default file mode
-#    'ignore:.*Using default_file_mode.*instead:UserWarning',
-#]
+[tool.pytest.ini_options]
+filterwarnings = [
+    #H5py throws a custom deprecation warning about default file mode
+    'ignore:.*Using default_file_mode.*instead:UserWarning',
+    # Lots of downstream deprecation warnings
+    'ignore::DeprecationWarning'
+]

@@ -4,8 +4,9 @@ File to contain tests of the embed.py script.
 from pathlib import Path
 
 import numpy as np
+import openfermion
 
-from vqe_in_dft import nbed
+from nbed import nbed
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
