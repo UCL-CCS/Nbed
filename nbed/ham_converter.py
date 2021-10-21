@@ -117,7 +117,7 @@ class HamiltonianConverter:
             Dict[str, float]: Generic representation of a qubit hamiltonian.
         """
         intermediate: Dict[str, float] = {}
-        for term, value in self.openfermion.items():
+        for term, value in self.openfermion.terms.items():
             # Assume I for each qubit unless explicity stated
             op_string = ["I"] * self.n_qubits
             for pauli in term:
@@ -139,7 +139,7 @@ class HamiltonianConverter:
             openfermion.QubitOperator: Qubit Hamiltonian in openfermion form.
         """
         operator = self.intermediate["I" * self.n_qubits] * QubitOperator("")
-        for key, value in self.intermediate.items():
+        for key, value in self.intermediate.terms.items():
             term = ""
 
             if key == "I" * self.n_qubits:
@@ -190,7 +190,7 @@ class HamiltonianConverter:
         Returns:
             qiskit_nature.operators.second_quantization.SpinOp
         """
-        input_list = [(key, value) for key, value in self.intermediate.items()]
+        input_list = [(key, value) for key, value in self.intermediate.terms.items()]
 
         hamiltonian = SpinOp(input_list)
         return hamiltonian
