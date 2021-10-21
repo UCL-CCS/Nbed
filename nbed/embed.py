@@ -161,7 +161,10 @@ def get_new_RHF_Veff(
         else:
             dm = pyscf_RHF.init_guess_by_1e()
 
-    vj, vk = pyscf_RHF.get_jk(dm=dm, hermi=hermi)
+    # if pyscf_RHF._eri is None:
+    #     pyscf_RHF._eri = pyscf_RHF.mol.intor('int2e', aosym='s8')
+
+    vj, vk = pyscf_RHF.get_jk(mol=pyscf_RHF.mol, dm=dm, hermi=hermi)
     v_eff = vj - vk * 0.5
 
     # v_eff = pyscf_obj.get_veff(dm=dm)
@@ -169,6 +172,40 @@ def get_new_RHF_Veff(
 
     return v_eff_new
 
+# from pyscf.scf.hf import get_jk as get_jk_HFock
+# def get_new_RHF_Veff(
+#     pyscf_RHF: StreamObject, unitary_rot: np.ndarray, dm=None, hermi: int = 1
+# ) -> np.ndarray:
+#     """
+#     Function to get V_eff in new basis.
+#
+#     Note in RKS calculation Veff = J + Vxc
+#     Whereas for RHF calc it is Veff = J - 0.5k
+#
+#     Args:
+#         pyscf_RHF (StreamObject): PySCF RHF obj
+#         unitary_rot (np.ndarray): Operator to change basis  (in this code base this should be: cannonical basis
+#                                 to localized basis)
+#         dm (np.ndarray): Optional input density matrix. If not defined, finds whatever is available from pyscf_RKS_obj
+#         hermi (int): Whether J, K matrix is hermitian
+#                         0: not hermitian and not symmetric
+#                         1: hermitian or symmetric
+#                         2: anti-hermitian
+#     """
+#     if dm is None:
+#         if pyscf_RHF.mo_coeff is not None:
+#             dm = pyscf_RHF.make_rdm1(pyscf_RHF.mo_coeff, pyscf_RHF.mo_occ)
+#         else:
+#             dm = pyscf_RHF.init_guess_by_1e()
+#
+#     vj, vk = get_jk_HFock(pyscf_RHF.mol, dm, hermi=hermi, vhfopt=None, with_j=True, with_k=True, omega=None)
+#     # vj, vk = pyscf_RHF.get_jk(dm=dm, hermi=hermi)
+#     v_eff = vj - vk * 0.5
+#
+#     # v_eff = pyscf_obj.get_veff(dm=dm)
+#     v_eff_new = unitary_rot.conj().T @ v_eff @ unitary_rot
+#
+#     return v_eff_new
 
 def get_cross_terms_DFT(
     pyscf_RKS: StreamObject,
@@ -423,12 +460,13 @@ def huzinaga_RHF(scf_method: StreamObject,
                  s_neg_half: np.ndarray,
                  s_half: np.ndarray,
                  dm_conv_tol: float = 1e-6,
+                 dm_initial_guess:Optional[np.ndarray] = None
                  ):
     """Manual RHF calculation that is implemented using the huzinaga operator
 
     Note this function uses lowdin (symmetric) orthogonalization only! (PySCF sometimes uses meta-lowdin and NAO). Also
     the intial density matrix guess is based on the modified core Hamilotnian (containing projector and DFT potential)
-    PySCF has other methods for initial guess that aren't available here.
+    PySCF has other methods for initial guess that aren't available here. Manual guess can also be given).
 
     TODO: make a subclass from PySCF RHF object. Can include all this functionality there. Problems in this function
     can occur due to DIIS and other clever PySCF methods not being available.
@@ -440,7 +478,7 @@ def huzinaga_RHF(scf_method: StreamObject,
         s_neg_half (np.ndarray): AO overlap matrix to the power of -1/2
         s_half (np.ndarray): AO overlap matrix to the power of 1/2
         dm_conv_tol (float): density matrix convergence tolerance
-
+        dm_initial_guess (np.ndarray): Optional initial guess density matrix
     Returns:
         conv_flag (bool): Flag to indicate whether SCF has converged or not
         e_total (float): RHF energy (includes nuclear energy)
@@ -449,19 +487,30 @@ def huzinaga_RHF(scf_method: StreamObject,
         dm_mat (np.ndarray): Converged density matrix
         huzinaga_op_std (np.ndarray): Huzinaga operator in standard basis (same basis as Fock operator).
     """
-    # initial dm guess (using Hcore)
+    #
     H_core_and_DFT_pot = scf_method.get_hcore() + DFT_potential
-    fock_ortho = s_neg_half @ H_core_and_DFT_pot @ s_neg_half
 
-    huzinaga_op_ortho = -1*(fock_ortho@enviro_proj_ortho_basis + enviro_proj_ortho_basis@fock_ortho)
-    huzinaga_op_std = s_half @ huzinaga_op_ortho @ s_half
+    if dm_initial_guess is None:
+        # initial dm guess (using modified Hcore)
+        fock_ortho = s_neg_half @ H_core_and_DFT_pot @ s_neg_half
 
-    fock_ortho += huzinaga_op_ortho
+        huzinaga_op_ortho = -1*(fock_ortho@enviro_proj_ortho_basis + enviro_proj_ortho_basis@fock_ortho)
+        huzinaga_op_std = s_half @ huzinaga_op_ortho @ s_half
 
-    mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
-    mo_coeff_std = s_neg_half @ mo_coeff_ortho
-    mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
-    dm_mat = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
+        fock_ortho += huzinaga_op_ortho
+
+        mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
+        mo_coeff_std = s_neg_half @ mo_coeff_ortho
+        mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
+        dm_mat = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
+    else:
+        dm_mat = dm_initial_guess
+        vhf = scf_method.get_veff(dm=dm_mat)
+        fock = vhf + H_core_and_DFT_pot
+        fock_ortho = s_neg_half @ fock @ s_neg_half
+        huzinaga_op_ortho = -1 * (fock_ortho @ enviro_proj_ortho_basis + enviro_proj_ortho_basis @ fock_ortho)
+        huzinaga_op_std = s_half @ huzinaga_op_ortho @ s_half
+        fock_ortho += huzinaga_op_ortho
 
     # SCF parameters
     nuclear_energy = scf_method.energy_nuc()
@@ -579,7 +628,7 @@ def nbed_driver(
                                                        localization_method,
                                                        occ_THRESHOLD = 0.95,
                                                        virt_THRESHOLD = 0.95,
-                                                       sanity_check = False,
+                                                       sanity_check = True,
                                                        run_virtual_localization=False)
 
     logger.debug("Write global molecule in localized basis")
@@ -633,6 +682,10 @@ def nbed_driver(
                                       e_xc_act,
                                       e_xc_env)
 
+    energy_DFT_components = e_act + e_env + two_e_cross + e_nuc
+    if not np.isclose(energy_DFT_components, global_rks_total_energy):
+        raise ValueError('DFT energy of localized components not matching supersystem DFT')
+
     logger.debug("Define Hartree-Fock object")
     embedded_mol: gto.Mole = gto.Mole(atom=geometry,
                                       basis=basis,
@@ -640,10 +693,22 @@ def nbed_driver(
 
     logger.debug("re-defining total number of electrons to only include active system")
     embedded_mol.nelectron = 2 * len(active_MO_inds)
+
     embedded_RHF_MU = scf.RHF(embedded_mol)
     embedded_RHF_MU.max_memory = max_ram_memory
     embedded_RHF_MU.conv_tol = convergence
     embedded_RHF_MU.verbose = pyscf_print_level
+
+    # ADD CHANGE OF BASIS
+    # TODO: need to check if change of basis here is necessary (START)
+    H_core_std_MU = embedded_RHF_MU.get_hcore()
+    embedded_RHF_MU.get_hcore = lambda *args: get_Hcore_new_basis(H_core_std_MU, unitary_rot=change_basis_matrix)
+    embedded_RHF_MU.get_veff = lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: get_new_RHF_Veff(
+                                                                       embedded_RHF_MU,
+                                                                       change_basis_matrix,
+                                                                       dm=dm,
+                                                                       hermi=hermi)
+    # TODO: need to check this (END)
 
     logger.debug("Get global DFT potential to optimize embedded calc in.")
     g_act_and_env = global_rks.get_veff(dm=(dm_active+dm_enviro))
@@ -667,8 +732,8 @@ def nbed_driver(
 
     logger.debug("Running embedded RHF calculation.")
     embedded_RHF_MU.kernel()
-    print(f'embedded HF energy : {embedded_RHF_MU.e_tot}, converged: {embedded_RHF_MU.converged}')
-    dm_active_embedded = embedded_RHF_MU.make_rdm1(mo_coeff=embedded_RHF_MU.mo_coeff,
+    print(f'embedded HF energy MU_SHIFT: {embedded_RHF_MU.e_tot}, converged: {embedded_RHF_MU.converged}')
+    dm_active_embedded_MU = embedded_RHF_MU.make_rdm1(mo_coeff=embedded_RHF_MU.mo_coeff,
                                                 mo_occ=embedded_RHF_MU.mo_occ)
 
     shift = mol.nao - len(enviro_MO_inds)
@@ -688,7 +753,7 @@ def nbed_driver(
     print("CCSD Energy:\n\t%s", e_wf_emb_MU)
 
     fci_scf_MU = fci.FCI(embedded_RHF_MU)
-    fci_scf_MU.frozen = frozen_orb_inds_MU
+    # fci_scf_MU.frozen = frozen_orb_inds_MU
     fci_scf_MU.conv_tol = convergence
     fci_scf_MU.verbose = pyscf_print_level
     fci_scf_MU.max_memory = max_ram_memory
@@ -702,6 +767,18 @@ def nbed_driver(
     embedded_RHF_HUZ.max_memory = max_ram_memory
     embedded_RHF_HUZ.conv_tol = convergence
     embedded_RHF_HUZ.verbose = pyscf_print_level
+    # embedded_RHF_HUZ.max_cycle = 500
+
+    # ADD CHANGE OF BASIS
+    # TODO: need to check if change of basis here is necessary (START)
+    H_core_std_HUZ = embedded_RHF_HUZ.get_hcore()
+    embedded_RHF_HUZ.get_hcore = lambda *args: get_Hcore_new_basis(H_core_std_HUZ, unitary_rot=change_basis_matrix)
+    embedded_RHF_HUZ.get_veff = lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: get_new_RHF_Veff(
+                                                                       embedded_RHF_HUZ,
+                                                                       change_basis_matrix,
+                                                                       dm=dm,
+                                                                       hermi=hermi)
+    # TODO: (END)
 
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
     enviro_projector_ortho = get_enivornment_projector(c_loc_occ_and_virt,
@@ -720,9 +797,10 @@ def nbed_driver(
                                      enviro_projector_ortho,
                                      s_neg_half,
                                      s_half,
-                                     dm_conv_tol=1e-6)
+                                     dm_conv_tol=1e-6,
+                                     dm_initial_guess=None) # TODO: use dm_active_embedded_MU (use mu answer to initialize!)
 
-    print(f'embedded HF energy : {energy_hf}, converged: {conv_flag}')
+    print(f'embedded HF energy HUZINAGA: {energy_hf}, converged: {conv_flag}')
     # write results to pyscf object
     hcore_std = embedded_RHF_HUZ.get_hcore()
     v_emb_HUZ = huzinaga_op_std + DFT_potential
@@ -751,7 +829,7 @@ def nbed_driver(
 
 
     fci_scf_HUZ = fci.FCI(embedded_RHF_HUZ)
-    fci_scf_HUZ.frozen = frozen_orb_inds_HUZ
+    # fci_scf_HUZ.frozen = frozen_orb_inds_HUZ
     fci_scf_HUZ.conv_tol = convergence
     fci_scf_HUZ.verbose = pyscf_print_level
     fci_scf_HUZ.max_memory = max_ram_memory
