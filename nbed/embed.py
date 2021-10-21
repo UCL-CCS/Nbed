@@ -570,6 +570,7 @@ def nbed_driver(
     mu_level_shift: float = 1e6,
     run_ccsd_emb: bool = False,
     run_fci_emb: bool = False,
+    run_global_fci: bool = False,
     max_ram_memory: int = 4000,
     pyscf_print_level: int =1,
     qubits: Optional[int] = None,
@@ -760,7 +761,7 @@ def nbed_driver(
     fci_scf_MU.run()
     fci_emb_energy_MU = fci_scf_MU.e_tot
     e_wf_fci_emb_MU = (fci_emb_energy_MU) + e_env + two_e_cross - wf_correction_MU
-
+    print("FCI MU Energy:\n\t%s", e_wf_fci_emb_MU)
 
     ### HUZINAGA
     embedded_RHF_HUZ = scf.RHF(embedded_mol)
@@ -836,7 +837,7 @@ def nbed_driver(
     fci_scf_HUZ.run()
     fci_emb_energy_HUZ = fci_scf_HUZ.e_tot
     e_wf_fci_emb_HUZ = (fci_emb_energy_HUZ) + e_env + two_e_cross - wf_correction_HUZ
-
+    print("FCI HUZ Energy:\n\t%s", e_wf_fci_emb_HUZ)
 
 
     print(f'difference between CCSD Huz and Mu calcs: {np.abs(e_wf_emb_HUZ-e_wf_emb_MU)}')
@@ -871,6 +872,26 @@ def nbed_driver(
               'huzinaga': {'H':q_ham_HUZ,
                            'energy_classical': classical_energy_HUZ}
               }
+
+    if run_global_fci:
+        mol_full: gto.Mole = gto.Mole(atom=geometry, basis=basis, charge=0).build()
+
+        global_HF = scf.RHF(mol_full)
+        global_HF.conv_tol = convergence
+        global_HF.xc = xc_functional
+        global_HF.max_memory = max_ram_memory
+        global_HF.verbose = pyscf_print_level
+        global_HF.kernel()
+
+        global_fci = fci.FCI(global_HF)
+        global_fci.conv_tol = convergence
+        global_fci.verbose = pyscf_print_level
+        global_fci.max_memory = max_ram_memory
+        global_fci.run()
+        global_fci_energy = global_fci.e_tot
+
+        print(f'global FCI: {global_fci_energy}')
+
 
     return output
 
