@@ -732,8 +732,8 @@ def nbed_driver(
     logger.debug("Running embedded RHF calculation.")
     embedded_RHF_MU.kernel()
     print(f'embedded HF energy MU_SHIFT: {embedded_RHF_MU.e_tot}, converged: {embedded_RHF_MU.converged}')
-    dm_active_embedded_MU = embedded_RHF_MU.make_rdm1(mo_coeff=embedded_RHF_MU.mo_coeff,
-                                                mo_occ=embedded_RHF_MU.mo_occ)
+    # dm_active_embedded_MU = embedded_RHF_MU.make_rdm1(mo_coeff=embedded_RHF_MU.mo_coeff,
+    #                                             mo_occ=embedded_RHF_MU.mo_occ)
 
     shift = mol.nao - len(enviro_MO_inds)
     frozen_orb_inds_MU = [mo_i for mo_i in range(shift, mol.nao)]
