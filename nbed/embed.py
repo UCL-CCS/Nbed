@@ -394,7 +394,7 @@ def get_active_indices(
 
 from openfermion.ops.representations import get_active_space_integrals
 def get_qubit_hamiltonian(
-    scf_method: StreamObject, frozen_indices: List[int]
+    scf_method: StreamObject,
 ) -> object:
     """Return the qubit hamiltonian.
 
@@ -405,12 +405,11 @@ def get_qubit_hamiltonian(
     Returns:
         object: A qubit hamiltonian.
     """
-    c_matrix = scf_method.mo_coeff
-    # n_orbs = c_matrix.shape[1]
 
-    active_mo_inds = np.array([mo_ind for mo_ind in range(c_matrix.shape[0]) if mo_ind not in frozen_indices])
-    n_orbs = len(active_mo_inds)
-    c_matrix_active = scf_method.mo_coeff[:, active_mo_inds]
+    # C_matrix containing orbitals to be considered
+    # if there are any environment orbs that have been projected out... these should NOT be present in the
+    # scf_method.mo_coeff array (aka columns should be deleted!)
+    c_matrix_active = scf_method.mo_coeff
 
     # one body terms
     one_body_integrals = c_matrix_active.T @ scf_method.get_hcore() @ c_matrix_active
@@ -555,7 +554,6 @@ def huzinaga_RHF(scf_method: StreamObject,
     e_total = rhf_energy + nuclear_energy
 
     return conv_flag, e_total, mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std
-
 
 
 def nbed_driver(
@@ -753,8 +751,15 @@ def nbed_driver(
     e_wf_emb_MU = (ccsd.e_hf + e_ccsd_corr) + e_env + two_e_cross - wf_correction_MU
     print("CCSD Energy:\n\t%s", e_wf_emb_MU)
 
-    fci_scf_MU = fci.FCI(embedded_RHF_MU)
+    # instead of freezing orbs like:
     # fci_scf_MU.frozen = frozen_orb_inds_MU
+    # doesn't work as this will add energy constant. Instead delete environment part:
+    active_inds = [mo_i for mo_i in range(embedded_RHF_MU.mo_coeff.shape[1]) if mo_i not in frozen_orb_inds_MU]
+    embedded_RHF_MU.mo_coeff = embedded_RHF_MU.mo_coeff[:, active_inds]
+    embedded_RHF_MU.mo_energy = embedded_RHF_MU.mo_energy[active_inds]
+    embedded_RHF_MU.mo_occ = embedded_RHF_MU.mo_occ[active_inds]
+
+    fci_scf_MU = fci.FCI(embedded_RHF_MU)
     fci_scf_MU.conv_tol = convergence
     fci_scf_MU.verbose = pyscf_print_level
     fci_scf_MU.max_memory = max_ram_memory
@@ -814,7 +819,7 @@ def nbed_driver(
     n_env_mo = len(enviro_MO_inds)
     frozen_orb_inds_HUZ = [i for i in range(n_act_mo, n_act_mo+n_env_mo)]
 
-    energy_rhf_active_embedded = embedded_RHF_HUZ.energy_tot(dm=dm_active_embedded)
+    # energy_rhf_active_embedded = embedded_RHF_HUZ.energy_tot(dm=dm_active_embedded)
 
     ccsd = cc.CCSD(embedded_RHF_HUZ)
     ccsd.conv_tol = convergence
@@ -828,6 +833,11 @@ def nbed_driver(
     e_wf_emb_HUZ = (ccsd.e_hf + e_ccsd_corr) + e_env + two_e_cross - wf_correction_HUZ
     print("CCSD Energy:\n\t%s", e_wf_emb_HUZ)
 
+
+    active_inds = [mo_i for mo_i in range(embedded_RHF_HUZ.mo_coeff.shape[1]) if mo_i not in frozen_orb_inds_HUZ]
+    embedded_RHF_HUZ.mo_coeff = embedded_RHF_HUZ.mo_coeff[:, active_inds]
+    embedded_RHF_HUZ.mo_energy = embedded_RHF_HUZ.mo_energy[active_inds]
+    embedded_RHF_HUZ.mo_occ = embedded_RHF_HUZ.mo_occ[active_inds]
 
     fci_scf_HUZ = fci.FCI(embedded_RHF_HUZ)
     # fci_scf_HUZ.frozen = frozen_orb_inds_HUZ
@@ -847,11 +857,9 @@ def nbed_driver(
     # Calculate the energy of embedded A
     # embedded_scf.get_hcore = lambda *args, **kwargs: h_core
 
-    q_ham_MU = get_qubit_hamiltonian(embedded_RHF_MU,
-                                  frozen_orb_inds_MU)
+    q_ham_MU = get_qubit_hamiltonian(embedded_RHF_MU)
 
-    q_ham_HUZ = get_qubit_hamiltonian(embedded_RHF_HUZ,
-                                  frozen_orb_inds_HUZ)
+    q_ham_HUZ = get_qubit_hamiltonian(embedded_RHF_HUZ)
 
     # converter_MU = HamiltonianConverter(q_ham_MU)
     # q_ham_MU = converter_MU.convert(output)
