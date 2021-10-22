@@ -26,7 +26,9 @@ class HamiltonianConverterError(Exception):
 class HamiltonianConverter:
     """Class to create and output qubit hamiltonians."""
 
-    def __init__(self, input_hamiltonian: Union[openfermion.QubitOperator, str, Path]) -> None:
+    def __init__(
+        self, input_hamiltonian: Union[openfermion.QubitOperator, str, Path]
+    ) -> None:
         """Initialise class and return output.
 
         Args:
@@ -139,7 +141,7 @@ class HamiltonianConverter:
             openfermion.QubitOperator: Qubit Hamiltonian in openfermion form.
         """
         operator = self.intermediate["I" * self.n_qubits] * QubitOperator("")
-        for key, value in self.intermediate.terms.items():
+        for key, value in self.intermediate.items():
             term = ""
 
             if key == "I" * self.n_qubits:
@@ -190,7 +192,7 @@ class HamiltonianConverter:
         Returns:
             qiskit_nature.operators.second_quantization.SpinOp
         """
-        input_list = [(key, value) for key, value in self.intermediate.terms.items()]
+        input_list = [(key, value) for key, value in self.intermediate.items()]
 
         hamiltonian = SpinOp(input_list)
         return hamiltonian
