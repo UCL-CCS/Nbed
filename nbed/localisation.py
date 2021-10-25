@@ -384,23 +384,23 @@ class PySCFLocalizer(Localizer):
             pipmez.pop_method = "meta-lowdin"
 
             # run localization
-            c_loc_occ = pipmez.kernel()
+            self.c_loc_occ = pipmez.kernel()
 
         elif self.method == "boys":
             #  Minimizes the spatial extent of the orbitals by minimizing a certain function.
             boys_SCF = lo.boys.Boys(self.pyscf_scf.mol, c_std_occ)
-            c_loc_occ = boys_SCF.kernel()
+            self.c_loc_occ = boys_SCF.kernel()
 
         elif self.method == "ibo":
             # Intrinsic bonding orbitals.
             iaos = lo.iao.iao(self.pyscf_scf.mol, c_std_occ)
             # Orthogonalize IAO
             iaos = lo.vec_lowdin(iaos, self.pyscf_scf.get_ovlp())
-            c_loc_occ = lo.ibo.ibo(
+            self.c_loc_occ = lo.ibo.ibo(
                 self.pyscf_scf.mol, c_std_occ, locmethod="IBO", iaos=iaos
             )
         else:
-            raise ValueError(f"unknown localization method {self.method}")
+            raise ValueError(f"unknown localization method {self.method}.")
 
         ao_slice_matrix = self.pyscf_scf.mol.aoslice_by_atom()
 
@@ -415,10 +415,10 @@ class PySCFLocalizer(Localizer):
             ao_slice_matrix[0, 2], ao_slice_matrix[self.n_active_atoms - 1, 3]
         )
         # active AOs coeffs for a given MO j
-        numerator_all = np.einsum("ij->j", (c_loc_occ[ao_active_inds, :]) ** 2)
+        numerator_all = np.einsum("ij->j", (self.c_loc_occ[ao_active_inds, :]) ** 2)
 
         # all AOs coeffs for a given MO j
-        denominator_all = np.einsum("ij->j", c_loc_occ ** 2)
+        denominator_all = np.einsum("ij->j", self.c_loc_occ ** 2)
 
         MO_active_percentage = numerator_all / denominator_all
 
@@ -427,21 +427,19 @@ class PySCFLocalizer(Localizer):
 
         active_MO_inds = np.where(MO_active_percentage > self.occ_THRESHOLD)[0]
         enviro_MO_inds = np.array(
-            [i for i in range(c_loc_occ.shape[1]) if i not in active_MO_inds]
+            [i for i in range(self.c_loc_occ.shape[1]) if i not in active_MO_inds]
         )
 
         # define active MO orbs and environment
         #    take MO (columns of C_matrix) that have high dependence from active AOs
-        c_active = c_loc_occ[:, active_MO_inds]
-        c_enviro = c_loc_occ[:, enviro_MO_inds]
+        self.c_active = self.c_loc_occ[:, active_MO_inds]
+        self.c_enviro = self.c_loc_occ[:, enviro_MO_inds]
 
-        n_act_mos = len(active_MO_inds)
-        n_env_mos = len(enviro_MO_inds)
+        self.n_act_mos = len(active_MO_inds)
+        self.n_env_mos = len(enviro_MO_inds)
 
-        logger.debug(f"{n_act_mos} active MOs.")
-        logger.debug(f"{n_env_mos} environment MOs.")
+        logger.debug(f"{self.n_act_mos} active MOs.")
+        logger.debug(f"{self.n_env_mos} environment MOs.")
 
-        dm_active = 2.0 * c_active @ c_active.T
-        dm_enviro = 2.0 * c_enviro @ c_enviro.T
-
-        return c_loc_occ
+        self.dm_active = 2.0 * self.c_active @ self.c_active.T
+        self.dm_enviro = 2.0 * self.c_enviro @ self.c_enviro.T
