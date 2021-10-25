@@ -2,7 +2,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional, List
 
 import numpy as np
 import scipy as sp
@@ -139,7 +139,7 @@ class Localizer(ABC):
 
         self.dm_active: np.ndarray = None
         self.dm_enviro: np.ndarray = None
-        
+
         self.active_MO_inds: List[int] = None
         self.enviro_MO_inds: List[int] = None
         self.active_virtual_MO_inds: List[int] = None
