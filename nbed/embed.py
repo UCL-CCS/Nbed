@@ -15,6 +15,7 @@ from pyscf import ao2mo, cc, fci, gto, lib, scf
 from pyscf.dft import numint
 from pyscf.dft.rks import get_veff as rks_get_veff
 from pyscf.lib import StreamObject
+from nbed.exceptions import NbedConfigError
 
 from nbed.ham_converter import HamiltonianConverter
 from nbed.localisation import localize_molecular_orbs, orb_change_basis_operator
@@ -387,23 +388,23 @@ def get_qubit_hamiltonian(
         Qubit_Hamiltonian (QubitOperator): Qubit hamiltonian of molecular Hamiltonian (under specified fermion mapping)
     """
 
-    transforms = {"jordan_wigner": jordan_wigner,
+    transforms = {
+        "jordan_wigner": jordan_wigner,
         "bravyi_kitaev": bravyi_kitaev,
         "bravyi_kitaev_tree": bravyi_kitaev_tree,
         }
     try:
-        transform = transforms[transformation](molecular_ham)
+        qubit_ham = transforms[transformation](molecular_ham)
     except KeyError:
-        raise 
+        raise NbedConfigError("No Qubit Hamiltonian mapping with name %s", transformation)
 
-    return qubit_Hamiltonian
+    return qubit_ham
 
 
 def huzinaga_RHF(
     scf_method: StreamObject,
     dft_potential: np.ndarray,
     enviro_proj_ortho_basis: np.ndarray,
-    s_neg_half: np.ndarray,
     s_half: np.ndarray,
     dm_conv_tol: float = 1e-6,
     dm_initial_guess: Optional[np.ndarray] = None,
@@ -433,6 +434,10 @@ def huzinaga_RHF(
         dm_mat (np.ndarray): Converged density matrix
         huzinaga_op_std (np.ndarray): Huzinaga operator in standard basis (same basis as Fock operator).
     """
+    s_mat = s_half @ s_half
+    s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
+
+
     # Create an initial dm if needed.
     if dm_initial_guess is None:
         fock = scf_method.get_hcore() + dft_potential
@@ -921,7 +926,6 @@ class nbed(object):
             )
 
             # run manual HF
-            s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
             (
                 conv_flag,
                 energy_hf_HUZ,
