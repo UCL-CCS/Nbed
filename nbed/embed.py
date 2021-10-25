@@ -3,7 +3,7 @@
 import logging
 import warnings
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import scipy as sp
@@ -15,11 +15,10 @@ from pyscf import ao2mo, cc, fci, gto, lib, scf
 from pyscf.dft import numint
 from pyscf.dft.rks import get_veff as rks_get_veff
 from pyscf.lib import StreamObject
-from nbed.exceptions import NbedConfigError
 
-from nbed.ham_converter import HamiltonianConverter
-from nbed.localisation import localize_molecular_orbs, orb_change_basis_operator
-from nbed.utils import parse, setup_logs
+from nbed.exceptions import NbedConfigError
+from nbed.localisation import Localizer, orb_change_basis_operator
+from nbed.utils import setup_logs
 
 logger = logging.getLogger(__name__)
 setup_logs()
@@ -31,7 +30,7 @@ def change_hcore_basis(h_core: np.array, unitary_rot: np.ndarray) -> np.array:
 
     Args:
         h_core (np.ndarray): standard core Hamiltonian
-        unitary_rot (np.ndarray): Operator to change basis  (in this code base this should be: cannonical basis to
+        unitary_rot (np.ndarray): Operator to change basis (used with cannonical basis to
         localized basis)
     Returns:
         H_core_rot (np.ndarray): core Hamiltonian in new basis
@@ -392,11 +391,13 @@ def get_qubit_hamiltonian(
         "jordan_wigner": jordan_wigner,
         "bravyi_kitaev": bravyi_kitaev,
         "bravyi_kitaev_tree": bravyi_kitaev_tree,
-        }
+    }
     try:
         qubit_ham = transforms[transformation](molecular_ham)
     except KeyError:
-        raise NbedConfigError("No Qubit Hamiltonian mapping with name %s", transformation)
+        raise NbedConfigError(
+            "No Qubit Hamiltonian mapping with name %s", transformation
+        )
 
     return qubit_ham
 
@@ -436,7 +437,6 @@ def huzinaga_RHF(
     """
     s_mat = s_half @ s_half
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
-
 
     # Create an initial dm if needed.
     if dm_initial_guess is None:
@@ -807,7 +807,7 @@ class nbed(object):
         fci_scf.run()
         return fci_scf
 
-    def Generate_embedded_H(self):
+    def embed_system(self):
         """Generate embedded Hamiltonian
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
@@ -816,7 +816,7 @@ class nbed(object):
         global_rks = self.run_cheap_global_dft()
         e_nuc = global_rks.mol.energy_nuc()
 
-        self.localized_system = localize_molecular_orbs(
+        self.localized_system = Localizer(
             global_rks,
             self.n_active_atoms,
             self.localization_method,
@@ -937,7 +937,6 @@ class nbed(object):
                 embedded_RHF_HUZ,
                 dft_potential,
                 enviro_projector_ortho,
-                s_neg_half,
                 s_half,
                 dm_conv_tol=1e-6,
                 dm_initial_guess=None,
@@ -1012,4 +1011,6 @@ class nbed(object):
 
 
 if __name__ == "__main__":
+    from .utils import cli
+
     cli()
