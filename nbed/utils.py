@@ -6,7 +6,7 @@ from logging.config import dictConfig
 from pathlib import Path
 
 import yaml
-
+from nbed import nbed
 from nbed.ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
@@ -140,3 +140,24 @@ def load_hamiltonian(filepath: Path, output: str) -> object:
     Reads the input file and converts to the desired output format.
     """
     return HamiltonianConverter(filepath).convert(output)
+
+
+def cli() -> None:
+    """CLI Interface."""
+    setup_logs()
+    args = parse()
+    qham, e_classical = nbed(
+        geometry=args["geometry"],
+        active_atoms=args["active_atoms"],
+        basis=args["basis"],
+        xc_functional=args["xc_functional"],
+        output=args["output"],
+        localisation=args["localisation"],
+        convergence=args["convergence"],
+        run_ccsd=args["ccsd"],
+        qubits=args["qubits"],
+        savefile=args["savefile"],
+    )
+    print("Qubit Hamiltonian:")
+    print(qham)
+    print(f"Classical Energy (Ha): {e_classical}")

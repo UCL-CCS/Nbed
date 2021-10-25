@@ -1,7 +1,7 @@
 """Orbital localisation methods."""
 
 import logging
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import scipy as sp
@@ -202,7 +202,9 @@ def localize_virtual_orbs(
 
 
 def orb_change_basis_operator(
-    pyscf_scf: StreamObject, c_all_localized_and_virt: np.array, sanity_check: Optional[bool] =False
+    pyscf_scf: StreamObject,
+    c_all_localized_and_virt: np.array,
+    sanity_check: Optional[bool] = False,
 ) -> np.ndarray:
     """Construct operator to change basis.
 
@@ -296,14 +298,15 @@ class localize_molecular_orbs(object):
                                            (set to None if run_virtual_localization is False)
     """
 
-    def __init__(self,
-                 pyscf_scf: gto.Mole,
-                 n_active_atoms: int,
-                 localization_method: str,
-                 occ_THRESHOLD: Optional[float] = 0.95,
-                 virt_THRESHOLD: Optional[float] = 0.95,
-                 run_virtual_localization: Optional[bool] = False,
-                 ):
+    def __init__(
+        self,
+        pyscf_scf: gto.Mole,
+        n_active_atoms: int,
+        localization_method: str,
+        occ_THRESHOLD: Optional[float] = 0.95,
+        virt_THRESHOLD: Optional[float] = 0.95,
+        run_virtual_localization: Optional[bool] = False,
+    ):
 
         self.pyscf_scf = pyscf_scf
         self.n_active_atoms = n_active_atoms
@@ -345,7 +348,9 @@ class localize_molecular_orbs(object):
                 enviro_MO_inds,
             ) = spade(self.pyscf_scf, self.n_active_atoms)
         else:
-            c_loc_occ_full = pyscf_localization(self.pyscf_scf, self.localization_method)
+            c_loc_occ_full = pyscf_localization(
+                self.pyscf_scf, self.localization_method
+            )
 
             ao_slice_matrix = self.pyscf_scf.mol.aoslice_by_atom()
 
@@ -367,7 +372,9 @@ class localize_molecular_orbs(object):
 
             MO_active_percentage = numerator_all / denominator_all
 
-            logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(MO_active_percentage, 4)}")
+            logger.debug(
+                f"(active_AO^2)/(all_AO^2): {np.around(MO_active_percentage, 4)}"
+            )
             logger.debug(f"threshold for active part: {self.occ_THRESHOLD}")
 
             active_MO_inds = np.where(MO_active_percentage > self.occ_THRESHOLD)[0]
@@ -392,7 +399,9 @@ class localize_molecular_orbs(object):
         if sanity_check is True:
             # checking denisty matrix parition makes sense:
             dm_localised_full_system = 2 * c_loc_occ_full @ c_loc_occ_full.conj().T
-            bool_density_flag = np.allclose(dm_localised_full_system, dm_active + dm_enviro)
+            bool_density_flag = np.allclose(
+                dm_localised_full_system, dm_active + dm_enviro
+            )
             logger.debug(f"y_active + y_enviro = y_total is: {bool_density_flag}")
             if not bool_density_flag:
                 raise ValueError("gamma_full != gamma_active + gamma_enviro")
@@ -409,7 +418,9 @@ class localize_molecular_orbs(object):
                 f"N_active_elec + N_environment_elec = N_total_elec is: {bool_flag_electron_number}"
             )
             if not bool_flag_electron_number:
-                raise ValueError("number of electrons in localized orbitals is incorrect")
+                raise ValueError(
+                    "number of electrons in localized orbitals is incorrect"
+                )
 
         if self.run_virtual_localization is True:
             (
