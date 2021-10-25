@@ -255,6 +255,9 @@ class Localizer(ABC):
         """
         self.localize()
 
+        self.dm_active = 2.0 * self.c_active @ self.c_active.T
+        self.dm_enviro = 2.0 * self.c_enviro @ self.c_enviro.T
+
         if sanity_check is True:
             self.check_values()
 
@@ -338,9 +341,6 @@ class SpadeLocalizer(Localizer):
         # Defining active and environment orbitals and density
         self.c_active = occupied_orbitals @ right_vectors.T[:, :n_act_mos]
         self.c_enviro = occupied_orbitals @ right_vectors.T[:, n_act_mos:]
-        self.dm_active = 2.0 * self.c_active @ self.c_active.T
-        self.dm_enviro = 2.0 * self.c_enviro @ self.c_enviro.T
-
         self.c_loc_occ = occupied_orbitals @ right_vectors.T
 
 
@@ -382,7 +382,7 @@ class PySCFLocalizer(Localizer):
             pipmez = lo.PipekMezey(self.pyscf_scf.mol, c_std_occ)
 
             # The atomic population projection scheme.
-            # 'mulliken' 'meta-lowdin', 'iao', 'becke'
+            # 'mulliken', 'meta-lowdin', 'iao', 'becke'
             pipmez.pop_method = "meta-lowdin"
 
             # run localization
@@ -427,21 +427,18 @@ class PySCFLocalizer(Localizer):
         logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(MO_active_percentage, 4)}")
         logger.debug(f"threshold for active part: {self.occ_THRESHOLD}")
 
-        active_MO_inds = np.where(MO_active_percentage > self.occ_THRESHOLD)[0]
-        enviro_MO_inds = np.array(
-            [i for i in range(self.c_loc_occ.shape[1]) if i not in active_MO_inds]
+        self.active_MO_inds = np.where(MO_active_percentage > self.occ_THRESHOLD)[0]
+        self.enviro_MO_inds = np.array(
+            [i for i in range(self.c_loc_occ.shape[1]) if i not in self.active_MO_inds]
         )
 
         # define active MO orbs and environment
         #    take MO (columns of C_matrix) that have high dependence from active AOs
-        self.c_active = self.c_loc_occ[:, active_MO_inds]
-        self.c_enviro = self.c_loc_occ[:, enviro_MO_inds]
+        self.c_active = self.c_loc_occ[:, self.active_MO_inds]
+        self.c_enviro = self.c_loc_occ[:, self.enviro_MO_inds]
 
-        self.n_act_mos = len(active_MO_inds)
-        self.n_env_mos = len(enviro_MO_inds)
+        self.n_act_mos = len(self.active_MO_inds)
+        self.n_env_mos = len(self.enviro_MO_inds)
 
         logger.debug(f"{self.n_act_mos} active MOs.")
         logger.debug(f"{self.n_env_mos} environment MOs.")
-
-        self.dm_active = 2.0 * self.c_active @ self.c_active.T
-        self.dm_enviro = 2.0 * self.c_enviro @ self.c_enviro.T

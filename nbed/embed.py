@@ -585,16 +585,16 @@ class nbed(object):
             )
 
         # Attributes
-        self.global_fci = None
-        self.global_rks_total_energy = None
-        self.e_act = None
-        self.e_env = None
-        self.two_e_cross = None
+        self.global_fci: float = None
+        self.global_rks_total_energy: float = None
+        self.e_act: float = None
+        self.e_env: float = None
+        self.two_e_cross: float = None
 
-        self.molecular_ham_MU = None
-        self.classical_energy_MU = None
-        self.molecular_ham_HUZ = None
-        self.classical_energy_HUZ = None
+        self.molecular_ham_MU: InteractionOperator = None
+        self.classical_energy_MU: float = None
+        self.molecular_ham_HUZ: InteractionOperator = None
+        self.classical_energy_HUZ: float = None
 
     def build_mol(self) -> gto.mole:
         """Function to build PySCF molecule
