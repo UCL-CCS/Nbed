@@ -17,7 +17,7 @@ from pyscf.dft.rks import get_veff as rks_get_veff
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
-from nbed.localisation import Localizer, orb_change_basis_operator
+from nbed.localisation import SpadeLocalizer, PySCFLocalizer, orb_change_basis_operator
 from nbed.utils import setup_logs
 
 logger = logging.getLogger(__name__)
@@ -816,14 +816,24 @@ class nbed(object):
         global_rks = self.run_cheap_global_dft()
         e_nuc = global_rks.mol.energy_nuc()
 
-        self.localized_system = Localizer(
-            global_rks,
-            self.n_active_atoms,
-            self.localization_method,
-            occ_THRESHOLD=0.95,
-            virt_THRESHOLD=0.95,
-            run_virtual_localization=False,
-        )
+        if self.localization_method == "spade":
+            self.localized_system = SpadeLocalizer(
+                global_rks,
+                self.n_active_atoms,
+                occ_THRESHOLD=0.95,
+                virt_THRESHOLD=0.95,
+                run_virtual_localization=False,
+            )
+        else:
+            self.localized_system = PySCFLocalizer(
+                global_rks,
+                self.n_active_atoms,
+                self.localization_method,
+                occ_THRESHOLD=0.95,
+                virt_THRESHOLD=0.95,
+                run_virtual_localization=False,
+            )
+
         self.localized_system.run_localization(sanity_check=True)
 
         # get canonical to localized change of basis
