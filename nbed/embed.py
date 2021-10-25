@@ -323,14 +323,14 @@ from openfermion.ops.representations import get_active_space_integrals
 def get_molecular_hamiltonian(
     scf_method: StreamObject,
 ) -> InteractionOperator:
-    """Return the qubit hamiltonian.
+    """Returns second quantized fermionic molecular Hamiltonian
 
     Args:
         scf_method (StreamObject): A pyscf self-consistent method.
         frozen_indices (list[int]): A list of integer indices of frozen moleclar orbitals.
 
     Returns:
-        molecular_hamiltonian (InteractionOperator): Molecular Hamiltonian
+        molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
     """
 
     # C_matrix containing orbitals to be considered
@@ -380,7 +380,8 @@ def get_qubit_hamiltonian(
     molecular_ham: InteractionOperator,
     transformation: str = 'jordan_wigner'
 ) -> QubitOperator:
-    """Return the qubit hamiltonian.
+    """Takes in a second quantized fermionic Hamiltonian and returns a qubit hamiltonian under defined fermion
+       to qubit transformation.
 
     Args:
         molecular_ham (InteractionOperator): A pyscf self-consistent method.
@@ -390,15 +391,15 @@ def get_qubit_hamiltonian(
         Qubit_Hamiltonian (QubitOperator): Qubit hamiltonian of molecular Hamiltonian (under specified fermion mapping)
     """
     if transformation == 'jordan_wigner':
-        Qubit_Hamiltonian = jordan_wigner(molecular_ham)
+        qubit_Hamiltonian = jordan_wigner(molecular_ham)
     elif transformation == 'bravyi_kitaev':
-        Qubit_Hamiltonian = bravyi_kitaev(molecular_ham)
+        qubit_Hamiltonian = bravyi_kitaev(molecular_ham)
     elif transformation == 'bravyi_kitaev_tree':
-        Qubit_Hamiltonian = bravyi_kitaev_tree(molecular_ham)
+        qubit_Hamiltonian = bravyi_kitaev_tree(molecular_ham)
     else:
         raise ValueError(f'unknown fermion to qubit transformation: {transformation}')
 
-    return Qubit_Hamiltonian
+    return qubit_Hamiltonian
 
 def huzinaga_RHF(
     scf_method: StreamObject,
@@ -500,7 +501,38 @@ def huzinaga_RHF(
 
 
 class nbed_driver(object):
+    """Function to return the embedding Qubit Hamiltonian.
 
+    Args:
+        geometry (Path): A path to an .xyz file describing moleclar geometry.
+        n_active_atoms (int): The number of atoms to include in the active region.
+        basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
+        xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
+        output (str): one of "Openfermion" (TODO other options)
+        convergence (float): The convergence tolerance for energy calculations.
+        charge (int): Charge of molecular species
+        localization_method (str): Orbital Localisation method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
+        run_mu_shift (bool): Whether to run mu shift projector method
+        run_huzinaga (bool): Whether to run run huzinaga method
+        mu_level_shift (float): Level shift parameter to use for mu-projector.
+        run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
+        run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
+        max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
+        pyscf_print_level (int): Amount of information PySCF prints
+        qubits (int): The number of qubits available for the output hamiltonian.
+
+    Attributes:
+        global_fci (StreamObject): A Qubit Hamiltonian of some kind
+        global_rks_total_energy (float): Full system RKS DFT ground state energy
+        e_act (float): Active energy from subsystem DFT calculation
+        e_env (float): Environment energy from subsystem DFT calculation
+        two_e_cross (flaot): two electron energy from cross terms (includes exchange correlation
+                             and Coloumb contribution) of subsystem DFT calculation
+        molecular_ham_MU (InteractionOperator): molecular Hamiltonian for active subsystem (projection using mu shift operator)
+        classical_energy_MU (float): environment correction energy to obtain total energy (for mu shift method)
+        molecular_ham_HUZ (InteractionOperator): molecular Hamiltonian for active subsystem (projection using huzianga operator)
+        classical_energy_HUZ (float): environment correction energy to obtain total energy (for huzianga method)
+    """
     def __init__(self,
                  geometry: Path,
                  n_active_atoms: int,
@@ -521,31 +553,7 @@ class nbed_driver(object):
                  qubits: Optional[int] = None,
                  savefile: Optional[Path] = None,
                  ):
-        """Function to return the embedding Qubit Hamiltonian.
 
-        Args:
-            geometry (Path): A path to an .xyz file describing moleclar geometry.
-            n_active_atoms (int): The number of atoms to include in the active region.
-            basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
-            xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
-            output (str): one of "Openfermion" (TODO other options)
-            convergence (float): The convergence tolerance for energy calculations.
-            charge (int): Charge of molecular species
-            localization_method (str): Orbital Localisation method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
-            run_mu_shift (bool): Whether to run mu shift projector method
-            run_huzinaga (bool): Whether to run run huzinaga method
-            mu_level_shift (float): Level shift parameter to use for mu-projector.
-            run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
-            run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
-            max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
-            pyscf_print_level (int): Amount of information PySCF prints
-            qubits (int): The number of qubits available for the output hamiltonian.
-
-        Attributes:
-            object: A Qubit Hamiltonian of some kind
-            float: The classical contribution to the total energy.
-
-        """
         self.geometry = geometry
         self.n_active_atoms = n_active_atoms
         self.basis = basis
@@ -580,12 +588,19 @@ class nbed_driver(object):
         self.molecular_ham_HUZ = None
         self.classical_energy_HUZ = None
 
-    def build_mol(self):
+    def build_mol(self) -> gto.mole:
+        """Function to build PySCF molecule
+
+        Returns:
+            full_mol (gto.mol): built PySCF molecule object
+        """
         logger.debug("Construcing molecule.")
         full_mol = gto.Mole(atom=self.geometry, basis=self.basis, charge=self.charge).build()
         return full_mol
 
-    def run_global_fci(self):
+    def run_global_fci(self) -> StreamObject:
+        """ Function to run full molecule FCI calculation. Note this is very expensive
+        """
         mol_full = self.build_mol()
         # run Hartree-Fock
         global_HF = scf.RHF(mol_full)
@@ -605,6 +620,10 @@ class nbed_driver(object):
         return None
 
     def run_cheap_global_dft(self):
+        """ Method to run full cheap molecule RKS DFT calculation.
+
+         Note this is necessary to perform localization procedure.
+        """
         mol_full = self.build_mol()
 
         global_rks = scf.RKS(mol_full)
@@ -619,8 +638,7 @@ class nbed_driver(object):
         return global_rks
 
     def define_rks_in_new_basis(self, pyscf_scf_rks: gto.Mole, change_basis_matrix):
-        """doc
-
+        """Redefine global RKS pyscf object in new (localized) basis
         """
         # write operators in localised basis
         hcore_std = pyscf_scf_rks.get_hcore()
@@ -657,9 +675,13 @@ class nbed_driver(object):
 
         return pyscf_scf_rks
 
-    def get_embedded_rhf(self, change_basis_matrix):
-        """doc
+    def get_embedded_rhf(self, change_basis_matrix) -> scf.RHF:
+        """Function to build embedded restricted Hartree Fock object for active subsystem
 
+        Note this function overwrites the total number of electrons to only include active number
+
+        Returns:
+            embedded_RHF (scf.RHF): PySCF RHF object for active embedded subsystem
         """
         embedded_mol = self.build_mol()
         # overwrite total number of electrons to only include active system
@@ -686,8 +708,8 @@ class nbed_driver(object):
         return embedded_RHF
 
     def subsystem_dft(self, local_basis_pyscf_scf_rks: gto.Mole):
-
-
+        """Function to perform subsystem RKS DFT calculation
+        """
         logger.debug("Calculating active and environment subsystem terms.")
         (self.e_act,
          e_xc_act,
@@ -720,7 +742,21 @@ class nbed_driver(object):
 
         return None
 
-    def run_emb_CCSD(self, emb_pyscf_scf_rhf: gto.Mole, frozen_orb_list=None):
+    def run_emb_CCSD(self, emb_pyscf_scf_rhf: scf.RHF, frozen_orb_list: Optional[list]=None) \
+                     -> Tuple[cc.CCSD,
+                              float]:
+        """Function run CCSD on embedded restricted Hartree Fock object
+
+        Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
+        (see get_embedded_rhf method)
+
+        Args:
+            emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
+            frozen_orb_list (List): A path to an .xyz file describing moleclar geometry.
+        Returns:
+            ccsd (cc.CCSD): PySCF CCSD object
+            e_ccsd_corr (float): electron correlation CCSD energy
+        """
         ccsd = cc.CCSD(emb_pyscf_scf_rhf)
         ccsd.conv_tol = self.convergence
         ccsd.max_memory = self.max_ram_memory
@@ -731,7 +767,18 @@ class nbed_driver(object):
         e_ccsd_corr, t1, t2 = ccsd.kernel()
         return ccsd, e_ccsd_corr
 
-    def run_emb_FCI(self, emb_pyscf_scf_rhf: gto.Mole, frozen_orb_list=None):
+    def run_emb_FCI(self, emb_pyscf_scf_rhf: gto.Mole, frozen_orb_list: Optional[list]=None) -> Tuple[fci.FCI]:
+        """Function run FCI on embedded restricted Hartree Fock object
+
+        Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
+        (see get_embedded_rhf method)
+
+        Args:
+            emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
+            frozen_orb_list (List): A path to an .xyz file describing moleclar geometry.
+        Returns:
+            fci_scf (fci.FCI): PySCF FCI object
+        """
         fci_scf = fci.FCI(emb_pyscf_scf_rhf)
         fci_scf.conv_tol = self.convergence
         fci_scf.verbose = self.pyscf_print_level
@@ -741,7 +788,12 @@ class nbed_driver(object):
         fci_scf.run()
         return fci_scf
 
-    def run_exp(self):
+    def Generate_embedded_H(self):
+        """Generate embedded Hamiltonian
+
+        Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
+        This is done when object is initialized
+        """
         global_rks = self.run_cheap_global_dft()
         e_nuc = global_rks.mol.energy_nuc()
 
