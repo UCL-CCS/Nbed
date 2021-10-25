@@ -504,7 +504,7 @@ def huzinaga_RHF(
     return conv_flag, e_total, mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std
 
 
-class nbed(object):
+class NbedDriver(object):
     """Function to return the embedding Qubit Hamiltonian.
 
     Args:
