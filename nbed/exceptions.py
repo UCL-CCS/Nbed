@@ -2,7 +2,7 @@
 Custom Exceptions
 """
 
-class NbedConfigError(Exception):
+class NbedConfigError(ValueError):
     """
     Raised when config is not valid.
     """
