@@ -1,6 +1,7 @@
 """Orbital localisation methods."""
 
 import logging
+from abc import ABC, abstractmethod
 from typing import Optional, Tuple
 
 import numpy as np
@@ -9,7 +10,6 @@ from pyscf import gto, lo
 from pyscf.lib import StreamObject
 from pyscf.lo import vvo
 from scipy import linalg
-from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
 
@@ -132,16 +132,32 @@ class Localizer(ABC):
         self.run_virtual_localization = run_virtual_localization
 
         # attributes
-        self.c_active = None
-        self.c_enviro = None
-        self.c_loc_occ = None
-        self.dm_active = None
-        self.dm_enviro = None
-        self.active_MO_inds = None
-        self.enviro_MO_inds = None
-        self.c_loc_occ_and_virt = None
-        self.active_virtual_MO_inds = None
-        self.enviro_virtual_MO_inds = None
+        self.c_active: np.ndarray = None
+        self.c_enviro: np.ndarray = None
+        self.c_loc_occ: np.ndarray = None
+        self.c_loc_occ_and_virt: np.ndarray = None
+
+        self.dm_active: np.ndarray = None
+        self.dm_enviro: np.ndarray = None
+        
+        self.active_MO_inds: List[int] = None
+        self.enviro_MO_inds: List[int] = None
+        self.active_virtual_MO_inds: List[int] = None
+        self.enviro_virtual_MO_inds: List[int] = None
+
+    @abstractmethod
+    def localize(self) -> None:
+        """Abstract method which should handle localization.
+        Assigns:
+            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
+            c_enviro (np.array): C matrix of localized occupied ennironment MOs
+            c_loc_occ (np.array): full C matrix of localized occupied MOs
+            dm_active (np.array): active system density matrix
+            dm_enviro (np.array): environment system density matrix
+            active_MO_inds (np.array): 1D array of active occupied MO indices
+            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
+        """
+        pass
 
     def check_values(self) -> None:
         """Check that output values make sense."""
@@ -167,20 +183,6 @@ class Localizer(ABC):
         )
         if not bool_flag_electron_number:
             raise ValueError("number of electrons in localized orbitals is incorrect")
-
-    @abstractmethod
-    def localize(self) -> None:
-        """Abstract method which should handle localization.
-        Assigns:
-            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
-            c_enviro (np.array): C matrix of localized occupied ennironment MOs
-            c_loc_occ (np.array): full C matrix of localized occupied MOs
-            dm_active (np.array): active system density matrix
-            dm_enviro (np.array): environment system density matrix
-            active_MO_inds (np.array): 1D array of active occupied MO indices
-            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
-        """
-        pass
 
     def localize_virtual_orbs(self) -> None:
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
