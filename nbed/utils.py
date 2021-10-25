@@ -6,6 +6,7 @@ from logging.config import dictConfig
 from pathlib import Path
 
 import yaml
+
 from nbed import nbed
 from nbed.ham_converter import HamiltonianConverter
 

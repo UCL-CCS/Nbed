@@ -17,7 +17,7 @@ from pyscf.dft.rks import get_veff as rks_get_veff
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
-from nbed.localisation import SpadeLocalizer, PySCFLocalizer, orb_change_basis_operator
+from nbed.localisation import PySCFLocalizer, SpadeLocalizer, orb_change_basis_operator
 from nbed.utils import setup_logs
 
 logger = logging.getLogger(__name__)
