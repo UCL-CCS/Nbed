@@ -1,11 +1,14 @@
 """Main embedding functionality."""
 
+from functools import cache
+from cached_property import cached_property
 import logging
 import warnings
 from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
+import pyscf
 import scipy as sp
 from openfermion import QubitOperator
 from openfermion.chem.molecular_data import spinorb_from_spatial
@@ -573,7 +576,6 @@ class NbedDriver(object):
         self.mu_level_shift = mu_level_shift
         self.run_ccsd_emb = run_ccsd_emb
         self.run_fci_emb = run_fci_emb
-        self.run_global_fci = run_global_fci
         self.max_ram_memory = max_ram_memory
         self.pyscf_print_level = pyscf_print_level
         self.qubits = qubits
@@ -585,7 +587,6 @@ class NbedDriver(object):
             )
 
         # Attributes
-        self.global_fci: float = None
         self.global_rks_total_energy: float = None
         self.e_act: float = None
         self.e_env: float = None
@@ -608,7 +609,8 @@ class NbedDriver(object):
         ).build()
         return full_mol
 
-    def run_global_fci(self) -> StreamObject:
+    @cached_property
+    def global_fci(self) -> StreamObject:
         """Function to run full molecule FCI calculation. Note this is very expensive"""
         mol_full = self.build_mol()
         # run Hartree-Fock
@@ -628,7 +630,8 @@ class NbedDriver(object):
 
         return None
 
-    def run_cheap_global_dft(self):
+    @cached_property
+    def global_rks(self):
         """Method to run full cheap molecule RKS DFT calculation.
 
         Note this is necessary to perform localization procedure.
@@ -646,9 +649,33 @@ class NbedDriver(object):
 
         return global_rks
 
-    def define_rks_in_new_basis(self, pyscf_scf_rks: gto.Mole, change_basis_matrix):
+    @cached_property
+    def localized_system(self):
+        """Run the localizer class."""
+        logger.debug("Getting localized system.")
+        if self.localization_method == "spade":
+            localized_system = SpadeLocalizer(
+                self.global_rks,
+                self.n_active_atoms,
+                occ_THRESHOLD=0.95,
+                virt_THRESHOLD=0.95,
+                run_virtual_localization=False,
+            )
+        else:
+            localized_system = PySCFLocalizer(
+                self.global_rks,
+                self.n_active_atoms,
+                self.localization_method,
+                occ_THRESHOLD=0.95,
+                virt_THRESHOLD=0.95,
+                run_virtual_localization=False,
+            )
+        return localized_system
+
+    def define_rks_in_new_basis(self, change_basis_matrix):
         """Redefine global RKS pyscf object in new (localized) basis"""
         # write operators in localised basis
+        pyscf_scf_rks = self.global_rks
         hcore_std = pyscf_scf_rks.get_hcore()
         pyscf_scf_rks.get_hcore = lambda *args: change_hcore_basis(
             hcore_std, change_basis_matrix
@@ -813,35 +840,14 @@ class NbedDriver(object):
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized
         """
-        global_rks = self.run_cheap_global_dft()
-        e_nuc = global_rks.mol.energy_nuc()
-
-        if self.localization_method == "spade":
-            self.localized_system = SpadeLocalizer(
-                global_rks,
-                self.n_active_atoms,
-                occ_THRESHOLD=0.95,
-                virt_THRESHOLD=0.95,
-                run_virtual_localization=False,
-            )
-        else:
-            self.localized_system = PySCFLocalizer(
-                global_rks,
-                self.n_active_atoms,
-                self.localization_method,
-                occ_THRESHOLD=0.95,
-                virt_THRESHOLD=0.95,
-                run_virtual_localization=False,
-            )
-
-        self.localized_system.run_localization(sanity_check=True)
+        e_nuc = self.global_rks.mol.energy_nuc()
 
         # get canonical to localized change of basis
         change_basis_matrix = orb_change_basis_operator(
-            global_rks, self.localized_system.c_loc_occ_and_virt, sanity_check=True
+            self.global_rks, self.localized_system.c_loc_occ_and_virt, sanity_check=True
         )
 
-        global_rks = self.define_rks_in_new_basis(global_rks, change_basis_matrix)
+        global_rks = self.define_rks_in_new_basis(self.global_rks, change_basis_matrix)
 
         self.subsystem_dft(global_rks)
 
