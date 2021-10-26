@@ -31,22 +31,6 @@ from nbed.utils import setup_logs
 logger = logging.getLogger(__name__)
 setup_logs()
 
-
-def change_hcore_basis(h_core: np.array, unitary_rot: np.ndarray) -> np.array:
-    """
-    Function to get H_core in new basis
-
-    Args:
-        h_core (np.ndarray): standard core Hamiltonian
-        unitary_rot (np.ndarray): Operator to change basis (used with cannonical basis to
-        localized basis)
-    Returns:
-        H_core_rot (np.ndarray): core Hamiltonian in new basis
-    """
-    H_core_rot = unitary_rot.conj().T @ h_core @ unitary_rot
-    return H_core_rot
-
-
 def rks_veff(
     pyscf_RKS: StreamObject,
     unitary_rot: np.ndarray,
