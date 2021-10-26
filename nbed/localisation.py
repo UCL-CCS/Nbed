@@ -230,19 +230,20 @@ class Localizer(ABC):
         logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(active_percentage_MO,4)}")
         logger.debug(f"threshold for active part: {self.virt_cutoff}")
 
+        # NOT IN USE
         # add constant occupied index
-        active_virtual_MO_inds = (
-            np.where(active_percentage_MO > self.virt_cutoff)[0] + c_std_occ.shape[1]
-        )
-        enviro_virtual_MO_inds = np.array(
-            [
-                i
-                for i in range(
-                    c_std_occ.shape[1], c_std_occ.shape[1] + c_virtual_loc.shape[1]
-                )
-                if i not in active_virtual_MO_inds
-            ]
-        )
+        # active_virtual_MO_inds = (
+        #     np.where(active_percentage_MO > self.virt_cutoff)[0] + c_std_occ.shape[1]
+        # )
+        # enviro_virtual_MO_inds = np.array(
+        #     [
+        #         i
+        #         for i in range(
+        #             c_std_occ.shape[1], c_std_occ.shape[1] + c_virtual_loc.shape[1]
+        #         )
+        #         if i not in active_virtual_MO_inds
+        #     ]
+        # )
 
         return c_virtual_loc
 
