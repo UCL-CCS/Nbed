@@ -1,9 +1,9 @@
 """Orbital localisation methods."""
 
-from functools import cache, cached_property
 import logging
 from abc import ABC, abstractmethod, abstractproperty
-from typing import Optional, List, Tuple
+from functools import cache, cached_property
+from typing import List, Optional, Tuple
 
 import numpy as np
 import scipy as sp
@@ -43,36 +43,36 @@ def orb_change_basis_operator(
     # Build change of basis operator (maps between orthonormal basis (canonical and localized)
     unitary_ORTHO_std_onto_loc = np.einsum("ik,jk->ij", ortho_std, ortho_loc)
 
-    if sanity_check:
-        if np.allclose(unitary_ORTHO_std_onto_loc @ ortho_loc, ortho_std) is not True:
-            raise ValueError(
-                "Change of basis incorrect... U_ORTHO_std_onto_loc*C_ortho_loc !=  C_ortho_STD"
-            )
-
-        if (
-            np.allclose(
-                unitary_ORTHO_std_onto_loc.conj().T @ unitary_ORTHO_std_onto_loc,
-                np.eye(unitary_ORTHO_std_onto_loc.shape[0]),
-            )
-            is not True
-        ):
-            raise ValueError("Change of basis (U_ORTHO_std_onto_loc) is not Unitary!")
-
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
     # move back into non orthogonal basis
     matrix_std_to_loc = s_neg_half @ unitary_ORTHO_std_onto_loc @ s_half
 
-    if sanity_check:
-        if (
-            np.allclose(
-                matrix_std_to_loc @ c_all_localized_and_virt, pyscf_scf.mo_coeff
-            )
-            is not True
-        ):
-            raise ValueError(
-                "Change of basis incorrect... U_std*C_std !=  C_loc_occ_and_virt"
-            )
+    # if sanity_check:
+    #     if np.allclose(unitary_ORTHO_std_onto_loc @ ortho_loc, ortho_std) is not True:
+    #         raise ValueError(
+    #             "Change of basis incorrect... U_ORTHO_std_onto_loc*C_ortho_loc !=  C_ortho_STD"
+    #         )
+
+    #     if (
+    #         np.allclose(
+    #             unitary_ORTHO_std_onto_loc.conj().T @ unitary_ORTHO_std_onto_loc,
+    #             np.eye(unitary_ORTHO_std_onto_loc.shape[0]),
+    #         )
+    #         is not True
+    #     ):
+    #         raise ValueError("Change of basis (U_ORTHO_std_onto_loc) is not Unitary!")
+
+    # if sanity_check:
+    #     if (
+    #         np.allclose(
+    #             matrix_std_to_loc @ c_all_localized_and_virt, pyscf_scf.mo_coeff
+    #         )
+    #         is not True
+    #     ):
+    #         raise ValueError(
+    #             "Change of basis incorrect... U_std*C_std !=  C_loc_occ_and_virt"
+    #         )
 
     return matrix_std_to_loc
 
@@ -106,7 +106,7 @@ class Localizer(ABC):
         active_MO_inds (np.array): 1D array of active occupied MO indices
         enviro_MO_inds (np.array): 1D array of environment occupied MO indices
         _c_loc_occ (np.array): C matrix of localized occupied MOs
-    
+
     Methods:
         run: Main function to run localization.
     """
@@ -285,6 +285,7 @@ class Localizer(ABC):
 
 class SpadeLocalizer(Localizer):
     """Localizer Class to carry out SPADE"""
+
     def __init__(
         self,
         pyscf_scf: gto.Mole,
