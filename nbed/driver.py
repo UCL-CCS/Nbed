@@ -261,9 +261,7 @@ class NbedDriver(object):
         # write operators in localised basis
         pyscf_scf_rks = self._global_rks
         hcore_std = pyscf_scf_rks.get_hcore()
-        pyscf_scf_rks.get_hcore = lambda *args: change_hcore_basis(
-            hcore_std, self._local_basis_transform
-        )
+        pyscf_scf_rks.get_hcore = lambda *args: self._local_basis_transform.conj().T @ hcore_std @ self._local_basis_transform
 
         pyscf_scf_rks.get_veff = (
             lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: rks_veff(
@@ -300,13 +298,13 @@ class NbedDriver(object):
 
         return pyscf_scf_rks
 
-    def _init_embedded_rhf(self, change_basis_matrix) -> scf.RHF:
+    def _init_embedded_rhf(self, basis_transform) -> scf.RHF:
         """Function to build embedded restricted Hartree Fock object for active subsystem
 
         Note this function overwrites the total number of electrons to only include active number
 
         Returns:
-            embedded_RHF (scf.RHF): PySCF RHF object for active embedded subsystem
+            basis_transform (scf.RHF): PySCF RHF object for active embedded subsystem
         """
         embedded_mol = self._build_mol()
         # overwrite total number of electrons to only include active system
@@ -321,13 +319,12 @@ class NbedDriver(object):
         ##############################################################################################
         logger.debug("Define Hartree-Fock object in localized basis")
         # TODO: need to check if change of basis here is necessary (START)
-        H_core_std = embedded_RHF.get_hcore()
-        embedded_RHF.get_hcore = lambda *args: change_hcore_basis(
-            H_core_std, unitary_rot=change_basis_matrix
-        )
+        h_core = embedded_RHF.get_hcore()
+
+        embedded_RHF.get_hcore = lambda *args: basis_transform.conj().T @ h_core @ basis_transform
         embedded_RHF.get_veff = (
             lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: rhf_veff(
-                embedded_RHF, change_basis_matrix, dm=dm, hermi=hermi
+                embedded_RHF, basis_transform, dm=dm, hermi=hermi
             )
         )
         return embedded_RHF
