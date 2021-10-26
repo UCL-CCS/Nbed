@@ -184,47 +184,6 @@ def rhf_veff(
     return v_eff_new
 
 
-def dft_crossterms(
-    pyscf_RKS: StreamObject,
-    dm_active: np.ndarray,
-    dm_enviro: np.ndarray,
-    j_env: np.ndarray,
-    j_act: np.ndarray,
-    e_xc_act: float,
-    e_xc_env: float,
-) -> float:
-    """
-    Get two electron cross term energy. As Veff = J + Vxc, need Colombic cross term energy (J_cross)
-    and XC cross term energy
-
-    Args:
-        pyscf_RKS (StreamObject): PySCF RKS object
-        dm_active (np.ndarray): density matrix of active subsystem
-        dm_enviro (np.ndarray): density matrix of enironment subsystem
-        j_env (np.ndarray): J_matrix defined by enviornemnt density
-        j_act (np.ndarray): J_matrix defined by active density
-        e_xc_act (float): exchange correlation energy defined by input active density matrix
-        e_xc_env (float): exchange correlation energy defined by input enviornemnt density matrix
-
-    Returns:
-        two_e_cross (float): two electron energy from cross terms (includes exchange correlation
-                             and Coloumb contribution)
-    """
-    two_e_term_total = pyscf_RKS.get_veff(dm=dm_active + dm_enviro)
-    e_xc_total = two_e_term_total.exc
-
-    j_cross = 0.5 * (
-        np.einsum("ij,ij", dm_active, j_env) + np.einsum("ij,ij", dm_enviro, j_act)
-    )
-    k_cross = 0.0
-
-    xc_cross = e_xc_total - e_xc_act - e_xc_env
-
-    # overall two_electron cross energy
-    two_e_cross = j_cross + k_cross + xc_cross
-
-    return two_e_cross
-
 
 def orthogonal_enviro_projector(
     local_sys: Localizer,

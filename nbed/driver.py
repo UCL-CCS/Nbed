@@ -332,36 +332,41 @@ class NbedDriver(object):
         )
         return embedded_RHF
 
-    def subsystem_dft(self, local_basis_pyscf_scf_rks: gto.Mole):
+    def _subsystem_dft(self):
         """Function to perform subsystem RKS DFT calculation"""
         logger.debug("Calculating active and environment subsystem terms.")
         (self.e_act, e_xc_act, j_act, k_act, v_xc_act) = rks_components(
-            local_basis_pyscf_scf_rks,
+            self._global_rks,
             self.localized_system.dm_active,
             check_E_with_pyscf=True,
         )
         (self.e_env, e_xc_env, j_env, k_env, v_xc_env) = rks_components(
-            local_basis_pyscf_scf_rks,
+            self._global_rks,
             self.localized_system.dm_enviro,
             check_E_with_pyscf=True,
         )
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
-        self.two_e_cross = dft_crossterms(
-            local_basis_pyscf_scf_rks,
-            self.localized_system.dm_active,
-            self.localized_system.dm_enviro,
-            j_env,
-            j_act,
-            e_xc_act,
-            e_xc_env,
+
+        two_e_term_total = self._global_rks.get_veff(dm=self.dm_active + self.dm_enviro)
+        e_xc_total = two_e_term_total.exc
+
+        j_cross = 0.5 * (
+            np.einsum("ij,ij", self.dm_active, j_env) + np.einsum("ij,ij", self.dm_enviro, j_act)
         )
+        # Because of projection
+        k_cross = 0.0
+
+        xc_cross = e_xc_total - e_xc_act - e_xc_env
+
+        # overall two_electron cross energy
+        two_e_cross = j_cross + k_cross + xc_cross
 
         energy_DFT_components = (
             self.e_act
             + self.e_env
-            + self.two_e_cross
-            + local_basis_pyscf_scf_rks.energy_nuc()
+            + two_e_cross
+            + self._global_rks.energy_nuc()
         )
         if not np.isclose(energy_DFT_components, self._global_rks.e_tot):
             raise ValueError(
