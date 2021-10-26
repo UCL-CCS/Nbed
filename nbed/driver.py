@@ -337,7 +337,7 @@ class NbedDriver(object):
         logger.debug("Calculating active and environment subsystem terms.")
 
         
-        def rks_components(self, dm_matrix: np.ndarray) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
+        def _rks_components(self, dm_matrix: np.ndarray) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """
             Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -350,11 +350,7 @@ class NbedDriver(object):
                 Energy_elec (float): DFT energy defubed by input density matrix
                 e_xc (float): exchange correlation energy defined by input density matrix
                 J_mat (np.ndarray): J_matrix defined by input density matrix
-                K_mat (np.ndarray): K_matrix defined by input density matrix
-                v_xc (np.ndarray): V_exchangeCorrelation matrix defined by input density matrix (note Coloumbic
-                                contribution (J_mat) has been subtracted to give this term)
             """
-
             # It seems that PySCF lumps J and K in the J array
             two_e_term = self._global_rks.get_veff(dm=dm_matrix)
             j_mat = two_e_term.vj
@@ -374,12 +370,12 @@ class NbedDriver(object):
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
 
-            return energy_elec, e_xc, j_mat, k_mat, v_xc
+            return energy_elec, e_xc, j_mat
 
-        (self.e_act, e_xc_act, j_act, k_act, v_xc_act) = rks_components(
+        (self.e_act, e_xc_act, j_act) = _rks_components(
             self.localized_system.dm_active,
         )
-        (self.e_env, e_xc_env, j_env, k_env, v_xc_env) = rks_components(
+        (self.e_env, e_xc_env, j_env) = _rks_components(
             self.localized_system.dm_enviro,
         )
         # Computing cross subsystem terms
@@ -523,7 +519,7 @@ class NbedDriver(object):
         """
         e_nuc = self._global_rks.mol.energy_nuc()
 
-        self.subsystem_dft(global_rks)
+        self._subsystem_dft(global_rks)
 
         logger.debug("Get global DFT potential to optimize embedded calc in.")
         g_act_and_env = global_rks.get_veff(
