@@ -106,50 +106,6 @@ def rks_veff(
     return output
 
 
-def rks_components(
-    pyscf_RKS: StreamObject, dm_matrix: np.ndarray, check_E_with_pyscf: bool = True
-) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Calculate the components of subsystem energy from a RKS DFT calculation.
-
-    For a given density matrix this function returns the electronic energy, exchange correlation energy and
-    J,K, V_xc matrices.
-
-    Args:
-        pyscf_RKS (StreamObject): PySCF RKS object
-        dm_matrix (np.ndarray): density matrix (to calculate all matrices from)
-        check_E_with_pyscf (bool): optional flag to check manual energy calc against PySCF calc
-    Returns:
-        Energy_elec (float): DFT energy defubed by input density matrix
-        e_xc (float): exchange correlation energy defined by input density matrix
-        J_mat (np.ndarray): J_matrix defined by input density matrix
-        K_mat (np.ndarray): K_matrix defined by input density matrix
-        v_xc (np.ndarray): V_exchangeCorrelation matrix defined by input density matrix (note Coloumbic
-                         contribution (J_mat) has been subtracted to give this term)
-    """
-
-    # It seems that PySCF lumps J and K in the J array
-    two_e_term = pyscf_RKS.get_veff(dm=dm_matrix)
-    j_mat = two_e_term.vj
-    k_mat = np.zeros_like(j_mat)
-
-    e_xc = two_e_term.exc
-    v_xc = two_e_term - j_mat
-
-    energy_elec = (
-        np.einsum("ij,ji->", pyscf_RKS.get_hcore(), dm_matrix)
-        + two_e_term.ecoul
-        + two_e_term.exc
-    )
-
-    if check_E_with_pyscf:
-        energy_elec_pyscf = pyscf_RKS.energy_elec(dm=dm_matrix)[0]
-        if not np.isclose(energy_elec_pyscf, energy_elec):
-            raise ValueError("Energy calculation incorrect")
-
-    return energy_elec, e_xc, j_mat, k_mat, v_xc
-
-
 def rhf_veff(
     pyscf_RHF: StreamObject, unitary_rot: np.ndarray, dm=None, hermi: int = 1
 ) -> np.ndarray:
@@ -182,7 +138,6 @@ def rhf_veff(
     v_eff_new = unitary_rot.conj().T @ v_eff @ unitary_rot
 
     return v_eff_new
-
 
 
 def orthogonal_enviro_projector(

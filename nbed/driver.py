@@ -335,15 +335,52 @@ class NbedDriver(object):
     def _subsystem_dft(self):
         """Function to perform subsystem RKS DFT calculation"""
         logger.debug("Calculating active and environment subsystem terms.")
+
+        
+        def rks_components(self, dm_matrix: np.ndarray) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
+            """
+            Calculate the components of subsystem energy from a RKS DFT calculation.
+
+            For a given density matrix this function returns the electronic energy, exchange correlation energy and
+            J,K, V_xc matrices.
+
+            Args:
+                dm_matrix (np.ndarray): density matrix (to calculate all matrices from)
+            Returns:
+                Energy_elec (float): DFT energy defubed by input density matrix
+                e_xc (float): exchange correlation energy defined by input density matrix
+                J_mat (np.ndarray): J_matrix defined by input density matrix
+                K_mat (np.ndarray): K_matrix defined by input density matrix
+                v_xc (np.ndarray): V_exchangeCorrelation matrix defined by input density matrix (note Coloumbic
+                                contribution (J_mat) has been subtracted to give this term)
+            """
+
+            # It seems that PySCF lumps J and K in the J array
+            two_e_term = self._global_rks.get_veff(dm=dm_matrix)
+            j_mat = two_e_term.vj
+            k_mat = np.zeros_like(j_mat)
+
+            e_xc = two_e_term.exc
+            v_xc = two_e_term - j_mat
+
+            energy_elec = (
+                np.einsum("ij,ji->", self._global_rks.get_hcore(), dm_matrix)
+                + two_e_term.ecoul
+                + two_e_term.exc
+            )
+
+            # if check_E_with_pyscf:
+            #     energy_elec_pyscf = self._global_rks.energy_elec(dm=dm_matrix)[0]
+            #     if not np.isclose(energy_elec_pyscf, energy_elec):
+            #         raise ValueError("Energy calculation incorrect")
+
+            return energy_elec, e_xc, j_mat, k_mat, v_xc
+
         (self.e_act, e_xc_act, j_act, k_act, v_xc_act) = rks_components(
-            self._global_rks,
             self.localized_system.dm_active,
-            check_E_with_pyscf=True,
         )
         (self.e_env, e_xc_env, j_env, k_env, v_xc_env) = rks_components(
-            self._global_rks,
             self.localized_system.dm_enviro,
-            check_E_with_pyscf=True,
         )
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
@@ -362,16 +399,17 @@ class NbedDriver(object):
         # overall two_electron cross energy
         two_e_cross = j_cross + k_cross + xc_cross
 
-        energy_DFT_components = (
-            self.e_act
-            + self.e_env
-            + two_e_cross
-            + self._global_rks.energy_nuc()
-        )
-        if not np.isclose(energy_DFT_components, self._global_rks.e_tot):
-            raise ValueError(
-                "DFT energy of localized components not matching supersystem DFT"
-            )
+        # if not np.isclose(energy_DFT_components, self._global_rks.e_tot):
+        #     energy_DFT_components = (
+        #         self.e_act
+        #         + self.e_env
+        #         + two_e_cross
+        #         + self._global_rks.energy_nuc()
+        #     )
+
+        #     raise ValueError(
+        #         "DFT energy of localized components not matching supersystem DFT"
+        #     )
 
         return None
 
