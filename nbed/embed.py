@@ -530,7 +530,6 @@ class NbedDriver(object):
 
     Attributes:
         global_fci (StreamObject): A Qubit Hamiltonian of some kind
-        global_rks_total_energy (float): Full system RKS DFT ground state energy
         e_act (float): Active energy from subsystem DFT calculation
         e_env (float): Environment energy from subsystem DFT calculation
         two_e_cross (flaot): two electron energy from cross terms (includes exchange correlation
@@ -563,10 +562,10 @@ class NbedDriver(object):
         savefile: Optional[Path] = None,
     ):
 
-        self.geometry = geometry
-        self.n_active_atoms = n_active_atoms
-        self.basis = basis
-        self.xc_functional = xc_functional
+        self._geometry = geometry
+        self._n_active_atoms = n_active_atoms
+        self._basis = basis
+        self._xc_functional = xc_functional
         self.output = output
         self.convergence = convergence
         self.charge = charge
@@ -587,7 +586,6 @@ class NbedDriver(object):
             )
 
         # Attributes
-        self.global_rks_total_energy: float = None
         self.e_act: float = None
         self.e_env: float = None
         self.two_e_cross: float = None
@@ -605,7 +603,7 @@ class NbedDriver(object):
         """
         logger.debug("Construcing molecule.")
         full_mol = gto.Mole(
-            atom=self.geometry, basis=self.basis, charge=self.charge
+            atom=self._geometry, basis=self._basis, charge=self.charge
         ).build()
         return full_mol
 
@@ -621,14 +619,14 @@ class NbedDriver(object):
         global_HF.kernel()
 
         # run FCI after HF
-        self.global_fci = fci.FCI(global_HF)
-        self.global_fci.conv_tol = self.convergence
-        self.global_fci.verbose = self.pyscf_print_level
-        self.global_fci.max_memory = self.max_ram_memory
-        self.global_fci.run()
-        print(f"global FCI: {self.global_fciglobal_fci.e_tot}")
+        global_fci = fci.FCI(global_HF)
+        global_fci.conv_tol = self.convergence
+        global_fci.verbose = self.pyscf_print_level
+        global_fci.max_memory = self.max_ram_memory
+        global_fci.run()
+        print(f"global FCI: {global_fci.e_tot}")
 
-        return None
+        return global_fci
 
     @cached_property
     def global_rks(self):
@@ -640,12 +638,10 @@ class NbedDriver(object):
 
         global_rks = scf.RKS(mol_full)
         global_rks.conv_tol = self.convergence
-        global_rks.xc = self.xc_functional
+        global_rks.xc = self._xc_functional
         global_rks.max_memory = self.max_ram_memory
         global_rks.verbose = self.pyscf_print_level
         global_rks.kernel()
-
-        self.global_rks_total_energy = global_rks.e_tot
 
         return global_rks
 
@@ -656,18 +652,18 @@ class NbedDriver(object):
         if self.localization_method == "spade":
             localized_system = SpadeLocalizer(
                 self.global_rks,
-                self.n_active_atoms,
-                occ_THRESHOLD=0.95,
-                virt_THRESHOLD=0.95,
+                self._n_active_atoms,
+                occ_cutoff=0.95,
+                virt_cutoff=0.95,
                 run_virtual_localization=False,
             )
         else:
             localized_system = PySCFLocalizer(
                 self.global_rks,
-                self.n_active_atoms,
+                self._n_active_atoms,
                 self.localization_method,
-                occ_THRESHOLD=0.95,
-                virt_THRESHOLD=0.95,
+                occ_cutoff=0.95,
+                virt_cutoff=0.95,
                 run_virtual_localization=False,
             )
         return localized_system
@@ -704,7 +700,7 @@ class NbedDriver(object):
 
         # check electronic energy matches standard global calc
         global_rks_total_energy_loc = pyscf_scf_rks.energy_tot(dm=dm_loc)
-        if not np.isclose(self.global_rks_total_energy, global_rks_total_energy_loc):
+        if not np.isclose(self.global_rks.e_tot, global_rks_total_energy_loc):
             raise ValueError(
                 "electronic energy of standard calculation not matching localized calculation"
             )
@@ -779,7 +775,7 @@ class NbedDriver(object):
             + self.two_e_cross
             + local_basis_pyscf_scf_rks.energy_nuc()
         )
-        if not np.isclose(energy_DFT_components, self.global_rks_total_energy):
+        if not np.isclose(energy_DFT_components, self.global_rks.e_tot):
             raise ValueError(
                 "DFT energy of localized components not matching supersystem DFT"
             )
