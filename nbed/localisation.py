@@ -1,8 +1,9 @@
 """Orbital localisation methods."""
 
+from functools import cached_property
 import logging
-from abc import ABC, abstractmethod
-from typing import Optional, List
+from abc import ABC, abstractmethod, abstractproperty
+from typing import Optional, List, Tuple
 
 import numpy as np
 import scipy as sp
@@ -149,20 +150,21 @@ class Localizer(ABC):
         self.run()
 
     @abstractmethod
-    def localize(self) -> None:
+    def _localize(
+        self,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Abstract method which should handle localization.
-        Assigns:
+
+        Returns:
+            active_MO_inds (np.array): 1D array of active occupied MO indices
+            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
             c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
             c_enviro (np.array): C matrix of localized occupied ennironment MOs
             c_loc_occ (np.array): full C matrix of localized occupied MOs
-            dm_active (np.array): active system density matrix
-            dm_enviro (np.array): environment system density matrix
-            active_MO_inds (np.array): 1D array of active occupied MO indices
-            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
         """
         pass
 
-    def check_values(self) -> None:
+    def _check_values(self) -> None:
         """Check that output values make sense."""
         # checking denisty matrix parition makes sense:
         dm_localised_full_system = 2 * self.c_loc_occ @ self.c_loc_occ.conj().T
@@ -187,7 +189,7 @@ class Localizer(ABC):
         if not bool_flag_electron_number:
             raise ValueError("number of electrons in localized orbitals is incorrect")
 
-    def localize_virtual_orbs(self) -> None:
+    def _localize_virtual_orbs(self) -> None:
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
 
         Args:
@@ -256,16 +258,22 @@ class Localizer(ABC):
         Returns:
             None
         """
-        self.localize()
+        (
+            self.active_MO_inds,
+            self.enviro_MO_inds,
+            self.c_active,
+            self.c_enviro,
+            self.c_loc_occ,
+        ) = self._localize()
 
         self.dm_active = 2.0 * self.c_active @ self.c_active.T
         self.dm_enviro = 2.0 * self.c_enviro @ self.c_enviro.T
 
         if sanity_check is True:
-            self.check_values()
+            self._check_values()
 
         if self.run_virtual_localization is True:
-            c_virtual = self.localize_virtual_orbs()
+            c_virtual = self._localize_virtual_orbs()
         else:
             # appends standard virtual orbitals from SCF calculation (NOT localized in any way)
             self.active_virtual_MO_inds = None
@@ -298,15 +306,15 @@ class SpadeLocalizer(Localizer):
             run_virtual_localization=run_virtual_localization,
         )
 
-    def localize(self) -> None:
+    def _localize(
+        self,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Localise orbitals using SPADE.
 
         Assigns:
             c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
             c_enviro (np.array): C matrix of localized occupied ennironment MOs
             c_loc_occ (np.array): full C matrix of localized occupied MOs
-            dm_active (np.array): active system density matrix
-            dm_enviro (np.array): environment system density matrix
             active_MO_inds (np.array): 1D array of active occupied MO indices
             enviro_MO_inds (np.array): 1D array of environment occupied MO indices
         """
@@ -338,13 +346,15 @@ class SpadeLocalizer(Localizer):
         logger.debug(f"{n_env_mos} environment MOs.")
 
         # get active and enviro indices
-        self.active_MO_inds = np.arange(n_act_mos)
-        self.enviro_MO_inds = np.arange(n_act_mos, n_act_mos + n_env_mos)
+        active_MO_inds = np.arange(n_act_mos)
+        enviro_MO_inds = np.arange(n_act_mos, n_act_mos + n_env_mos)
 
         # Defining active and environment orbitals and density
-        self.c_active = occupied_orbitals @ right_vectors.T[:, :n_act_mos]
-        self.c_enviro = occupied_orbitals @ right_vectors.T[:, n_act_mos:]
-        self.c_loc_occ = occupied_orbitals @ right_vectors.T
+        c_active = occupied_orbitals @ right_vectors.T[:, :n_act_mos]
+        c_enviro = occupied_orbitals @ right_vectors.T[:, n_act_mos:]
+        c_loc_occ = occupied_orbitals @ right_vectors.T
+
+        return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
 
 
 class PySCFLocalizer(Localizer):
@@ -368,13 +378,14 @@ class PySCFLocalizer(Localizer):
         )
         self.method = localization_method.lower()
 
-    def localize(self) -> None:
+    def _localize(
+        self,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Localise orbitals using PySCF localization schemes.
 
         Args:
             method (str): String of orbital localization method: 'pipekmezey', 'boys' or 'ibo'
         """
-
         n_occupied_orbitals = np.count_nonzero(self.pyscf_scf.mo_occ == 2)
         c_std_occ = self.pyscf_scf.mo_coeff[:, :n_occupied_orbitals]
 
@@ -389,19 +400,19 @@ class PySCFLocalizer(Localizer):
             pipmez.pop_method = "meta-lowdin"
 
             # run localization
-            self.c_loc_occ = pipmez.kernel()
+            c_loc_occ = pipmez.kernel()
 
         elif self.method == "boys":
             #  Minimizes the spatial extent of the orbitals by minimizing a certain function.
             boys_SCF = lo.boys.Boys(self.pyscf_scf.mol, c_std_occ)
-            self.c_loc_occ = boys_SCF.kernel()
+            c_loc_occ = boys_SCF.kernel()
 
         elif self.method == "ibo":
             # Intrinsic bonding orbitals.
             iaos = lo.iao.iao(self.pyscf_scf.mol, c_std_occ)
             # Orthogonalize IAO
             iaos = lo.vec_lowdin(iaos, self.pyscf_scf.get_ovlp())
-            self.c_loc_occ = lo.ibo.ibo(
+            c_loc_occ = lo.ibo.ibo(
                 self.pyscf_scf.mol, c_std_occ, locmethod="IBO", iaos=iaos
             )
         else:
@@ -420,28 +431,24 @@ class PySCFLocalizer(Localizer):
             ao_slice_matrix[0, 2], ao_slice_matrix[self.n_active_atoms - 1, 3]
         )
         # active AOs coeffs for a given MO j
-        numerator_all = np.einsum("ij->j", (self.c_loc_occ[ao_active_inds, :]) ** 2)
+        numerator_all = np.einsum("ij->j", (c_loc_occ[ao_active_inds, :]) ** 2)
 
         # all AOs coeffs for a given MO j
-        denominator_all = np.einsum("ij->j", self.c_loc_occ ** 2)
+        denominator_all = np.einsum("ij->j", c_loc_occ ** 2)
 
         MO_active_percentage = numerator_all / denominator_all
 
         logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(MO_active_percentage, 4)}")
         logger.debug(f"threshold for active part: {self.occ_THRESHOLD}")
 
-        self.active_MO_inds = np.where(MO_active_percentage > self.occ_THRESHOLD)[0]
-        self.enviro_MO_inds = np.array(
-            [i for i in range(self.c_loc_occ.shape[1]) if i not in self.active_MO_inds]
+        active_MO_inds = np.where(MO_active_percentage > self.occ_THRESHOLD)[0]
+        enviro_MO_inds = np.array(
+            [i for i in range(c_loc_occ.shape[1]) if i not in self.active_MO_inds]
         )
 
         # define active MO orbs and environment
         #    take MO (columns of C_matrix) that have high dependence from active AOs
-        self.c_active = self.c_loc_occ[:, self.active_MO_inds]
-        self.c_enviro = self.c_loc_occ[:, self.enviro_MO_inds]
+        c_active = c_loc_occ[:, active_MO_inds]
+        c_enviro = c_loc_occ[:, enviro_MO_inds]
 
-        self.n_act_mos = len(self.active_MO_inds)
-        self.n_env_mos = len(self.enviro_MO_inds)
-
-        logger.debug(f"{self.n_act_mos} active MOs.")
-        logger.debug(f"{self.n_env_mos} environment MOs.")
+        return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
