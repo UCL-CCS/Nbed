@@ -90,7 +90,7 @@ class Localizer(ABC):
         pyscf_scf (gto.Mole): PySCF molecule object
         n_active_atoms (int): Number of active atoms
         localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
-        occ_THRESHOLD (float): Threshold for selecting occupied active region (only requried if
+        occ_cutoff (float): Threshold for selecting occupied active region (only requried if
                                 spade localization is NOT used)
         virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
                                 spade approach too!)
@@ -100,23 +100,22 @@ class Localizer(ABC):
     Attributes:
         c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
         c_enviro (np.array): C matrix of localized occupied ennironment MOs
-        c_loc_occ (np.array): C matrix of localized occupied MOs
+        c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
         dm_active (np.array): active system density matrix
         dm_enviro (np.array): environment system density matrix
         active_MO_inds (np.array): 1D array of active occupied MO indices
         enviro_MO_inds (np.array): 1D array of environment occupied MO indices
-        c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
-        active_virtual_MO_inds (np.array): 1D array of active virtual MO indices (set to None if
-                                           run_virtual_localization is False)
-        enviro_virtual_MO_inds (np.array): 1D array of environment virtual MO indices
-                                           (set to None if run_virtual_localization is False)
+        _c_loc_occ (np.array): C matrix of localized occupied MOs
+    
+    Methods:
+        run: Main function to run localization.
     """
 
     def __init__(
         self,
         pyscf_scf: StreamObject,
         n_active_atoms: int,
-        occ_THRESHOLD: Optional[float] = 0.95,
+        occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
         run_virtual_localization: Optional[bool] = False,
     ):
@@ -128,7 +127,7 @@ class Localizer(ABC):
 
         self._pyscf_scf = pyscf_scf
         self._n_active_atoms = n_active_atoms
-        self._occ_THRESHOLD = occ_THRESHOLD
+        self._occ_cutoff = occ_cutoff
         self._virt_cutoff = virt_cutoff
         self._run_virtual_localization = run_virtual_localization
 
@@ -286,13 +285,12 @@ class Localizer(ABC):
 
 class SpadeLocalizer(Localizer):
     """Localizer Class to carry out SPADE"""
-
     def __init__(
         self,
         pyscf_scf: gto.Mole,
         n_active_atoms: int,
         localization_method: str,
-        occ_THRESHOLD: Optional[float] = 0.95,
+        occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
         run_virtual_localization: Optional[bool] = False,
     ):
@@ -300,7 +298,7 @@ class SpadeLocalizer(Localizer):
             pyscf_scf,
             n_active_atoms,
             localization_method,
-            occ_THRESHOLD=occ_THRESHOLD,
+            occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,
             run_virtual_localization=run_virtual_localization,
         )
@@ -364,14 +362,14 @@ class PySCFLocalizer(Localizer):
         pyscf_scf: StreamObject,
         n_active_atoms: int,
         localization_method: str,
-        occ_THRESHOLD: Optional[float] = 0.95,
+        occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
         run_virtual_localization: Optional[bool] = False,
     ):
         super().__init__(
             pyscf_scf,
             n_active_atoms,
-            occ_THRESHOLD=occ_THRESHOLD,
+            occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,
             run_virtual_localization=run_virtual_localization,
         )
@@ -438,9 +436,9 @@ class PySCFLocalizer(Localizer):
         MO_active_percentage = numerator_all / denominator_all
 
         logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(MO_active_percentage, 4)}")
-        logger.debug(f"threshold for active part: {self._occ_THRESHOLD}")
+        logger.debug(f"threshold for active part: {self._occ_cutoff}")
 
-        active_MO_inds = np.where(MO_active_percentage > self._occ_THRESHOLD)[0]
+        active_MO_inds = np.where(MO_active_percentage > self._occ_cutoff)[0]
         enviro_MO_inds = np.array(
             [i for i in range(c_loc_occ.shape[1]) if i not in self.active_MO_inds]
         )
