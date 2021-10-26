@@ -89,41 +89,6 @@ def rks_veff(
     output = lib.tag_array(vxc, ecoul=ecoul, exc=v_eff.exc, vj=j_mat, vk=k_mat)
     return output
 
-
-def rhf_veff(
-    pyscf_RHF: StreamObject, unitary_rot: np.ndarray, dm=None, hermi: int = 1
-) -> np.ndarray:
-    """
-    Function to get V_eff in new basis.
-
-    Note in RKS calculation Veff = J + Vxc
-    Whereas for RHF calc it is Veff = J - 0.5k
-
-    Args:
-        pyscf_RHF (StreamObject): PySCF RHF obj
-        unitary_rot (np.ndarray): Operator to change basis  (in this code base this should be: cannonical basis
-                                to localized basis)
-        dm (np.ndarray): Optional input density matrix. If not defined, finds whatever is available from pyscf_RKS_obj
-        hermi (int): TODO
-    """
-    if dm is None:
-        if pyscf_RHF.mo_coeff is not None:
-            dm = pyscf_RHF.make_rdm1(pyscf_RHF.mo_coeff, pyscf_RHF.mo_occ)
-        else:
-            dm = pyscf_RHF.init_guess_by_1e()
-
-    # if pyscf_RHF._eri is None:
-    #     pyscf_RHF._eri = pyscf_RHF.mol.intor('int2e', aosym='s8')
-
-    vj, vk = pyscf_RHF.get_jk(mol=pyscf_RHF.mol, dm=dm, hermi=hermi)
-    v_eff = vj - vk * 0.5
-
-    # v_eff = pyscf_obj.get_veff(dm=dm)
-    v_eff_new = unitary_rot.conj().T @ v_eff @ unitary_rot
-
-    return v_eff_new
-
-
 def orthogonal_enviro_projector(
     local_sys: Localizer,
     s_half: np.ndarray,

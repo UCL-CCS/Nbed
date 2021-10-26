@@ -322,11 +322,20 @@ class NbedDriver(object):
         h_core = embedded_RHF.get_hcore()
 
         embedded_RHF.get_hcore = lambda *args: basis_transform.conj().T @ h_core @ basis_transform
-        embedded_RHF.get_veff = (
-            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: rhf_veff(
-                embedded_RHF, basis_transform, dm=dm, hermi=hermi
-            )
-        )
+        
+        if embedded_RHF.mo_coeff is not None:
+            dm = embedded_RHF.make_rdm1(embedded_RHF.mo_coeff, embedded_RHF.mo_occ)
+        else:
+            dm = embedded_RHF.init_guess_by_1e()
+
+        # if pyscf_RHF._eri is None:
+        #     pyscf_RHF._eri = pyscf_RHF.mol.intor('int2e', aosym='s8')
+
+        vj, vk = embedded_RHF.get_jk(mol=embedded_RHF.mol, dm=dm, hermi=1)
+        v_eff = vj - vk * 0.5
+
+        # v_eff = pyscf_obj.get_veff(dm=dm)
+        embedded_RHF.get_veff = lambda *args: basis_transform.conj().T @ v_eff @ basis_transform
         return embedded_RHF
 
     def _subsystem_dft(self):
