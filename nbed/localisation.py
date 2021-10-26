@@ -164,7 +164,7 @@ class Localizer(ABC):
     def _check_values(self) -> None:
         """Check that output values make sense."""
         # checking denisty matrix parition makes sense:
-        dm_localised_full_system = 2 * self.c_loc_occ @ self.c_loc_occ.conj().T
+        dm_localised_full_system = 2 * self._c_loc_occ @ self._c_loc_occ.conj().T
         bool_density_flag = np.allclose(
             dm_localised_full_system, self.dm_active + self.dm_enviro
         )
@@ -173,10 +173,10 @@ class Localizer(ABC):
             raise ValueError("gamma_full != gamma_active + gamma_enviro")
 
         # check number of electrons is still the same after orbitals have been localized (change of basis)
-        s_ovlp = self.pyscf_scf.get_ovlp()
+        s_ovlp = self._pyscf_scf.get_ovlp()
         n_active_electrons = np.trace(self.dm_active @ s_ovlp)
         n_enviro_electrons = np.trace(self.dm_enviro @ s_ovlp)
-        n_all_electrons = self.pyscf_scf.mol.nelectron
+        n_all_electrons = self._pyscf_scf.mol.nelectron
         bool_flag_electron_number = np.isclose(
             (n_active_electrons + n_enviro_electrons), n_all_electrons
         )
@@ -199,15 +199,16 @@ class Localizer(ABC):
             active_virtual_MO_inds (np.array): 1D array of active virtual MO indices
             enviro_virtual_MO_inds (np.array): 1D array of environment virtual MO indices
         """
-        n_occupied_orbitals = np.count_nonzero(self.pyscf_scf.mo_occ == 2)
-        c_std_occ = self.pyscf_scf.mo_coeff[:, :n_occupied_orbitals]
-        c_std_virt = self.pyscf_scf.mo_coeff[:, self.pyscf_scf.mo_occ < 2]
+        logger.debug("Localizing virtual orbitals.")
+        n_occupied_orbitals = np.count_nonzero(self._pyscf_scf.mo_occ == 2)
+        c_std_occ = self._pyscf_scf.mo_coeff[:, :n_occupied_orbitals]
+        c_std_virt = self._pyscf_scf.mo_coeff[:, self._pyscf_scf.mo_occ < 2]
 
         c_virtual_loc = vvo.vvo(
-            self.pyscf_scf.mol, c_std_occ, c_std_virt, iaos=None, s=None, verbose=None
+            self._pyscf_scf.mol, c_std_occ, c_std_virt, iaos=None, s=None, verbose=None
         )
 
-        ao_slice_matrix = self.pyscf_scf.mol.aoslice_by_atom()
+        ao_slice_matrix = self._pyscf_scf.mol.aoslice_by_atom()
 
         # TODO: Check the following:
         # S_ovlp = pyscf_scf.get_ovlp()
@@ -217,7 +218,7 @@ class Localizer(ABC):
 
         # find indices of AO of active atoms
         ao_active_inds = np.arange(
-            ao_slice_matrix[0, 2], ao_slice_matrix[self.n_active_atoms - 1, 3]
+            ao_slice_matrix[0, 2], ao_slice_matrix[self._n_active_atoms - 1, 3]
         )
 
         # active AOs coeffs for a given MO j
@@ -227,8 +228,9 @@ class Localizer(ABC):
 
         active_percentage_MO = numerator_all / denominator_all
 
+        logger.debug("Virtual orbitals localized.")
         logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(active_percentage_MO,4)}")
-        logger.debug(f"threshold for active part: {self.virt_cutoff}")
+        logger.debug(f"threshold for active part: {self._virt_cutoff}")
 
         # NOT IN USE
         # add constant occupied index
@@ -262,7 +264,7 @@ class Localizer(ABC):
             self.enviro_MO_inds,
             self.c_active,
             self.c_enviro,
-            c_loc_occ,
+            self._c_loc_occ,
         ) = self._localize()
 
         self.dm_active = 2.0 * self.c_active @ self.c_active.T
@@ -275,9 +277,9 @@ class Localizer(ABC):
             c_virtual = self._localize_virtual_orbs()
         else:
             # appends standard virtual orbitals from SCF calculation (NOT localized in any way)
-            c_virtual = self.pyscf_scf.mo_coeff[:, self.pyscf_scf.mo_occ < 2]
+            c_virtual = self._pyscf_scf.mo_coeff[:, self._pyscf_scf.mo_occ < 2]
 
-        self.c_loc_occ_and_virt = np.hstack((c_loc_occ, c_virtual))
+        self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
 
         return None
 
@@ -316,13 +318,13 @@ class SpadeLocalizer(Localizer):
             c_loc_occ (np.array): full C matrix of localized occupied MOs
         """
         logger.info("Localising with SPADE.")
-        n_occupied_orbitals = np.count_nonzero(self.pyscf_scf.mo_occ == 2)
-        occupied_orbitals = self.pyscf_scf.mo_coeff[:, :n_occupied_orbitals]
+        n_occupied_orbitals = np.count_nonzero(self._pyscf_scf.mo_occ == 2)
+        occupied_orbitals = self._pyscf_scf.mo_coeff[:, :n_occupied_orbitals]
 
-        n_act_aos = self.pyscf_scf.mol.aoslice_by_atom()[self.n_active_atoms - 1][-1]
+        n_act_aos = self._pyscf_scf.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_aos} active AOs.")
 
-        ao_overlap = self.pyscf_scf.get_ovlp()
+        ao_overlap = self._pyscf_scf.get_ovlp()
 
         # Orbital rotation and partition into subsystems A and B
         # rotation_matrix, sigma = embed.orbital_rotation(occupied_orbitals,
@@ -373,7 +375,7 @@ class PySCFLocalizer(Localizer):
             virt_cutoff=virt_cutoff,
             run_virtual_localization=run_virtual_localization,
         )
-        self.method = localization_method.lower()
+        self._method = localization_method.lower()
 
     def _localize(
         self,
@@ -383,14 +385,14 @@ class PySCFLocalizer(Localizer):
         Args:
             method (str): String of orbital localization method: 'pipekmezey', 'boys' or 'ibo'
         """
-        n_occupied_orbitals = np.count_nonzero(self.pyscf_scf.mo_occ == 2)
-        c_std_occ = self.pyscf_scf.mo_coeff[:, :n_occupied_orbitals]
+        n_occupied_orbitals = np.count_nonzero(self._pyscf_scf.mo_occ == 2)
+        c_std_occ = self._pyscf_scf.mo_coeff[:, :n_occupied_orbitals]
 
-        if self.method == "pipekmezey":
+        if self._method == "pipekmezey":
             # Localise orbitals using Pipek-Mezey localization scheme.
             # This maximizes the sum of orbital-dependent partial charges on the nuclei.
 
-            pipmez = lo.PipekMezey(self.pyscf_scf.mol, c_std_occ)
+            pipmez = lo.PipekMezey(self._pyscf_scf.mol, c_std_occ)
 
             # The atomic population projection scheme.
             # 'mulliken', 'meta-lowdin', 'iao', 'becke'
@@ -399,23 +401,23 @@ class PySCFLocalizer(Localizer):
             # run localization
             c_loc_occ = pipmez.kernel()
 
-        elif self.method == "boys":
+        elif self._method == "boys":
             #  Minimizes the spatial extent of the orbitals by minimizing a certain function.
-            boys_SCF = lo.boys.Boys(self.pyscf_scf.mol, c_std_occ)
+            boys_SCF = lo.boys.Boys(self._pyscf_scf.mol, c_std_occ)
             c_loc_occ = boys_SCF.kernel()
 
-        elif self.method == "ibo":
+        elif self._method == "ibo":
             # Intrinsic bonding orbitals.
-            iaos = lo.iao.iao(self.pyscf_scf.mol, c_std_occ)
+            iaos = lo.iao.iao(self._pyscf_scf.mol, c_std_occ)
             # Orthogonalize IAO
-            iaos = lo.vec_lowdin(iaos, self.pyscf_scf.get_ovlp())
+            iaos = lo.vec_lowdin(iaos, self._pyscf_scf.get_ovlp())
             c_loc_occ = lo.ibo.ibo(
-                self.pyscf_scf.mol, c_std_occ, locmethod="IBO", iaos=iaos
+                self._pyscf_scf.mol, c_std_occ, locmethod="IBO", iaos=iaos
             )
         else:
-            raise ValueError(f"unknown localization method {self.method}.")
+            raise ValueError(f"unknown localization method {self._method}.")
 
-        ao_slice_matrix = self.pyscf_scf.mol.aoslice_by_atom()
+        ao_slice_matrix = self._pyscf_scf.mol.aoslice_by_atom()
 
         # TODO: Check the following:
         # S_ovlp = pyscf_scf.get_ovlp()
@@ -425,7 +427,7 @@ class PySCFLocalizer(Localizer):
 
         # find indices of AO of active atoms
         ao_active_inds = np.arange(
-            ao_slice_matrix[0, 2], ao_slice_matrix[self.n_active_atoms - 1, 3]
+            ao_slice_matrix[0, 2], ao_slice_matrix[self._n_active_atoms - 1, 3]
         )
         # active AOs coeffs for a given MO j
         numerator_all = np.einsum("ij->j", (c_loc_occ[ao_active_inds, :]) ** 2)
@@ -436,9 +438,9 @@ class PySCFLocalizer(Localizer):
         MO_active_percentage = numerator_all / denominator_all
 
         logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(MO_active_percentage, 4)}")
-        logger.debug(f"threshold for active part: {self.occ_THRESHOLD}")
+        logger.debug(f"threshold for active part: {self._occ_THRESHOLD}")
 
-        active_MO_inds = np.where(MO_active_percentage > self.occ_THRESHOLD)[0]
+        active_MO_inds = np.where(MO_active_percentage > self._occ_THRESHOLD)[0]
         enviro_MO_inds = np.array(
             [i for i in range(c_loc_occ.shape[1]) if i not in self.active_MO_inds]
         )
