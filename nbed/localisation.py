@@ -1,6 +1,6 @@
 """Orbital localisation methods."""
 
-from functools import cached_property
+from functools import cache, cached_property
 import logging
 from abc import ABC, abstractmethod, abstractproperty
 from typing import Optional, List, Tuple
@@ -126,16 +126,15 @@ class Localizer(ABC):
             pyscf_scf.run()
             logger.debug("SCF method initialised.")
 
-        self.pyscf_scf = pyscf_scf
-        self.n_active_atoms = n_active_atoms
-        self.occ_THRESHOLD = occ_THRESHOLD
-        self.virt_cutoff = virt_cutoff
-        self.run_virtual_localization = run_virtual_localization
+        self._pyscf_scf = pyscf_scf
+        self._n_active_atoms = n_active_atoms
+        self._occ_THRESHOLD = occ_THRESHOLD
+        self._virt_cutoff = virt_cutoff
+        self._run_virtual_localization = run_virtual_localization
 
         # attributes
         self.c_active: np.ndarray = None
         self.c_enviro: np.ndarray = None
-        self.c_loc_occ: np.ndarray = None
         self.c_loc_occ_and_virt: np.ndarray = None
 
         self.dm_active: np.ndarray = None
@@ -143,8 +142,6 @@ class Localizer(ABC):
 
         self.active_MO_inds: List[int] = None
         self.enviro_MO_inds: List[int] = None
-        self.active_virtual_MO_inds: List[int] = None
-        self.enviro_virtual_MO_inds: List[int] = None
 
         # Run the localization procedure
         self.run()
@@ -202,7 +199,6 @@ class Localizer(ABC):
             active_virtual_MO_inds (np.array): 1D array of active virtual MO indices
             enviro_virtual_MO_inds (np.array): 1D array of environment virtual MO indices
         """
-
         n_occupied_orbitals = np.count_nonzero(self.pyscf_scf.mo_occ == 2)
         c_std_occ = self.pyscf_scf.mo_coeff[:, :n_occupied_orbitals]
         c_std_virt = self.pyscf_scf.mo_coeff[:, self.pyscf_scf.mo_occ < 2]
@@ -248,7 +244,9 @@ class Localizer(ABC):
             ]
         )
 
-    def run(self, sanity_check: bool = False):
+        return c_virtual_loc
+
+    def run(self, sanity_check: bool = False) -> None:
         """Function that runs localisation
 
         Args:
@@ -263,7 +261,7 @@ class Localizer(ABC):
             self.enviro_MO_inds,
             self.c_active,
             self.c_enviro,
-            self.c_loc_occ,
+            c_loc_occ,
         ) = self._localize()
 
         self.dm_active = 2.0 * self.c_active @ self.c_active.T
@@ -272,15 +270,13 @@ class Localizer(ABC):
         if sanity_check is True:
             self._check_values()
 
-        if self.run_virtual_localization is True:
+        if self._run_virtual_localization is True:
             c_virtual = self._localize_virtual_orbs()
         else:
             # appends standard virtual orbitals from SCF calculation (NOT localized in any way)
-            self.active_virtual_MO_inds = None
-            self.enviro_virtual_MO_inds = None
             c_virtual = self.pyscf_scf.mo_coeff[:, self.pyscf_scf.mo_occ < 2]
 
-        self.c_loc_occ_and_virt = np.hstack((self.c_loc_occ, c_virtual))
+        self.c_loc_occ_and_virt = np.hstack((c_loc_occ, c_virtual))
 
         return None
 
@@ -311,12 +307,12 @@ class SpadeLocalizer(Localizer):
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Localise orbitals using SPADE.
 
-        Assigns:
+        Returns:
+            active_MO_inds (np.array): 1D array of active occupied MO indices
+            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
             c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
             c_enviro (np.array): C matrix of localized occupied ennironment MOs
             c_loc_occ (np.array): full C matrix of localized occupied MOs
-            active_MO_inds (np.array): 1D array of active occupied MO indices
-            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
         """
         logger.info("Localising with SPADE.")
         n_occupied_orbitals = np.count_nonzero(self.pyscf_scf.mo_occ == 2)
