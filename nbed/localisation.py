@@ -145,6 +145,9 @@ class Localizer(ABC):
         self.active_virtual_MO_inds: List[int] = None
         self.enviro_virtual_MO_inds: List[int] = None
 
+        # Run the localization procedure
+        self.run()
+
     @abstractmethod
     def localize(self) -> None:
         """Abstract method which should handle localization.
