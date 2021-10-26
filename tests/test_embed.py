@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import openfermion
 
-from nbed import nbed
+from nbed import NbedDriver
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
