@@ -224,7 +224,6 @@ def dft_crossterms(
 def orthogonal_enviro_projector(
     c_loc_occ_and_virt: np.ndarray,
     s_half: np.ndarray,
-    active_MO_inds: np.ndarray,
     enviro_MO_inds: np.ndarray,
 ) -> np.ndarray:
     """Get projector onto environement MOs
@@ -498,10 +497,10 @@ class NbedDriver(object):
         e_env (float): Environment energy from subsystem DFT calculation
         two_e_cross (flaot): two electron energy from cross terms (includes exchange correlation
                              and Coloumb contribution) of subsystem DFT calculation
-        molecular_ham_MU (InteractionOperator): molecular Hamiltonian for active subsystem (projection using mu shift operator)
-        classical_energy_MU (float): environment correction energy to obtain total energy (for mu shift method)
-        molecular_ham_HUZ (InteractionOperator): molecular Hamiltonian for active subsystem (projection using huzianga operator)
-        classical_energy_HUZ (float): environment correction energy to obtain total energy (for huzianga method)
+        molecular_ham (InteractionOperator): molecular Hamiltonian for active subsystem (projection using mu shift operator)
+        classical_energy (float): environment correction energy to obtain total energy (for mu shift method)
+        molecular_ham (InteractionOperator): molecular Hamiltonian for active subsystem (projection using huzianga operator)
+        classical_energy (float): environment correction energy to obtain total energy (for huzianga method)
     """
 
     def __init__(
@@ -554,10 +553,8 @@ class NbedDriver(object):
         self.e_env: float = None
         self.two_e_cross: float = None
 
-        self.molecular_ham_MU: InteractionOperator = None
-        self.classical_energy_MU: float = None
-        self.molecular_ham_HUZ: InteractionOperator = None
-        self.classical_energy_HUZ: float = None
+        self.molecular_ham: InteractionOperator = None
+        self.classical_energy: float = None
 
     def build_mol(self) -> gto.mole:
         """Function to build PySCF molecule
@@ -676,7 +673,8 @@ class NbedDriver(object):
 
         return pyscf_scf_rks
 
-    def get_embedded_rhf(self, change_basis_matrix) -> scf.RHF:
+    @property
+    def embedded_rhf(self, change_basis_matrix) -> scf.RHF:
         """Function to build embedded restricted Hartree Fock object for active subsystem
 
         Note this function overwrites the total number of electrons to only include active number
@@ -795,161 +793,61 @@ class NbedDriver(object):
         return fci_scf
 
     def run_mu(self) -> None:
-        embedded_RHF_MU = self.get_embedded_rhf(change_basis_matrix)
-        enviro_projector_MU = get_enivornment_projector(
+        # Get Projector
+        enviro_projector = orthogonal_enviro_projector(
             self.localized_system.c_loc_occ_and_virt,
             s_half,
-            self.localized_system.active_MO_inds,
             self.localized_system.enviro_MO_inds,
-            return_in_ortho_basis=False,
         )
-        v_emb_MU = (self.mu_level_shift * enviro_projector_MU) + dft_potential
-        hcore_std = embedded_RHF_MU.get_hcore()
-        embedded_RHF_MU.get_hcore = lambda *args: hcore_std + v_emb_MU
+        enviro_projector = non_ortho_env_projector(enviro_projector)
+
+        # run SCF
+        v_emb = (self.mu_level_shift * enviro_projector) + dft_potential
+        hcore_std = self.embedded_rhf.get_hcore()
+        self.embedded_rhf.get_hcore = lambda *args: hcore_std + v_emb
 
         logger.debug("Running embedded RHF calculation.")
-        embedded_RHF_MU.kernel()
+        self.embedded_rhf.kernel()
         print(
-            f"embedded HF energy MU_SHIFT: {embedded_RHF_MU.e_tot}, converged: {embedded_RHF_MU.converged}"
+            f"embedded HF energy MU_SHIFT: {self.embedded_rhf.e_tot}, converged: {self.embedded_rhf.converged}"
         )
 
-        dm_active_embedded_MU = embedded_RHF_MU.make_rdm1(
-            mo_coeff=embedded_RHF_MU.mo_coeff, mo_occ=embedded_RHF_MU.mo_occ
+        dm_active_embedded = self.embedded_rhf.make_rdm1(
+            mo_coeff=self.embedded_rhf.mo_coeff, mo_occ=self.embedded_rhf.mo_occ
         )
 
-        wf_correction_MU = np.einsum(
-            "ij,ij", v_emb_MU, self.localized_system.dm_active
-        )
-        shift = global_rks.mol.nao - len(self.localized_system.enviro_MO_inds)
-        frozen_enviro_orb_inds_MU = [
-            mo_i for mo_i in range(shift, global_rks.mol.nao)
-        ]
-        active_MO_inds_MU = [
-            mo_i
-            for mo_i in range(embedded_RHF_MU.mo_coeff.shape[1])
-            if mo_i not in frozen_enviro_orb_inds_MU
-        ]
-
-        # delete enviroment orbitals:
-        embedded_RHF_MU.mo_coeff = embedded_RHF_MU.mo_coeff[:, active_MO_inds_MU]
-        embedded_RHF_MU.mo_energy = embedded_RHF_MU.mo_energy[active_MO_inds_MU]
-        embedded_RHF_MU.mo_occ = embedded_RHF_MU.mo_occ[active_MO_inds_MU]
-
-        if self.run_ccsd_emb is True:
-            ccsd_emb_MU, e_ccsd_corr_MU = self.run_emb_CCSD(
-                embedded_RHF_MU, frozen_orb_list=None
-            )
-
-            e_wf_emb_MU = (
-                (ccsd_emb_MU.e_hf + e_ccsd_corr_MU)
-                + self.e_env
-                + self.two_e_cross
-                - wf_correction_MU
-            )
-            print("CCSD Energy MU shift:\n\t%s", e_wf_emb_MU)
-
-        if self.run_fci_emb is True:
-            fci_emb_MU = self.run_emb_FCI(embedded_RHF_MU, frozen_orb_list=None)
-            e_wf_fci_emb_HUZ = (
-                (fci_emb_MU.e_tot)
-                + self.e_env
-                + self.two_e_cross
-                - wf_correction_MU
-            )
-            print("FCI Energy MU shift:\n\t%s", e_wf_fci_emb_HUZ)
-
-        self.classical_energy_MU = (
-            self.e_env + self.two_e_cross + e_nuc - wf_correction_MU
-        )
-        self.molecular_ham_MU = get_molecular_hamiltonian(embedded_RHF_MU)
 
     def run_huz(self):
-        embedded_RHF_HUZ = self.get_embedded_rhf(change_basis_matrix)
-        enviro_projector_ortho = get_enivornment_projector(
-            self.localized_system.c_loc_occ_and_virt,
-            s_half,
-            self.localized_system.active_MO_inds,
-            self.localized_system.enviro_MO_inds,
-            return_in_ortho_basis=True,
-        )
-
         # run manual HF
         (
             conv_flag,
-            energy_hf_HUZ,
+            energy_hf,
             c_active_embedded,
             mo_embedded_energy,
             dm_active_embedded,
             huzinaga_op_std,
         ) = huzinaga_RHF(
-            embedded_RHF_HUZ,
+            self.embedded_rhf,
             dft_potential,
-            enviro_projector_ortho,
+            self._ortho_projector,
             s_half,
             dm_conv_tol=1e-6,
             dm_initial_guess=None,
-        )  # TODO: use dm_active_embedded_MU (use mu answer to initialize!)
+        )  # TODO: use dm_active_embedded (use mu answer to initialize!)
 
         print(
-            f"embedded HF energy HUZINAGA: {energy_hf_HUZ}, converged: {conv_flag}"
+            f"embedded HF energy HUZINAGA: {energy_hf}, converged: {conv_flag}"
         )
 
         # write results to pyscf object
-        hcore_std = embedded_RHF_HUZ.get_hcore()
-        v_emb_HUZ = huzinaga_op_std + dft_potential
-        embedded_RHF_HUZ.get_hcore = lambda *args: hcore_std + v_emb_HUZ
-        embedded_RHF_HUZ.mo_coeff = c_active_embedded
-        embedded_RHF_HUZ.mo_occ = embedded_RHF_HUZ.get_occ(
+        hcore_std = self.embedded_rhf.get_hcore()
+        v_emb = huzinaga_op_std + dft_potential
+        self.embedded_rhf.get_hcore = lambda *args: hcore_std + v_emb
+        self.embedded_rhf.mo_coeff = c_active_embedded
+        self.embedded_rhf.mo_occ = self.embedded_rhf.get_occ(
             mo_embedded_energy, c_active_embedded
         )
-        embedded_RHF_HUZ.mo_energy = mo_embedded_energy
-
-        wf_correction_HUZ = np.einsum(
-            "ij,ij", v_emb_HUZ, self.localized_system.dm_active
-        )
-
-        n_act_mo = len(self.localized_system.active_MO_inds)
-        n_env_mo = len(self.localized_system.enviro_MO_inds)
-        frozen_enviro_orb_inds_HUZ = [
-            i for i in range(n_act_mo, n_act_mo + n_env_mo)
-        ]
-
-        active_MO_inds_HUZ = [
-            mo_i
-            for mo_i in range(embedded_RHF_HUZ.mo_coeff.shape[1])
-            if mo_i not in frozen_enviro_orb_inds_HUZ
-        ]
-        embedded_RHF_HUZ.mo_coeff = embedded_RHF_HUZ.mo_coeff[:, active_MO_inds_HUZ]
-        embedded_RHF_HUZ.mo_energy = embedded_RHF_HUZ.mo_energy[active_MO_inds_HUZ]
-        embedded_RHF_HUZ.mo_occ = embedded_RHF_HUZ.mo_occ[active_MO_inds_HUZ]
-
-        if self.run_ccsd_emb is True:
-            ccsd_emb_HUZ, e_ccsd_corr_HUZ = self.run_emb_CCSD(
-                embedded_RHF_HUZ, frozen_orb_list=None
-            )
-
-            e_wf_emb_MU = (
-                (ccsd_emb_HUZ.e_hf + e_ccsd_corr_HUZ)
-                + self.e_env
-                + self.two_e_cross
-                - wf_correction_HUZ
-            )
-            print("CCSD Energy HUZ:\n\t%s", e_wf_emb_MU)
-
-        if self.run_fci_emb is True:
-            fci_emb_HUZ = self.run_emb_FCI(embedded_RHF_HUZ, frozen_orb_list=None)
-            e_wf_fci_emb_HUZ = (
-                (fci_emb_HUZ.e_tot)
-                + self.e_env
-                + self.two_e_cross
-                - wf_correction_HUZ
-            )
-            print("FCI Energy HUZ:\n\t%s", e_wf_fci_emb_HUZ)
-
-        self.classical_energy_HUZ = (
-            self.e_env + self.two_e_cross + e_nuc - wf_correction_HUZ
-        )
-        self.molecular_ham_HUZ = get_molecular_hamiltonian(embedded_RHF_HUZ)
+        self.embedded_rhf.mo_energy = mo_embedded_energy
 
     def embed_system(self):
         """Generate embedded Hamiltonian
@@ -978,12 +876,69 @@ class NbedDriver(object):
         # get system matrices
         s_mat = global_rks.get_ovlp()
         s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
+        self._ortho_projector = orthogonal_enviro_projector(
+            self.localized_system.c_loc_occ_and_virt,
+            s_half,
+            self.localized_system.active_MO_inds,
+            self.localized_system.enviro_MO_inds,
+        )
 
         if self.run_mu_shift is True:
             self.run_mu()
 
         if self.run_huzinaga is True:
             self.run_huz()
+
+        # calculate correction
+        wf_correction = np.einsum(
+            "ij,ij", v_emb, self.localized_system.dm_active
+        )
+        # classical energy
+        self.classical_energy = (
+            self.e_env + self.two_e_cross + e_nuc - wf_correction
+        )
+        # delete enviroment orbitals:
+        shift = global_rks.mol.nao - len(self.localized_system.enviro_MO_inds)
+        frozen_enviro_orb_inds = [
+            mo_i for mo_i in range(shift, global_rks.mol.nao)
+        ]
+        active_MO_inds = [
+            mo_i
+            for mo_i in range(self.embedded_rhf.mo_coeff.shape[1])
+            if mo_i not in frozen_enviro_orb_inds
+        ]
+
+        self.embedded_rhf.mo_coeff = self.embedded_rhf.mo_coeff[:, active_MO_inds]
+        self.embedded_rhf.mo_energy = self.embedded_rhf.mo_energy[active_MO_inds]
+        self.embedded_rhf.mo_occ = self.embedded_rhf.mo_occ[active_MO_inds]
+
+        # Hamiltonian
+        self.molecular_ham = get_molecular_hamiltonian(self.embedded_rhf)
+
+        # Calculate ccsd or fci energy
+        if self.run_ccsd_emb is True:
+            ccsd_emb, e_ccsd_corr = self.run_emb_CCSD(
+                self.embedded_rhf, frozen_orb_list=None
+            )
+
+            e_wf_emb = (
+                (ccsd_emb.e_hf + e_ccsd_corr)
+                + self.e_env
+                + self.two_e_cross
+                - wf_correction
+            )
+            print("CCSD Energy MU shift:\n\t%s", e_wf_emb)
+
+        if self.run_fci_emb is True:
+            fci_emb = self.run_emb_FCI(self.embedded_rhf, frozen_orb_list=None)
+            e_wf_fci_emb = (
+                (fci_emb.e_tot)
+                + self.e_env
+                + self.two_e_cross
+                - wf_correction
+            )
+            print("FCI Energy MU shift:\n\t%s", e_wf_fci_emb)
+
 
         print(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")
         print(self.localized_system.active_MO_inds)
