@@ -170,7 +170,44 @@ class NbedDriver(object):
             global_rks, self._local_basis_transform
         )
 
-        return global_rks
+        pyscf_scf_rks = global_rks # TODO
+        hcore_std = pyscf_scf_rks.get_hcore()
+        pyscf_scf_rks.get_hcore = lambda *args: self._local_basis_transform.conj().T @ hcore_std @ self._local_basis_transform
+
+        pyscf_scf_rks.get_veff = (
+            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: rks_veff(
+                pyscf_scf_rks, self._local_basis_transform, dm=dm, check_result=True
+            )
+        )
+
+        # overwrite C matrix with localised orbitals
+        pyscf_scf_rks.mo_coeff = self.localized_system.c_loc_occ_and_virt
+        dm_loc = pyscf_scf_rks.make_rdm1(
+            mo_coeff=pyscf_scf_rks.mo_coeff, mo_occ=pyscf_scf_rks.mo_occ
+        )
+
+        # fock_loc_basis = _global_rks.get_hcore() + _global_rks.get_veff(dm=dm_loc)
+        fock_loc_basis = pyscf_scf_rks.get_fock(dm=dm_loc)
+
+        # orbital_energies_std = _global_rks.mo_energy
+        orbital_energies_loc = np.diag(
+            pyscf_scf_rks.mo_coeff.conj().T @ fock_loc_basis @ pyscf_scf_rks.mo_coeff
+        )
+        pyscf_scf_rks.mo_energy = orbital_energies_loc
+
+        # # check electronic energy matches standard global calc
+        # global_rks_total_energy_loc = pyscf_scf_rks.energy_tot(dm=dm_loc)
+        # if not np.isclose(self._global_rks.e_tot, global_rks_total_energy_loc):
+        #     raise ValueError(
+        #         "electronic energy of standard calculation not matching localized calculation"
+        #     )
+
+        # check if mo energies match
+        # orbital_energies_std = _global_rks.mo_energy
+        # if not np.allclose(orbital_energies_std, orbital_energies_loc):
+        #     raise ValueError('orbital energies of standard calc not matching localized calc')
+
+        return pyscf_scf_rks
 
     @cached_property
     def localized_system(self):
@@ -256,47 +293,6 @@ class NbedDriver(object):
 
         return matrix_std_to_loc
 
-    def define_rks_in_new_basis(self):
-        """Redefine global RKS pyscf object in new (localized) basis"""
-        # write operators in localised basis
-        pyscf_scf_rks = self._global_rks
-        hcore_std = pyscf_scf_rks.get_hcore()
-        pyscf_scf_rks.get_hcore = lambda *args: self._local_basis_transform.conj().T @ hcore_std @ self._local_basis_transform
-
-        pyscf_scf_rks.get_veff = (
-            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: rks_veff(
-                pyscf_scf_rks, self._local_basis_transform, dm=dm, check_result=True
-            )
-        )
-
-        # overwrite C matrix with localised orbitals
-        pyscf_scf_rks.mo_coeff = self.localized_system.c_loc_occ_and_virt
-        dm_loc = pyscf_scf_rks.make_rdm1(
-            mo_coeff=pyscf_scf_rks.mo_coeff, mo_occ=pyscf_scf_rks.mo_occ
-        )
-
-        # fock_loc_basis = _global_rks.get_hcore() + _global_rks.get_veff(dm=dm_loc)
-        fock_loc_basis = pyscf_scf_rks.get_fock(dm=dm_loc)
-
-        # orbital_energies_std = _global_rks.mo_energy
-        orbital_energies_loc = np.diag(
-            pyscf_scf_rks.mo_coeff.conj().T @ fock_loc_basis @ pyscf_scf_rks.mo_coeff
-        )
-        pyscf_scf_rks.mo_energy = orbital_energies_loc
-
-        # check electronic energy matches standard global calc
-        global_rks_total_energy_loc = pyscf_scf_rks.energy_tot(dm=dm_loc)
-        if not np.isclose(self._global_rks.e_tot, global_rks_total_energy_loc):
-            raise ValueError(
-                "electronic energy of standard calculation not matching localized calculation"
-            )
-
-        # check if mo energies match
-        # orbital_energies_std = _global_rks.mo_energy
-        # if not np.allclose(orbital_energies_std, orbital_energies_loc):
-        #     raise ValueError('orbital energies of standard calc not matching localized calc')
-
-        return pyscf_scf_rks
 
     def _init_embedded_rhf(self, basis_transform) -> scf.RHF:
         """Function to build embedded restricted Hartree Fock object for active subsystem
