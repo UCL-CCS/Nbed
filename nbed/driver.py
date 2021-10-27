@@ -1,28 +1,19 @@
 """Module containg the NbedDriver Class."""
 
 import logging
-import warnings
-from functools import cache
 from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
-import pyscf
 import scipy as sp
 from cached_property import cached_property
-from openfermion import QubitOperator
-from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
-from openfermion.transforms import bravyi_kitaev, bravyi_kitaev_tree, jordan_wigner
-from pyscf import ao2mo, cc, fci, gto, lib, scf
-from pyscf.dft import numint
-from pyscf.dft.rks import get_veff as rks_get_veff
+from pyscf import cc, fci, gto, scf
 from pyscf.lib import StreamObject
 
-from .embed import get_molecular_hamiltonian, get_qubit_hamiltonian
-from .exceptions import NbedConfigError
+
+from .embed import get_molecular_hamiltonian, rks_veff
 from .localisation import (
-    Localizer,
     PySCFLocalizer,
     SpadeLocalizer,
     orb_change_basis_operator,
@@ -237,7 +228,7 @@ class NbedDriver(object):
         self,
         sanity_check: Optional[bool] = False,
     ) -> np.ndarray:
-        """Construct operator to change basis.
+        """Canonical to Localized Orbital Transform.
 
         Get operator that changes from standard canonical orbitals (C_matrix standard) to
         localized orbitals (C_matrix_localized)
@@ -252,6 +243,7 @@ class NbedDriver(object):
         """
         s_mat = self.pyscf_scf.get_ovlp()
         s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
+        s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
         # find orthogonal orbitals
         ortho_std = s_half @ self.pyscf_scf.mo_coeff
@@ -259,8 +251,6 @@ class NbedDriver(object):
 
         # Build change of basis operator (maps between orthonormal basis (canonical and localized)
         unitary_ORTHO_std_onto_loc = np.einsum("ik,jk->ij", ortho_std, ortho_loc)
-
-        s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
         # move back into non orthogonal basis
         matrix_std_to_loc = s_neg_half @ unitary_ORTHO_std_onto_loc @ s_half
@@ -411,6 +401,26 @@ class NbedDriver(object):
 
         return None
 
+    @cached_property
+    def _orthogonal_projector(self):
+        """Return a projector onto the environment in orthogonal basis."""
+        # get system matrices
+        s_mat = self._global_rks.get_ovlp()
+        s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
+        
+        # 1. Get orthogonal C matrix (localized)
+        c_loc_ortho = s_half @ self.localized_system.c_loc_occ_and_virt
+
+        # 2. Define projector that projects MO orbs of subsystem B onto themselves and system A onto zero state!
+        #    (do this in orthongoal basis!)
+        #    note we only take MO environment indices!
+        ortho_proj = np.einsum(
+            "ik,jk->ij",
+            c_loc_ortho[:, self.localized_system.enviro_MO_inds],
+            c_loc_ortho[:, self.localized_system.enviro_MO_inds],
+        )
+        return ortho_proj
+
     def run_emb_CCSD(
         self, emb_pyscf_scf_rhf: scf.RHF, frozen_orb_list: Optional[list] = None
     ) -> Tuple[cc.CCSD, float]:
@@ -461,12 +471,9 @@ class NbedDriver(object):
 
     def run_mu(self) -> None:
         # Get Projector
-        enviro_projector = orthogonal_enviro_projector(
-            self.localized_system.c_loc_occ_and_virt,
-            s_half,
-            self.localized_system.enviro_MO_inds,
-        )
-        enviro_projector = non_ortho_env_projector(enviro_projector)
+        s_mat = self.pyscf_scf.get_ovlp()
+        s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
+        enviro_projector = s_half @ self._orthogonal_projector @ s_half
 
         # run SCF
         v_emb = (self.mu_level_shift * enviro_projector) + dft_potential
@@ -495,7 +502,7 @@ class NbedDriver(object):
         ) = huzinaga_RHF(
             self.embedded_rhf,
             dft_potential,
-            self._ortho_projector,
+            self._orthogonal_projector,
             s_half,
             dm_conv_tol=1e-6,
             dm_initial_guess=None,
@@ -521,21 +528,14 @@ class NbedDriver(object):
         """
         e_nuc = self._global_rks.mol.energy_nuc()
 
-        self._subsystem_dft(global_rks)
+        self._subsystem_dft(self._global_rks)
 
         logger.debug("Get global DFT potential to optimize embedded calc in.")
-        g_act_and_env = global_rks.get_veff(
+        g_act_and_env = self._global_rks.get_veff(
             dm=(self.localized_system.dm_active + self.localized_system.dm_enviro)
         )
-        g_act = global_rks.get_veff(dm=self.localized_system.dm_active)
-        dft_potential = g_act_and_env - g_act
-
-        # get system matrices
-        s_mat = global_rks.get_ovlp()
-        s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
-        self._ortho_projector = orthogonal_enviro_projector(
-            s_half,
-        )
+        g_act = self._global_rks.get_veff(dm=self.localized_system.dm_active)
+        self._dft_potential = g_act_and_env - g_act
 
         self._embedded_rhf = self._init_embedded_rhf()
         if self.run_mu_shift is True:
@@ -549,8 +549,8 @@ class NbedDriver(object):
         # classical energy
         self.classical_energy = self.e_env + self.two_e_cross + e_nuc - wf_correction
         # delete enviroment orbitals:
-        shift = global_rks.mol.nao - len(self.localized_system.enviro_MO_inds)
-        frozen_enviro_orb_inds = [mo_i for mo_i in range(shift, global_rks.mol.nao)]
+        shift = self._global_rks.mol.nao - len(self.localized_system.enviro_MO_inds)
+        frozen_enviro_orb_inds = [mo_i for mo_i in range(shift, self._global_rks.mol.nao)]
         active_MO_inds = [
             mo_i
             for mo_i in range(self.embedded_rhf.mo_coeff.shape[1])
