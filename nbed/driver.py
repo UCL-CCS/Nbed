@@ -8,17 +8,15 @@ import numpy as np
 import scipy as sp
 from cached_property import cached_property
 from openfermion.chem.molecular_data import spinorb_from_spatial
-from openfermion.ops import QubitOperator
 from openfermion.ops.representations import InteractionOperator
-from openfermion.transforms import bravyi_kitaev, bravyi_kitaev_tree, jordan_wigner
 from pyscf import ao2mo, cc, fci, gto, scf
-from pyscf.lib import StreamObject
+from pyscf.lib import StreamObject, tag_array
+from pyscf.dft import numint
+from pyscf.dft import rks
 
 from .embed import rks_veff
-from .exceptions import NbedConfigError, NbedDriverError
 from .localizers import BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer
 from .scf import huzinaga_RHF
-from .utils import setup_logs
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +61,13 @@ class NbedDriver(object):
         projector: str,
         localisation: Optional[str] = "spade",
         convergence: Optional[float] = 1e-6,
+        qubits: Optional[int] = None,
         charge: Optional[int] = 0,
         mu_level_shift: Optional[float] = 1e6,
         run_ccsd_emb: Optional[bool] = False,
         run_fci_emb: Optional[bool] = False,
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
-        qubits: Optional[int] = None,
         savefile: Optional[Path] = None,
     ):
 
@@ -186,7 +184,7 @@ class NbedDriver(object):
         )
 
         pyscf_scf_rks.get_veff = (
-            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: rks_veff(
+            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: self._rks_veff(
                 pyscf_scf_rks, self._local_basis_transform, dm=dm, check_result=True
             )
         )
@@ -219,6 +217,67 @@ class NbedDriver(object):
         #     raise ValueError('orbital energies of standard calc not matching localized calc')
 
         return pyscf_scf_rks
+
+    def _rks_veff(
+        self,
+        pyscf_RKS: StreamObject,
+        unitary_rot: np.ndarray,
+        dm: np.ndarray = None,
+        check_result: bool = False,
+    ) -> tag_array:
+        """
+        Function to get V_eff in new basis.  Note this function is based on: pyscf.dft.rks.get_veff
+
+        Note in RKS calculation Veff = J + Vxc
+        Whereas for RHF calc it is Veff = J - 0.5k
+
+        Args:
+            pyscf_RKS (StreamObject): PySCF RKS obj
+            unitary_rot (np.ndarray): Operator to change basis  (in this code base this should be: cannonical basis
+                                    to localized basis)
+            dm (np.ndarray): Optional input density matrix. If not defined, finds whatever is available from pyscf_RKS_obj
+            check_result (bool): Flag to check result against PySCF functions
+
+        Returns:
+            output (lib.tag_array): Tagged array containing J, K, E_coloumb, E_xcorr, Vxc
+        """
+        if dm is None:
+            if pyscf_RKS.mo_coeff is not None:
+                dm = pyscf_RKS.make_rdm1(pyscf_RKS.mo_coeff, pyscf_RKS.mo_occ)
+            else:
+                dm = pyscf_RKS.init_guess_by_1e()
+
+        # Evaluate RKS/UKS XC functional and potential matrix on given meshgrids
+        # for a set of density matrices.
+        _, _, vxc = numint.nr_vxc(pyscf_RKS.mol, pyscf_RKS.grids, pyscf_RKS.xc, dm)
+
+        # definition in new basis
+        vxc = unitary_rot.conj().T @ vxc @ unitary_rot
+
+        v_eff = rks.get_veff(pyscf_RKS, dm=dm)
+        if v_eff.vk is not None:
+            k_mat = unitary_rot.conj().T @ v_eff.vk @ unitary_rot
+            j_mat = unitary_rot.conj().T @ v_eff.vj @ unitary_rot
+            vxc += j_mat - k_mat * 0.5
+        else:
+            j_mat = unitary_rot.conj().T @ v_eff.vj @ unitary_rot
+            k_mat = None
+            vxc += j_mat
+
+        if check_result is True:
+            veff_check = unitary_rot.conj().T @ v_eff.__array__() @ unitary_rot
+            if not np.allclose(vxc, veff_check):
+                raise ValueError(
+                    "Veff in new basis does not match rotated PySCF value."
+                )
+
+        # note J matrix is in new basis!
+        ecoul = np.einsum("ij,ji", dm, j_mat).real * 0.5
+        # this ecoul term changes if the full density matrix is NOT
+        #    (aka for dm_active and dm_enviroment we get different V_eff under different bases!)
+
+        output = tag_array(vxc, ecoul=ecoul, exc=v_eff.exc, vj=j_mat, vk=k_mat)
+        return output
 
     @cached_property
     def localized_system(self):
