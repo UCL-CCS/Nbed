@@ -502,7 +502,6 @@ class NbedDriver(object):
             self.embedded_rhf,
             self._dft_potential,
             self._orthogonal_projector,
-            s_half,
             dm_conv_tol=1e-6,
             dm_initial_guess=None,
         )  # TODO: use dm_active_embedded (use mu answer to initialize!)
