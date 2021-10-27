@@ -517,7 +517,7 @@ class NbedDriver(object):
         logger.debug("Running embedded RHF calculation.")
         localized_rhf.kernel()
         print(
-            f"embedded HF energy MU_SHIFT: {localized_rhf.e_tot}, converged: {embedded_rhf.converged}"
+            f"embedded HF energy MU_SHIFT: {localized_rhf.e_tot}, converged: {localized_rhf.converged}"
         )
 
         dm_active_embedded = localized_rhf.make_rdm1(
