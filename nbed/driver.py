@@ -524,6 +524,8 @@ class NbedDriver(object):
             mo_coeff=localized_rhf.mo_coeff, mo_occ=localized_rhf.mo_occ
         )
 
+        localized_rhf = self._freeze_environment(localized_rhf)
+
         return v_emb, localized_rhf
 
     def _huzinaga_embed(self, localized_rhf: StreamObject) -> np.ndarray:
@@ -560,8 +562,27 @@ class NbedDriver(object):
             mo_embedded_energy, c_active_embedded
         )
         localized_rhf.mo_energy = mo_embedded_energy
+        
+        localized_rhf = self._freeze_environment(localized_rhf)
 
         return v_emb, localized_rhf
+
+    def _freeze_environment(self, embedded_rhf) -> np.ndarray:
+        """Remove enironment orbits from"""
+        # delete enviroment orbitals:
+        shift = self._global_rks.mol.nao - len(self.localized_system.enviro_MO_inds)
+        frozen_enviro_orb_inds = [
+            mo_i for mo_i in range(shift, self._global_rks.mol.nao)
+        ]
+        active_MO_inds = [
+            mo_i
+            for mo_i in range(embedded_rhf.mo_coeff.shape[1])
+            if mo_i not in frozen_enviro_orb_inds
+        ]
+
+        embedded_rhf.mo_coeff = embedded_rhf.mo_coeff[:, active_MO_inds]
+        embedded_rhf.mo_energy = embedded_rhf.mo_energy[active_MO_inds]
+        embedded_rhf.mo_occ = embedded_rhf.mo_occ[active_MO_inds]
 
     def build_molecular_hamiltonian(
         self,
@@ -576,7 +597,6 @@ class NbedDriver(object):
         Returns:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
-
         # C_matrix containing orbitals to be considered
         # if there are any environment orbs that have been projected out... these should NOT be present in the
         # scf_method.mo_coeff array (aka columns should be deleted!)
@@ -635,21 +655,6 @@ class NbedDriver(object):
             logger.error("Neither ")
             raise NbedDriverError("No embedding method selected.")
 
-        # delete enviroment orbitals:
-        shift = self._global_rks.mol.nao - len(self.localized_system.enviro_MO_inds)
-        frozen_enviro_orb_inds = [
-            mo_i for mo_i in range(shift, self._global_rks.mol.nao)
-        ]
-        active_MO_inds = [
-            mo_i
-            for mo_i in range(embedded_rhf.mo_coeff.shape[1])
-            if mo_i not in frozen_enviro_orb_inds
-        ]
-
-        embedded_rhf.mo_coeff = embedded_rhf.mo_coeff[:, active_MO_inds]
-        embedded_rhf.mo_energy = embedded_rhf.mo_energy[active_MO_inds]
-        embedded_rhf.mo_occ = embedded_rhf.mo_occ[active_MO_inds]
-
         # calculate correction
         wf_correction = np.einsum("ij,ij", v_emb, self.localized_system.dm_active)
 
@@ -657,7 +662,7 @@ class NbedDriver(object):
         self.classical_energy = self.e_env + self.two_e_cross + e_nuc - wf_correction
 
         # Hamiltonian
-        self.molecular_ham = self.molecular_hamiltonian(embedded_rhf)
+        self.molecular_ham = self.build_molecular_hamiltonian(embedded_rhf)
 
         # Calculate ccsd or fci energy
         if self.run_ccsd_emb is True:
