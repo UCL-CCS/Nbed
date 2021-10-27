@@ -73,12 +73,12 @@ def nbed(
         convergence=convergence,
         qubits=qubits,
         savefile=savefile,
-        charge: Optional[int] = 0,
-        mu_level_shift: Optional[float] = 1e6,
-        run_ccsd_emb: Optional[bool] = False,
-        run_fci_emb: Optional[bool] = False,
-        max_ram_memory: Optional[int] = 4000,
-        pyscf_print_level: int = 1,    
+        charge=charge,
+        mu_level_shift=mu_level_shift,
+        run_ccsd_emb=run_ccsd_emb,
+        run_fci_emb=run_fci_emb,
+        max_ram_memory=max_ram_memory,
+        pyscf_print_level=pyscf_print_level,    
         )
     converter = HamiltonianConverter(driver.molecular_ham, transform=transform)
     qham = getattr(converter, output)
