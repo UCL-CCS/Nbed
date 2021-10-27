@@ -14,6 +14,8 @@ from pyscf.lib import StreamObject, tag_array
 from pyscf.dft import numint
 from pyscf.dft import rks
 
+from nbed.exceptions import NbedConfigError
+
 from .embed import rks_veff
 from .localizers import BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer
 from .scf import huzinaga_RHF
@@ -71,6 +73,24 @@ class NbedDriver(object):
         savefile: Optional[Path] = None,
     ):
 
+        config_valid = True
+        if self.projector not in ["mu", "huzinaga", "both"]:
+            logger.error(
+                "Invalid projector %s selected. Choose from 'mu' or 'huzinzaga'.",
+                self.projector,
+            )
+            config_valid = False
+
+        if self.localisation not in ["spade", "ibo", "boys", "mullikan"]:
+            logger.error(
+                "Invalid localisation method %s. Choose from 'ibo','boys','mullikan' or 'spade'.",
+                self.localisation,
+            )
+            config_valid = False
+
+        if not config_valid:
+            raise NbedConfigError("Invalid config.")
+
         self.geometry = geometry
         self.n_active_atoms = n_active_atoms
         self.basis = basis.lower()
@@ -86,21 +106,6 @@ class NbedDriver(object):
         self.pyscf_print_level = pyscf_print_level
         self.qubits = qubits
         self.savefile = savefile
-
-        config_valid = True
-        if self.projector not in ["mu", "huzinaga", "both"]:
-            logger.error(
-                "Invalid projector %s selected. Choose from 'mu' or 'huzinzaga'.",
-                self.projector,
-            )
-            config_valid = False
-
-        if self.localisation not in ["spade", "ibo", "boys", "mullikan"]:
-            logger.error(
-                "Invalid localisation method %s. Choose from 'ibo','boys','mullikan' or 'spade'.",
-                self.localisation,
-            )
-            config_valid = False
 
         # Attributes
         self.e_act: float = None
@@ -124,7 +129,7 @@ class NbedDriver(object):
         ).build()
         return full_mol
 
-    @property
+    @cached_property
     def full_system_hamiltonian(self):
         """Build full molecular fermionic Hamiltonian (of whole system)
         Idea is to compare the number of terms to embedded Hamiltonian
@@ -144,8 +149,7 @@ class NbedDriver(object):
 
     @cached_property
     def _global_fci(self) -> StreamObject:
-        """Function to run full molecule FCI calculation. Note this is very expensive"""
-
+        """Function to run full molecule FCI calculation. FACTORIAL SCALING IN BASIS STATES!"""
         # run FCI after HF
         global_fci = fci.FCI(self._global_HF)
         global_fci.conv_tol = self.convergence
