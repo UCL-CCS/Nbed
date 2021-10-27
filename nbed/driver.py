@@ -95,17 +95,24 @@ class NbedDriver(object):
 
         config_valid = True
         if self.projector not in ["mu", "huzinaga", "both"]:
-            logger.error("Invalid projector %s selected. Choose from 'mu' or 'huzinzaga'.", self.projector)
+            logger.error(
+                "Invalid projector %s selected. Choose from 'mu' or 'huzinzaga'.",
+                self.projector,
+            )
             config_valid = False
 
-        if self.localization not in ["spade" ,"ibo", "boys", "mullikan"]:
-            logger.error("Invalid localization method %s. Choose from 'ibo','boys','mullikan' or 'spade'.", self.localization)
+        if self.localization not in ["spade", "ibo", "boys", "mullikan"]:
+            logger.error(
+                "Invalid localization method %s. Choose from 'ibo','boys','mullikan' or 'spade'.",
+                self.localization,
+            )
             config_valid = False
 
         if self.output not in ["qiskit", "pennylane", "openfermion"]:
-            logger.error("Invalid output format %s,. Choose from 'qiskit', 'pennylane' or 'openfermion'.")
+            logger.error(
+                "Invalid output format %s,. Choose from 'qiskit', 'pennylane' or 'openfermion'."
+            )
             config_valid = False
-        
 
         # Attributes
         self.e_act: float = None
@@ -129,7 +136,6 @@ class NbedDriver(object):
         ).build()
         return full_mol
 
-
     @property
     def full_system_hamiltonian(self):
         """Build full molecular fermionic Hamiltonian (of whole system)
@@ -147,7 +153,7 @@ class NbedDriver(object):
         global_HF.max_memory = self.max_ram_memory
         global_HF.verbose = self.pyscf_print_level
         global_HF.kernel()
-    
+
     @cached_property
     def _global_fci(self) -> StreamObject:
         """Function to run full molecule FCI calculation. Note this is very expensive"""
@@ -178,20 +184,20 @@ class NbedDriver(object):
         global_rks.kernel()
 
         global_rks = self.define_rks_in_newbasis(
-            global_rks, self._localbasis_transform
+            global_rks, self._local_basis_transform
         )
 
         pyscf_scf_rks = global_rks  # TODO
         hcore_std = pyscf_scf_rks.get_hcore()
         pyscf_scf_rks.get_hcore = (
-            lambda *args: self._localbasis_transform.conj().T
+            lambda *args: self._local_basis_transform.conj().T
             @ hcore_std
-            @ self._localbasis_transform
+            @ self._local_basis_transform
         )
 
         pyscf_scf_rks.get_veff = (
             lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: rks_veff(
-                pyscf_scf_rks, self._localbasis_transform, dm=dm, check_result=True
+                pyscf_scf_rks, self._local_basis_transform, dm=dm, check_result=True
             )
         )
 
@@ -248,7 +254,7 @@ class NbedDriver(object):
         return localized_system
 
     @cached_property
-    def _localbasis_transform(
+    def _local_basis_transform(
         self,
         sanity_check: Optional[bool] = False,
     ) -> np.ndarray:
@@ -327,9 +333,9 @@ class NbedDriver(object):
         h_core = local_rhf.get_hcore()
 
         local_rhf.get_hcore = (
-            lambda *args: self._localbasis_transform.conj().T
+            lambda *args: self._local_basis_transform.conj().T
             @ h_core
-            @ self._localbasis_transform
+            @ self._local_basis_transform
         )
 
         if local_rhf.mo_coeff is not None:
@@ -345,9 +351,9 @@ class NbedDriver(object):
 
         # v_eff = pyscf_obj.get_veff(dm=dm)
         local_rhf.get_veff = (
-            lambda *args: self._localbasis_transform.conj().T
+            lambda *args: self._local_basis_transform.conj().T
             @ v_eff
-            @ self._localbasis_transform
+            @ self._local_basis_transform
         )
 
         return local_rhf
@@ -568,7 +574,8 @@ class NbedDriver(object):
 
         return v_emb, localized_rhf
 
-    def build_molecular_hamiltonian(self,
+    def build_molecular_hamiltonian(
+        self,
         scf_method: StreamObject,
     ) -> InteractionOperator:
         """Returns second quantized fermionic molecular Hamiltonian
@@ -588,7 +595,9 @@ class NbedDriver(object):
         n_orbs = c_matrix_active.shape[1]
 
         # one body terms
-        one_body_integrals = c_matrix_active.T @ scf_method.get_hcore() @ c_matrix_active
+        one_body_integrals = (
+            c_matrix_active.T @ scf_method.get_hcore() @ c_matrix_active
+        )
 
         two_body_compressed = ao2mo.kernel(scf_method.mol, c_matrix_active)
 

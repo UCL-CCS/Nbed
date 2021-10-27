@@ -85,8 +85,6 @@ def rks_veff(
     return output
 
 
-
-
 def get_qubit_hamiltonian(
     molecular_ham: InteractionOperator, transformation: str = "jordan_wigner"
 ) -> QubitOperator:
