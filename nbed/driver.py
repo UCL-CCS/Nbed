@@ -11,13 +11,8 @@ from openfermion.ops.representations import InteractionOperator
 from pyscf import cc, fci, gto, scf
 from pyscf.lib import StreamObject
 
-
 from .embed import get_molecular_hamiltonian, rks_veff
-from .localisation import (
-    PySCFLocalizer,
-    SpadeLocalizer,
-    orb_change_basis_operator,
-)
+from .localisation import PySCFLocalizer, SpadeLocalizer, orb_change_basis_operator
 from .utils import setup_logs
 
 logger = logging.getLogger(__name__)
@@ -161,9 +156,13 @@ class NbedDriver(object):
             global_rks, self._local_basis_transform
         )
 
-        pyscf_scf_rks = global_rks # TODO
+        pyscf_scf_rks = global_rks  # TODO
         hcore_std = pyscf_scf_rks.get_hcore()
-        pyscf_scf_rks.get_hcore = lambda *args: self._local_basis_transform.conj().T @ hcore_std @ self._local_basis_transform
+        pyscf_scf_rks.get_hcore = (
+            lambda *args: self._local_basis_transform.conj().T
+            @ hcore_std
+            @ self._local_basis_transform
+        )
 
         pyscf_scf_rks.get_veff = (
             lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: rks_veff(
@@ -303,8 +302,12 @@ class NbedDriver(object):
         # TODO: need to check if change of basis here is necessary (START)
         h_core = embedded_RHF.get_hcore()
 
-        embedded_RHF.get_hcore = lambda *args: self._local_basis_transform.conj().T @ h_core @ self._local_basis_transform
-        
+        embedded_RHF.get_hcore = (
+            lambda *args: self._local_basis_transform.conj().T
+            @ h_core
+            @ self._local_basis_transform
+        )
+
         if embedded_RHF.mo_coeff is not None:
             dm = embedded_RHF.make_rdm1(embedded_RHF.mo_coeff, embedded_RHF.mo_occ)
         else:
@@ -317,16 +320,21 @@ class NbedDriver(object):
         v_eff = vj - vk * 0.5
 
         # v_eff = pyscf_obj.get_veff(dm=dm)
-        embedded_RHF.get_veff = lambda *args: self._local_basis_transform.conj().T @ v_eff @ self._local_basis_transform
-        
+        embedded_RHF.get_veff = (
+            lambda *args: self._local_basis_transform.conj().T
+            @ v_eff
+            @ self._local_basis_transform
+        )
+
         return embedded_RHF
 
     def _subsystem_dft(self):
         """Function to perform subsystem RKS DFT calculation"""
         logger.debug("Calculating active and environment subsystem terms.")
 
-        
-        def _rks_components(self, dm_matrix: np.ndarray) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
+        def _rks_components(
+            self, dm_matrix: np.ndarray
+        ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """
             Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -374,7 +382,8 @@ class NbedDriver(object):
         e_xc_total = two_e_term_total.exc
 
         j_cross = 0.5 * (
-            np.einsum("ij,ij", self.dm_active, j_env) + np.einsum("ij,ij", self.dm_enviro, j_act)
+            np.einsum("ij,ij", self.dm_active, j_env)
+            + np.einsum("ij,ij", self.dm_enviro, j_act)
         )
         # Because of projection
         k_cross = 0.0
@@ -404,7 +413,7 @@ class NbedDriver(object):
         # get system matrices
         s_mat = self._global_rks.get_ovlp()
         s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
-        
+
         # 1. Get orthogonal C matrix (localized)
         c_loc_ortho = s_half @ self.localized_system.c_loc_occ_and_virt
 
@@ -536,7 +545,7 @@ class NbedDriver(object):
         )
         g_act = self._global_rks.get_veff(dm=self.localized_system.dm_active)
         self._dft_potential = g_act_and_env - g_act
-        
+
         if self.run_mu_shift is True:
             v_emb = self.run_mu()
 
@@ -545,13 +554,15 @@ class NbedDriver(object):
 
         # calculate correction
         wf_correction = np.einsum("ij,ij", v_emb, self.localized_system.dm_active)
-        
+
         # classical energy
         self.classical_energy = self.e_env + self.two_e_cross + e_nuc - wf_correction
-        
+
         # delete enviroment orbitals:
         shift = self._global_rks.mol.nao - len(self.localized_system.enviro_MO_inds)
-        frozen_enviro_orb_inds = [mo_i for mo_i in range(shift, self._global_rks.mol.nao)]
+        frozen_enviro_orb_inds = [
+            mo_i for mo_i in range(shift, self._global_rks.mol.nao)
+        ]
         active_MO_inds = [
             mo_i
             for mo_i in range(self.embedded_rhf.mo_coeff.shape[1])

@@ -31,6 +31,7 @@ from nbed.utils import setup_logs
 logger = logging.getLogger(__name__)
 setup_logs()
 
+
 def rks_veff(
     pyscf_RKS: StreamObject,
     unitary_rot: np.ndarray,
