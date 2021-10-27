@@ -1,7 +1,7 @@
 ---
 nbed:
   geometry: tests/molecules/water.xyz
-  active_atoms: 2
+  n_active_atoms: 2
   basis: STO-3G
   xc_functional: b3lyp
   output: openfermion
