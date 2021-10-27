@@ -32,7 +32,7 @@ class NbedDriver(object):
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
         projector (str):
-        localization (str): Orbital Localisation method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
+        localisation (str): Orbital Localisation method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
         convergence (float): The convergence tolerance for energy calculations.
         charge (int): Charge of molecular species
         mu_level_shift (float): Level shift parameter to use for mu-projector.
@@ -61,7 +61,7 @@ class NbedDriver(object):
         basis: str,
         xc_functional: str,
         projector: str,
-        localization: Optional[str] = "spade",
+        localisation: Optional[str] = "spade",
         convergence: Optional[float] = 1e-6,
         charge: Optional[int] = 0,
         mu_level_shift: Optional[float] = 1e6,
@@ -78,7 +78,7 @@ class NbedDriver(object):
         self.basis = basis.lower()
         self.xc_functional = xc_functional.lower()
         self.projector = projector.lower()
-        self.localization = localization.lower()
+        self.localisation = localisation.lower()
         self.convergence = convergence
         self.charge = charge
         self.mu_level_shift = mu_level_shift
@@ -97,10 +97,10 @@ class NbedDriver(object):
             )
             config_valid = False
 
-        if self.localization not in ["spade", "ibo", "boys", "mullikan"]:
+        if self.localisation not in ["spade", "ibo", "boys", "mullikan"]:
             logger.error(
-                "Invalid localization method %s. Choose from 'ibo','boys','mullikan' or 'spade'.",
-                self.localization,
+                "Invalid localisation method %s. Choose from 'ibo','boys','mullikan' or 'spade'.",
+                self.localisation,
             )
             config_valid = False
 
@@ -162,7 +162,7 @@ class NbedDriver(object):
     def _global_rks(self):
         """Method to run full cheap molecule RKS DFT calculation.
 
-        Note this is necessary to perform localization procedure.
+        Note this is necessary to perform localisation procedure.
         """
         mol_full = self._build_mol()
 
@@ -223,7 +223,7 @@ class NbedDriver(object):
     @cached_property
     def localized_system(self):
         """Run the localizer class."""
-        logger.debug(f"Getting localized system using {self.localization}.")
+        logger.debug(f"Getting localized system using {self.localisation}.")
 
         localizers = {
             "spade": SPADELocalizer,
@@ -233,12 +233,12 @@ class NbedDriver(object):
         }
 
         # Should already be validated.
-        localized_system = localizers[self.localization](
+        localized_system = localizers[self.localisation](
             self._global_rks,
             self.n_active_atoms,
             occ_cutoff=0.95,
             virt_cutoff=0.95,
-            run_virtual_localization=False,
+            run_virtual_localisation=False,
         )
         return localized_system
 
