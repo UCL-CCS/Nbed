@@ -3,7 +3,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 
 import openfermion as of
 import pennylane as qml
@@ -23,13 +23,13 @@ class HamiltonianConverter:
 
     def __init__(
         self,
-        input_hamiltonian: Union[of.InteractionOperator, str, Path],
-        transform: str,
+        input_hamiltonian: Union[of.InteractionOperator, of.QubitOperator, str, Path],
+        transform: Optional[str] = None,
     ) -> None:
         """Initialise class and return output.
 
         Args:
-            input_hamiltonian (object): The input hamiltonian object.
+            input_hamiltonian (object): The input hamiltonian object. InteractionOperator, QubitOperator, or a path to a save file.
             transform (str): Transform used to convert to qubit hamiltonian.
             output_format (str): The name of the desired output format.
         """
@@ -38,7 +38,7 @@ class HamiltonianConverter:
             self.openfermion = self.transform(transform.lower())
             self.n_qubits = count_qubits(input_hamiltonian)
             self._intermediate = self._of_to_int()
-            
+
         elif type(input_hamiltonian) is of.QubitOperator:
             self.openfermion = input_hamiltonian
             self.n_qubits = count_qubits(input_hamiltonian)
@@ -54,7 +54,7 @@ class HamiltonianConverter:
 
     def transform(self, transform):
         """Transform second quantised hamiltonain to qubit hamiltonian."""
-        if not hasattr(of.transforms, transform):
+        if transform is None or hasattr(of.transforms, transform) is False:
             raise HamiltonianConverterError(
                 "Invalid transform. Please use a transform from `openfermion.transforms`."
             )
