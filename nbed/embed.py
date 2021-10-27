@@ -18,6 +18,7 @@ from .utils import parse, setup_logs
 
 logger = logging.getLogger(__name__)
 
+
 def nbed(
     geometry: Path,
     n_active_atoms: int,
@@ -28,7 +29,6 @@ def nbed(
     transform: str,
     localisation: Optional[str] = "spade",
     convergence: Optional[float] = 1e-6,
-    qubits: Optional[int] = None,
     charge: Optional[int] = 0,
     mu_level_shift: Optional[float] = 1e6,
     run_ccsd_emb: Optional[bool] = False,
@@ -36,10 +36,10 @@ def nbed(
     max_ram_memory: Optional[int] = 4000,
     pyscf_print_level: int = 1,
     savefile: Optional[Path] = None,
-    ):
+):
     """Import interface for the nbed package.
-    
-    This functin first the NbedDriver class to create a second quantized hamiltonian 
+
+    This functin first the NbedDriver class to create a second quantized hamiltonian
     using configuration provided. Then it calls the HamiltonianConverter class to
     apply a transformation to a qubit hamiltonian and output the desired backend object.
 
@@ -71,15 +71,15 @@ def nbed(
         projector=projector,
         localisation=localisation,
         convergence=convergence,
-        qubits=qubits,
+        qubits=None,
         savefile=savefile,
         charge=charge,
         mu_level_shift=mu_level_shift,
         run_ccsd_emb=run_ccsd_emb,
         run_fci_emb=run_fci_emb,
         max_ram_memory=max_ram_memory,
-        pyscf_print_level=pyscf_print_level,    
-        )
+        pyscf_print_level=pyscf_print_level,
+    )
     converter = HamiltonianConverter(driver.molecular_ham, transform=transform)
     qham = getattr(converter, output)
 
