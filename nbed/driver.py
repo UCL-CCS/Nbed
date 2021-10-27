@@ -16,7 +16,7 @@ from pyscf.lib import StreamObject
 
 from .embed import rks_veff
 from .exceptions import NbedConfigError, NbedDriverError
-from .localisation import PySCFLocalizer, SpadeLocalizer
+from .localizers import BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer
 from .scf import huzinaga_RHF
 from .utils import setup_logs
 
@@ -224,24 +224,23 @@ class NbedDriver(object):
     @cached_property
     def localized_system(self):
         """Run the localizer class."""
-        logger.debug("Getting localized system.")
-        if self.localization == "spade":
-            localized_system = SpadeLocalizer(
-                self._global_rks,
-                self.n_active_atoms,
-                occ_cutoff=0.95,
-                virt_cutoff=0.95,
-                run_virtual_localization=False,
-            )
-        else:
-            localized_system = PySCFLocalizer(
-                self._global_rks,
-                self.n_active_atoms,
-                self.localization,
-                occ_cutoff=0.95,
-                virt_cutoff=0.95,
-                run_virtual_localization=False,
-            )
+        logger.debug(f"Getting localized system using {self.localization}.")
+
+        localizers = {"spade": SPADELocalizer, 
+            "boys": BOYSLocalizer,
+            "ibo": IBOLocalizer,
+            "pipek-menzy": PMLocalizer
+            }
+
+        # Should already be validated.
+        localized_system = localizers[self.localization](
+            self._global_rks,
+            self.n_active_atoms,
+            occ_cutoff=0.95,
+            virt_cutoff=0.95,
+            run_virtual_localization=False,
+            
+        )
         return localized_system
 
     @cached_property
