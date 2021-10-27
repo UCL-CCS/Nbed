@@ -94,6 +94,8 @@ def cli() -> None:
         xc_functional=args["xc_functional"],
         projector=args["projector"],
         localisation=args["localisation"],
+        transform=args["transform"],
+        output=args["output"],
         convergence=args["convergence"],
         qubits=args["qubits"],
         savefile=args["savefile"],
