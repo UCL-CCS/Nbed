@@ -8,12 +8,14 @@ import numpy as np
 import scipy as sp
 from cached_property import cached_property
 from openfermion.ops.representations import InteractionOperator
-from pyscf import cc, fci, gto, scf
+from openfermion.chem.molecular_data import spinorb_from_spatial
+from pyscf import cc, fci, gto, scf, ao2mo
 from pyscf.lib import StreamObject
 
 from .embed import get_molecular_hamiltonian, rks_veff
-from .localisation import PySCFLocalizer, SpadeLocalizer, orb_change_basis_operator
+from .localisation import PySCFLocalizer, SpadeLocalizer
 from .utils import setup_logs
+from .scf import huzinaga_RHF
 
 logger = logging.getLogger(__name__)
 
@@ -282,8 +284,7 @@ class NbedDriver(object):
 
         return matrix_std_to_loc
 
-    @cached_property
-    def _embedded_rhf(self) -> scf.RHF:
+    def _init_embedded_rhf(self) -> scf.RHF:
         """Function to build embedded restricted Hartree Fock object for active subsystem
 
         Note this function overwrites the total number of electrons to only include active number
@@ -427,6 +428,60 @@ class NbedDriver(object):
         )
         return ortho_proj
 
+    def molecular_hamiltonian(self,
+        scf_method: StreamObject,
+    ) -> InteractionOperator:
+        """Returns second quantized fermionic molecular Hamiltonian
+
+        Args:
+            scf_method (StreamObject): A pyscf self-consistent method.
+            frozen_indices (list[int]): A list of integer indices of frozen moleclar orbitals.
+
+        Returns:
+            molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
+        """
+
+        # C_matrix containing orbitals to be considered
+        # if there are any environment orbs that have been projected out... these should NOT be present in the
+        # scf_method.mo_coeff array (aka columns should be deleted!)
+        c_matrix_active = scf_method.mo_coeff
+        n_orbs = c_matrix_active.shape[1]
+
+        # one body terms
+        one_body_integrals = c_matrix_active.T @ scf_method.get_hcore() @ c_matrix_active
+
+        two_body_compressed = ao2mo.kernel(scf_method.mol, c_matrix_active)
+
+        # get electron repulsion integrals
+        eri = ao2mo.restore(1, two_body_compressed, n_orbs)  # no permutation symmetry
+
+        # Openfermion uses pysicist notation whereas pyscf uses chemists
+        two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
+
+        core_constant, one_body_ints_reduced, two_body_ints_reduced = (
+            0,
+            one_body_integrals,
+            two_body_integrals,
+        )
+        # core_constant, one_body_ints_reduced, two_body_ints_reduced = get_active_space_integrals(
+        #                                                                                        one_body_integrals,
+        #                                                                                        two_body_integrals,
+        #                                                                                        occupied_indices=None,
+        #                                                                                        active_indices=active_mo_inds
+        #                                                                                         )
+
+        logger.debug(f"core constant: {core_constant}")
+
+        one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
+            one_body_ints_reduced, two_body_ints_reduced
+        )
+
+        molecular_hamiltonian = InteractionOperator(
+            core_constant, one_body_coefficients, 0.5 * two_body_coefficients
+        )
+
+        return molecular_hamiltonian
+
     def run_emb_CCSD(
         self, emb_pyscf_scf_rhf: scf.RHF, frozen_orb_list: Optional[list] = None
     ) -> Tuple[cc.CCSD, float]:
@@ -475,7 +530,8 @@ class NbedDriver(object):
         fci_scf.run()
         return fci_scf
 
-    def run_mu(self) -> None:
+    def mu_embed(self) -> np.ndarray:
+        """Embed using the Mu-shift projector."""
         # Get Projector
         s_mat = self.pyscf_scf.get_ovlp()
         s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
@@ -483,49 +539,47 @@ class NbedDriver(object):
 
         # run SCF
         v_emb = (self.mu_level_shift * enviro_projector) + self._dft_potential
-        hcore_std = self.embedded_rhf.get_hcore()
-        self.embedded_rhf.get_hcore = lambda *args: hcore_std + v_emb
+        hcore_std = self._embedded_rhf.get_hcore()
+        self._embedded_rhf.get_hcore = lambda *args: hcore_std + v_emb
 
         logger.debug("Running embedded RHF calculation.")
-        self.embedded_rhf.kernel()
+        self._embedded_rhf.kernel()
         print(
-            f"embedded HF energy MU_SHIFT: {self.embedded_rhf.e_tot}, converged: {self.embedded_rhf.converged}"
+            f"embedded HF energy MU_SHIFT: {self._embedded_rhf.e_tot}, converged: {self._embedded_rhf.converged}"
         )
 
-        dm_active_embedded = self.embedded_rhf.make_rdm1(
-            mo_coeff=self.embedded_rhf.mo_coeff, mo_occ=self.embedded_rhf.mo_occ
+        dm_active_embedded = self._embedded_rhf.make_rdm1(
+            mo_coeff=self._embedded_rhf.mo_coeff, mo_occ=self._embedded_rhf.mo_occ
         )
 
         return v_emb
 
-    def run_huz(self):
-        # run manual HF
+    def huzinaga_embed(self):
+        """Embed using Huzinaga projector."""
+        # We need to run manual HF to update 
+        # Fock matrix with each cycle
         (
-            conv_flag,
-            energy_hf,
             c_active_embedded,
             mo_embedded_energy,
             dm_active_embedded,
             huzinaga_op_std,
         ) = huzinaga_RHF(
-            self.embedded_rhf,
+            self._embedded_rhf,
             self._dft_potential,
             self._orthogonal_projector,
             dm_conv_tol=1e-6,
             dm_initial_guess=None,
         )  # TODO: use dm_active_embedded (use mu answer to initialize!)
 
-        print(f"embedded HF energy HUZINAGA: {energy_hf}, converged: {conv_flag}")
-
         # write results to pyscf object
-        hcore_std = self.embedded_rhf.get_hcore()
+        hcore_std = self._embedded_rhf.get_hcore()
         v_emb = huzinaga_op_std + self._dft_potential
-        self.embedded_rhf.get_hcore = lambda *args: hcore_std + v_emb
-        self.embedded_rhf.mo_coeff = c_active_embedded
-        self.embedded_rhf.mo_occ = self.embedded_rhf.get_occ(
+        self._embedded_rhf.get_hcore = lambda *args: hcore_std + v_emb
+        self._embedded_rhf.mo_coeff = c_active_embedded
+        self._embedded_rhf.mo_occ = self._embedded_rhf.get_occ(
             mo_embedded_energy, c_active_embedded
         )
-        self.embedded_rhf.mo_energy = mo_embedded_energy
+        self._embedded_rhf.mo_energy = mo_embedded_energy
 
         return v_emb
 
@@ -546,11 +600,14 @@ class NbedDriver(object):
         g_act = self._global_rks.get_veff(dm=self.localized_system.dm_active)
         self._dft_potential = g_act_and_env - g_act
 
+        # Initialise here, cause were going to overwrite properties
+        self._embedded_rhf = self._init_embedded_rhf()
+
         if self.run_mu_shift is True:
-            v_emb = self.run_mu()
+            v_emb = self.mu_embed()
 
         if self.run_huzinaga is True:
-            v_emb = self.run_huz()
+            v_emb = self.huzinaga_embed()
 
         # calculate correction
         wf_correction = np.einsum("ij,ij", v_emb, self.localized_system.dm_active)
@@ -565,21 +622,21 @@ class NbedDriver(object):
         ]
         active_MO_inds = [
             mo_i
-            for mo_i in range(self.embedded_rhf.mo_coeff.shape[1])
+            for mo_i in range(self._embedded_rhf.mo_coeff.shape[1])
             if mo_i not in frozen_enviro_orb_inds
         ]
 
-        self.embedded_rhf.mo_coeff = self.embedded_rhf.mo_coeff[:, active_MO_inds]
-        self.embedded_rhf.mo_energy = self.embedded_rhf.mo_energy[active_MO_inds]
-        self.embedded_rhf.mo_occ = self.embedded_rhf.mo_occ[active_MO_inds]
+        self._embedded_rhf.mo_coeff = self._embedded_rhf.mo_coeff[:, active_MO_inds]
+        self._embedded_rhf.mo_energy = self._embedded_rhf.mo_energy[active_MO_inds]
+        self._embedded_rhf.mo_occ = self._embedded_rhf.mo_occ[active_MO_inds]
 
         # Hamiltonian
-        self.molecular_ham = get_molecular_hamiltonian(self.embedded_rhf)
+        self.molecular_ham = self.molecular_hamiltonian(self._embedded_rhf)
 
         # Calculate ccsd or fci energy
         if self.run_ccsd_emb is True:
             ccsd_emb, e_ccsd_corr = self.run_emb_CCSD(
-                self.embedded_rhf, frozen_orb_list=None
+                self._embedded_rhf, frozen_orb_list=None
             )
 
             e_wf_emb = (
@@ -591,7 +648,7 @@ class NbedDriver(object):
             print("CCSD Energy MU shift:\n\t%s", e_wf_emb)
 
         if self.run_fci_emb is True:
-            fci_emb = self.run_emb_FCI(self.embedded_rhf, frozen_orb_list=None)
+            fci_emb = self.run_emb_FCI(self._embedded_rhf, frozen_orb_list=None)
             e_wf_fci_emb = (
                 (fci_emb.e_tot) + self.e_env + self.two_e_cross - wf_correction
             )

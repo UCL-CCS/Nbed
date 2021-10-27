@@ -1,12 +1,13 @@
 """Perform Huzinaga RHF with PySCF"""
 
-import warnings
-from typing import Optional
+from typing import Optional, Tuple
+import logging
 
 import numpy as np
 import scipy as sp
 from pyscf.lib import StreamObject
 
+logger = logging.getLogger(__name__)
 
 def huzinaga_RHF(
     scf_method: StreamObject,
@@ -14,7 +15,7 @@ def huzinaga_RHF(
     enviro_proj_ortho_basis: np.ndarray,
     dm_conv_tol: float = 1e-6,
     dm_initial_guess: Optional[np.ndarray] = None,
-):
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Manual RHF calculation that is implemented using the huzinaga operator
 
     Note this function uses lowdin (symmetric) orthogonalization only! (PySCF sometimes uses meta-lowdin and NAO). Also
@@ -33,8 +34,6 @@ def huzinaga_RHF(
         dm_conv_tol (float): density matrix convergence tolerance
         dm_initial_guess (np.ndarray): Optional initial guess density matrix
     Returns:
-        conv_flag (bool): Flag to indicate whether SCF has converged or not
-        e_total (float): RHF energy (includes nuclear energy)
         mo_coeff_std (np.ndarray): Optimized C_matrix (columns are optimized moelcular orbtials)
         mo_energy (np.ndarray): 1D array of molecular orbital energies
         dm_mat (np.ndarray): Converged density matrix
@@ -103,8 +102,11 @@ def huzinaga_RHF(
         rhf_energy_prev = rhf_energy
 
     if conv_flag is False:
-        warnings.warn("SCF has NOT converged.")
+        logger.warn("SCF has NOT converged.")
 
     e_total = rhf_energy + scf_method.energy_nuc()
 
-    return conv_flag, e_total, mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std
+
+    logger.info(f"Huzinaga embedding energy {e_total}.")
+
+    return mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std

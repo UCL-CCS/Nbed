@@ -91,61 +91,6 @@ def rks_veff(
     return output
 
 
-def get_molecular_hamiltonian(
-    scf_method: StreamObject,
-) -> InteractionOperator:
-    """Returns second quantized fermionic molecular Hamiltonian
-
-    Args:
-        scf_method (StreamObject): A pyscf self-consistent method.
-        frozen_indices (list[int]): A list of integer indices of frozen moleclar orbitals.
-
-    Returns:
-        molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
-    """
-
-    # C_matrix containing orbitals to be considered
-    # if there are any environment orbs that have been projected out... these should NOT be present in the
-    # scf_method.mo_coeff array (aka columns should be deleted!)
-    c_matrix_active = scf_method.mo_coeff
-    n_orbs = c_matrix_active.shape[1]
-
-    # one body terms
-    one_body_integrals = c_matrix_active.T @ scf_method.get_hcore() @ c_matrix_active
-
-    two_body_compressed = ao2mo.kernel(scf_method.mol, c_matrix_active)
-
-    # get electron repulsion integrals
-    eri = ao2mo.restore(1, two_body_compressed, n_orbs)  # no permutation symmetry
-
-    # Openfermion uses pysicist notation whereas pyscf uses chemists
-    two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
-
-    core_constant, one_body_ints_reduced, two_body_ints_reduced = (
-        0,
-        one_body_integrals,
-        two_body_integrals,
-    )
-    # core_constant, one_body_ints_reduced, two_body_ints_reduced = get_active_space_integrals(
-    #                                                                                        one_body_integrals,
-    #                                                                                        two_body_integrals,
-    #                                                                                        occupied_indices=None,
-    #                                                                                        active_indices=active_mo_inds
-    #                                                                                         )
-
-    print(f"core constant: {core_constant}")
-
-    one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
-        one_body_ints_reduced, two_body_ints_reduced
-    )
-
-    molecular_hamiltonian = InteractionOperator(
-        core_constant, one_body_coefficients, 0.5 * two_body_coefficients
-    )
-
-    return molecular_hamiltonian
-
-
 def get_qubit_hamiltonian(
     molecular_ham: InteractionOperator, transformation: str = "jordan_wigner"
 ) -> QubitOperator:
