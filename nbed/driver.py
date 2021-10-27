@@ -228,8 +228,7 @@ class NbedDriver(object):
         output = tag_array(vxc, ecoul=ecoul, exc=v_eff.exc, vj=j_mat, vk=k_mat)
         return output
 
-    @cached_property
-    def localized_system(self):
+    def localize(self):
         """Run the localizer class."""
         logger.debug(f"Getting localized system using {self.localisation}.")
 
@@ -438,7 +437,7 @@ class NbedDriver(object):
     def _orthogonal_projector(self):
         """Return a projector onto the environment in orthogonal basis."""
         # get system matrices
-        s_mat = self._global_rks.get_ovlp()
+        s_mat = self.localized_system.rks.get_ovlp()
         s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
 
         # 1. Get orthogonal C matrix (localized)
@@ -513,7 +512,7 @@ class NbedDriver(object):
             StreamObject: The embedded RHF object.
         """
         # Get Projector
-        s_mat = self.pyscf_scf.get_ovlp()
+        s_mat = self.localized_system.rks.get_ovlp()
         s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
         enviro_projector = s_half @ self._orthogonal_projector @ s_half
 
@@ -578,9 +577,9 @@ class NbedDriver(object):
     def _freeze_environment(self, embedded_rhf) -> np.ndarray:
         """Remove enironment orbits from"""
         # delete enviroment orbitals:
-        shift = self._global_rks.mol.nao - len(self.localized_system.enviro_MO_inds)
+        shift = self.localized_system.rks.mol.nao - len(self.localized_system.enviro_MO_inds)
         frozen_enviro_orb_inds = [
-            mo_i for mo_i in range(shift, self._global_rks.mol.nao)
+            mo_i for mo_i in range(shift, self.localized_system.rks.mol.nao)
         ]
         active_MO_inds = [
             mo_i
@@ -638,17 +637,21 @@ class NbedDriver(object):
         """Generate embedded Hamiltonian
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
-        This is done when object is initialized
+        This is done when object is initialized.
         """
-        e_nuc = self._global_rks.mol.energy_nuc()
+        self.localized_system = self.localize()
 
-        self._subsystem_dft(self._global_rks)
+        e_nuc = self.localized_system.rks.mol.energy_nuc()
+
+        local_rks = self.localized_system.rks
+
+        self._subsystem_dft(local_rks)
 
         logger.debug("Get global DFT potential to optimize embedded calc in.")
-        g_act_and_env = self._global_rks.get_veff(
+        g_act_and_env = local_rks.get_veff(
             dm=(self.localized_system.dm_active + self.localized_system.dm_enviro)
         )
-        g_act = self._global_rks.get_veff(dm=self.localized_system.dm_active)
+        g_act = local_rks.get_veff(dm=self.localized_system.dm_active)
         self._dft_potential = g_act_and_env - g_act
 
         # Initialise here, cause we're going to overwrite properties.
