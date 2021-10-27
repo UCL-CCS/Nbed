@@ -7,8 +7,8 @@ from pathlib import Path
 
 import yaml
 
-from nbed import nbed
-from nbed.ham_converter import HamiltonianConverter
+from .ham_converter import HamiltonianConverter
+from .driver import NbedDriver
 
 logger = logging.getLogger(__name__)
 
@@ -44,22 +44,26 @@ def parse():
     """Parse arguments from command line interface."""
     parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
     parser.add_argument(
-        "--config", type=str, help="Path to a config file. Overwrites other arguments."
+        "--config",
+        "-c",
+        type=str,
+        help="Path to a config file. Overwrites other arguments.",
     )
     parser.add_argument(
         "--savefile",
-        "--save",
+        "-s",
         type=str,
         help="Path to save file.",
     )
     parser.add_argument(
         "--geometry",
+        "-g",
         type=str,
         help="Path to an XYZ file.",
     )
     parser.add_argument(
         "--active_atoms",
-        "--active",
+        "-a",
         type=int,
         help="Number of atoms to include in active region.",
     )
@@ -71,24 +75,27 @@ def parse():
     )
     parser.add_argument(
         "--basis",
+        "-b",
         type=str,
         help="Basis set to use.",
     )
     parser.add_argument(
         "--xc_functional",
         "--xc",
-        "--functional",
+        "-x",
         type=str,
         help="Exchange correlation functional to use in DFT calculations.",
     )
     parser.add_argument(
         "--convergence",
         "--conv",
+        "-c",
         type=float,
         help="Convergence tolerance for calculations.",
     )
     parser.add_argument(
         "--output",
+        "-o",
         type=str.lower,
         choices=["openfermion", "qiskit", "pennylane"],
         help="Quantum computing backend to output the qubit hamiltonian for.",
@@ -96,8 +103,14 @@ def parse():
     parser.add_argument(
         "--localisation",
         "--loc",
+        "-l",
         type=str.lower,
-        choices=["spade"],  # TODO "mullikan", "ibo", "boys",],
+        choices=[
+            "spade",
+            "mullikan",
+            "ibo",
+            "boys",
+        ],
         help="Method of localisation to use.",
     )
     parser.add_argument(
