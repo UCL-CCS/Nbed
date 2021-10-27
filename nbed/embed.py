@@ -223,7 +223,6 @@ def huzinaga_RHF(
     scf_method: StreamObject,
     dft_potential: np.ndarray,
     enviro_proj_ortho_basis: np.ndarray,
-    s_half: np.ndarray,
     dm_conv_tol: float = 1e-6,
     dm_initial_guess: Optional[np.ndarray] = None,
 ):
@@ -252,7 +251,8 @@ def huzinaga_RHF(
         dm_mat (np.ndarray): Converged density matrix
         huzinaga_op_std (np.ndarray): Huzinaga operator in standard basis (same basis as Fock operator).
     """
-    s_mat = s_half @ s_half
+    s_mat = scf_method.get_ovlp()
+    s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
     # Create an initial dm if needed.
