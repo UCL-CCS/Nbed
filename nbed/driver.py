@@ -596,26 +596,12 @@ class NbedDriver(object):
         # Openfermion uses pysicist notation whereas pyscf uses chemists
         two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
 
-        core_constant, one_body_ints_reduced, two_body_ints_reduced = (
-            0,
-            one_body_integrals,
-            two_body_integrals,
-        )
-        # core_constant, one_body_ints_reduced, two_body_ints_reduced = get_active_space_integrals(
-        #                                                                                        one_body_integrals,
-        #                                                                                        two_body_integrals,
-        #                                                                                        occupied_indices=None,
-        #                                                                                        active_indices=active_mo_inds
-        #                                                                                         )
-
-        logger.debug(f"core constant: {core_constant}")
-
         one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
-            one_body_ints_reduced, two_body_ints_reduced
+            one_body_integrals, two_body_integrals
         )
 
         molecular_hamiltonian = InteractionOperator(
-            core_constant, one_body_coefficients, 0.5 * two_body_coefficients
+            self.classical_energy, one_body_coefficients, 0.5 * two_body_coefficients
         )
 
         return molecular_hamiltonian
@@ -699,11 +685,3 @@ class NbedDriver(object):
         print(self.localized_system.enviro_MO_inds)
 
         return embedded_rhf
-
-
-import nbed
-
-ham = nbed.nbed()
-ham
-
-qiskit_vqe(hamiltonian=nbed.nbed(geometry, active_atoms)["huzinaga"])
