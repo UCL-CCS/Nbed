@@ -2,8 +2,8 @@
 
 """Orbital localisation methods."""
 
-from abc import ABC, abstractmethod
 import logging
+from abc import ABC, abstractmethod
 from typing import Optional, Tuple
 
 import numpy as np

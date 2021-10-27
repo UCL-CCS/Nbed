@@ -2,11 +2,10 @@
 
 import json
 import logging
-from abc import abstractmethod
 from pathlib import Path
 from typing import Dict, Union
 
-import openfermion as openf
+import openfermion as of
 import pennylane as qml
 from cached_property import cached_property
 from openfermion.ops.operators.qubit_operator import QubitOperator
@@ -14,40 +13,62 @@ from openfermion.utils import count_qubits
 from pennylane import Identity, PauliX, PauliY, PauliZ
 from qiskit_nature.operators.second_quantization import SpinOp
 
+from .exceptions import HamiltonianConverterError
+
 logger = logging.getLogger(__name__)
-
-
-class HamiltonianConverterError(Exception):
-    """Base Exception class."""
-
-    pass
 
 
 class HamiltonianConverter:
     """Class to create and output qubit hamiltonians."""
 
     def __init__(
-        self, input_hamiltonian: Union[openf.QubitOperator, str, Path]
+        self,
+        input_hamiltonian: Union[of.InteractionOperator, str, Path],
+        transform: str,
     ) -> None:
         """Initialise class and return output.
 
         Args:
             input_hamiltonian (object): The input hamiltonian object.
+            transform (str): Transform used to convert to qubit hamiltonian.
             output_format (str): The name of the desired output format.
-
-        Returns:
-            None
         """
-        if type(input_hamiltonian) is openf.QubitOperator:
-            self.openfermion = input_hamiltonian
+        if type(input_hamiltonian) is of.InteractionOperator:
+            self._second_quantized = input_hamiltonian
+            self.openfermion = self.transform(transform.lower())
             self.n_qubits = count_qubits(input_hamiltonian)
-            self.intermediate = self._of_to_int()
+            self._intermediate = self._of_to_int()
+
         elif type(input_hamiltonian) in [Path, str]:
-            self.intermediate = self._read_file(input_hamiltonian)
+            self._intermediate = self._read_file(input_hamiltonian)
             self.openfermion = self._int_to_of()
         else:
+            raise TypeError(
+                "Input Hamiltonian must be an openfermion.InteractionOperator or path."
+            )
+
+    def transform(self, transform):
+        """Transform second quantised hamiltonain to qubit hamiltonian."""
+        if not hasattr(of.transforms, transform):
             raise HamiltonianConverterError(
-                "Input Hamiltonian must be an openfermion.QubitOperator or path."
+                "Invalid transform. Please use a transform from `openfermion.transforms`."
+            )
+
+        transform = getattr(of.transforms, transform)
+
+        try:
+            qubit_hamiltonain: QubitOperator = transform(self._second_quantized)
+        except TypeError as e:
+            logger.error(
+                "Transform selected is not a valid InteractionOperator transform."
+            )
+            raise HamiltonianConverterError(
+                "Transform selected is not a valid InteractionOperator transform."
+            )
+
+        if type(qubit_hamiltonain) is not QubitOperator:
+            raise HamiltonianConverterError(
+                "Transform selected must output a QubitOperator"
             )
 
     def convert(self, output_format: str) -> object:
@@ -72,7 +93,7 @@ class HamiltonianConverter:
         Args:
             filepath (Path): Path to the save file location.
         """
-        data_to_save = {"qubits": self.n_qubits, "hamiltonian": self.intermediate}
+        data_to_save = {"qubits": self.n_qubits, "hamiltonian": self._intermediate}
         json_ir = json.dumps(data_to_save)
 
         with open(filepath, "w") as file:
@@ -132,7 +153,7 @@ class HamiltonianConverter:
 
         return intermediate
 
-    def _int_to_of(self) -> openf.QubitOperator:
+    def _int_to_of(self) -> of.QubitOperator:
         """Convert from IR to openfermion.
 
         This is needed for reading from file.
@@ -140,8 +161,8 @@ class HamiltonianConverter:
         Returns:
             openfermion.QubitOperator: Qubit Hamiltonian in openfermion form.
         """
-        operator = self.intermediate["I" * self.n_qubits] * QubitOperator("")
-        for key, value in self.intermediate.items():
+        operator = self._intermediate["I" * self.n_qubits] * QubitOperator("")
+        for key, value in self._intermediate.items():
             term = ""
 
             if key == "I" * self.n_qubits:
@@ -164,10 +185,10 @@ class HamiltonianConverter:
         opdict = {"I": Identity, "X": PauliX, "Y": PauliY, "Z": PauliZ}
 
         # Initialise the operator with the identity contribution
-        values = [v for v in self.intermediate.values()]
+        values = [v for v in self._intermediate.values()]
         operators = []
 
-        for op in self.intermediate.keys():
+        for op in self._intermediate.keys():
 
             # Construct a list like [PauliX(0), PauliY(1), Identity(3)]
             paulis = [opdict[pauli](pos) for pos, pauli in enumerate(op)]
@@ -192,7 +213,7 @@ class HamiltonianConverter:
         Returns:
             qiskit_nature.operators.second_quantization.SpinOp
         """
-        input_list = [(key, value) for key, value in self.intermediate.items()]
+        input_list = [(key, value) for key, value in self._intermediate.items()]
 
         hamiltonian = SpinOp(input_list)
         return hamiltonian

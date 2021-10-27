@@ -17,7 +17,7 @@ def test_non_ortho_env_projector():
     pass
 
 
-def test_basis_change()
+def test_basis_change():
     """Construct operator to change basis.
 
     Get operator that changes from standard canonical orbitals (C_matrix standard) to

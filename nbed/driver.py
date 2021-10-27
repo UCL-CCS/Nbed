@@ -77,7 +77,6 @@ class NbedDriver(object):
         self.n_active_atoms = n_active_atoms
         self.basis = basis.lower()
         self.xc_functional = xc_functional.lower()
-        self.output = output.lower()
         self.projector = projector.lower()
         self.localization = localization.lower()
         self.convergence = convergence
@@ -226,11 +225,12 @@ class NbedDriver(object):
         """Run the localizer class."""
         logger.debug(f"Getting localized system using {self.localization}.")
 
-        localizers = {"spade": SPADELocalizer, 
+        localizers = {
+            "spade": SPADELocalizer,
             "boys": BOYSLocalizer,
             "ibo": IBOLocalizer,
-            "pipek-menzy": PMLocalizer
-            }
+            "pipek-menzy": PMLocalizer,
+        }
 
         # Should already be validated.
         localized_system = localizers[self.localization](
@@ -239,7 +239,6 @@ class NbedDriver(object):
             occ_cutoff=0.95,
             virt_cutoff=0.95,
             run_virtual_localization=False,
-            
         )
         return localized_system
 

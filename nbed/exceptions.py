@@ -17,3 +17,9 @@ class NbedDriverError(Exception):
     """
 
     pass
+
+
+class HamiltonianConverterError(Exception):
+    """Base Exception class."""
+
+    pass
