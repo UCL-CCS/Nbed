@@ -31,7 +31,7 @@ class NbedDriver(object):
         n_active_atoms (int): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
-        projector (str): 
+        projector (str):
         localization (str): Orbital Localisation method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
         convergence (float): The convergence tolerance for energy calculations.
         charge (int): Charge of molecular species
