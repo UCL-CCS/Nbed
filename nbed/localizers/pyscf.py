@@ -10,8 +10,6 @@ import numpy as np
 from pyscf import lo
 from pyscf.lib import StreamObject
 
-from nbed.localizers.spade import SpadeLocalizer
-
 from .base import Localizer
 
 logger = logging.getLogger(__name__)
@@ -94,7 +92,7 @@ class PySCFLocalizer(Localizer, ABC):
         return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
 
 
-class PMLocalizer(SpadeLocalizer):
+class PMLocalizer(PySCFLocalizer):
     def __init__(
         self,
         pyscf_scf: StreamObject,
@@ -130,7 +128,7 @@ class PMLocalizer(SpadeLocalizer):
         return pipmez.kernel()
 
 
-class BOYSLocalizer(SpadeLocalizer):
+class BOYSLocalizer(PySCFLocalizer):
     def __init__(
         self,
         pyscf_scf: StreamObject,
@@ -158,7 +156,7 @@ class BOYSLocalizer(SpadeLocalizer):
         return boys_SCF.kernel()
 
 
-class IBOLocalizer(SpadeLocalizer):
+class IBOLocalizer(PySCFLocalizer):
     def __init__(
         self,
         pyscf_scf: StreamObject,

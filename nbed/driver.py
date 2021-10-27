@@ -15,7 +15,6 @@ from pyscf.lib import StreamObject, tag_array
 
 from nbed.exceptions import NbedConfigError
 
-from .embed import rks_veff
 from .localizers import BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer
 from .scf import huzinaga_RHF
 
@@ -754,14 +753,14 @@ class NbedDriver(object):
             # Turn the result dict into an attribute
             # Is this great or is it terrible?
             # Been working too long to tell.
-            setattr(self, name, result)
+            setattr(self, "_"+name, result)
 
         if self.projector == "both":
-            self.molecular_ham = (self.mu["hamiltonian"], self.huzinaga["hamiltonian"])
+            self.molecular_ham = (self._mu["hamiltonian"], self._huzinaga["hamiltonian"])
         elif self.projector == "mu":
-            self.molecular_ham = self.mu["hamiltonian"]
+            self.molecular_ham = self._mu["hamiltonian"]
         elif self.projector == "huzinaga":
-            self.molecular_ham = self.huzinaga["hamiltonian"]
+            self.molecular_ham = self._huzinaga["hamiltonian"]
 
         print(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")
         print(self.localized_system.active_MO_inds)
