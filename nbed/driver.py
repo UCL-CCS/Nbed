@@ -562,7 +562,7 @@ class NbedDriver(object):
             mo_embedded_energy, c_active_embedded
         )
         localized_rhf.mo_energy = mo_embedded_energy
-        
+
         localized_rhf = self._freeze_environment(localized_rhf)
 
         return v_emb, localized_rhf
@@ -646,23 +646,40 @@ class NbedDriver(object):
         # Initialise here, cause we're going to overwrite properties.
         local_rhf = self._init_local_rhf()
 
-        if self.run_mu_shift is True:
+        if self.projector in ["mu", "both"]:
             v_emb, embedded_rhf = self._mu_embed(local_rhf)
-        elif self.run_huzinaga is True:
+
+            # calculate correction
+            wf_correction = np.einsum("ij,ij", v_emb, self.localized_system.dm_active)
+
+            # classical energy
+            self.classical_energy = (
+                self.e_env + self.two_e_cross + e_nuc - wf_correction
+            )
+
+            # Hamiltonian
+            self._mu_ham = self.build_molecular_hamiltonian(embedded_rhf)
+
+        if self.projector in ["huzinaga", "both"]:
             v_emb, embedded_rhf = self._huzinaga_embed(local_rhf)
 
-        else:
-            logger.error("Neither ")
-            raise NbedDriverError("No embedding method selected.")
+            # calculate correction
+            wf_correction = np.einsum("ij,ij", v_emb, self.localized_system.dm_active)
 
-        # calculate correction
-        wf_correction = np.einsum("ij,ij", v_emb, self.localized_system.dm_active)
+            # classical energy
+            self.classical_energy = (
+                self.e_env + self.two_e_cross + e_nuc - wf_correction
+            )
 
-        # classical energy
-        self.classical_energy = self.e_env + self.two_e_cross + e_nuc - wf_correction
+            # Hamiltonian
+            self._huzinaga_ham = self.build_molecular_hamiltonian(embedded_rhf)
 
-        # Hamiltonian
-        self.molecular_ham = self.build_molecular_hamiltonian(embedded_rhf)
+        if self.projector == "both":
+            self.molecular_ham = (self._mu_ham, self._huzinaga_ham)
+        elif self.projector == "mu":
+            self.molecular_ham = self._mu_ham
+        elif self.projector == "huzinaga":
+            self.molecular_ham = self._huzinaga_ham
 
         # Calculate ccsd or fci energy
         if self.run_ccsd_emb is True:
@@ -679,7 +696,7 @@ class NbedDriver(object):
             print("CCSD Energy MU shift:\n\t%s", e_wf_emb)
 
         if self.run_fci_emb is True:
-            fci_emb = self._run_emb_FCI(self.embedded_rhf, frozen_orb_list=None)
+            fci_emb = self._run_emb_FCI(embedded_rhf, frozen_orb_list=None)
             e_wf_fci_emb = (
                 (fci_emb.e_tot) + self.e_env + self.two_e_cross - wf_correction
             )
@@ -688,5 +705,3 @@ class NbedDriver(object):
         print(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")
         print(self.localized_system.active_MO_inds)
         print(self.localized_system.enviro_MO_inds)
-
-        return embedded_rhf
