@@ -6,9 +6,10 @@ from logging.config import dictConfig
 from pathlib import Path
 
 import yaml
+from openfermion import count_qubits
 
-from .ham_converter import HamiltonianConverter
 from .driver import NbedDriver
+from .ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 
@@ -162,11 +163,11 @@ def print_summary(driver: NbedDriver, fci: bool = False):
     Args:
         driver (NbedDriver): An NbedDriver to summarise.
         fci (bool): Whether to run full system fci.
-
     """
-
     if driver.molecular_ham is None:
-        logger.error("Driver does not have molecular hamiltonian. Cannot print summary.")
+        logger.error(
+            "Driver does not have molecular hamiltonian. Cannot print summary."
+        )
         print("Driver does not have molecular hamiltonian. Cannot print summary.")
         return
 
@@ -174,7 +175,7 @@ def print_summary(driver: NbedDriver, fci: bool = False):
     print("  Summary of Embedded Calculation".center(80))
     print("".center(80, "*"))
 
-    print(f"global (cheap) DFT calculation {driver.global_rks_total_energy}")
+    print(f"global (cheap) DFT calculation {driver._global_rks}")
 
     if driver.projector in ["huzinaga", "both"]:
         print("".center(80, "*"))
@@ -192,7 +193,7 @@ def print_summary(driver: NbedDriver, fci: bool = False):
         print(
             f"length of huzinaga embedded fermionic Hamiltonian: {len(list(driver.molecular_ham_HUZ))}"
         )
-        print(f"number of qubits required: {driver.n_qubits_HUZ}")
+        print(f"number of qubits required: {count_qubits(driver._huzinaga_ham)}")
 
     if driver.projector in ["mu", "both"]:
         print("".center(80, "*"))
@@ -212,7 +213,7 @@ def print_summary(driver: NbedDriver, fci: bool = False):
         print(
             f"length of mu embedded fermionic Hamiltonian: {len(list(driver.molecular_ham_MU))}"
         )
-        print(f"number of qubits required: {driver.n_qubits_MU}")
+        print(f"number of qubits required: {count_qubits(driver._mu_ham)}")
 
     print("".center(80, "*"))
     print("  Summary of reference Calculation".center(80))

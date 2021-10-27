@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import scipy as sp
@@ -10,9 +10,8 @@ from cached_property import cached_property
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
 from pyscf import ao2mo, cc, fci, gto, scf
+from pyscf.dft import numint, rks
 from pyscf.lib import StreamObject, tag_array
-from pyscf.dft import numint
-from pyscf.dft import rks
 
 from nbed.exceptions import NbedConfigError
 
@@ -106,14 +105,6 @@ class NbedDriver(object):
         self.pyscf_print_level = pyscf_print_level
         self.qubits = qubits
         self.savefile = savefile
-
-        # Attributes
-        self.e_act: float = None
-        self.e_env: float = None
-        self.two_e_cross: float = None
-
-        self.molecular_ham: InteractionOperator = None
-        self.classical_energy: float = None
 
         self.embed()
 
@@ -473,7 +464,7 @@ class NbedDriver(object):
         xc_cross = e_xc_total - e_xc_act - e_xc_env
 
         # overall two_electron cross energy
-        two_e_cross = j_cross + k_cross + xc_cross
+        self.two_e_cross = j_cross + k_cross + xc_cross
 
         # if not np.isclose(energy_DFT_components, self._global_rks.e_tot):
         #     energy_DFT_components = (
@@ -709,61 +700,68 @@ class NbedDriver(object):
         # Initialise here, cause we're going to overwrite properties.
         local_rhf = self._init_local_rhf()
 
-        if self.projector in ["mu", "both"]:
-            v_emb, embedded_rhf = self._mu_embed(local_rhf)
+        embeddings: Dict[str, callable] = {
+            "mu": self._mu_embed,
+            "huzinaga": self._huzinaga_embed,
+        }
+        if self.projector not in ["huzinaga", "both"]:
+            embeddings.remove("huzinaga")
+        if self.projector not in ["mu", "both"]:
+            embeddings.remove("mu")
+
+        for name, method in embeddings.items():
+            result = {}
+
+            result["v_emb"], result["rhf"] = method(local_rhf)
 
             # calculate correction
-            wf_correction = np.einsum("ij,ij", v_emb, self.localized_system.dm_active)
+            result["correction"] = np.einsum(
+                "ij,ij", result["v_emb"], self.localized_system.dm_active
+            )
 
             # classical energy
-            self.classical_energy = (
-                self.e_env + self.two_e_cross + e_nuc - wf_correction
+            result["classical_energy"] = (
+                self.e_env + self.two_e_cross + e_nuc - result["correction"]
             )
 
             # Hamiltonian
-            self._mu_ham = self.build_molecular_hamiltonian(embedded_rhf)
+            result["hamiltonain"] = self.build_molecular_hamiltonian(result["rhf"])
 
-        if self.projector in ["huzinaga", "both"]:
-            v_emb, embedded_rhf = self._huzinaga_embed(local_rhf)
+            # Calculate ccsd or fci energy
+            if self.run_ccsd_emb is True:
+                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(
+                    result["rhf"], frozen_orb_list=None
+                )
+                result["ccsd"] = (
+                    ccsd_emb.e_hf
+                    + e_ccsd_corr
+                    + self.e_envf
+                    + self.two_e_cross
+                    - result["correction"]
+                )
+                print("CCSD Energy MU shift:\n\t%s", result["ccsd"])
 
-            # calculate correction
-            wf_correction = np.einsum("ij,ij", v_emb, self.localized_system.dm_active)
+            if self.run_fci_emb is True:
+                fci_emb = self._run_emb_FCI(result["rhf"], frozen_orb_list=None)
+                result["fci"] = (
+                    (fci_emb.e_tot)
+                    + self.e_env
+                    + self.two_e_cross
+                    - result["correction"]
+                )
+                print("FCI Energy MU shift:\n\t%s", result["fci"])
 
-            # classical energy
-            self.classical_energy = (
-                self.e_env + self.two_e_cross + e_nuc - wf_correction
-            )
-
-            # Hamiltonian
-            self._huzinaga_ham = self.build_molecular_hamiltonian(embedded_rhf)
+            # Turn the result dict into an attribute
+            # Is this great or is it terrible?
+            # Been working too long to tell.
+            setattr(self, name, result)
 
         if self.projector == "both":
-            self.molecular_ham = (self._mu_ham, self._huzinaga_ham)
+            self.molecular_ham = (self.mu["hamiltonian"], self.huzinaga["hamiltonian"])
         elif self.projector == "mu":
-            self.molecular_ham = self._mu_ham
+            self.molecular_ham = self.mu["hamiltonian"]
         elif self.projector == "huzinaga":
-            self.molecular_ham = self._huzinaga_ham
-
-        # Calculate ccsd or fci energy
-        if self.run_ccsd_emb is True:
-            ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(
-                embedded_rhf, frozen_orb_list=None
-            )
-            e_wf_emb = (
-                ccsd_emb.e_hf
-                + e_ccsd_corr
-                + self.e_env
-                + self.two_e_cross
-                - wf_correction
-            )
-            print("CCSD Energy MU shift:\n\t%s", e_wf_emb)
-
-        if self.run_fci_emb is True:
-            fci_emb = self._run_emb_FCI(embedded_rhf, frozen_orb_list=None)
-            e_wf_fci_emb = (
-                (fci_emb.e_tot) + self.e_env + self.two_e_cross - wf_correction
-            )
-            print("FCI Energy MU shift:\n\t%s", e_wf_fci_emb)
+            self.molecular_ham = self.huzinaga["hamiltonian"]
 
         print(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")
         print(self.localized_system.active_MO_inds)

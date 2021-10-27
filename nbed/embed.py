@@ -1,7 +1,7 @@
 """Main embedding functionality."""
 
 import logging
-from typing import Path, Optional
+from typing import Optional, Path
 
 import numpy as np
 from openfermion import QubitOperator
