@@ -202,7 +202,7 @@ def localize_virtual_orbs(
 
 
 def orb_change_basis_operator(
-    pyscf_scf: StreamObject, c_all_localized_and_virt: np.array, sanity_check: Optional[bool] =False
+    pyscf_scf: StreamObject, c_all_localized_and_virt: np.array, sanity_check: Optional[bool] = False
 ) -> np.ndarray:
     """Construct operator to change basis.
 
@@ -295,7 +295,6 @@ class localize_molecular_orbs(object):
         enviro_virtual_MO_inds (np.array): 1D array of environment virtual MO indices
                                            (set to None if run_virtual_localization is False)
     """
-
     def __init__(self,
                  pyscf_scf: gto.Mole,
                  n_active_atoms: int,
