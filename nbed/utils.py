@@ -46,15 +46,8 @@ def parse():
     parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
     parser.add_argument(
         "--config",
-        "-c",
         type=str,
         help="Path to a config file. Overwrites other arguments.",
-    )
-    parser.add_argument(
-        "--savefile",
-        "-s",
-        type=str,
-        help="Path to save file.",
     )
     parser.add_argument(
         "--geometry",
@@ -67,12 +60,6 @@ def parse():
         "-a",
         type=int,
         help="Number of atoms to include in active region.",
-    )
-    parser.add_argument(
-        "--qubits",
-        "-q",
-        type=int,
-        help="Maximum number of qubits to be used in Qubit Hamiltonian.",
     )
     parser.add_argument(
         "--basis",
@@ -88,20 +75,6 @@ def parse():
         help="Exchange correlation functional to use in DFT calculations.",
     )
     parser.add_argument(
-        "--convergence",
-        "--conv",
-        "-c",
-        type=float,
-        help="Convergence tolerance for calculations.",
-    )
-    parser.add_argument(
-        "--output",
-        "-o",
-        type=str.lower,
-        choices=["openfermion", "qiskit", "pennylane"],
-        help="Quantum computing backend to output the qubit hamiltonian for.",
-    )
-    parser.add_argument(
         "--localisation",
         "--loc",
         "-l",
@@ -113,6 +86,32 @@ def parse():
             "boys",
         ],
         help="Method of localisation to use.",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=str.lower,
+        choices=["openfermion", "qiskit", "pennylane"],
+        help="Quantum computing backend to output the qubit hamiltonian for.",
+    )
+    parser.add_argument(
+        "--convergence",
+        "--conv",
+        "-c",
+        type=float,
+        help="Convergence tolerance for calculations.",
+    )
+    parser.add_argument(
+        "--savefile",
+        "-s",
+        type=str,
+        help="Path to save file.",
+    )
+    parser.add_argument(
+        "--qubits",
+        "-q",
+        type=int,
+        help="Maximum number of qubits to be used in Qubit Hamiltonian.",
     )
     parser.add_argument(
         "--ccsd",

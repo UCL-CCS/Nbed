@@ -1,8 +1,7 @@
 """Base Localizer Class."""
 
 import logging
-from abc import ABC, abstractmethod, abstractproperty
-from functools import cache, cached_property
+from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -74,17 +73,6 @@ class Localizer(ABC):
         self._occ_cutoff = occ_cutoff
         self._virt_cutoff = virt_cutoff
         self._run_virtual_localization = run_virtual_localization
-
-        # attributes
-        self.c_active: np.ndarray = None
-        self.c_enviro: np.ndarray = None
-        self.c_loc_occ_and_virt: np.ndarray = None
-
-        self.dm_active: np.ndarray = None
-        self.dm_enviro: np.ndarray = None
-
-        self.active_MO_inds: List[int] = None
-        self.enviro_MO_inds: List[int] = None
 
         # Run the localization procedure
         self.run()
@@ -198,9 +186,6 @@ class Localizer(ABC):
         Args:
             sanity_check (bool): optional flag to check denisty matrices and electron number after orbital localization
                                  makes sense
-
-        Returns:
-            None
         """
         (
             self.active_MO_inds,
@@ -223,5 +208,3 @@ class Localizer(ABC):
             c_virtual = self._pyscf_scf.mo_coeff[:, self._pyscf_scf.mo_occ < 2]
 
         self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
-
-        return None

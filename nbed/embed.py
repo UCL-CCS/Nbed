@@ -1,18 +1,10 @@
 """Main embedding functionality."""
 
 import logging
-from typing import Optional, Path
-
-import numpy as np
-from openfermion import QubitOperator
-from openfermion.ops.representations import InteractionOperator
-from openfermion.transforms import bravyi_kitaev, bravyi_kitaev_tree, jordan_wigner
-from pyscf.dft import numint
-from pyscf.dft.rks import get_veff as rks_get_veff
-from pyscf.lib import StreamObject, tag_array
+from typing import Optional 
+from pathlib import Path
 
 from .driver import NbedDriver
-from .exceptions import NbedConfigError
 from .ham_converter import HamiltonianConverter
 from .utils import parse, setup_logs
 
@@ -29,6 +21,7 @@ def nbed(
     transform: str,
     localisation: Optional[str] = "spade",
     convergence: Optional[float] = 1e-6,
+    qubits: Optional[int] = None,
     charge: Optional[int] = 0,
     mu_level_shift: Optional[float] = 1e6,
     run_ccsd_emb: Optional[bool] = False,
@@ -96,7 +89,7 @@ def cli() -> None:
     args = parse()
     qham = nbed(
         geometry=args["geometry"],
-        n_active_atoms=args["active_atoms"],
+        n_active_atoms=args["n_active_atoms"],
         basis=args["basis"],
         xc_functional=args["xc_functional"],
         projector=args["projector"],
