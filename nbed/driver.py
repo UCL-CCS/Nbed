@@ -31,12 +31,10 @@ class NbedDriver(object):
         n_active_atoms (int): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
-        output (str): one of "openfermion", "qiskit", "pennylane".
+        projector (str): 
+        localization (str): Orbital Localisation method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
         convergence (float): The convergence tolerance for energy calculations.
         charge (int): Charge of molecular species
-        localization (str): Orbital Localisation method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
-        run_mu_shift (bool): Whether to run mu shift projector method
-        run_huzinaga (bool): Whether to run run huzinaga method
         mu_level_shift (float): Level shift parameter to use for mu-projector.
         run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
         run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
@@ -62,7 +60,6 @@ class NbedDriver(object):
         n_active_atoms: int,
         basis: str,
         xc_functional: str,
-        output: str,
         projector: str,
         localization: Optional[str] = "spade",
         convergence: Optional[float] = 1e-6,
@@ -105,12 +102,6 @@ class NbedDriver(object):
             logger.error(
                 "Invalid localization method %s. Choose from 'ibo','boys','mullikan' or 'spade'.",
                 self.localization,
-            )
-            config_valid = False
-
-        if self.output not in ["qiskit", "pennylane", "openfermion"]:
-            logger.error(
-                "Invalid output format %s,. Choose from 'qiskit', 'pennylane' or 'openfermion'."
             )
             config_valid = False
 
