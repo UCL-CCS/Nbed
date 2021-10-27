@@ -14,7 +14,7 @@ from openfermion.transforms import bravyi_kitaev, bravyi_kitaev_tree, jordan_wig
 from pyscf import ao2mo, cc, fci, gto, scf
 from pyscf.lib import StreamObject
 
-from .embed import get_molecular_hamiltonian, rks_veff
+from .embed import rks_veff
 from .exceptions import NbedConfigError, NbedDriverError
 from .localisation import PySCFLocalizer, SpadeLocalizer
 from .scf import huzinaga_RHF
@@ -97,7 +97,7 @@ class NbedDriver(object):
         if self.projector not in ["mu", "huzinaga", "both"]:
             logger.error("Invalid projector %s selected. Choose from 'mu' or 'huzinzaga'.", self.projector)
             config_valid = False
-            
+
         if self.localization not in ["spade" ,"ibo", "boys", "mullikan"]:
             logger.error("Invalid localization method %s. Choose from 'ibo','boys','mullikan' or 'spade'.", self.localization)
             config_valid = False
@@ -130,10 +130,16 @@ class NbedDriver(object):
         return full_mol
 
 
+    @property
+    def full_system_hamiltonian(self):
+        """Build full molecular fermionic Hamiltonian (of whole system)
+        Idea is to compare the number of terms to embedded Hamiltonian
+        """
+        return self.build_molecular_hamiltonian(self._global_HF)
 
     @cached_property
-    def _global_fci(self) -> StreamObject:
-        """Function to run full molecule FCI calculation. Note this is very expensive"""
+    def _global_hf(self) -> StreamObject:
+        """Run full system Hartree-Fock."""
         mol_full = self._build_mol()
         # run Hartree-Fock
         global_HF = scf.RHF(mol_full)
@@ -141,9 +147,13 @@ class NbedDriver(object):
         global_HF.max_memory = self.max_ram_memory
         global_HF.verbose = self.pyscf_print_level
         global_HF.kernel()
+    
+    @cached_property
+    def _global_fci(self) -> StreamObject:
+        """Function to run full molecule FCI calculation. Note this is very expensive"""
 
         # run FCI after HF
-        global_fci = fci.FCI(global_HF)
+        global_fci = fci.FCI(self._global_HF)
         global_fci.conv_tol = self.convergence
         global_fci.verbose = self.pyscf_print_level
         global_fci.max_memory = self.max_ram_memory
@@ -558,6 +568,60 @@ class NbedDriver(object):
 
         return v_emb, localized_rhf
 
+    def build_molecular_hamiltonian(self,
+        scf_method: StreamObject,
+    ) -> InteractionOperator:
+        """Returns second quantized fermionic molecular Hamiltonian
+
+        Args:
+            scf_method (StreamObject): A pyscf self-consistent method.
+            frozen_indices (list[int]): A list of integer indices of frozen moleclar orbitals.
+
+        Returns:
+            molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
+        """
+
+        # C_matrix containing orbitals to be considered
+        # if there are any environment orbs that have been projected out... these should NOT be present in the
+        # scf_method.mo_coeff array (aka columns should be deleted!)
+        c_matrix_active = scf_method.mo_coeff
+        n_orbs = c_matrix_active.shape[1]
+
+        # one body terms
+        one_body_integrals = c_matrix_active.T @ scf_method.get_hcore() @ c_matrix_active
+
+        two_body_compressed = ao2mo.kernel(scf_method.mol, c_matrix_active)
+
+        # get electron repulsion integrals
+        eri = ao2mo.restore(1, two_body_compressed, n_orbs)  # no permutation symmetry
+
+        # Openfermion uses pysicist notation whereas pyscf uses chemists
+        two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
+
+        core_constant, one_body_ints_reduced, two_body_ints_reduced = (
+            0,
+            one_body_integrals,
+            two_body_integrals,
+        )
+        # core_constant, one_body_ints_reduced, two_body_ints_reduced = get_active_space_integrals(
+        #                                                                                        one_body_integrals,
+        #                                                                                        two_body_integrals,
+        #                                                                                        occupied_indices=None,
+        #                                                                                        active_indices=active_mo_inds
+        #                                                                                         )
+
+        logger.debug(f"core constant: {core_constant}")
+
+        one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
+            one_body_ints_reduced, two_body_ints_reduced
+        )
+
+        molecular_hamiltonian = InteractionOperator(
+            core_constant, one_body_coefficients, 0.5 * two_body_coefficients
+        )
+
+        return molecular_hamiltonian
+
     def embed(self):
         """Generate embedded Hamiltonian
 
@@ -580,7 +644,6 @@ class NbedDriver(object):
 
         if self.run_mu_shift is True:
             v_emb, embedded_rhf = self._mu_embed(local_rhf)
-            self._mu_ham = second_q_ham()
         elif self.run_huzinaga is True:
             v_emb, embedded_rhf = self._huzinaga_embed(local_rhf)
 
