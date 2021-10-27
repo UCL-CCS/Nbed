@@ -2,12 +2,12 @@
 nbed:
   geometry: tests/molecules/water.xyz
   active_atoms: 2
-  convergence: !!float 1e-6
-  qubits: 8
   basis: STO-3G
   xc_functional: b3lyp
   output: openfermion
+  projector: huzinaga
   localisation: spade
+  convergence: !!float 1e-6
+  qubits: 8
   savefile: data/savefile.json
-  # optionally add
-  # run_ccsd: True
+  transform: jordan_wigner
