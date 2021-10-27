@@ -15,8 +15,6 @@ from scipy import linalg
 logger = logging.getLogger(__name__)
 
 
-
-
 class Localizer(ABC):
     """Object used to localise molecular orbitals (MOs) using different localization schemes.
 
@@ -64,14 +62,12 @@ class Localizer(ABC):
             logger.debug("SCF method not initialised, running now...")
             pyscf_scf.run()
             logger.debug("SCF method initialised.")
-        
 
         if self.output not in ["qiskit", "pennylane", "openfermion"]:
             logger.error(
                 "Invalid output format %s,. Choose from 'qiskit', 'pennylane' or 'openfermion'."
             )
             config_valid = False
-
 
         self._pyscf_scf = pyscf_scf
         self._n_active_atoms = n_active_atoms
