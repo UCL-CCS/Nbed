@@ -1,13 +1,14 @@
 """Perform Huzinaga RHF with PySCF"""
 
-from typing import Optional, Tuple
 import logging
+from typing import Optional, Tuple
 
 import numpy as np
 import scipy as sp
 from pyscf.lib import StreamObject
 
 logger = logging.getLogger(__name__)
+
 
 def huzinaga_RHF(
     scf_method: StreamObject,
@@ -105,7 +106,6 @@ def huzinaga_RHF(
         logger.warn("SCF has NOT converged.")
 
     e_total = rhf_energy + scf_method.energy_nuc()
-
 
     logger.info(f"Huzinaga embedding energy {e_total}.")
 
