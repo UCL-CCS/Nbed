@@ -10,8 +10,10 @@ class NbedConfigError(Exception):
 
     pass
 
+
 class NbedDriverError(Exception):
     """
     Raise when NbedDriver finds itself in a bad state.
     """
+
     pass

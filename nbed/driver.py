@@ -7,16 +7,18 @@ from typing import Optional, Tuple
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
-from openfermion.ops.representations import InteractionOperator
 from openfermion.chem.molecular_data import spinorb_from_spatial
-from pyscf import cc, fci, gto, scf, ao2mo
+from openfermion.ops import QubitOperator
+from openfermion.ops.representations import InteractionOperator
+from openfermion.transforms import bravyi_kitaev, bravyi_kitaev_tree, jordan_wigner
+from pyscf import ao2mo, cc, fci, gto, scf
 from pyscf.lib import StreamObject
 
 from .embed import get_molecular_hamiltonian, rks_veff
+from .exceptions import NbedConfigError, NbedDriverError
 from .localisation import PySCFLocalizer, SpadeLocalizer
-from .utils import setup_logs
 from .scf import huzinaga_RHF
-from .exceptions import NbedDriverError
+from .utils import setup_logs
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ class NbedDriver(object):
         output (str): one of "openfermion", "qiskit", "pennylane".
         convergence (float): The convergence tolerance for energy calculations.
         charge (int): Charge of molecular species
-        localization_method (str): Orbital Localisation method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
+        localization (str): Orbital Localisation method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
         run_mu_shift (bool): Whether to run mu shift projector method
         run_huzinaga (bool): Whether to run run huzinaga method
         mu_level_shift (float): Level shift parameter to use for mu-projector.
@@ -61,31 +63,28 @@ class NbedDriver(object):
         basis: str,
         xc_functional: str,
         output: str,
+        projector: str,
+        localization: Optional[str] = "spade",
         convergence: Optional[float] = 1e-6,
         charge: Optional[int] = 0,
-        localization_method: Optional[str] = "spade",
-        run_mu_shift: Optional[bool] = False,
-        run_huzinaga: Optional[bool] = False,
         mu_level_shift: Optional[float] = 1e6,
         run_ccsd_emb: Optional[bool] = False,
         run_fci_emb: Optional[bool] = False,
-        run_global_fci: Optional[bool] = False,
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
         qubits: Optional[int] = None,
         savefile: Optional[Path] = None,
     ):
 
-        self._geometry = geometry
-        self._n_active_atoms = n_active_atoms
-        self._basis = basis
-        self._xc_functional = xc_functional
-        self.output = output
+        self.geometry = geometry
+        self.n_active_atoms = n_active_atoms
+        self.basis = basis.lower()
+        self.xc_functional = xc_functional.lower()
+        self.output = output.lower()
+        self.projector = projector.lower()
+        self.localization = localization.lower()
         self.convergence = convergence
         self.charge = charge
-        self.localization_method = localization_method
-        self.run_mu_shift = run_mu_shift
-        self.run_huzinaga = run_huzinaga
         self.mu_level_shift = mu_level_shift
         self.run_ccsd_emb = run_ccsd_emb
         self.run_fci_emb = run_fci_emb
@@ -94,10 +93,19 @@ class NbedDriver(object):
         self.qubits = qubits
         self.savefile = savefile
 
-        if int(run_huzinaga) + int(run_mu_shift) == 0:
-            raise ValueError(
-                "Not running any embedding calculation. Please use huzinaga and/or mu shift approach"
-            )
+        config_valid = True
+        if self.projector not in ["mu", "huzinaga", "both"]:
+            logger.error("Invalid projector %s selected. Choose from 'mu' or 'huzinzaga'.", self.projector)
+            config_valid = False
+            
+        if self.localization not in ["spade" ,"ibo", "boys", "mullikan"]:
+            logger.error("Invalid localization method %s. Choose from 'ibo','boys','mullikan' or 'spade'.", self.localization)
+            config_valid = False
+
+        if self.output not in ["qiskit", "pennylane", "openfermion"]:
+            logger.error("Invalid output format %s,. Choose from 'qiskit', 'pennylane' or 'openfermion'.")
+            config_valid = False
+        
 
         # Attributes
         self.e_act: float = None
@@ -107,6 +115,8 @@ class NbedDriver(object):
         self.molecular_ham: InteractionOperator = None
         self.classical_energy: float = None
 
+        self.embed()
+
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule
 
@@ -115,9 +125,11 @@ class NbedDriver(object):
         """
         logger.debug("Construcing molecule.")
         full_mol = gto.Mole(
-            atom=self._geometry, basis=self._basis, charge=self.charge
+            atom=self.geometry, basis=self.basis, charge=self.charge
         ).build()
         return full_mol
+
+
 
     @cached_property
     def _global_fci(self) -> StreamObject:
@@ -150,26 +162,26 @@ class NbedDriver(object):
 
         global_rks = scf.RKS(mol_full)
         global_rks.conv_tol = self.convergence
-        global_rks.xc = self._xc_functional
+        global_rks.xc = self.xc_functional
         global_rks.max_memory = self.max_ram_memory
         global_rks.verbose = self.pyscf_print_level
         global_rks.kernel()
 
-        global_rks = self.define_rks_in_new_basis(
-            global_rks, self._local_basis_transform
+        global_rks = self.define_rks_in_newbasis(
+            global_rks, self._localbasis_transform
         )
 
         pyscf_scf_rks = global_rks  # TODO
         hcore_std = pyscf_scf_rks.get_hcore()
         pyscf_scf_rks.get_hcore = (
-            lambda *args: self._local_basis_transform.conj().T
+            lambda *args: self._localbasis_transform.conj().T
             @ hcore_std
-            @ self._local_basis_transform
+            @ self._localbasis_transform
         )
 
         pyscf_scf_rks.get_veff = (
             lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: rks_veff(
-                pyscf_scf_rks, self._local_basis_transform, dm=dm, check_result=True
+                pyscf_scf_rks, self._localbasis_transform, dm=dm, check_result=True
             )
         )
 
@@ -179,12 +191,12 @@ class NbedDriver(object):
             mo_coeff=pyscf_scf_rks.mo_coeff, mo_occ=pyscf_scf_rks.mo_occ
         )
 
-        # fock_loc_basis = _global_rks.get_hcore() + _global_rks.get_veff(dm=dm_loc)
-        fock_loc_basis = pyscf_scf_rks.get_fock(dm=dm_loc)
+        # fock_locbasis = _global_rks.get_hcore() + _global_rks.get_veff(dm=dm_loc)
+        fock_locbasis = pyscf_scf_rks.get_fock(dm=dm_loc)
 
         # orbital_energies_std = _global_rks.mo_energy
         orbital_energies_loc = np.diag(
-            pyscf_scf_rks.mo_coeff.conj().T @ fock_loc_basis @ pyscf_scf_rks.mo_coeff
+            pyscf_scf_rks.mo_coeff.conj().T @ fock_locbasis @ pyscf_scf_rks.mo_coeff
         )
         pyscf_scf_rks.mo_energy = orbital_energies_loc
 
@@ -206,10 +218,10 @@ class NbedDriver(object):
     def localized_system(self):
         """Run the localizer class."""
         logger.debug("Getting localized system.")
-        if self.localization_method == "spade":
+        if self.localization == "spade":
             localized_system = SpadeLocalizer(
                 self._global_rks,
-                self._n_active_atoms,
+                self.n_active_atoms,
                 occ_cutoff=0.95,
                 virt_cutoff=0.95,
                 run_virtual_localization=False,
@@ -217,8 +229,8 @@ class NbedDriver(object):
         else:
             localized_system = PySCFLocalizer(
                 self._global_rks,
-                self._n_active_atoms,
-                self.localization_method,
+                self.n_active_atoms,
+                self.localization,
                 occ_cutoff=0.95,
                 virt_cutoff=0.95,
                 run_virtual_localization=False,
@@ -226,7 +238,7 @@ class NbedDriver(object):
         return localized_system
 
     @cached_property
-    def _local_basis_transform(
+    def _localbasis_transform(
         self,
         sanity_check: Optional[bool] = False,
     ) -> np.ndarray:
@@ -305,9 +317,9 @@ class NbedDriver(object):
         h_core = local_rhf.get_hcore()
 
         local_rhf.get_hcore = (
-            lambda *args: self._local_basis_transform.conj().T
+            lambda *args: self._localbasis_transform.conj().T
             @ h_core
-            @ self._local_basis_transform
+            @ self._localbasis_transform
         )
 
         if local_rhf.mo_coeff is not None:
@@ -323,9 +335,9 @@ class NbedDriver(object):
 
         # v_eff = pyscf_obj.get_veff(dm=dm)
         local_rhf.get_veff = (
-            lambda *args: self._local_basis_transform.conj().T
+            lambda *args: self._localbasis_transform.conj().T
             @ v_eff
-            @ self._local_basis_transform
+            @ self._localbasis_transform
         )
 
         return local_rhf
@@ -429,61 +441,7 @@ class NbedDriver(object):
         )
         return ortho_proj
 
-    def molecular_hamiltonian(self,
-        scf_method: StreamObject,
-    ) -> InteractionOperator:
-        """Returns second quantized fermionic molecular Hamiltonian
-
-        Args:
-            scf_method (StreamObject): A pyscf self-consistent method.
-            frozen_indices (list[int]): A list of integer indices of frozen moleclar orbitals.
-
-        Returns:
-            molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
-        """
-
-        # C_matrix containing orbitals to be considered
-        # if there are any environment orbs that have been projected out... these should NOT be present in the
-        # scf_method.mo_coeff array (aka columns should be deleted!)
-        c_matrix_active = scf_method.mo_coeff
-        n_orbs = c_matrix_active.shape[1]
-
-        # one body terms
-        one_body_integrals = c_matrix_active.T @ scf_method.get_hcore() @ c_matrix_active
-
-        two_body_compressed = ao2mo.kernel(scf_method.mol, c_matrix_active)
-
-        # get electron repulsion integrals
-        eri = ao2mo.restore(1, two_body_compressed, n_orbs)  # no permutation symmetry
-
-        # Openfermion uses pysicist notation whereas pyscf uses chemists
-        two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
-
-        core_constant, one_body_ints_reduced, two_body_ints_reduced = (
-            0,
-            one_body_integrals,
-            two_body_integrals,
-        )
-        # core_constant, one_body_ints_reduced, two_body_ints_reduced = get_active_space_integrals(
-        #                                                                                        one_body_integrals,
-        #                                                                                        two_body_integrals,
-        #                                                                                        occupied_indices=None,
-        #                                                                                        active_indices=active_mo_inds
-        #                                                                                         )
-
-        logger.debug(f"core constant: {core_constant}")
-
-        one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
-            one_body_ints_reduced, two_body_ints_reduced
-        )
-
-        molecular_hamiltonian = InteractionOperator(
-            core_constant, one_body_coefficients, 0.5 * two_body_coefficients
-        )
-
-        return molecular_hamiltonian
-
-    def run_emb_CCSD(
+    def _run_emb_CCSD(
         self, emb_pyscf_scf_rhf: scf.RHF, frozen_orb_list: Optional[list] = None
     ) -> Tuple[cc.CCSD, float]:
         """Function run CCSD on embedded restricted Hartree Fock object
@@ -508,7 +466,7 @@ class NbedDriver(object):
         e_ccsd_corr, _, _ = ccsd.kernel()
         return ccsd, e_ccsd_corr
 
-    def run_emb_FCI(
+    def _run_emb_FCI(
         self, emb_pyscf_scf_rhf: gto.Mole, frozen_orb_list: Optional[list] = None
     ) -> Tuple[fci.FCI]:
         """Function run FCI on embedded restricted Hartree Fock object
@@ -533,7 +491,7 @@ class NbedDriver(object):
 
     def _mu_embed(self, localized_rhf: StreamObject) -> np.ndarray:
         """Embed using the Mu-shift projector.
-        
+
         Args:
             localized_rhf (StreamObject): A PySCF RHF method in the localized basis.
 
@@ -565,7 +523,7 @@ class NbedDriver(object):
 
     def _huzinaga_embed(self, localized_rhf: StreamObject) -> np.ndarray:
         """Embed using Huzinaga projector.
-        
+
         Args:
             localized_rhf (StreamObject): A PySCF RHF method in the localized basis.
 
@@ -573,7 +531,7 @@ class NbedDriver(object):
             np.ndarray: Matrix form of the embedding potential.
             StreamObject: The embedded RHF object.
         """
-        # We need to run manual HF to update 
+        # We need to run manual HF to update
         # Fock matrix with each cycle
         (
             c_active_embedded,
@@ -600,7 +558,7 @@ class NbedDriver(object):
 
         return v_emb, localized_rhf
 
-    def embed_system(self):
+    def embed(self):
         """Generate embedded Hamiltonian
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
@@ -622,12 +580,13 @@ class NbedDriver(object):
 
         if self.run_mu_shift is True:
             v_emb, embedded_rhf = self._mu_embed(local_rhf)
+            self._mu_ham = second_q_ham()
         elif self.run_huzinaga is True:
             v_emb, embedded_rhf = self._huzinaga_embed(local_rhf)
+
         else:
             logger.error("Neither ")
             raise NbedDriverError("No embedding method selected.")
-
 
         # delete enviroment orbitals:
         shift = self._global_rks.mol.nao - len(self.localized_system.enviro_MO_inds)
@@ -643,7 +602,7 @@ class NbedDriver(object):
         embedded_rhf.mo_coeff = embedded_rhf.mo_coeff[:, active_MO_inds]
         embedded_rhf.mo_energy = embedded_rhf.mo_energy[active_MO_inds]
         embedded_rhf.mo_occ = embedded_rhf.mo_occ[active_MO_inds]
-        
+
         # calculate correction
         wf_correction = np.einsum("ij,ij", v_emb, self.localized_system.dm_active)
 
@@ -651,16 +610,16 @@ class NbedDriver(object):
         self.classical_energy = self.e_env + self.two_e_cross + e_nuc - wf_correction
 
         # Hamiltonian
-        self.molecular_ham = self.molecular_hamiltonian(self._embedded_rhf)
+        self.molecular_ham = self.molecular_hamiltonian(embedded_rhf)
 
         # Calculate ccsd or fci energy
         if self.run_ccsd_emb is True:
-            ccsd_emb, e_ccsd_corr = self.run_emb_CCSD(
-                self._embedded_rhf, frozen_orb_list=None
+            ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(
+                embedded_rhf, frozen_orb_list=None
             )
-
             e_wf_emb = (
-                (ccsd_emb.e_hf + e_ccsd_corr)
+                ccsd_emb.e_hf
+                + e_ccsd_corr
                 + self.e_env
                 + self.two_e_cross
                 - wf_correction
@@ -668,7 +627,7 @@ class NbedDriver(object):
             print("CCSD Energy MU shift:\n\t%s", e_wf_emb)
 
         if self.run_fci_emb is True:
-            fci_emb = self.run_emb_FCI(self._embedded_rhf, frozen_orb_list=None)
+            fci_emb = self._run_emb_FCI(self.embedded_rhf, frozen_orb_list=None)
             e_wf_fci_emb = (
                 (fci_emb.e_tot) + self.e_env + self.two_e_cross - wf_correction
             )
@@ -678,4 +637,12 @@ class NbedDriver(object):
         print(self.localized_system.active_MO_inds)
         print(self.localized_system.enviro_MO_inds)
 
-        return
+        return embedded_rhf
+
+
+import nbed
+
+ham = nbed.nbed()
+ham
+
+qiskit_vqe(hamiltonian=nbed.nbed(geometry, active_atoms)["huzinaga"])

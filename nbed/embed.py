@@ -19,17 +19,11 @@ from pyscf.dft import numint
 from pyscf.dft.rks import get_veff as rks_get_veff
 from pyscf.lib import StreamObject
 
-from nbed.exceptions import NbedConfigError
-from nbed.localisation import (
-    Localizer,
-    PySCFLocalizer,
-    SpadeLocalizer,
-    _local_basis_transform,
-)
-from nbed.utils import setup_logs
+from .driver import NbedDriver
+from .exceptions import NbedConfigError
+from .utils import parse, setup_logs
 
 logger = logging.getLogger(__name__)
-setup_logs()
 
 
 def rks_veff(
@@ -91,11 +85,66 @@ def rks_veff(
     return output
 
 
+def molecular_hamiltonian(
+    scf_method: StreamObject,
+) -> InteractionOperator:
+    """Returns second quantized fermionic molecular Hamiltonian
+
+    Args:
+        scf_method (StreamObject): A pyscf self-consistent method.
+        frozen_indices (list[int]): A list of integer indices of frozen moleclar orbitals.
+
+    Returns:
+        molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
+    """
+
+    # C_matrix containing orbitals to be considered
+    # if there are any environment orbs that have been projected out... these should NOT be present in the
+    # scf_method.mo_coeff array (aka columns should be deleted!)
+    c_matrix_active = scf_method.mo_coeff
+    n_orbs = c_matrix_active.shape[1]
+
+    # one body terms
+    one_body_integrals = c_matrix_active.T @ scf_method.get_hcore() @ c_matrix_active
+
+    two_body_compressed = ao2mo.kernel(scf_method.mol, c_matrix_active)
+
+    # get electron repulsion integrals
+    eri = ao2mo.restore(1, two_body_compressed, n_orbs)  # no permutation symmetry
+
+    # Openfermion uses pysicist notation whereas pyscf uses chemists
+    two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
+
+    core_constant, one_body_ints_reduced, two_body_ints_reduced = (
+        0,
+        one_body_integrals,
+        two_body_integrals,
+    )
+    # core_constant, one_body_ints_reduced, two_body_ints_reduced = get_active_space_integrals(
+    #                                                                                        one_body_integrals,
+    #                                                                                        two_body_integrals,
+    #                                                                                        occupied_indices=None,
+    #                                                                                        active_indices=active_mo_inds
+    #                                                                                         )
+
+    logger.debug(f"core constant: {core_constant}")
+
+    one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
+        one_body_ints_reduced, two_body_ints_reduced
+    )
+
+    molecular_hamiltonian = InteractionOperator(
+        core_constant, one_body_coefficients, 0.5 * two_body_coefficients
+    )
+
+    return molecular_hamiltonian
+
+
 def get_qubit_hamiltonian(
     molecular_ham: InteractionOperator, transformation: str = "jordan_wigner"
 ) -> QubitOperator:
     """Takes in a second quantized fermionic Hamiltonian and returns a qubit hamiltonian under defined fermion
-       to qubit transformation.
+    to qubit transformation.
 
     Args:
         molecular_ham (InteractionOperator): A pyscf self-consistent method.
@@ -116,11 +165,31 @@ def get_qubit_hamiltonian(
         raise NbedConfigError(
             "No Qubit Hamiltonian mapping with name %s", transformation
         )
-
     return qubit_ham
 
 
-if __name__ == "__main__":
-    from .utils import cli
+def cli() -> None:
+    """CLI Interface."""
+    setup_logs()
+    args = parse()
+    driver = NbedDriver(
+        geometry=args["geometry"],
+        n_active_atoms=args["active_atoms"],
+        basis=args["basis"],
+        xc_functional=args["xc_functional"],
+        output=args["output"],
+        localisation=args["localisation"],
+        convergence=args["convergence"],
+        run_ccsd=args["ccsd"],
+        qubits=args["qubits"],
+        savefile=args["savefile"],
+    )
+    embedded_rhf = driver.embed()
 
+    print("Qubit Hamiltonian:")
+    print(qham)
+    print(f"Classical Energy (Ha): {e_classical}")
+
+
+if __name__ == "__main__":
     cli()

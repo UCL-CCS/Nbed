@@ -6,7 +6,7 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import Dict, Union
 
-import openfermion
+import openfermion as openf
 import pennylane as qml
 from cached_property import cached_property
 from openfermion.ops.operators.qubit_operator import QubitOperator
@@ -27,7 +27,7 @@ class HamiltonianConverter:
     """Class to create and output qubit hamiltonians."""
 
     def __init__(
-        self, input_hamiltonian: Union[openfermion.QubitOperator, str, Path]
+        self, input_hamiltonian: Union[openf.QubitOperator, str, Path]
     ) -> None:
         """Initialise class and return output.
 
@@ -38,7 +38,7 @@ class HamiltonianConverter:
         Returns:
             None
         """
-        if type(input_hamiltonian) is openfermion.QubitOperator:
+        if type(input_hamiltonian) is openf.QubitOperator:
             self.openfermion = input_hamiltonian
             self.n_qubits = count_qubits(input_hamiltonian)
             self.intermediate = self._of_to_int()
@@ -132,7 +132,7 @@ class HamiltonianConverter:
 
         return intermediate
 
-    def _int_to_of(self) -> openfermion.QubitOperator:
+    def _int_to_of(self) -> openf.QubitOperator:
         """Convert from IR to openfermion.
 
         This is needed for reading from file.
