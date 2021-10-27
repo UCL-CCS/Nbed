@@ -89,51 +89,6 @@ def rks_veff(
     output = lib.tag_array(vxc, ecoul=ecoul, exc=v_eff.exc, vj=j_mat, vk=k_mat)
     return output
 
-def orthogonal_enviro_projector(
-    local_sys: Localizer,
-    s_half: np.ndarray,
-) -> np.ndarray:
-    """Get projector onto environement MOs
-
-    P_env = Σ_{i ∈ env} |MO_i> <MO_i|
-
-    Args:
-        c_loc_occ_and_virt (np.ndarray): C_matrix of localized MO (virtual and occupied)
-        s_half (np.ndarray): AO overlap matrix to the power of 1/2
-        active_MO_inds (np.ndarray): 1D array of active MO indices
-        enviro_MO_inds (np.ndarray): 1D array of enviornemnt MO indices
-        return_in_ortho_basis (bool): Whether to return projector in orthogonal basis or standard basis
-
-    Returns:
-        projector (np.ndarray): Operator that projects environment MOs onto themselves and active MOs onto zero vector
-    """
-    # 1. Get orthogonal C matrix (localized)
-    c_loc_ortho = s_half @ local_sys.c_loc_occ_and_virt
-
-    # 2. Define projector that projects MO orbs of subsystem B onto themselves and system A onto zero state!
-    #    (do this in orthongoal basis!)
-    #    note we only take MO environment indices!
-    ortho_proj = np.einsum(
-        "ik,jk->ij",
-        c_loc_ortho[:, local_sys.enviro_MO_inds],
-        c_loc_ortho[:, local_sys.enviro_MO_inds],
-    )
-
-    # # env projected onto itself
-    # logger.info(
-    #     f"""Are subsystem B (env) projected onto themselves in ORTHO basis: {
-    #         np.allclose(ortho_proj @ c_loc_ortho[:, enviro_MO_inds],
-    #         c_loc_ortho[:, enviro_MO_inds])}"""
-    # )
-
-    # # act projected onto zero vec
-    # logger.info(
-    #     f"""Is subsystem A traced out  in ORTHO basis?: {
-    #         np.allclose(ortho_proj @ c_loc_ortho[:, active_MO_inds],
-    #         np.zeros_like(c_loc_ortho[:, active_MO_inds]))}"""
-    # )
-    return ortho_proj
-
 
 def get_molecular_hamiltonian(
     scf_method: StreamObject,
