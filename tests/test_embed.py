@@ -28,5 +28,36 @@ def test_nbed() -> None:
     pass
 
 
+def test_orthogonal_enviro_projector(
+    local_sys: Localizer,
+    s_half: np.ndarray,
+) -> np.ndarray:
+    # # 1. Get orthogonal C matrix (localized)
+    # c_loc_ortho = s_half @ local_sys.c_loc_occ_and_virt
+
+    # # 2. Define projector that projects MO orbs of subsystem B onto themselves and system A onto zero state!
+    # #    (do this in orthongoal basis!)
+    # #    note we only take MO environment indices!
+    # ortho_proj = np.einsum(
+    #     "ik,jk->ij",
+    #     c_loc_ortho[:, local_sys.enviro_MO_inds],
+    #     c_loc_ortho[:, local_sys.enviro_MO_inds],
+    # )
+
+    # # env projected onto itself
+    # logger.info(
+    #     f"""Are subsystem B (env) projected onto themselves in ORTHO basis: {
+    #         np.allclose(ortho_proj @ c_loc_ortho[:, enviro_MO_inds],
+    #         c_loc_ortho[:, enviro_MO_inds])}"""
+    # )
+
+    # # act projected onto zero vec
+    # logger.info(
+    #     f"""Is subsystem A traced out  in ORTHO basis?: {
+    #         np.allclose(ortho_proj @ c_loc_ortho[:, active_MO_inds],
+    #         np.zeros_like(c_loc_ortho[:, active_MO_inds]))}"""
+    # )
+    pass
+
 if __name__ == "__main__":
     pass
