@@ -165,46 +165,6 @@ class NbedDriver(object):
         global_rks.verbose = self.pyscf_print_level
         global_rks.kernel()
 
-        hcore_std = global_rks.get_hcore()
-        global_rks.get_hcore = (
-            lambda *args: self._local_basis_transform.conj().T
-            @ hcore_std
-            @ self._local_basis_transform
-        )
-
-        global_rks.get_veff = (
-            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: self._rks_veff(
-                global_rks, self._local_basis_transform, dm=dm, check_result=True
-            )
-        )
-
-        # overwrite C matrix with localised orbitals
-        global_rks.mo_coeff = self.localized_system.c_loc_occ_and_virt
-        dm_loc = global_rks.make_rdm1(
-            mo_coeff=global_rks.mo_coeff, mo_occ=global_rks.mo_occ
-        )
-
-        # fock_locbasis = _global_rks.get_hcore() + _global_rks.get_veff(dm=dm_loc)
-        fock_locbasis = global_rks.get_fock(dm=dm_loc)
-
-        # orbital_energies_std = _global_rks.mo_energy
-        orbital_energies_loc = np.diag(
-            global_rks.mo_coeff.conj().T @ fock_locbasis @ global_rks.mo_coeff
-        )
-        global_rks.mo_energy = orbital_energies_loc
-
-        # # check electronic energy matches standard global calc
-        # global_rks_total_energy_loc = global_rks.energy_tot(dm=dm_loc)
-        # if not np.isclose(self._global_rks.e_tot, global_rks_total_energy_loc):
-        #     raise ValueError(
-        #         "electronic energy of standard calculation not matching localized calculation"
-        #     )
-
-        # check if mo energies match
-        # orbital_energies_std = _global_rks.mo_energy
-        # if not np.allclose(orbital_energies_std, orbital_energies_loc):
-        #     raise ValueError('orbital energies of standard calc not matching localized calc')
-
         return global_rks
 
     def _rks_veff(
