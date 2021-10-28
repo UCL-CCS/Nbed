@@ -375,7 +375,7 @@ class NbedDriver(object):
                 J_mat (np.ndarray): J_matrix defined by input density matrix
             """
             # It seems that PySCF lumps J and K in the J array
-            two_e_term = self._global_rks.get_veff(dm=dm_matrix)
+            two_e_term = self.localized_system.rks.get_veff(dm=dm_matrix)
             j_mat = two_e_term.vj
             k_mat = np.zeros_like(j_mat)
 
@@ -404,7 +404,7 @@ class NbedDriver(object):
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
 
-        two_e_term_total = self._global_rks.get_veff(dm=self.dm_active + self.dm_enviro)
+        two_e_term_total = self.localized_system.rks.get_veff(dm=self.dm_active + self.dm_enviro)
         e_xc_total = two_e_term_total.exc
 
         j_cross = 0.5 * (
