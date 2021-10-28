@@ -1,4 +1,4 @@
-[![CICD Status](https://github.com/AlexisRalli/VQE_in_DFT/actions/workflows/actions.yaml/badge.svg?branch=master)](https://github.com/AlexisRalli/VQE_in_DFT/actions/workflows/actions.yaml)
+[![CICD Status](https://github.com/AlexisRalli/Nbed/actions/workflows/actions.yaml/badge.svg?branch=master)](https://github.com/AlexisRalli/Nbed/actions/workflows/actions.yaml)
 
 # Nbed
 
