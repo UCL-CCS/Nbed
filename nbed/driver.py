@@ -218,7 +218,7 @@ class NbedDriver(object):
             @ self.localized_system._local_basis_transform
         )
 
-        def new_rhf_veff(rhf: scf.RHF, dm: np.ndarray =None, hermi:int =1):
+        def new_rhf_veff(rhf: scf.RHF, dm: np.ndarray = None, hermi: int = 1):
             if dm is None:
                 if rhf.mo_coeff is not None:
                     dm = rhf.make_rdm1(rhf.mo_coeff, rhf.mo_occ)
@@ -240,9 +240,11 @@ class NbedDriver(object):
 
             return new_veff
 
-        local_rhf.get_veff = lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: new_rhf_veff(local_rhf, dm=dm, hermi=hermi)
-
-
+        local_rhf.get_veff = (
+            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: new_rhf_veff(
+                local_rhf, dm=dm, hermi=hermi
+            )
+        )
 
         return local_rhf
 
@@ -474,20 +476,25 @@ class NbedDriver(object):
 
         return v_emb, localized_rhf
 
-    def _freeze_environment(self, embedded_rhf, method:str) -> np.ndarray:
+    def _freeze_environment(self, embedded_rhf, method: str) -> np.ndarray:
         """Remove enironment orbits from."""
         # delete enviroment orbitals:
 
         n_act_mo = len(self.localized_system.active_MO_inds)
         n_env_mo = len(self.localized_system.enviro_MO_inds)
 
-        if method == 'huzinaga':
-            frozen_enviro_orb_inds_HUZ = [i for i in range(n_act_mo, n_act_mo + n_env_mo)]
+        if method == "huzinaga":
+            frozen_enviro_orb_inds_HUZ = [
+                i for i in range(n_act_mo, n_act_mo + n_env_mo)
+            ]
 
-            active_MO_inds = [mo_i for mo_i in range(self.localized_system.rks.mo_coeff.shape[1])
-                                    if mo_i not in frozen_enviro_orb_inds_HUZ]
+            active_MO_inds = [
+                mo_i
+                for mo_i in range(self.localized_system.rks.mo_coeff.shape[1])
+                if mo_i not in frozen_enviro_orb_inds_HUZ
+            ]
 
-        elif method == 'mu':
+        elif method == "mu":
             shift = self.localized_system.rks.mol.nao - n_env_mo
             frozen_enviro_orb_inds = [
                 mo_i for mo_i in range(shift, self.localized_system.rks.mol.nao)
@@ -594,7 +601,7 @@ class NbedDriver(object):
             result = getattr(self, "_" + name)
 
             result["v_emb"], result["rhf"] = method(rhf_copy)
-            result['rhf'] = self._freeze_environment(result['rhf'], name)
+            result["rhf"] = self._freeze_environment(result["rhf"], name)
 
             print(f"V emb mean {name}: {np.mean(result['v_emb'])}")
 
