@@ -2,5 +2,6 @@
 
 from .pyscf import BOYSLocalizer, IBOLocalizer, PMLocalizer
 from .spade import SPADELocalizer
+from .base import Localizer
 
-__all__ = [BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer]
+__all__ = [Localizer, BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer]

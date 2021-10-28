@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import openfermion
 
-from nbed import NbedDriver
+from nbed.localizers import Localizer
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
@@ -28,10 +28,7 @@ def test_nbed() -> None:
     pass
 
 
-def test_orthogonal_enviro_projector(
-    local_sys: Localizer,
-    s_half: np.ndarray,
-) -> np.ndarray:
+def test_orthogonal_enviro_projector() -> None:
     # # 1. Get orthogonal C matrix (localized)
     # c_loc_ortho = s_half @ local_sys.c_loc_occ_and_virt
 

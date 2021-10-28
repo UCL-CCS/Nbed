@@ -598,11 +598,6 @@ class NbedDriver(object):
                 )
                 print("FCI Energy MU shift:\n\t%s", result["fci"])
 
-            # Turn the result dict into an attribute
-            # Is this great or is it terrible?
-            # Been working too long to tell.
-            setattr(self, "_"+name, result)
-
         if self.projector == "both":
             self.molecular_ham = (self._mu["hamiltonian"], self._huzinaga["hamiltonian"])
             self.classical_energy = (self._mu["classical_energy"], self._huzinaga["classical_energy"])
