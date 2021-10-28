@@ -44,13 +44,13 @@ class SPADELocalizer(Localizer):
             c_loc_occ (np.array): full C matrix of localized occupied MOs
         """
         logger.info("Localising with SPADE.")
-        n_occupied_orbitals = np.count_nonzero(self._pyscf_scf.mo_occ == 2)
-        occupied_orbitals = self._pyscf_scf.mo_coeff[:, :n_occupied_orbitals]
+        n_occupied_orbitals = np.count_nonzero(self._global_rks.mo_occ == 2)
+        occupied_orbitals = self._global_rks.mo_coeff[:, :n_occupied_orbitals]
 
-        n_act_aos = self._pyscf_scf.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
+        n_act_aos = self._global_rks.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_aos} active AOs.")
 
-        ao_overlap = self._pyscf_scf.get_ovlp()
+        ao_overlap = self._global_rks.get_ovlp()
 
         # Orbital rotation and partition into subsystems A and B
         # rotation_matrix, sigma = embed.orbital_rotation(occupied_orbitals,

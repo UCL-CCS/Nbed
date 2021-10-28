@@ -14,6 +14,7 @@ from pyscf.dft import numint, rks
 from pyscf.lib import StreamObject, tag_array
 
 from nbed.exceptions import NbedConfigError
+from nbed.localizers.base import Localizer
 
 from .localizers import BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer
 from .scf import huzinaga_RHF
@@ -169,67 +170,6 @@ class NbedDriver(object):
 
         return global_rks
 
-    def _rks_veff(
-        self,
-        pyscf_RKS: StreamObject,
-        unitary_rot: np.ndarray,
-        dm: np.ndarray = None,
-        check_result: bool = False,
-    ) -> tag_array:
-        """
-        Function to get V_eff in new basis.  Note this function is based on: pyscf.dft.rks.get_veff
-
-        Note in RKS calculation Veff = J + Vxc
-        Whereas for RHF calc it is Veff = J - 0.5k
-
-        Args:
-            pyscf_RKS (StreamObject): PySCF RKS obj
-            unitary_rot (np.ndarray): Operator to change basis  (in this code base this should be: cannonical basis
-                                    to localized basis)
-            dm (np.ndarray): Optional input density matrix. If not defined, finds whatever is available from pyscf_RKS_obj
-            check_result (bool): Flag to check result against PySCF functions
-
-        Returns:
-            output (lib.tag_array): Tagged array containing J, K, E_coloumb, E_xcorr, Vxc
-        """
-        if dm is None:
-            if pyscf_RKS.mo_coeff is not None:
-                dm = pyscf_RKS.make_rdm1(pyscf_RKS.mo_coeff, pyscf_RKS.mo_occ)
-            else:
-                dm = pyscf_RKS.init_guess_by_1e()
-
-        # Evaluate RKS/UKS XC functional and potential matrix on given meshgrids
-        # for a set of density matrices.
-        _, _, vxc = numint.nr_vxc(pyscf_RKS.mol, pyscf_RKS.grids, pyscf_RKS.xc, dm)
-
-        # definition in new basis
-        vxc = unitary_rot.conj().T @ vxc @ unitary_rot
-
-        v_eff = rks.get_veff(pyscf_RKS, dm=dm)
-        if v_eff.vk is not None:
-            k_mat = unitary_rot.conj().T @ v_eff.vk @ unitary_rot
-            j_mat = unitary_rot.conj().T @ v_eff.vj @ unitary_rot
-            vxc += j_mat - k_mat * 0.5
-        else:
-            j_mat = unitary_rot.conj().T @ v_eff.vj @ unitary_rot
-            k_mat = None
-            vxc += j_mat
-
-        if check_result is True:
-            veff_check = unitary_rot.conj().T @ v_eff.__array__() @ unitary_rot
-            if not np.allclose(vxc, veff_check):
-                raise ValueError(
-                    "Veff in new basis does not match rotated PySCF value."
-                )
-
-        # note J matrix is in new basis!
-        ecoul = np.einsum("ij,ji", dm, j_mat).real * 0.5
-        # this ecoul term changes if the full density matrix is NOT
-        #    (aka for dm_active and dm_enviroment we get different V_eff under different bases!)
-
-        output = tag_array(vxc, ecoul=ecoul, exc=v_eff.exc, vj=j_mat, vk=k_mat)
-        return output
-
     def localize(self):
         """Run the localizer class."""
         logger.debug(f"Getting localized system using {self.localization}.")
@@ -247,68 +187,9 @@ class NbedDriver(object):
             self.n_active_atoms,
             occ_cutoff=0.95,
             virt_cutoff=0.95,
+            run_virtual_localization=self.run_virtual_localization,
         )
         return localized_system
-
-    @cached_property
-    def _local_basis_transform(
-        self,
-        sanity_check: Optional[bool] = False,
-    ) -> np.ndarray:
-        """Canonical to Localized Orbital Transform.
-
-        Get operator that changes from standard canonical orbitals (C_matrix standard) to
-        localized orbitals (C_matrix_localized)
-
-        Args:
-            pyscf_scf (StreamObject): PySCF molecule object
-            c_all_localized_and_virt (np.array): C_matrix of localized orbitals (includes occupied and virtual)
-            sanity_check (bool): optional flag to check if change of basis is working properly
-
-        Returns:
-            matrix_std_to_loc (np.array): Matrix that maps from standard (canonical) MOs to localized MOs
-        """
-        s_mat = self.pyscf_scf.get_ovlp()
-        s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
-        s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
-
-        # find orthogonal orbitals
-        ortho_std = s_half @ self.pyscf_scf.mo_coeff
-        ortho_loc = s_half @ self.localized_system.c_all_localized_and_virt
-
-        # Build change of basis operator (maps between orthonormal basis (canonical and localized)
-        unitary_ORTHO_std_onto_loc = np.einsum("ik,jk->ij", ortho_std, ortho_loc)
-
-        # move back into non orthogonal basis
-        matrix_std_to_loc = s_neg_half @ unitary_ORTHO_std_onto_loc @ s_half
-
-        # if sanity_check:
-        #     if np.allclose(unitary_ORTHO_std_onto_loc @ ortho_loc, ortho_std) is not True:
-        #         raise ValueError(
-        #             "Change of basis incorrect... U_ORTHO_std_onto_loc*C_ortho_loc !=  C_ortho_STD"
-        #         )
-
-        #     if (
-        #         np.allclose(
-        #             unitary_ORTHO_std_onto_loc.conj().T @ unitary_ORTHO_std_onto_loc,
-        #             np.eye(unitary_ORTHO_std_onto_loc.shape[0]),
-        #         )
-        #         is not True
-        #     ):
-        #         raise ValueError("Change of basis (U_ORTHO_std_onto_loc) is not Unitary!")
-
-        # if sanity_check:
-        #     if (
-        #         np.allclose(
-        #             matrix_std_to_loc @ c_all_localized_and_virt, pyscf_scf.mo_coeff
-        #         )
-        #         is not True
-        #     ):
-        #         raise ValueError(
-        #             "Change of basis incorrect... U_std*C_std !=  C_loc_occ_and_virt"
-        #         )
-
-        return matrix_std_to_loc
 
     def _init_local_rhf(self) -> scf.RHF:
         """Function to build embedded restricted Hartree Fock object for active subsystem
@@ -330,9 +211,9 @@ class NbedDriver(object):
         h_core = local_rhf.get_hcore()
 
         local_rhf.get_hcore = (
-            lambda *args: self._local_basis_transform.conj().T
+            lambda *args: self.localized_system._local_basis_transform.conj().T
             @ h_core
-            @ self._local_basis_transform
+            @ self.localized_system._local_basis_transform
         )
 
         if local_rhf.mo_coeff is not None:
@@ -348,9 +229,9 @@ class NbedDriver(object):
 
         # v_eff = pyscf_obj.get_veff(dm=dm)
         local_rhf.get_veff = (
-            lambda *args: self._local_basis_transform.conj().T
+            lambda *args, **kwargs: self.localized_system._local_basis_transform.conj().T
             @ v_eff
-            @ self._local_basis_transform
+            @ self.localized_system._local_basis_transform
         )
 
         return local_rhf
@@ -360,7 +241,7 @@ class NbedDriver(object):
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
-            self, dm_matrix: np.ndarray
+            localized_system: Localizer,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """
             Calculate the components of subsystem energy from a RKS DFT calculation.
@@ -375,8 +256,9 @@ class NbedDriver(object):
                 e_xc (float): exchange correlation energy defined by input density matrix
                 J_mat (np.ndarray): J_matrix defined by input density matrix
             """
+            dm_matrix = localized_system.dm_active
             # It seems that PySCF lumps J and K in the J array
-            two_e_term = self.localized_system.rks.get_veff(dm=dm_matrix)
+            two_e_term = localized_system.rks.get_veff(dm=dm_matrix)
             j_mat = two_e_term.vj
             k_mat = np.zeros_like(j_mat)
 
@@ -384,7 +266,7 @@ class NbedDriver(object):
             v_xc = two_e_term - j_mat
 
             energy_elec = (
-                np.einsum("ij,ji->", self._global_rks.get_hcore(), dm_matrix)
+                np.einsum("ij,ji->", localized_system.rks.get_hcore(), dm_matrix)
                 + two_e_term.ecoul
                 + two_e_term.exc
             )
@@ -397,20 +279,20 @@ class NbedDriver(object):
             return energy_elec, e_xc, j_mat
 
         (self.e_act, e_xc_act, j_act) = _rks_components(
-            self.localized_system.dm_active,
+            self.localized_system,
         )
         (self.e_env, e_xc_env, j_env) = _rks_components(
-            self.localized_system.dm_enviro,
+            self.localized_system,
         )
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
 
-        two_e_term_total = self.localized_system.rks.get_veff(dm=self.dm_active + self.dm_enviro)
+        two_e_term_total = self.localized_system.rks.get_veff(dm=self.localized_system.dm_active + self.localized_system.dm_enviro)
         e_xc_total = two_e_term_total.exc
 
         j_cross = 0.5 * (
-            np.einsum("ij,ij", self.dm_active, j_env)
-            + np.einsum("ij,ij", self.dm_enviro, j_act)
+            np.einsum("ij,ij", self.localized_system.dm_active, j_env)
+            + np.einsum("ij,ij", self.localized_system.dm_enviro, j_act)
         )
         # Because of projection
         k_cross = 0.0
@@ -592,9 +474,12 @@ class NbedDriver(object):
         embedded_rhf.mo_energy = embedded_rhf.mo_energy[active_MO_inds]
         embedded_rhf.mo_occ = embedded_rhf.mo_occ[active_MO_inds]
 
+        return embedded_rhf
+
     def build_molecular_hamiltonian(
         self,
         scf_method: StreamObject,
+        constant: Optional[float],
     ) -> InteractionOperator:
         """Returns second quantized fermionic molecular Hamiltonian
 
@@ -605,6 +490,8 @@ class NbedDriver(object):
         Returns:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
+        if not constant:
+            constant = 0
         # C_matrix containing orbitals to be considered
         # if there are any environment orbs that have been projected out... these should NOT be present in the
         # scf_method.mo_coeff array (aka columns should be deleted!)
@@ -629,7 +516,7 @@ class NbedDriver(object):
         )
 
         molecular_hamiltonian = InteractionOperator(
-            self.classical_energy, one_body_coefficients, 0.5 * two_body_coefficients
+            constant, one_body_coefficients, 0.5 * two_body_coefficients
         )
 
         return molecular_hamiltonian
@@ -645,8 +532,8 @@ class NbedDriver(object):
         e_nuc = self.localized_system.rks.mol.energy_nuc()
 
         local_rks = self.localized_system.rks
-
-        self._subsystem_dft(local_rks)
+        # Run subsystem DFT (calls localized rks)
+        self._subsystem_dft()
 
         logger.debug("Get global DFT potential to optimize embedded calc in.")
         g_act_and_env = local_rks.get_veff(
@@ -663,12 +550,14 @@ class NbedDriver(object):
             "huzinaga": self._huzinaga_embed,
         }
         if self.projector not in ["huzinaga", "both"]:
-            embeddings.remove("huzinaga")
+            embeddings.pop("huzinaga")
         if self.projector not in ["mu", "both"]:
-            embeddings.remove("mu")
+            embeddings.pop("mu")
 
+        self._mu = {}
+        self._huzinaga = {}
         for name, method in embeddings.items():
-            result = {}
+            result = getattr(self, "_"+name)
 
             result["v_emb"], result["rhf"] = method(local_rhf)
 
@@ -683,7 +572,7 @@ class NbedDriver(object):
             )
 
             # Hamiltonian
-            result["hamiltonain"] = self.build_molecular_hamiltonian(result["rhf"])
+            result["hamiltonian"] = self.build_molecular_hamiltonian(result["rhf"], result['classical_energy'])
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
@@ -716,10 +605,13 @@ class NbedDriver(object):
 
         if self.projector == "both":
             self.molecular_ham = (self._mu["hamiltonian"], self._huzinaga["hamiltonian"])
+            self.classical_energy = (self._mu["classical_energy"], self._huzinaga["classical_energy"])
         elif self.projector == "mu":
             self.molecular_ham = self._mu["hamiltonian"]
+            self.classical_energy = self._mu["classical_energy"]
         elif self.projector == "huzinaga":
             self.molecular_ham = self._huzinaga["hamiltonian"]
+            self.classical_energy = self._huzinaga["classical_energy"]
 
         print(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")
         print(self.localized_system.active_MO_inds)
