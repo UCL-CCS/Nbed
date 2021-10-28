@@ -63,7 +63,7 @@ class HamiltonianConverter:
 
         try:
             qubit_hamiltonain: QubitOperator = transform(self._second_quantized)
-        except TypeError as e:
+        except TypeError:
             logger.error(
                 "Transform selected is not a valid InteractionOperator transform."
             )

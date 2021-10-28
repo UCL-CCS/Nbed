@@ -39,7 +39,6 @@ class NbedDriver(object):
         run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
-        qubits (int): The number of qubits available for the output hamiltonian.
 
     Attributes:
         _global_fci (StreamObject): A Qubit Hamiltonian of some kind
@@ -62,7 +61,6 @@ class NbedDriver(object):
         projector: str,
         localization: Optional[str] = "spade",
         convergence: Optional[float] = 1e-6,
-        qubits: Optional[int] = None,
         charge: Optional[int] = 0,
         mu_level_shift: Optional[float] = 1e6,
         run_ccsd_emb: Optional[bool] = False,
@@ -72,7 +70,7 @@ class NbedDriver(object):
         pyscf_print_level: int = 1,
         savefile: Optional[Path] = None,
     ):
-
+        """Initialise class."""
         config_valid = True
         if projector not in ["mu", "huzinaga", "both"]:
             logger.error(
@@ -105,13 +103,12 @@ class NbedDriver(object):
         self.run_virtual_localization = run_virtual_localization
         self.max_ram_memory = max_ram_memory
         self.pyscf_print_level = pyscf_print_level
-        self.qubits = qubits
         self.savefile = savefile
 
         self.embed()
 
     def _build_mol(self) -> gto.mole:
-        """Function to build PySCF molecule
+        """Function to build PySCF molecule.
 
         Returns:
             full_mol (gto.mol): built PySCF molecule object
@@ -124,8 +121,9 @@ class NbedDriver(object):
 
     @cached_property
     def full_system_hamiltonian(self):
-        """Build full molecular fermionic Hamiltonian (of whole system)
-        Idea is to compare the number of terms to embedded Hamiltonian
+        """Build molecular fermionic Hamiltonian (of whole system).
+
+        Idea is to compare the number of terms to embedded Hamiltonian.
         """
         return self.build_molecular_hamiltonian(self._global_HF)
 
@@ -192,7 +190,7 @@ class NbedDriver(object):
         return localized_system
 
     def _init_local_rhf(self) -> scf.RHF:
-        """Function to build embedded restricted Hartree Fock object for active subsystem
+        """Function to build embedded restricted Hartree Fock object for active subsystem.
 
         Note this function overwrites the total number of electrons to only include active number
         """
@@ -237,7 +235,7 @@ class NbedDriver(object):
         return local_rhf
 
     def _subsystem_dft(self):
-        """Function to perform subsystem RKS DFT calculation"""
+        """Function to perform subsystem RKS DFT calculation."""
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
@@ -260,10 +258,10 @@ class NbedDriver(object):
             # It seems that PySCF lumps J and K in the J array
             two_e_term = localized_system.rks.get_veff(dm=dm_matrix)
             j_mat = two_e_term.vj
-            k_mat = np.zeros_like(j_mat)
+            # k_mat = np.zeros_like(j_mat)
 
             e_xc = two_e_term.exc
-            v_xc = two_e_term - j_mat
+            # v_xc = two_e_term - j_mat
 
             energy_elec = (
                 np.einsum("ij,ji->", localized_system.rks.get_hcore(), dm_matrix)
@@ -287,7 +285,9 @@ class NbedDriver(object):
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
 
-        two_e_term_total = self.localized_system.rks.get_veff(dm=self.localized_system.dm_active + self.localized_system.dm_enviro)
+        two_e_term_total = self.localized_system.rks.get_veff(
+            dm=self.localized_system.dm_active + self.localized_system.dm_enviro
+        )
         e_xc_total = two_e_term_total.exc
 
         j_cross = 0.5 * (
@@ -339,7 +339,7 @@ class NbedDriver(object):
     def _run_emb_CCSD(
         self, emb_pyscf_scf_rhf: scf.RHF, frozen_orb_list: Optional[list] = None
     ) -> Tuple[cc.CCSD, float]:
-        """Function run CCSD on embedded restricted Hartree Fock object
+        """Function run CCSD on embedded restricted Hartree Fock object.
 
         Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
         (see get_embedded_rhf method)
@@ -364,7 +364,7 @@ class NbedDriver(object):
     def _run_emb_FCI(
         self, emb_pyscf_scf_rhf: gto.Mole, frozen_orb_list: Optional[list] = None
     ) -> Tuple[fci.FCI]:
-        """Function run FCI on embedded restricted Hartree Fock object
+        """Function run FCI on embedded restricted Hartree Fock object.
 
         Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
         (see get_embedded_rhf method)
@@ -410,9 +410,10 @@ class NbedDriver(object):
             f"embedded HF energy MU_SHIFT: {localized_rhf.e_tot}, converged: {localized_rhf.converged}"
         )
 
-        dm_active_embedded = localized_rhf.make_rdm1(
-            mo_coeff=localized_rhf.mo_coeff, mo_occ=localized_rhf.mo_occ
-        )
+        # TODO Can be used for checks
+        # dm_active_embedded = localized_rhf.make_rdm1(
+        #     mo_coeff=localized_rhf.mo_coeff, mo_occ=localized_rhf.mo_occ
+        # )
 
         localized_rhf = self._freeze_environment(localized_rhf)
 
@@ -458,9 +459,11 @@ class NbedDriver(object):
         return v_emb, localized_rhf
 
     def _freeze_environment(self, embedded_rhf) -> np.ndarray:
-        """Remove enironment orbits from"""
+        """Remove enironment orbits from."""
         # delete enviroment orbitals:
-        shift = self.localized_system.rks.mol.nao - len(self.localized_system.enviro_MO_inds)
+        shift = self.localized_system.rks.mol.nao - len(
+            self.localized_system.enviro_MO_inds
+        )
         frozen_enviro_orb_inds = [
             mo_i for mo_i in range(shift, self.localized_system.rks.mol.nao)
         ]
@@ -557,7 +560,7 @@ class NbedDriver(object):
         self._mu = {}
         self._huzinaga = {}
         for name, method in embeddings.items():
-            result = getattr(self, "_"+name)
+            result = getattr(self, "_" + name)
 
             result["v_emb"], result["rhf"] = method(local_rhf)
 
@@ -572,7 +575,9 @@ class NbedDriver(object):
             )
 
             # Hamiltonian
-            result["hamiltonian"] = self.build_molecular_hamiltonian(result["rhf"], result['classical_energy'])
+            result["hamiltonian"] = self.build_molecular_hamiltonian(
+                result["rhf"], result["classical_energy"]
+            )
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
@@ -599,8 +604,14 @@ class NbedDriver(object):
                 print("FCI Energy MU shift:\n\t%s", result["fci"])
 
         if self.projector == "both":
-            self.molecular_ham = (self._mu["hamiltonian"], self._huzinaga["hamiltonian"])
-            self.classical_energy = (self._mu["classical_energy"], self._huzinaga["classical_energy"])
+            self.molecular_ham = (
+                self._mu["hamiltonian"],
+                self._huzinaga["hamiltonian"],
+            )
+            self.classical_energy = (
+                self._mu["classical_energy"],
+                self._huzinaga["classical_energy"],
+            )
         elif self.projector == "mu":
             self.molecular_ham = self._mu["hamiltonian"]
             self.classical_energy = self._mu["classical_energy"]

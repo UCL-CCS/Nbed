@@ -3,13 +3,11 @@
 import logging
 from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple
-from cached_property import cached_property
 
 import numpy as np
 import scipy as sp
-from pyscf import dft
-
-from pyscf import gto, lo
+from cached_property import cached_property
+from pyscf import dft, gto, lo
 from pyscf.lib import StreamObject, tag_array
 from pyscf.lo import vvo
 from scipy import linalg
@@ -180,7 +178,6 @@ class Localizer(ABC):
         #     raise ValueError('orbital energies of standard calc not matching localized calc')
 
         return local_rks
-
 
     def _rks_veff(
         self,
