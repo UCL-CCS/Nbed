@@ -137,6 +137,7 @@ class NbedDriver(object):
         global_HF.max_memory = self.max_ram_memory
         global_HF.verbose = self.pyscf_print_level
         global_HF.kernel()
+        print(f"global HF: {global_HF.e_tot}")
 
     @cached_property
     def _global_fci(self) -> StreamObject:
@@ -165,6 +166,7 @@ class NbedDriver(object):
         global_rks.max_memory = self.max_ram_memory
         global_rks.verbose = self.pyscf_print_level
         global_rks.kernel()
+        print(f"global RKS {global_rks.e_tot}")
 
         return global_rks
 
@@ -240,21 +242,22 @@ class NbedDriver(object):
 
         def _rks_components(
             localized_system: Localizer,
+            subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
-            """
-            Calculate the components of subsystem energy from a RKS DFT calculation.
+            """Calculate the components of subsystem energy from a RKS DFT calculation.
 
             For a given density matrix this function returns the electronic energy, exchange correlation energy and
             J,K, V_xc matrices.
 
             Args:
                 dm_matrix (np.ndarray): density matrix (to calculate all matrices from)
+
             Returns:
                 Energy_elec (float): DFT energy defubed by input density matrix
                 e_xc (float): exchange correlation energy defined by input density matrix
                 J_mat (np.ndarray): J_matrix defined by input density matrix
             """
-            dm_matrix = localized_system.dm_active
+            dm_matrix = subsystem_dm
             # It seems that PySCF lumps J and K in the J array
             two_e_term = localized_system.rks.get_veff(dm=dm_matrix)
             j_mat = two_e_term.vj
@@ -277,10 +280,10 @@ class NbedDriver(object):
             return energy_elec, e_xc, j_mat
 
         (self.e_act, e_xc_act, j_act) = _rks_components(
-            self.localized_system,
+            self.localized_system, self.localized_system.dm_active
         )
         (self.e_env, e_xc_env, j_env) = _rks_components(
-            self.localized_system,
+            self.localized_system, self.localized_system.dm_enviro
         )
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
@@ -302,17 +305,22 @@ class NbedDriver(object):
         # overall two_electron cross energy
         self.two_e_cross = j_cross + k_cross + xc_cross
 
-        # if not np.isclose(energy_DFT_components, self._global_rks.e_tot):
-        #     energy_DFT_components = (
-        #         self.e_act
-        #         + self.e_env
-        #         + two_e_cross
-        #         + self._global_rks.energy_nuc()
-        #     )
+        energy_DFT_components = (
+            self.e_act
+            + self.e_env
+            + self.two_e_cross
+            + self._global_rks.energy_nuc()
+        )
+        print("RKS components")
+        print(self.e_act)
+        print(self.e_env)
+        print(self.two_e_cross)
+        print(self._global_rks.energy_nuc())
+        if not np.isclose(energy_DFT_components, self._global_rks.e_tot):
 
-        #     raise ValueError(
-        #         "DFT energy of localized components not matching supersystem DFT"
-        #     )
+            raise ValueError(
+                "DFT energy of localized components not matching supersystem DFT"
+            )
 
         return None
 
@@ -347,6 +355,7 @@ class NbedDriver(object):
         Args:
             emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
             frozen_orb_list (List): A path to an .xyz file describing moleclar geometry.
+
         Returns:
             ccsd (cc.CCSD): PySCF CCSD object
             e_ccsd_corr (float): electron correlation CCSD energy
@@ -372,6 +381,7 @@ class NbedDriver(object):
         Args:
             emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
             frozen_orb_list (List): A path to an .xyz file describing moleclar geometry.
+
         Returns:
             fci_scf (fci.FCI): PySCF FCI object
         """
@@ -455,7 +465,7 @@ class NbedDriver(object):
         localized_rhf.mo_energy = mo_embedded_energy
 
         localized_rhf = self._freeze_environment(localized_rhf)
-
+        print(f"Huzinaga rhf energy: {localized_rhf.e_tot}")
         return v_emb, localized_rhf
 
     def _freeze_environment(self, embedded_rhf) -> np.ndarray:
@@ -484,7 +494,7 @@ class NbedDriver(object):
         scf_method: StreamObject,
         constant: Optional[float],
     ) -> InteractionOperator:
-        """Returns second quantized fermionic molecular Hamiltonian
+        """Returns second quantized fermionic molecular Hamiltonian.
 
         Args:
             scf_method (StreamObject): A pyscf self-consistent method.
@@ -525,16 +535,18 @@ class NbedDriver(object):
         return molecular_hamiltonian
 
     def embed(self):
-        """Generate embedded Hamiltonian
+        """Generate embedded Hamiltonian.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
         """
         self.localized_system = self.localize()
+        
 
         e_nuc = self.localized_system.rks.mol.energy_nuc()
 
         local_rks = self.localized_system.rks
+        print(f"Energy of localized RKS: {local_rks.e_tot}")
         # Run subsystem DFT (calls localized rks)
         self._subsystem_dft()
 
@@ -544,6 +556,7 @@ class NbedDriver(object):
         )
         g_act = local_rks.get_veff(dm=self.localized_system.dm_active)
         self._dft_potential = g_act_and_env - g_act
+        print(f"DFT potential average {np.mean(self._dft_potential)}")
 
         # Initialise here, cause we're going to overwrite properties.
         local_rhf = self._init_local_rhf()
@@ -563,6 +576,7 @@ class NbedDriver(object):
             result = getattr(self, "_" + name)
 
             result["v_emb"], result["rhf"] = method(local_rhf)
+            print(f"V emb mean {name}: {np.mean(result['v_emb'])}")
 
             # calculate correction
             result["correction"] = np.einsum(
