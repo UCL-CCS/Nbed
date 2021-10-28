@@ -76,6 +76,8 @@ class HamiltonianConverter:
                 "Transform selected must output a QubitOperator"
             )
 
+        return qubit_hamiltonain
+
     def convert(self, output_format: str) -> object:
         """Return the required qubit hamiltonian format.
 
