@@ -75,7 +75,7 @@ def parse():
         help="Exchange correlation functional to use in DFT calculations.",
     )
     parser.add_argument(
-        "--localisation",
+        "--localization",
         "--loc",
         "-l",
         type=str.lower,
@@ -85,7 +85,7 @@ def parse():
             "ibo",
             "boys",
         ],
-        help="Method of localisation to use.",
+        help="Method of localization to use.",
     )
     parser.add_argument(
         "--output",

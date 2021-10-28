@@ -6,7 +6,7 @@ nbed:
   xc_functional: b3lyp
   output: openfermion
   projector: huzinaga
-  localisation: spade
+  localization: spade
   convergence: !!float 1e-6
   qubits: 8
   savefile: data/savefile.json

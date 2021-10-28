@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 class Localizer(ABC):
-    """Object used to localise molecular orbitals (MOs) using different localisation schemes.
+    """Object used to localise molecular orbitals (MOs) using different localization schemes.
 
-    Running localisation returns active and environment systems.
+    Running localization returns active and environment systems.
 
     Note:
     The major improvement of IBOs over PM orbitals is that they are based on IAO charges instead of the erratic
@@ -27,12 +27,12 @@ class Localizer(ABC):
     Args:
         pyscf_rks (gto.Mole): PySCF molecule object
         n_active_atoms (int): Number of active atoms
-        localisation_method (str): String of orbital localisation method (spade, pipekmezey, boys, ibo)
+        localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
         occ_cutoff (float): Threshold for selecting occupied active region (only requried if
-                                spade localisation is NOT used)
+                                spade localization is NOT used)
         virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
                                 spade approach too!)
-        run_virtual_localisation (bool): optional flag on whether to perform localisation of virtual orbitals.
+        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
                                          Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
 
     Attributes:
@@ -46,7 +46,7 @@ class Localizer(ABC):
         _c_loc_occ (np.array): C matrix of localized occupied MOs
 
     Methods:
-        run: Main function to run localisation.
+        run: Main function to run localization.
     """
 
     def __init__(
@@ -55,7 +55,7 @@ class Localizer(ABC):
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
-        run_virtual_localisation: Optional[bool] = False,
+        run_virtual_localization: Optional[bool] = False,
     ):
 
         if pyscf_rks.mo_coeff is None:
@@ -73,9 +73,9 @@ class Localizer(ABC):
         self._n_active_atoms = n_active_atoms
         self._occ_cutoff = occ_cutoff
         self._virt_cutoff = virt_cutoff
-        self._run_virtual_localisation = run_virtual_localisation
+        self._run_virtual_localization = run_virtual_localization
 
-        # Run the localisation procedure
+        # Run the localization procedure
         self.run()
 
     @cached_property
@@ -130,7 +130,7 @@ class Localizer(ABC):
     def _localize(
         self,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Abstract method which should handle localisation.
+        """Abstract method which should handle localization.
 
         Returns:
             active_MO_inds (np.array): 1D array of active occupied MO indices
@@ -167,7 +167,7 @@ class Localizer(ABC):
             raise ValueError("number of electrons in localized orbitals is incorrect")
 
     def _localize_virtual_orbs(self) -> None:
-        """Localise virtual (unoccupied) orbitals using different localisation schemes in PySCF.
+        """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
 
         Args:
             pyscf_rks (StreamObject): PySCF molecule object
@@ -230,10 +230,10 @@ class Localizer(ABC):
         return c_virtual_loc
 
     def run(self, sanity_check: bool = False) -> None:
-        """Function that runs localisation
+        """Function that runs localization
 
         Args:
-            sanity_check (bool): optional flag to check denisty matrices and electron number after orbital localisation
+            sanity_check (bool): optional flag to check denisty matrices and electron number after orbital localization
                                  makes sense
         """
         (
@@ -250,7 +250,7 @@ class Localizer(ABC):
         if sanity_check is True:
             self._check_values()
 
-        if self._run_virtual_localisation is True:
+        if self._run_virtual_localization is True:
             c_virtual = self._localize_virtual_orbs()
         else:
             # appends standard virtual orbitals from SCF calculation (NOT localized in any way)

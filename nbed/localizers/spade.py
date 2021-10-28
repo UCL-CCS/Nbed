@@ -19,7 +19,6 @@ class SPADELocalizer(Localizer):
         self,
         pyscf_scf: gto.Mole,
         n_active_atoms: int,
-        localization_method: str,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
         run_virtual_localization: Optional[bool] = False,
@@ -27,7 +26,6 @@ class SPADELocalizer(Localizer):
         super().__init__(
             pyscf_scf,
             n_active_atoms,
-            localization_method,
             occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,
             run_virtual_localization=run_virtual_localization,

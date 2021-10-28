@@ -1,6 +1,6 @@
 """PySCF Localizer Class."""
 
-"""Orbital localisation methods."""
+"""Orbital localization methods."""
 
 import logging
 from abc import ABC, abstractmethod
