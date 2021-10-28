@@ -64,7 +64,6 @@ def nbed(
         projector=projector,
         localization=localization,
         convergence=convergence,
-        qubits=None,
         savefile=savefile,
         charge=charge,
         mu_level_shift=mu_level_shift,
@@ -73,7 +72,7 @@ def nbed(
         max_ram_memory=max_ram_memory,
         pyscf_print_level=pyscf_print_level,
     )
-    converter = HamiltonianConverter(driver.molecular_ham, transform=transform)
+    converter = HamiltonianConverter(driver.molecular_ham[1], transform=transform)
     qham = getattr(converter, output)
 
     print("Qubit Hamiltonian:")
@@ -87,7 +86,7 @@ def cli() -> None:
     """CLI Interface."""
     setup_logs()
     args = parse()
-    nbed(
+    qham = nbed(
         geometry=args["geometry"],
         n_active_atoms=args["n_active_atoms"],
         basis=args["basis"],
@@ -100,6 +99,9 @@ def cli() -> None:
         savefile=args["savefile"],
     )
 
+    from openfermion import eigenspectrum
+
+    print(eigenspectrum(qham)[0])
 
 if __name__ == "__main__":
     cli()

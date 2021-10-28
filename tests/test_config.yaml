@@ -5,9 +5,8 @@ nbed:
   basis: STO-3G
   xc_functional: b3lyp
   output: openfermion
-  projector: huzinaga
+  projector: both
   localization: spade
   convergence: !!float 1e-6
-  qubits: 8
   savefile: data/savefile.json
   transform: jordan_wigner

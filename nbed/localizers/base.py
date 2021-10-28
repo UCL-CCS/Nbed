@@ -57,7 +57,7 @@ class Localizer(ABC):
         virt_cutoff: Optional[float] = 0.95,
         run_virtual_localization: Optional[bool] = False,
     ):
-
+        """Initialise class."""
         if pyscf_rks.mo_coeff is None:
             logger.debug("SCF method not initialised, running now...")
             pyscf_rks.run()
@@ -134,7 +134,6 @@ class Localizer(ABC):
     @cached_property
     def rks(self) -> StreamObject:
         """Localize the input RKS object."""
-
         local_rks = self._global_rks
 
         hcore_std = local_rks.get_hcore()
@@ -186,8 +185,9 @@ class Localizer(ABC):
         dm: np.ndarray = None,
         check_result: bool = False,
     ) -> tag_array:
-        """
-        Function to get V_eff in new basis.  Note this function is based on: pyscf.dft.rks.get_veff
+        """Function to get V_eff in new basis.
+
+        Note this function is based on: pyscf.dft.rks.get_veff
 
         Note in RKS calculation Veff = J + Vxc
         Whereas for RHF calc it is Veff = J - 0.5k
@@ -344,7 +344,7 @@ class Localizer(ABC):
         return c_virtual_loc
 
     def run(self, sanity_check: bool = False) -> None:
-        """Function that runs localization
+        """Function that runs localization.
 
         Args:
             sanity_check (bool): optional flag to check denisty matrices and electron number after orbital localization
