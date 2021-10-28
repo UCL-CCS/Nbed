@@ -1,8 +1,8 @@
 """Main embedding functionality."""
 
 import logging
-from typing import Optional 
 from pathlib import Path
+from typing import Optional
 
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
@@ -87,7 +87,7 @@ def cli() -> None:
     """CLI Interface."""
     setup_logs()
     args = parse()
-    qham = nbed(
+    nbed(
         geometry=args["geometry"],
         n_active_atoms=args["n_active_atoms"],
         basis=args["basis"],
@@ -97,7 +97,6 @@ def cli() -> None:
         transform=args["transform"],
         output=args["output"],
         convergence=args["convergence"],
-        qubits=args["qubits"],
         savefile=args["savefile"],
     )
 

@@ -1,7 +1,5 @@
 """PySCF Localizer Class."""
 
-"""Orbital localization methods."""
-
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple

@@ -108,12 +108,6 @@ def parse():
         help="Path to save file.",
     )
     parser.add_argument(
-        "--qubits",
-        "-q",
-        type=int,
-        help="Maximum number of qubits to be used in Qubit Hamiltonian.",
-    )
-    parser.add_argument(
         "--ccsd",
         action="store_true",
         help="Include if you want to run a ccsd calculation of the whole system.",
