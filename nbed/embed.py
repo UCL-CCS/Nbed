@@ -6,7 +6,7 @@ from typing import Optional
 
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
-from .utils import parse, setup_logs
+from .utils import parse, setup_logs, print_summary
 
 logger = logging.getLogger(__name__)
 
@@ -72,20 +72,17 @@ def nbed(
         max_ram_memory=max_ram_memory,
         pyscf_print_level=pyscf_print_level,
     )
-    converter = HamiltonianConverter(driver.molecular_ham[1], transform=transform)
-    qham = getattr(converter, output)
+    qham = HamiltonianConverter(driver.molecular_ham[1], transform=transform)
 
-    print(driver._mu['ccsd'])
-    print(driver._huzinaga['ccsd'])
+    print(driver._mu["e_ccsd"])
+    print(driver._huzinaga["e_ccsd"])
 
-    print("Qubit Hamiltonian:")
-    print(len(qham.terms))
-    print(f"Classical Energy (Ha): {driver.classical_energy}")
+    print_summary(driver, fci=True)
 
     from openfermion import eigenspectrum
 
-    print(eigenspectrum(qham)[0])
-    import pdb;pdb.set_trace()
+    print(eigenspectrum(driver.molecular_ham[0])[0])
+    print(eigenspectrum(driver.molecular_ham[1])[0])
 
     return qham
 
@@ -105,7 +102,8 @@ def cli() -> None:
         output=args["output"],
         convergence=args["convergence"],
         savefile=args["savefile"],
-        run_ccsd_emb=args["run_ccsd_emb"]
+        run_ccsd_emb=args["run_ccsd_emb"],
+        run_fci_emb=args["run_ccsd_emb"],
     )
 
 

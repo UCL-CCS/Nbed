@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 from typing import Dict, Optional, Tuple
+from copy import copy
 
 import numpy as np
 import scipy as sp
@@ -125,25 +126,26 @@ class NbedDriver(object):
 
         Idea is to compare the number of terms to embedded Hamiltonian.
         """
-        return self.build_molecular_hamiltonian(self._global_HF)
+        return self.build_molecular_hamiltonian(self._global_hf)
 
     @cached_property
     def _global_hf(self) -> StreamObject:
         """Run full system Hartree-Fock."""
         mol_full = self._build_mol()
         # run Hartree-Fock
-        global_HF = scf.RHF(mol_full)
-        global_HF.conv_tol = self.convergence
-        global_HF.max_memory = self.max_ram_memory
-        global_HF.verbose = self.pyscf_print_level
-        global_HF.kernel()
-        print(f"global HF: {global_HF.e_tot}")
+        global_hf = scf.RHF(mol_full)
+        global_hf.conv_tol = self.convergence
+        global_hf.max_memory = self.max_ram_memory
+        global_hf.verbose = self.pyscf_print_level
+        global_hf.kernel()
+        print(f"global HF: {global_hf.e_tot}")
+        return global_hf
 
     @cached_property
     def _global_fci(self) -> StreamObject:
         """Function to run full molecule FCI calculation. FACTORIAL SCALING IN BASIS STATES!"""
         # run FCI after HF
-        global_fci = fci.FCI(self._global_HF)
+        global_fci = fci.FCI(self._global_hf)
         global_fci.conv_tol = self.convergence
         global_fci.verbose = self.pyscf_print_level
         global_fci.max_memory = self.max_ram_memory
@@ -216,23 +218,31 @@ class NbedDriver(object):
             @ self.localized_system._local_basis_transform
         )
 
-        if local_rhf.mo_coeff is not None:
-            dm = local_rhf.make_rdm1(local_rhf.mo_coeff, local_rhf.mo_occ)
-        else:
-            dm = local_rhf.init_guess_by_1e()
+        def new_rhf_veff(rhf: scf.RHF, dm: np.ndarray =None, hermi:int =1):
+            if dm is None:
+                if rhf.mo_coeff is not None:
+                    dm = rhf.make_rdm1(rhf.mo_coeff, rhf.mo_occ)
+                else:
+                    dm = rhf.init_guess_by_1e()
 
-        # if pyscf_RHF._eri is None:
-        #     pyscf_RHF._eri = pyscf_RHF.mol.intor('int2e', aosym='s8')
+            # if pyscf_RHF._eri is None:
+            #     pyscf_RHF._eri = pyscf_RHF.mol.intor('int2e', aosym='s8')
 
-        vj, vk = local_rhf.get_jk(mol=local_rhf.mol, dm=dm, hermi=1)
-        v_eff = vj - vk * 0.5
+            vj, vk = rhf.get_jk(mol=rhf.mol, dm=dm, hermi=hermi)
+            v_eff = vj - vk * 0.5
 
-        # v_eff = pyscf_obj.get_veff(dm=dm)
-        local_rhf.get_veff = (
-            lambda *args, **kwargs: self.localized_system._local_basis_transform.conj().T
-            @ v_eff
-            @ self.localized_system._local_basis_transform
-        )
+            # v_eff = pyscf_obj.get_veff(dm=dm)
+            new_veff = (
+                self.localized_system._local_basis_transform.conj().T
+                @ v_eff
+                @ self.localized_system._local_basis_transform
+            )
+
+            return new_veff
+
+        local_rhf.get_veff = lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: new_rhf_veff(local_rhf, dm=dm, hermi=hermi)
+
+
 
         return local_rhf
 
@@ -306,10 +316,7 @@ class NbedDriver(object):
         self.two_e_cross = j_cross + k_cross + xc_cross
 
         energy_DFT_components = (
-            self.e_act
-            + self.e_env
-            + self.two_e_cross
-            + self._global_rks.energy_nuc()
+            self.e_act + self.e_env + self.two_e_cross + self._global_rks.energy_nuc()
         )
         print("RKS components")
         print(self.e_act)
@@ -425,8 +432,6 @@ class NbedDriver(object):
         #     mo_coeff=localized_rhf.mo_coeff, mo_occ=localized_rhf.mo_occ
         # )
 
-        localized_rhf = self._freeze_environment(localized_rhf)
-
         return v_emb, localized_rhf
 
     def _huzinaga_embed(self, localized_rhf: StreamObject) -> np.ndarray:
@@ -463,26 +468,38 @@ class NbedDriver(object):
             mo_embedded_energy, c_active_embedded
         )
         localized_rhf.mo_energy = mo_embedded_energy
+        localized_rhf.e_tot = localized_rhf.energy_tot(dm=dm_active_embedded)
 
-        localized_rhf = self._freeze_environment(localized_rhf)
         print(f"Huzinaga rhf energy: {localized_rhf.e_tot}")
+
         return v_emb, localized_rhf
 
-    def _freeze_environment(self, embedded_rhf) -> np.ndarray:
+    def _freeze_environment(self, embedded_rhf, method:str) -> np.ndarray:
         """Remove enironment orbits from."""
         # delete enviroment orbitals:
-        shift = self.localized_system.rks.mol.nao - len(
-            self.localized_system.enviro_MO_inds
-        )
-        frozen_enviro_orb_inds = [
-            mo_i for mo_i in range(shift, self.localized_system.rks.mol.nao)
-        ]
-        active_MO_inds = [
-            mo_i
-            for mo_i in range(embedded_rhf.mo_coeff.shape[1])
-            if mo_i not in frozen_enviro_orb_inds
-        ]
 
+        n_act_mo = len(self.localized_system.active_MO_inds)
+        n_env_mo = len(self.localized_system.enviro_MO_inds)
+
+        if method == 'huzinaga':
+            frozen_enviro_orb_inds_HUZ = [i for i in range(n_act_mo, n_act_mo + n_env_mo)]
+
+            active_MO_inds = [mo_i for mo_i in range(self.localized_system.rks.mo_coeff.shape[1])
+                                    if mo_i not in frozen_enviro_orb_inds_HUZ]
+
+        elif method == 'mu':
+            shift = self.localized_system.rks.mol.nao - n_env_mo
+            frozen_enviro_orb_inds = [
+                mo_i for mo_i in range(shift, self.localized_system.rks.mol.nao)
+            ]
+            active_MO_inds = [
+                mo_i
+                for mo_i in range(embedded_rhf.mo_coeff.shape[1])
+                if mo_i not in frozen_enviro_orb_inds
+            ]
+
+        else:
+            raise ValueError("Must use mu or huzinaga flag.")
         embedded_rhf.mo_coeff = embedded_rhf.mo_coeff[:, active_MO_inds]
         embedded_rhf.mo_energy = embedded_rhf.mo_energy[active_MO_inds]
         embedded_rhf.mo_occ = embedded_rhf.mo_occ[active_MO_inds]
@@ -492,7 +509,7 @@ class NbedDriver(object):
     def build_molecular_hamiltonian(
         self,
         scf_method: StreamObject,
-        constant: Optional[float],
+        constant: Optional[float] = None,
     ) -> InteractionOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
@@ -562,8 +579,8 @@ class NbedDriver(object):
         local_rhf = self._init_local_rhf()
 
         embeddings: Dict[str, callable] = {
-            "mu": self._mu_embed,
             "huzinaga": self._huzinaga_embed,
+            "mu": self._mu_embed,
         }
         if self.projector not in ["huzinaga", "both"]:
             embeddings.pop("huzinaga")
@@ -573,14 +590,23 @@ class NbedDriver(object):
         self._mu = {}
         self._huzinaga = {}
         for name, method in embeddings.items():
+            rhf_copy = copy(local_rhf)
             result = getattr(self, "_" + name)
 
-            result["v_emb"], result["rhf"] = method(local_rhf)
+            result["v_emb"], result["rhf"] = method(rhf_copy)
+            result['rhf'] = self._freeze_environment(result['rhf'], name)
+
             print(f"V emb mean {name}: {np.mean(result['v_emb'])}")
 
             # calculate correction
             result["correction"] = np.einsum(
                 "ij,ij", result["v_emb"], self.localized_system.dm_active
+            )
+            result["e_rhf"] = (
+                result["rhf"].e_tot
+                + self.e_env
+                + self.two_e_cross
+                - result["correction"]
             )
 
             # classical energy
@@ -598,24 +624,24 @@ class NbedDriver(object):
                 ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(
                     result["rhf"], frozen_orb_list=None
                 )
-                result["ccsd"] = (
+                result["e_ccsd"] = (
                     ccsd_emb.e_hf
                     + e_ccsd_corr
                     + self.e_env
                     + self.two_e_cross
                     - result["correction"]
                 )
-                print(f"CCSD Energy {name}:\n\t{result['ccsd']}")
+                print(f"CCSD Energy {name}:\n\t{result['e_ccsd']}")
 
             if self.run_fci_emb is True:
                 fci_emb = self._run_emb_FCI(result["rhf"], frozen_orb_list=None)
-                result["fci"] = (
+                result["e_fci"] = (
                     (fci_emb.e_tot)
                     + self.e_env
                     + self.two_e_cross
                     - result["correction"]
                 )
-                print(f"FCI Energy {name}:\n\t{result['fci']}")
+                print(f"FCI Energy {name}:\n\t{result['e_fci']}")
 
         if self.projector == "both":
             self.molecular_ham = (
