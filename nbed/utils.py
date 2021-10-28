@@ -81,7 +81,7 @@ def parse():
         type=str.lower,
         choices=[
             "spade",
-            "mullikan",
+            "pipek-mezey",
             "ibo",
             "boys",
         ],

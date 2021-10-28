@@ -31,7 +31,7 @@ class NbedDriver(object):
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
         projector (str):
-        localization (str): Orbital localization method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
+        localization (str): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
         convergence (float): The convergence tolerance for energy calculations.
         charge (int): Charge of molecular species
         mu_level_shift (float): Level shift parameter to use for mu-projector.
@@ -79,9 +79,9 @@ class NbedDriver(object):
             )
             config_valid = False
 
-        if localization not in ["spade", "ibo", "boys", "mullikan"]:
+        if localization not in ["spade", "ibo", "boys", "pipek-mezey"]:
             logger.error(
-                "Invalid localization method %s. Choose from 'ibo','boys','mullikan' or 'spade'.",
+                "Invalid localization method %s. Choose from 'ibo','boys','pipek-mezey' or 'spade'.",
                 localization,
             )
             config_valid = False
@@ -178,7 +178,7 @@ class NbedDriver(object):
             "spade": SPADELocalizer,
             "boys": BOYSLocalizer,
             "ibo": IBOLocalizer,
-            "pipek-menzy": PMLocalizer,
+            "pipek-mezey": PMLocalizer,
         }
 
         # Should already be validated.
@@ -541,7 +541,7 @@ class NbedDriver(object):
         This is done when object is initialized.
         """
         self.localized_system = self.localize()
-        
+        print(f"Orbital energies {self.localized_system.rks.mo_energy}")
 
         e_nuc = self.localized_system.rks.mol.energy_nuc()
 
@@ -601,11 +601,11 @@ class NbedDriver(object):
                 result["ccsd"] = (
                     ccsd_emb.e_hf
                     + e_ccsd_corr
-                    + self.e_envf
+                    + self.e_env
                     + self.two_e_cross
                     - result["correction"]
                 )
-                print("CCSD Energy MU shift:\n\t%s", result["ccsd"])
+                print(f"CCSD Energy {name}:\n\t{result['ccsd']}")
 
             if self.run_fci_emb is True:
                 fci_emb = self._run_emb_FCI(result["rhf"], frozen_orb_list=None)
@@ -615,7 +615,7 @@ class NbedDriver(object):
                     + self.two_e_cross
                     - result["correction"]
                 )
-                print("FCI Energy MU shift:\n\t%s", result["fci"])
+                print(f"FCI Energy {name}:\n\t{result['fci']}")
 
         if self.projector == "both":
             self.molecular_ham = (

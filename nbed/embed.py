@@ -43,7 +43,7 @@ def nbed(
         xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
         projector (str): Type of projector to use in embedding. One of "mu" or "huzinaga".
         output (str): The name of the quantum backend to output a qubit hamiltonian object for.
-        localization (str): Orbital localization method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
+        localization (str): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
         convergence (float): The convergence tolerance for energy calculations.
         charge (int): Charge of molecular species
         mu_level_shift (float): Level shift parameter to use for mu-projector.
@@ -75,9 +75,17 @@ def nbed(
     converter = HamiltonianConverter(driver.molecular_ham[1], transform=transform)
     qham = getattr(converter, output)
 
+    print(driver._mu['ccsd'])
+    print(driver._huzinaga['ccsd'])
+
     print("Qubit Hamiltonian:")
     print(len(qham.terms))
     print(f"Classical Energy (Ha): {driver.classical_energy}")
+
+    from openfermion import eigenspectrum
+
+    print(eigenspectrum(qham)[0])
+    import pdb;pdb.set_trace()
 
     return qham
 
@@ -97,11 +105,9 @@ def cli() -> None:
         output=args["output"],
         convergence=args["convergence"],
         savefile=args["savefile"],
+        run_ccsd_emb=args["run_ccsd_emb"]
     )
 
-    from openfermion import eigenspectrum
-
-    print(eigenspectrum(qham)[0])
 
 if __name__ == "__main__":
     cli()
