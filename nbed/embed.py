@@ -77,7 +77,7 @@ def nbed(
     qham = getattr(converter, output)
 
     print("Qubit Hamiltonian:")
-    print(qham)
+    print(len(qham.terms))
     print(f"Classical Energy (Ha): {driver.classical_energy}")
 
     return qham
