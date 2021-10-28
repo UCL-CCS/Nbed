@@ -6,7 +6,8 @@ nbed:
   xc_functional: b3lyp
   output: openfermion
   projector: both
-  localization: spade
+  localization: pipek-mezey
   convergence: !!float 1e-6
   savefile: data/savefile.json
   transform: jordan_wigner
+  run_ccsd_emb: True

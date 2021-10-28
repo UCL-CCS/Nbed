@@ -103,31 +103,29 @@ class Localizer(ABC):
         # move back into non orthogonal basis
         matrix_std_to_loc = s_neg_half @ unitary_ORTHO_std_onto_loc @ s_half
 
-        # if sanity_check:
-        #     if np.allclose(unitary_ORTHO_std_onto_loc @ ortho_loc, ortho_std) is not True:
-        #         raise ValueError(
-        #             "Change of basis incorrect... U_ORTHO_std_onto_loc*C_ortho_loc !=  C_ortho_STD"
-        #         )
+        # if np.allclose(unitary_ORTHO_std_onto_loc @ ortho_loc, ortho_std) is not True:
+        #     raise ValueError(
+        #         "Change of basis incorrect... U_ORTHO_std_onto_loc*C_ortho_loc !=  C_ortho_STD"
+        #     )
 
-        #     if (
-        #         np.allclose(
-        #             unitary_ORTHO_std_onto_loc.conj().T @ unitary_ORTHO_std_onto_loc,
-        #             np.eye(unitary_ORTHO_std_onto_loc.shape[0]),
-        #         )
-        #         is not True
-        #     ):
-        #         raise ValueError("Change of basis (U_ORTHO_std_onto_loc) is not Unitary!")
+        # if (
+        #     np.allclose(
+        #         unitary_ORTHO_std_onto_loc.conj().T @ unitary_ORTHO_std_onto_loc,
+        #         np.eye(unitary_ORTHO_std_onto_loc.shape[0]),
+        #     )
+        #     is not True
+        # ):
+        #     raise ValueError("Change of basis (U_ORTHO_std_onto_loc) is not Unitary!")
 
-        # if sanity_check:
-        #     if (
-        #         np.allclose(
-        #             matrix_std_to_loc @ c_all_localized_and_virt, pyscf_scf.mo_coeff
-        #         )
-        #         is not True
-        #     ):
-        #         raise ValueError(
-        #             "Change of basis incorrect... U_std*C_std !=  C_loc_occ_and_virt"
-        #         )
+        # if (
+        #     np.allclose(
+        #         matrix_std_to_loc @ self.c_loc_occ_and_virt, self._global_rks.mo_coeff
+        #     )
+        #     is not True
+        # ):
+        #     raise ValueError(
+        #         "Change of basis incorrect... U_std*C_std !=  C_loc_occ_and_virt"
+        #     )
 
         return matrix_std_to_loc
 
@@ -162,19 +160,18 @@ class Localizer(ABC):
         orbital_energies_loc = np.diag(
             local_rks.mo_coeff.conj().T @ fock_locbasis @ local_rks.mo_coeff
         )
+
+        # check electronic energy matches standard global calc
+        local_rks_total_energy_loc = local_rks.energy_tot(dm=dm_loc)
+        if not np.isclose(local_rks.e_tot, local_rks_total_energy_loc):
+            raise ValueError(
+                "electronic energy of standard calculation not matching localized calculation"
+            )
+
         local_rks.mo_energy = orbital_energies_loc
-
-        # # check electronic energy matches standard global calc
-        # local_rks_total_energy_loc = local_rks.energy_tot(dm=dm_loc)
-        # if not np.isclose(self._local_rks.e_tot, local_rks_total_energy_loc):
-        #     raise ValueError(
-        #         "electronic energy of standard calculation not matching localized calculation"
-        #     )
-
-        # check if mo energies match
-        # orbital_energies_std = _local_rks.mo_energy
-        # if not np.allclose(orbital_energies_std, orbital_energies_loc):
-        #     raise ValueError('orbital energies of standard calc not matching localized calc')
+        # check if mo energies match - too strict maye change of basis operator not exact
+        # if not np.allclose(local_rks.mo_energy, orbital_energies_loc):
+            # raise ValueError('orbital energies of standard calc not matching localized calc')
 
         return local_rks
 

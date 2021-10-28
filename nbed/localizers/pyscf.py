@@ -79,7 +79,7 @@ class PySCFLocalizer(Localizer, ABC):
 
         active_MO_inds = np.where(MO_active_percentage > self._occ_cutoff)[0]
         enviro_MO_inds = np.array(
-            [i for i in range(c_loc_occ.shape[1]) if i not in self.active_MO_inds]
+            [i for i in range(c_loc_occ.shape[1]) if i not in active_MO_inds]
         )
 
         # define active MO orbs and environment
