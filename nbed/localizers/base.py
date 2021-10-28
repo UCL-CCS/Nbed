@@ -171,7 +171,7 @@ class Localizer(ABC):
         local_rks.mo_energy = orbital_energies_loc
         # check if mo energies match - too strict maye change of basis operator not exact
         # if not np.allclose(local_rks.mo_energy, orbital_energies_loc):
-            # raise ValueError('orbital energies of standard calc not matching localized calc')
+        # raise ValueError('orbital energies of standard calc not matching localized calc')
 
         return local_rks
 

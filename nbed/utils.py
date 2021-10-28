@@ -168,45 +168,41 @@ def print_summary(driver: NbedDriver, fci: bool = False):
     print("  Summary of Embedded Calculation".center(80))
     print("".center(80, "*"))
 
-    print(f"global (cheap) DFT calculation {driver._global_rks}")
+    print(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
 
     if driver.projector in ["huzinaga", "both"]:
         print("".center(80, "*"))
         print("  Huzinaga calculation".center(20))
-        print(f"Total energy - active system at RHF level: {driver.emb_rhf_etot_HUZ}")
+        print(f"Total energy - active system at RHF level: {driver._huzinaga['e_rhf']}")
         if driver.run_ccsd_emb is True:
             print(
-                f"Total energy - active system at CCSD level: {driver.e_wf_ccsd_emb_HUZ}"
+                f"Total energy - active system at CCSD level: {driver._huzinaga['e_ccsd']}"
             )
         if driver.run_fci_emb is True:
             print(
-                f"Total energy - active system at FCI level: {driver.e_wf_fci_emb_HUZ}"
+                f"Total energy - active system at FCI level: {driver._huzinaga['e_fci']}"
             )
 
         print(
-            f"length of huzinaga embedded fermionic Hamiltonian: {len(list(driver.molecular_ham_HUZ))}"
+            f"length of huzinaga embedded fermionic Hamiltonian: {len(list(driver._huzinaga['hamiltonian']))}"
         )
-        print(f"number of qubits required: {count_qubits(driver._huzinaga_ham)}")
+        print(
+            f"number of qubits required: {count_qubits(driver._huzinaga['hamiltonian'])}"
+        )
 
     if driver.projector in ["mu", "both"]:
         print("".center(80, "*"))
         print("  Mu shift calculation".center(20))
-        print(
-            f"Total energy - active system at RHF level: {driver.emb_rhf_etot_mu_shift}"
-        )
+        print(f"Total energy - active system at RHF level: {driver._mu['e_rhf']}")
         if driver.run_ccsd_emb is True:
-            print(
-                f"Total energy - active system at CCSD level: {driver.e_wf_ccsd_emb_MU}"
-            )
+            print(f"Total energy - active system at CCSD level: {driver._mu['e_ccsd']}")
         if driver.run_fci_emb is True:
-            print(
-                f"Total energy - active system at FCI level: {driver.e_wf_fci_emb_MU}"
-            )
+            print(f"Total energy - active system at FCI level: {driver._mu['e_fci']}")
 
         print(
-            f"length of mu embedded fermionic Hamiltonian: {len(list(driver.molecular_ham_MU))}"
+            f"length of mu embedded fermionic Hamiltonian: {len(list(driver._mu['hamiltonian']))}"
         )
-        print(f"number of qubits required: {count_qubits(driver._mu_ham)}")
+        print(f"number of qubits required: {count_qubits(driver._mu['hamiltonian'])}")
 
     print("".center(80, "*"))
     print("  Summary of reference Calculation".center(80))
@@ -217,4 +213,4 @@ def print_summary(driver: NbedDriver, fci: bool = False):
     print(
         f"length of full system fermionic Hamiltonian: {len(list(driver.full_system_hamiltonian))}"
     )
-    print(f"number of qubits required: {driver.n_qubits_full_system}")
+    print(f"number of qubits required: {count_qubits(driver.full_system_hamiltonian)}")
