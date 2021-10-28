@@ -19,7 +19,7 @@ def nbed(
     projector: str,
     output: str,
     transform: str,
-    localisation: Optional[str] = "spade",
+    localization: Optional[str] = "spade",
     convergence: Optional[float] = 1e-6,
     qubits: Optional[int] = None,
     charge: Optional[int] = 0,
@@ -43,7 +43,7 @@ def nbed(
         xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
         projector (str): Type of projector to use in embedding. One of "mu" or "huzinaga".
         output (str): The name of the quantum backend to output a qubit hamiltonian object for.
-        localisation (str): Orbital Localisation method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
+        localization (str): Orbital localization method to use. One of 'spade', 'mullikan', 'boys' or 'ibo'.
         convergence (float): The convergence tolerance for energy calculations.
         charge (int): Charge of molecular species
         mu_level_shift (float): Level shift parameter to use for mu-projector.
@@ -62,7 +62,7 @@ def nbed(
         basis=basis,
         xc_functional=xc_functional,
         projector=projector,
-        localisation=localisation,
+        localization=localization,
         convergence=convergence,
         qubits=None,
         savefile=savefile,
@@ -93,7 +93,7 @@ def cli() -> None:
         basis=args["basis"],
         xc_functional=args["xc_functional"],
         projector=args["projector"],
-        localisation=args["localisation"],
+        localization=args["localization"],
         transform=args["transform"],
         output=args["output"],
         convergence=args["convergence"],
