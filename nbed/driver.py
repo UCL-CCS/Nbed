@@ -138,7 +138,7 @@ class NbedDriver(object):
         global_hf.max_memory = self.max_ram_memory
         global_hf.verbose = self.pyscf_print_level
         global_hf.kernel()
-        print(f"global HF: {global_hf.e_tot}")
+        logger.info(f"global HF: {global_hf.e_tot}")
         return global_hf
 
     @cached_property
@@ -150,7 +150,7 @@ class NbedDriver(object):
         global_fci.verbose = self.pyscf_print_level
         global_fci.max_memory = self.max_ram_memory
         global_fci.run()
-        print(f"global FCI: {global_fci.e_tot}")
+        logger.info(f"global FCI: {global_fci.e_tot}")
 
         return global_fci
 
@@ -168,7 +168,7 @@ class NbedDriver(object):
         global_rks.max_memory = self.max_ram_memory
         global_rks.verbose = self.pyscf_print_level
         global_rks.kernel()
-        print(f"global RKS {global_rks.e_tot}")
+        logger.info(f"global RKS {global_rks.e_tot}")
 
         return global_rks
 
@@ -320,11 +320,11 @@ class NbedDriver(object):
         energy_DFT_components = (
             self.e_act + self.e_env + self.two_e_cross + self._global_rks.energy_nuc()
         )
-        print("RKS components")
-        print(self.e_act)
-        print(self.e_env)
-        print(self.two_e_cross)
-        print(self._global_rks.energy_nuc())
+        logger.info("RKS components")
+        logger.info(self.e_act)
+        logger.info(self.e_env)
+        logger.info(self.two_e_cross)
+        logger.info(self._global_rks.energy_nuc())
         if not np.isclose(energy_DFT_components, self._global_rks.e_tot):
 
             raise ValueError(
@@ -425,7 +425,7 @@ class NbedDriver(object):
 
         logger.debug("Running embedded RHF calculation.")
         localized_rhf.kernel()
-        print(
+        logger.info(
             f"embedded HF energy MU_SHIFT: {localized_rhf.e_tot}, converged: {localized_rhf.converged}"
         )
 
@@ -472,7 +472,7 @@ class NbedDriver(object):
         localized_rhf.mo_energy = mo_embedded_energy
         localized_rhf.e_tot = localized_rhf.energy_tot(dm=dm_active_embedded)
 
-        print(f"Huzinaga rhf energy: {localized_rhf.e_tot}")
+        logger.info(f"Huzinaga rhf energy: {localized_rhf.e_tot}")
 
         return v_emb, localized_rhf
 
@@ -565,12 +565,12 @@ class NbedDriver(object):
         This is done when object is initialized.
         """
         self.localized_system = self.localize()
-        print(f"Orbital energies {self.localized_system.rks.mo_energy}")
+        logger.info(f"Orbital energies {self.localized_system.rks.mo_energy}")
 
         e_nuc = self.localized_system.rks.mol.energy_nuc()
 
         local_rks = self.localized_system.rks
-        print(f"Energy of localized RKS: {local_rks.e_tot}")
+        logger.info(f"Energy of localized RKS: {local_rks.e_tot}")
         # Run subsystem DFT (calls localized rks)
         self._subsystem_dft()
 
@@ -580,7 +580,7 @@ class NbedDriver(object):
         )
         g_act = local_rks.get_veff(dm=self.localized_system.dm_active)
         self._dft_potential = g_act_and_env - g_act
-        print(f"DFT potential average {np.mean(self._dft_potential)}")
+        logger.info(f"DFT potential average {np.mean(self._dft_potential)}")
 
         # Initialise here, cause we're going to overwrite properties.
         local_rhf = self._init_local_rhf()
@@ -603,7 +603,7 @@ class NbedDriver(object):
             result["v_emb"], result["rhf"] = method(rhf_copy)
             result["rhf"] = self._freeze_environment(result["rhf"], name)
 
-            print(f"V emb mean {name}: {np.mean(result['v_emb'])}")
+            logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
 
             # calculate correction
             result["correction"] = np.einsum(
@@ -638,7 +638,7 @@ class NbedDriver(object):
                     + self.two_e_cross
                     - result["correction"]
                 )
-                print(f"CCSD Energy {name}:\n\t{result['e_ccsd']}")
+                logger.info(f"CCSD Energy {name}:\n\t{result['e_ccsd']}")
 
             if self.run_fci_emb is True:
                 fci_emb = self._run_emb_FCI(result["rhf"], frozen_orb_list=None)
@@ -648,7 +648,7 @@ class NbedDriver(object):
                     + self.two_e_cross
                     - result["correction"]
                 )
-                print(f"FCI Energy {name}:\n\t{result['e_fci']}")
+                logger.info(f"FCI Energy {name}:\n\t{result['e_fci']}")
 
         if self.projector == "both":
             self.molecular_ham = (
@@ -666,6 +666,6 @@ class NbedDriver(object):
             self.molecular_ham = self._huzinaga["hamiltonian"]
             self.classical_energy = self._huzinaga["classical_energy"]
 
-        print(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")
-        print(self.localized_system.active_MO_inds)
-        print(self.localized_system.enviro_MO_inds)
+        logger.info(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")
+        logger.info(self.localized_system.active_MO_inds)
+        logger.info(self.localized_system.enviro_MO_inds)

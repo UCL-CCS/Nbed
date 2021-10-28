@@ -130,8 +130,8 @@ def parse():
         logger.info(
             f"Missing values for argument {[key for key, value in args.items() if value is None]}"
         )
-        print("\nMissing values for arguments: ".upper())
-        print(f"{[key for key, value in args.items() if value is None]}\n")
+        logger.info("\nMissing values for arguments: ".upper())
+        logger.info(f"{[key for key, value in args.items() if value is None]}\n")
         raise Exception("Missing argument values.")
 
     args["savefile"] = str(Path(args["savefile"]).absolute())
@@ -161,56 +161,56 @@ def print_summary(driver: NbedDriver, fci: bool = False):
         logger.error(
             "Driver does not have molecular hamiltonian. Cannot print summary."
         )
-        print("Driver does not have molecular hamiltonian. Cannot print summary.")
+        logger.info("Driver does not have molecular hamiltonian. Cannot print summary.")
         return
 
-    print("".center(80, "*"))
-    print("  Summary of Embedded Calculation".center(80))
-    print("".center(80, "*"))
+    logger.info("".center(80, "*"))
+    logger.info("  Summary of Embedded Calculation".center(80))
+    logger.info("".center(80, "*"))
 
-    print(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
+    logger.info(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
 
     if driver.projector in ["huzinaga", "both"]:
-        print("".center(80, "*"))
-        print("  Huzinaga calculation".center(20))
-        print(f"Total energy - active system at RHF level: {driver._huzinaga['e_rhf']}")
+        logger.info("".center(80, "*"))
+        logger.info("  Huzinaga calculation".center(20))
+        logger.info(f"Total energy - active system at RHF level: {driver._huzinaga['e_rhf']}")
         if driver.run_ccsd_emb is True:
-            print(
+            logger.info(
                 f"Total energy - active system at CCSD level: {driver._huzinaga['e_ccsd']}"
             )
         if driver.run_fci_emb is True:
-            print(
+            logger.info(
                 f"Total energy - active system at FCI level: {driver._huzinaga['e_fci']}"
             )
 
-        print(
+        logger.info(
             f"length of huzinaga embedded fermionic Hamiltonian: {len(list(driver._huzinaga['hamiltonian']))}"
         )
-        print(
+        logger.info(
             f"number of qubits required: {count_qubits(driver._huzinaga['hamiltonian'])}"
         )
 
     if driver.projector in ["mu", "both"]:
-        print("".center(80, "*"))
-        print("  Mu shift calculation".center(20))
-        print(f"Total energy - active system at RHF level: {driver._mu['e_rhf']}")
+        logger.info("".center(80, "*"))
+        logger.info("  Mu shift calculation".center(20))
+        logger.info(f"Total energy - active system at RHF level: {driver._mu['e_rhf']}")
         if driver.run_ccsd_emb is True:
-            print(f"Total energy - active system at CCSD level: {driver._mu['e_ccsd']}")
+            logger.info(f"Total energy - active system at CCSD level: {driver._mu['e_ccsd']}")
         if driver.run_fci_emb is True:
-            print(f"Total energy - active system at FCI level: {driver._mu['e_fci']}")
+            logger.info(f"Total energy - active system at FCI level: {driver._mu['e_fci']}")
 
-        print(
+        logger.info(
             f"length of mu embedded fermionic Hamiltonian: {len(list(driver._mu['hamiltonian']))}"
         )
-        print(f"number of qubits required: {count_qubits(driver._mu['hamiltonian'])}")
+        logger.info(f"number of qubits required: {count_qubits(driver._mu['hamiltonian'])}")
 
-    print("".center(80, "*"))
-    print("  Summary of reference Calculation".center(80))
-    print("".center(80, "*"))
+    logger.info("".center(80, "*"))
+    logger.info("  Summary of reference Calculation".center(80))
+    logger.info("".center(80, "*"))
 
     if fci:
-        print(f"global (expensive) full FCI calculation {driver._global_fci.e_tot}")
-    print(
+        logger.info(f"global (expensive) full FCI calculation {driver._global_fci.e_tot}")
+    logger.info(
         f"length of full system fermionic Hamiltonian: {len(list(driver.full_system_hamiltonian))}"
     )
-    print(f"number of qubits required: {count_qubits(driver.full_system_hamiltonian)}")
+    logger.info(f"number of qubits required: {count_qubits(driver.full_system_hamiltonian)}")

@@ -74,15 +74,15 @@ def nbed(
     )
     qham = HamiltonianConverter(driver.molecular_ham[1], transform=transform)
 
-    print(driver._mu["e_ccsd"])
-    print(driver._huzinaga["e_ccsd"])
+    logger.info(driver._mu["e_ccsd"])
+    logger.info(driver._huzinaga["e_ccsd"])
 
     print_summary(driver, fci=True)
 
     from openfermion import eigenspectrum
 
-    print(eigenspectrum(driver.molecular_ham[0])[0])
-    print(eigenspectrum(driver.molecular_ham[1])[0])
+    logger.info(eigenspectrum(driver.molecular_ham[0])[0])
+    logger.info(eigenspectrum(driver.molecular_ham[1])[0])
 
     return qham
 
