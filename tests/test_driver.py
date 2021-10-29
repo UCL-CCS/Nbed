@@ -26,7 +26,7 @@ def test_incorrect_molecule_name() -> None:
     }
 
     regex_match_any_string = r"[\s\S]*"
-    with pytest.raises(ValueError, match=regex_match_any_string):
+    with pytest.raises(NbedConfigError, match=regex_match_any_string):
         qham = NbedDriver(
             molecule=args["molecule"],
             n_active_atoms=args["n_active_atoms"],
