@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def nbed(
-    geometry: Path,
+    molecule: str,
     n_active_atoms: int,
     basis: str,
     xc_functional: str,
@@ -37,7 +37,8 @@ def nbed(
     apply a transformation to a qubit hamiltonian and output the desired backend object.
 
     Args:
-        geometry (Path): A path to an .xyz file describing moleclar geometry.
+        molecule (str): name of molecular system (if geometry is not defined, pubchem search using this
+                             name is done to find geometry). If geometry is defined, then no pubchem search is done.
         n_active_atoms (int): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
@@ -57,7 +58,7 @@ def nbed(
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
     driver = NbedDriver(
-        geometry=geometry,
+        molecule=molecule,
         n_active_atoms=n_active_atoms,
         basis=basis,
         xc_functional=xc_functional,
@@ -92,7 +93,7 @@ def cli() -> None:
     setup_logs()
     args = parse()
     qham = nbed(
-        geometry=args["geometry"],
+        molecule=args["molecule"],
         n_active_atoms=args["n_active_atoms"],
         basis=args["basis"],
         xc_functional=args["xc_functional"],
