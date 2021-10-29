@@ -783,6 +783,11 @@ class nbed_driver(object):
                                                e_xc_env)
 
         energy_DFT_components = self.e_act + self.e_env + self.two_e_cross + local_basis_pyscf_scf_rks.energy_nuc()
+        print('act:', self.e_act)
+        print('e_env:', self.e_env)
+        print('two_e_cross:', self.two_e_cross)
+        print('energy_nuc:', local_basis_pyscf_scf_rks.energy_nuc())
+
         if not np.isclose(energy_DFT_components, self.global_rks_total_energy):
             raise ValueError("DFT energy of localized components not matching supersystem DFT")
 
@@ -856,7 +861,7 @@ class nbed_driver(object):
                                                         sanity_check=True)
 
         global_rks = self.define_rks_in_new_basis(global_rks, change_basis_matrix)
-
+        print('orbs:', global_rks.mo_energy)
         self.subsystem_dft(global_rks)
 
         logger.debug("Get global DFT potential to optimize embedded calc in.")
@@ -952,6 +957,9 @@ class nbed_driver(object):
             )
             embedded_RHF_HUZ.mo_energy = mo_embedded_energy
 
+            print('object test :', embedded_RHF_HUZ.energy_tot(dm=embedded_RHF_HUZ.make_rdm1()))
+            # print('object test :', embedded_RHF_HUZ.energy_elec(dm=embedded_RHF_HUZ.make_rdm1()))
+
             wf_correction_HUZ = np.einsum("ij,ij", v_emb_HUZ, self.localized_system.dm_active)
 
             n_act_mo = len(self.localized_system.active_MO_inds)
@@ -980,9 +988,10 @@ class nbed_driver(object):
             self.molecular_ham_HUZ = get_molecular_hamiltonian(embedded_RHF_HUZ,
                                                                embedded_energy_constant=self.classical_energy_HUZ)
             self.n_qubits_HUZ = count_qubits(self.molecular_ham_HUZ)
-        # print(f"number of e- in embedded system: {2 * len(self.localized_system.active_MO_inds)}")
-        # print(self.localized_system.active_MO_inds)
-        # print(self.localized_system.enviro_MO_inds)
+
+        print(f"number of e- in embedded system: {2 * len(self.localized_system.active_MO_inds)}")
+        print(self.localized_system.active_MO_inds)
+        print(self.localized_system.enviro_MO_inds)
 
         return None
 
