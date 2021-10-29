@@ -4,58 +4,46 @@ File to contain tests of the embed.py script.
 from pathlib import Path
 
 import numpy as np
-import openfermion
-
+from nbed.embed import nbed
+from openfermion import QubitOperator
 from nbed.localizers import Localizer
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
+def test_nbed_openfermion() -> None:
+    """test nbed"""
+    args ={
+        'molecule': str(water_filepath),
+        "n_active_atoms": 1,
+        "basis": 'STO-3G',
+        "xc_functional": 'b3lyp',
+        "projector": 'mu',
+        "localization": 'spade',
+        "transform": 'jordan_wigner',
+        "output": 'openfermion',
+        "convergence": 1e-6,
+        "savefile": None,
+        "run_ccsd_emb": True,
+        "run_fci_emb":True
+    }
 
-def test_nbed() -> None:
-    # This test is broken as we're updating the main code
-    # q_ham, e_classical = nbed(
-    #     geometry=str(water_filepath),
-    #     active_atoms=2,
-    #     basis="sto-3g",
-    #     xc_functional="b3lyp",
-    #     output="openfermion",
-    #     convergence=1e-8,
-    # )
-    # print(len(q_ham.terms))
-    # assert len(q_ham.terms) == 1079
-    # assert np.isclose(q_ham.constant, -45.42234047466274)
-    # assert np.isclose(e_classical, -3.5605837557207654)
-    pass
+    qham = nbed(
+        molecule=args["molecule"],
+        n_active_atoms=args["n_active_atoms"],
+        basis=args["basis"],
+        xc_functional=args["xc_functional"],
+        projector=args["projector"],
+        localization=args["localization"],
+        transform=args["transform"],
+        output=args["output"],
+        convergence=args["convergence"],
+        savefile=args["savefile"],
+        run_ccsd_emb=args["run_ccsd_emb"],
+        run_fci_emb=args["run_fci_emb"],
+    )
 
-
-def test_orthogonal_enviro_projector() -> None:
-    # # 1. Get orthogonal C matrix (localized)
-    # c_loc_ortho = s_half @ local_sys.c_loc_occ_and_virt
-
-    # # 2. Define projector that projects MO orbs of subsystem B onto themselves and system A onto zero state!
-    # #    (do this in orthongoal basis!)
-    # #    note we only take MO environment indices!
-    # ortho_proj = np.einsum(
-    #     "ik,jk->ij",
-    #     c_loc_ortho[:, local_sys.enviro_MO_inds],
-    #     c_loc_ortho[:, local_sys.enviro_MO_inds],
-    # )
-
-    # # env projected onto itself
-    # logger.info(
-    #     f"""Are subsystem B (env) projected onto themselves in ORTHO basis: {
-    #         np.allclose(ortho_proj @ c_loc_ortho[:, enviro_MO_inds],
-    #         c_loc_ortho[:, enviro_MO_inds])}"""
-    # )
-
-    # # act projected onto zero vec
-    # logger.info(
-    #     f"""Is subsystem A traced out  in ORTHO basis?: {
-    #         np.allclose(ortho_proj @ c_loc_ortho[:, active_MO_inds],
-    #         np.zeros_like(c_loc_ortho[:, active_MO_inds]))}"""
-    # )
-    pass
-
+    assert isinstance(qham, QubitOperator)
+    return None
 
 if __name__ == "__main__":
     pass

@@ -73,17 +73,12 @@ def nbed(
         max_ram_memory=max_ram_memory,
         pyscf_print_level=pyscf_print_level,
     )
-    qham = HamiltonianConverter(driver.molecular_ham[1], transform=transform)
-
-    logger.info(driver._mu["e_ccsd"])
-    logger.info(driver._huzinaga["e_ccsd"])
-
+    converter = HamiltonianConverter(driver.molecular_ham, transform=transform)
+    qham = getattr(converter, output)
     print_summary(driver, fci=True)
 
     from openfermion import eigenspectrum
-
-    logger.info(eigenspectrum(driver.molecular_ham[0])[0])
-    logger.info(eigenspectrum(driver.molecular_ham[1])[0])
+    logger.info(eigenspectrum(driver.molecular_ham)[0])
 
     return qham
 
