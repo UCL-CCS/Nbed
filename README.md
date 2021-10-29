@@ -57,17 +57,17 @@ nbed:
   basis: STO-3G
   xc_functional: b3lyp
   output: openfermion
-  localisation: spade
+  localization: spade
   savefile: data/savefile.json
 ```
 
 Alternatively you can provide each of the components to the command line.
 
 ```
-nbed --geometry tests/molecules/water.xyz --active_atoms 2 --convergence 1e-6 --qubits 8 --basis STO-3G--xc b3lyp --output openfermion --localisation spade --savefile data/savefile.json
+nbed --geometry tests/molecules/water.xyz --active_atoms 2 --convergence 1e-6 --qubits 8 --basis STO-3G--xc b3lyp --output openfermion --localization spade --savefile data/savefile.json
 ```
 
-The options for `output` and `localisation` can be seen in the command help.
+The options for `output` and `localization` can be seen in the command help.
 
 ```
 nbed --help
@@ -127,6 +127,6 @@ Main functionality of the package.
 
 - embed - main functionality
 - ham_converter - class to convert between Hamiltonian formats as well as save to and read from JSON.
-- localisation - methods of orbital localisation
+- localization - methods of orbital localization
 - mol_plot - functions to plot the systems localised molecular orbitals.
 - utils - log settings and cli parsing.
