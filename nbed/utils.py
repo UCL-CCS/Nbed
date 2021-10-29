@@ -135,7 +135,6 @@ def parse():
         raise Exception("Missing argument values.")
 
     args["savefile"] = str(Path(args["savefile"]).absolute())
-    args["molecule"] = str(args["molecule"])
     args["convergence"] = float(args["convergence"])
 
     logger.debug(f"Arguments: {args}")

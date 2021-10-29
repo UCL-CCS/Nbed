@@ -114,7 +114,6 @@ class NbedDriver(object):
         self.unit = unit
 
         if os.path.exists(molecule):
-            # check file exists
             self.geometry = molecule
         else:
             self.geometry = self._get_geometry(molecule)
@@ -138,7 +137,7 @@ class NbedDriver(object):
                                                  structure='3d')
 
         if geometry_pubchem is None:
-            raise ValueError(f'''Could not find geometry of {molecule_name} on PubChem...
+            raise NbedConfigError(f'''Could not find geometry of {molecule_name} on PubChem...
                                  make sure molecule input is a correct path to an xyz file or real molecule
                                 ''')
 
@@ -630,7 +629,7 @@ class NbedDriver(object):
         # Openfermion uses physicist notation whereas pyscf uses chemists
         two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
 
-        if (len(occupied_indices)>0) or (len(active_indices)>0):
+        if occupied_indices or active_indices:
             core_constant, one_body_integrals, two_body_integrals = get_active_space_integrals(
                                                                         one_body_integrals,
                                                                         two_body_integrals,
