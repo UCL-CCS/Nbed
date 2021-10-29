@@ -1,13 +1,14 @@
 ---
 nbed:
   geometry: tests/molecules/water.xyz
-  active_atoms: 2
-  convergence: !!float 1e-6
-  qubits: 8
+  n_active_atoms: 2
   basis: STO-3G
   xc_functional: b3lyp
   output: openfermion
-  localisation: spade
+  projector: both
+  localization: spade
+  convergence: !!float 1e-9
   savefile: data/savefile.json
-  # optionally add
-  # run_ccsd: True
+  transform: jordan_wigner
+  run_ccsd_emb: True
+  run_emb_fci: True
