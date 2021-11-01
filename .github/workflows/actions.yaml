@@ -1,5 +1,5 @@
-name: Nbed CICD
-  on: [tag]
+name: Release CICD
+  on: [release]
   jobs:
     build:
       runs-on: ${{matrix.os}}
@@ -31,6 +31,8 @@ name: Nbed CICD
         - name: Testing
           run: |
             poetry run pytest
+
+name: PR CICD
   on: 
     pull_request:
       branches: [master]
