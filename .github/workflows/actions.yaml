@@ -1,4 +1,3 @@
-name: Release CICD
 on:
   release:
     types: [published]
@@ -33,8 +32,6 @@ jobs:
       - name: Testing
         run: |
           poetry run pytest
-
-name: PR CICD
 on: 
   pull_request:
     branches: [master]
