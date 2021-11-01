@@ -71,7 +71,7 @@ def parse():
         "--unit",
         "-u",
         type=str,
-        choices = ['angstrom', 'bohr']
+        choices = ['angstrom', 'bohr'],
         help="Distance unit of molecular geometry",
     )
     parser.add_argument(

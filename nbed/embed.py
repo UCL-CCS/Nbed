@@ -54,7 +54,7 @@ def nbed(
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         qubits (int): The number of qubits available for the output hamiltonian.
-        unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
+        unit (str): molecular geometry unit 'angstrom' or 'bohr'
 
     Returns:
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
