@@ -1,4 +1,4 @@
-name: Release CICD
+name: Nbed CICD
   on: [tag]
   jobs:
     build:
@@ -31,8 +31,6 @@ name: Release CICD
         - name: Testing
           run: |
             poetry run pytest
-
-name: PR CICD
   on: 
     pull_request:
       branches: [master]
