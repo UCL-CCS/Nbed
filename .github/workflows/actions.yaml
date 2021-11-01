@@ -32,7 +32,9 @@ jobs:
         run: |
           poetry run pytest
 name: PR CICD
-on: [pull_request]
+on: 
+  pull_request:
+    branches: [master]
 jobs:
   build:
     runs-on: ubuntu-latest
