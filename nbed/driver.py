@@ -587,8 +587,8 @@ class NbedDriver(object):
         self,
         scf_method: StreamObject,
         constant_e_shift: Optional[float] = 0,
-        active_indices: Optional[list] = [],
-        occupied_indices: Optional[list] = []
+        active_indices: Optional[list] = None,
+        occupied_indices: Optional[list] = None
     ) -> InteractionOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 

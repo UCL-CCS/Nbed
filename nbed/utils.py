@@ -68,6 +68,12 @@ def parse():
         help="Basis set to use.",
     )
     parser.add_argument(
+        "--unit",
+        "-u",
+        type=str,
+        help="molecular geometry unit \'Angstrom\' or \'Bohr\' ",
+    )
+    parser.add_argument(
         "--xc_functional",
         "--xc",
         "-x",

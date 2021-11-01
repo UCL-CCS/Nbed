@@ -29,6 +29,7 @@ def nbed(
     max_ram_memory: Optional[int] = 4000,
     pyscf_print_level: int = 1,
     savefile: Optional[Path] = None,
+    unit: Optional[str] = 'angstrom'
 ):
     """Import interface for the nbed package.
 
@@ -53,6 +54,7 @@ def nbed(
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         qubits (int): The number of qubits available for the output hamiltonian.
+        unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
 
     Returns:
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
@@ -72,6 +74,7 @@ def nbed(
         run_fci_emb=run_fci_emb,
         max_ram_memory=max_ram_memory,
         pyscf_print_level=pyscf_print_level,
+        unit=unit
     )
     converter = HamiltonianConverter(driver.molecular_ham, transform=transform)
     qham = getattr(converter, output)
@@ -100,6 +103,7 @@ def cli() -> None:
         savefile=args["savefile"],
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_ccsd_emb"],
+        unit=args["unit"]
     )
 
 
