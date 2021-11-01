@@ -1,5 +1,7 @@
 name: Release CICD
-on: tag
+on:
+  release:
+    types: [prereleased]
 jobs:
   build:
     runs-on: ${{matrix.os}}
