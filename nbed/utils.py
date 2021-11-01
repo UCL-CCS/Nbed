@@ -71,7 +71,8 @@ def parse():
         "--unit",
         "-u",
         type=str,
-        help="molecular geometry unit \'Angstrom\' or \'Bohr\' ",
+        choices = ['angstrom', 'bohr']
+        help="Distance unit of molecular geometry",
     )
     parser.add_argument(
         "--xc_functional",
