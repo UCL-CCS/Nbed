@@ -8,13 +8,14 @@ import numpy as np
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
+
 def test_PMLocalizer_local_basis_transform() -> None:
     """Check change of basis operator (from canonical to localized) is correct"""
-    basis = 'STO-3G'
-    charge=0
-    xc_functional = 'b3lyp'
+    basis = "STO-3G"
+    charge = 0
+    xc_functional = "b3lyp"
     convergence = 1e-6
-    pyscf_print_level=1
+    pyscf_print_level = 1
     max_ram_memory = 4_000
     n_active_atoms = 1
     occ_cutoff = 0.95
@@ -22,7 +23,11 @@ def test_PMLocalizer_local_basis_transform() -> None:
     run_virtual_localization = False
 
     # define RKS DFT object
-    full_mol = gto.Mole(atom=str(water_filepath), basis=basis, charge=charge,).build()
+    full_mol = gto.Mole(
+        atom=str(water_filepath),
+        basis=basis,
+        charge=charge,
+    ).build()
     global_rks = scf.RKS(full_mol)
     global_rks.conv_tol = convergence
     global_rks.xc = xc_functional
@@ -31,11 +36,13 @@ def test_PMLocalizer_local_basis_transform() -> None:
     global_rks.kernel()
 
     # run Localizer
-    loc_system = PMLocalizer(global_rks,
-                            n_active_atoms= n_active_atoms,
-                            occ_cutoff = occ_cutoff,
-                            virt_cutoff=virt_cutoff,
-                            run_virtual_localization=run_virtual_localization)
+    loc_system = PMLocalizer(
+        global_rks,
+        n_active_atoms=n_active_atoms,
+        occ_cutoff=occ_cutoff,
+        virt_cutoff=virt_cutoff,
+        run_virtual_localization=run_virtual_localization,
+    )
     change_basis = loc_system._local_basis_transform
 
     # check manual
@@ -54,18 +61,21 @@ def test_PMLocalizer_local_basis_transform() -> None:
     matrix_std_to_loc = s_neg_half @ unitary_ORTHO_std_onto_loc @ s_half
 
     # Check U_ORTHO_std_onto_loc*C_ortho_loc ==  C_ortho_STD
-    assert np.allclose(unitary_ORTHO_std_onto_loc @ ortho_loc,
-                        ortho_std)
+    assert np.allclose(unitary_ORTHO_std_onto_loc @ ortho_loc, ortho_std)
 
     # Change of basis (U_ORTHO_std_onto_loc) is not Unitary
-    assert np.allclose(unitary_ORTHO_std_onto_loc.conj().T @ unitary_ORTHO_std_onto_loc,
-                        np.eye(unitary_ORTHO_std_onto_loc.shape[0]))
+    assert np.allclose(
+        unitary_ORTHO_std_onto_loc.conj().T @ unitary_ORTHO_std_onto_loc,
+        np.eye(unitary_ORTHO_std_onto_loc.shape[0]),
+    )
 
     # Check change of basis incorrect... U_std*C_std !=  C_loc_occ_and_virt
-    assert np.allclose(change_basis @ loc_system.c_loc_occ_and_virt,
-                       global_rks.mo_coeff)
+    assert np.allclose(
+        change_basis @ loc_system.c_loc_occ_and_virt, global_rks.mo_coeff
+    )
 
     return None
+
 
 if __name__ == "__main__":
     pass
