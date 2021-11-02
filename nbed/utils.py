@@ -91,7 +91,7 @@ def parse():
         "--unit",
         "-u",
         type=str,
-        choices = ['angstrom', 'bohr'],
+        choices=["angstrom", "bohr"],
         help="Distance unit of molecular geometry",
     )
     parser.add_argument(
@@ -170,9 +170,9 @@ def parse():
         args = yaml.safe_load(stream)["nbed"]
 
         # Optional argument defaults
-        args["unit"] = args.get("unit", 'angstrom')
+        args["unit"] = args.get("unit", "angstrom")
         args["charge"] = args.get("charge", 0)
-        args["convergence"] =  args.get("convergence", 1e-6)
+        args["convergence"] = args.get("convergence", 1e-6)
         args["run_ccsd_emb"] = args.get("run_ccsd_emb", False)
         args["run_fci_emb"] = args.get("run_fci_emb", False)
         args["mu_shift"] = args.get("mu_shift", 1e6)
@@ -228,7 +228,9 @@ def print_summary(driver: NbedDriver, fci: bool = False):
     if driver.projector in ["huzinaga", "both"]:
         logger.info("".center(80, "*"))
         logger.info("  Huzinaga calculation".center(20))
-        logger.info(f"Total energy - active system at RHF level: {driver._huzinaga['e_rhf']}")
+        logger.info(
+            f"Total energy - active system at RHF level: {driver._huzinaga['e_rhf']}"
+        )
         if driver.run_ccsd_emb is True:
             logger.info(
                 f"Total energy - active system at CCSD level: {driver._huzinaga['e_ccsd']}"
@@ -250,62 +252,78 @@ def print_summary(driver: NbedDriver, fci: bool = False):
         logger.info("  Mu shift calculation".center(20))
         logger.info(f"Total energy - active system at RHF level: {driver._mu['e_rhf']}")
         if driver.run_ccsd_emb is True:
-            logger.info(f"Total energy - active system at CCSD level: {driver._mu['e_ccsd']}")
+            logger.info(
+                f"Total energy - active system at CCSD level: {driver._mu['e_ccsd']}"
+            )
         if driver.run_fci_emb is True:
-            logger.info(f"Total energy - active system at FCI level: {driver._mu['e_fci']}")
+            logger.info(
+                f"Total energy - active system at FCI level: {driver._mu['e_fci']}"
+            )
 
         logger.info(
             f"length of mu embedded fermionic Hamiltonian: {len(list(driver._mu['hamiltonian']))}"
         )
-        logger.info(f"number of qubits required: {count_qubits(driver._mu['hamiltonian'])}")
+        logger.info(
+            f"number of qubits required: {count_qubits(driver._mu['hamiltonian'])}"
+        )
 
     logger.info("".center(80, "*"))
     logger.info("  Summary of reference Calculation".center(80))
     logger.info("".center(80, "*"))
 
     if fci:
-        logger.info(f"global (expensive) full FCI calculation {driver._global_fci.e_tot}")
+        logger.info(
+            f"global (expensive) full FCI calculation {driver._global_fci.e_tot}"
+        )
     logger.info(
         f"length of full system fermionic Hamiltonian: {len(list(driver.full_system_hamiltonian))}"
     )
-    logger.info(f"number of qubits required: {count_qubits(driver.full_system_hamiltonian)}")
+    logger.info(
+        f"number of qubits required: {count_qubits(driver.full_system_hamiltonian)}"
+    )
 
 
 def pubchem_mol_geometry(molecule_name) -> dict:
-        """Wrapper of Openfermion function to extract geometry using the molecule's name from the PubChem.
-        Returns a dictionary of atomic type and xyz location, each indexed by dictionary key
+    """Wrapper of Openfermion function to extract geometry using the molecule's name from the PubChem.
+    Returns a dictionary of atomic type and xyz location, each indexed by dictionary key
 
-        Args:
-            molecule_name (str): Name of molecule to search on pubchem
-        Returns:
-            struct_dict (dict): Keys index atoms and values contain Tuple of ('atom_id', (x_loc, y_loc, z_loc)
+    Args:
+        molecule_name (str): Name of molecule to search on pubchem
+    Returns:
+        struct_dict (dict): Keys index atoms and values contain Tuple of ('atom_id', (x_loc, y_loc, z_loc)
 
-        Example
+    Example
 
-        output = pubchem_mol_geometry('H2O')
-        print(output)
+    output = pubchem_mol_geometry('H2O')
+    print(output)
 
-        >> { 0: ('O', (0, 0, 0)),
-             1: ('H', (0.2774, 0.8929, 0.2544)),
-             2: ('H', (0.6068, -0.2383, -0.7169))
-             }
+    >> { 0: ('O', (0, 0, 0)),
+         1: ('H', (0.2774, 0.8929, 0.2544)),
+         2: ('H', (0.6068, -0.2383, -0.7169))
+         }
 
-        """
-        geometry_pubchem = geometry_from_pubchem(molecule_name,
-                                                 structure='3d')
+    """
+    geometry_pubchem = geometry_from_pubchem(molecule_name, structure="3d")
 
-        if geometry_pubchem is None:
-            raise ValueError(f'''Could not find geometry of {molecule_name} on PubChem...
+    if geometry_pubchem is None:
+        raise ValueError(
+            f"""Could not find geometry of {molecule_name} on PubChem...
                                  make sure molecule input is a correct path to an xyz file or real molecule
-                                ''')
+                                """
+        )
 
-        struct_dict = {}
-        for ind, atom_xyz in enumerate(geometry_pubchem):
-            struct_dict[ind] = atom_xyz
-        return struct_dict
+    struct_dict = {}
+    for ind, atom_xyz in enumerate(geometry_pubchem):
+        struct_dict[ind] = atom_xyz
+    return struct_dict
 
 
-def save_ordered_xyz_file(file_name:str, struct_dict: dict, atom_ordering_by_inds: list, save_location: Optional[Path] = None) -> Path:
+def save_ordered_xyz_file(
+    file_name: str,
+    struct_dict: dict,
+    atom_ordering_by_inds: list,
+    save_location: Optional[Path] = None,
+) -> Path:
     """Saves .xyz file in a molecular_structures directory. The location of this director is either at save_location,
     or if not defined then in current working dir. Function returns the path to xyz file.
 
@@ -342,24 +360,26 @@ def save_ordered_xyz_file(file_name:str, struct_dict: dict, atom_ordering_by_ind
 
     """
     if sorted(atom_ordering_by_inds) != sorted(list(struct_dict.keys())):
-        raise ValueError('need atom ordering indices to match indices in structural dict ')
+        raise ValueError(
+            "need atom ordering indices to match indices in structural dict "
+        )
 
     if save_location is None:
         save_location = os.getcwd()
 
-    struct_dir = os.path.join(save_location, 'molecular_structures')
+    struct_dir = os.path.join(save_location, "molecular_structures")
     if not os.path.exists(struct_dir):
         os.makedirs(struct_dir)
 
-    xyz_file_path = os.path.join(struct_dir, f'{file_name}.xyz')
+    xyz_file_path = os.path.join(struct_dir, f"{file_name}.xyz")
     # write xyz file
-    with open(xyz_file_path, 'w') as outfile:
+    with open(xyz_file_path, "w") as outfile:
         n_atoms = len(struct_dict)
-        outfile.write(f'{n_atoms}')
-        outfile.write(f'\n \n')
+        outfile.write(f"{n_atoms}")
+        outfile.write(f"\n \n")
         for atom_ind in atom_ordering_by_inds:
             atom, xyz = struct_dict[atom_ind]
-            outfile.write(f'{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n')
+            outfile.write(f"{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n")
 
     return xyz_file_path
 
@@ -393,13 +413,15 @@ def build_ordered_xyz_string(struct_dict: dict, atom_ordering_by_inds: list) -> 
 
     """
     if sorted(atom_ordering_by_inds) != sorted(list(struct_dict.keys())):
-        raise ValueError('need atom ordering indices to match indices in structural dict ')
+        raise ValueError(
+            "need atom ordering indices to match indices in structural dict "
+        )
 
     n_atoms = len(struct_dict)
-    xyz_file = f'{n_atoms}'
-    xyz_file += f'\n \n'
+    xyz_file = f"{n_atoms}"
+    xyz_file += f"\n \n"
     for atom_ind in atom_ordering_by_inds:
         atom, xyz = struct_dict[atom_ind]
-        xyz_file += f'{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n'
+        xyz_file += f"{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n"
 
     return xyz_file

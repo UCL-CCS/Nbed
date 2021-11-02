@@ -75,7 +75,7 @@ class NbedDriver(object):
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
         savefile: Optional[Path] = None,
-        unit: Optional[str] = 'angstrom'
+        unit: Optional[str] = "angstrom",
     ):
         """Initialise class."""
         config_valid = True
@@ -130,7 +130,10 @@ class NbedDriver(object):
         else:
             # geometry is raw xyz string
             full_mol = gto.Mole(
-                atom=self.geometry[3:], basis=self.basis, charge=self.charge, unit=self.unit
+                atom=self.geometry[3:],
+                basis=self.basis,
+                charge=self.charge,
+                unit=self.unit,
             ).build()
         return full_mol
 
@@ -393,7 +396,9 @@ class NbedDriver(object):
         e_ccsd_corr, _, _ = ccsd.kernel()
         return ccsd, e_ccsd_corr
 
-    def _run_emb_FCI(self, emb_pyscf_scf_rhf: scf.RHF, frozen_orb_list: Optional[list] = None) -> fci.FCI:
+    def _run_emb_FCI(
+        self, emb_pyscf_scf_rhf: scf.RHF, frozen_orb_list: Optional[list] = None
+    ) -> fci.FCI:
         """Function run FCI on embedded restricted Hartree Fock object.
 
         Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
@@ -504,9 +509,7 @@ class NbedDriver(object):
         n_env_mo = len(self.localized_system.enviro_MO_inds)
 
         if method == "huzinaga":
-            frozen_enviro_orb_inds = [
-                i for i in range(n_act_mo, n_act_mo + n_env_mo)
-            ]
+            frozen_enviro_orb_inds = [i for i in range(n_act_mo, n_act_mo + n_env_mo)]
 
             active_MOs_occ_and_virt_embedded = [
                 mo_i
@@ -528,13 +531,21 @@ class NbedDriver(object):
         else:
             raise ValueError("Must use mu or huzinaga flag.")
 
-        logger.info(f"Orbital indices for embedded system {active_MOs_occ_and_virt_embedded}")
-        logger.info(f"Orbital indices removed from embedded system {frozen_enviro_orb_inds}")
+        logger.info(
+            f"Orbital indices for embedded system {active_MOs_occ_and_virt_embedded}"
+        )
+        logger.info(
+            f"Orbital indices removed from embedded system {frozen_enviro_orb_inds}"
+        )
 
         # delete enviroment orbitals and associated energies
         # overwrites varibles keeping only active part (both occupied and virtual)
-        embedded_rhf.mo_coeff = embedded_rhf.mo_coeff[:, active_MOs_occ_and_virt_embedded]
-        embedded_rhf.mo_energy = embedded_rhf.mo_energy[active_MOs_occ_and_virt_embedded]
+        embedded_rhf.mo_coeff = embedded_rhf.mo_coeff[
+            :, active_MOs_occ_and_virt_embedded
+        ]
+        embedded_rhf.mo_energy = embedded_rhf.mo_energy[
+            active_MOs_occ_and_virt_embedded
+        ]
         embedded_rhf.mo_occ = embedded_rhf.mo_occ[active_MOs_occ_and_virt_embedded]
 
         return embedded_rhf
@@ -544,7 +555,7 @@ class NbedDriver(object):
         scf_method: StreamObject,
         constant_e_shift: Optional[float] = 0,
         active_indices: Optional[list] = None,
-        occupied_indices: Optional[list] = None
+        occupied_indices: Optional[list] = None,
     ) -> InteractionOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
@@ -586,11 +597,16 @@ class NbedDriver(object):
         two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
 
         if occupied_indices or active_indices:
-            core_constant, one_body_integrals, two_body_integrals = get_active_space_integrals(
-                                                                        one_body_integrals,
-                                                                        two_body_integrals,
-                                                                        occupied_indices=occupied_indices,
-                                                                        active_indices=active_indices)
+            (
+                core_constant,
+                one_body_integrals,
+                two_body_integrals,
+            ) = get_active_space_integrals(
+                one_body_integrals,
+                two_body_integrals,
+                occupied_indices=occupied_indices,
+                active_indices=active_indices,
+            )
         else:
             core_constant = 0
 
@@ -599,7 +615,9 @@ class NbedDriver(object):
         )
 
         molecular_hamiltonian = InteractionOperator(
-            (constant_e_shift + core_constant), one_body_coefficients, 0.5 * two_body_coefficients
+            (constant_e_shift + core_constant),
+            one_body_coefficients,
+            0.5 * two_body_coefficients,
         )
 
         return molecular_hamiltonian

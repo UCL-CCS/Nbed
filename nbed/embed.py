@@ -28,7 +28,7 @@ def nbed(
     max_ram_memory: Optional[int] = 4000,
     pyscf_print_level: int = 1,
     savefile: Optional[Path] = None,
-    unit: Optional[str] = 'angstrom'
+    unit: Optional[str] = "angstrom",
 ):
     """Import interface for the nbed package.
 
@@ -72,13 +72,14 @@ def nbed(
         run_fci_emb=run_fci_emb,
         max_ram_memory=max_ram_memory,
         pyscf_print_level=pyscf_print_level,
-        unit=unit
+        unit=unit,
     )
     converter = HamiltonianConverter(driver.molecular_ham, transform=transform)
     qham = getattr(converter, output)
     print_summary(driver, fci=True)
 
     from openfermion import eigenspectrum
+
     logger.info(eigenspectrum(driver.molecular_ham)[0])
 
     return qham
@@ -101,7 +102,7 @@ def cli() -> None:
         savefile=args["savefile"],
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_ccsd_emb"],
-        unit=args["unit"]
+        unit=args["unit"],
     )
 
 
