@@ -50,10 +50,10 @@ def parse():
         help="Path to a config file. Overwrites other arguments.",
     )
     parser.add_argument(
-        "--geometry",
-        "-g",
+        "--molecule",
+        "-m",
         type=str,
-        help="Path to an XYZ file.",
+        help="Path to an XYZ file or molecule name to search on pubchem database.",
     )
     parser.add_argument(
         "--active_atoms",
@@ -66,6 +66,13 @@ def parse():
         "-b",
         type=str,
         help="Basis set to use.",
+    )
+    parser.add_argument(
+        "--unit",
+        "-u",
+        type=str,
+        choices = ['angstrom', 'bohr'],
+        help="Distance unit of molecular geometry",
     )
     parser.add_argument(
         "--xc_functional",
@@ -135,7 +142,6 @@ def parse():
         raise Exception("Missing argument values.")
 
     args["savefile"] = str(Path(args["savefile"]).absolute())
-    args["geometry"] = str(Path(args["geometry"]).absolute())
     args["convergence"] = float(args["convergence"])
 
     logger.debug(f"Arguments: {args}")
