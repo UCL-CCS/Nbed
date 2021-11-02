@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def nbed(
-    geometry: Path,
+    molecule: str,
     n_active_atoms: int,
     basis: str,
     xc_functional: str,
@@ -29,6 +29,7 @@ def nbed(
     max_ram_memory: Optional[int] = 4000,
     pyscf_print_level: int = 1,
     savefile: Optional[Path] = None,
+    unit: Optional[str] = 'angstrom'
 ):
     """Import interface for the nbed package.
 
@@ -37,7 +38,8 @@ def nbed(
     apply a transformation to a qubit hamiltonian and output the desired backend object.
 
     Args:
-        geometry (Path): A path to an .xyz file describing moleclar geometry.
+        molecule (str): name of molecular system (if geometry is not defined, pubchem search using this
+                             name is done to find geometry). If geometry is defined, then no pubchem search is done.
         n_active_atoms (int): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
@@ -52,12 +54,13 @@ def nbed(
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         qubits (int): The number of qubits available for the output hamiltonian.
+        unit (str): molecular geometry unit 'angstrom' or 'bohr'
 
     Returns:
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
     driver = NbedDriver(
-        geometry=geometry,
+        molecule=molecule,
         n_active_atoms=n_active_atoms,
         basis=basis,
         xc_functional=xc_functional,
@@ -71,18 +74,14 @@ def nbed(
         run_fci_emb=run_fci_emb,
         max_ram_memory=max_ram_memory,
         pyscf_print_level=pyscf_print_level,
+        unit=unit
     )
-    qham = HamiltonianConverter(driver.molecular_ham[1], transform=transform)
-
-    logger.info(driver._mu["e_ccsd"])
-    logger.info(driver._huzinaga["e_ccsd"])
-
+    converter = HamiltonianConverter(driver.molecular_ham, transform=transform)
+    qham = getattr(converter, output)
     print_summary(driver, fci=True)
 
     from openfermion import eigenspectrum
-
-    logger.info(eigenspectrum(driver.molecular_ham[0])[0])
-    logger.info(eigenspectrum(driver.molecular_ham[1])[0])
+    logger.info(eigenspectrum(driver.molecular_ham)[0])
 
     return qham
 
@@ -92,7 +91,7 @@ def cli() -> None:
     setup_logs()
     args = parse()
     qham = nbed(
-        geometry=args["geometry"],
+        molecule=args["molecule"],
         n_active_atoms=args["n_active_atoms"],
         basis=args["basis"],
         xc_functional=args["xc_functional"],
@@ -104,6 +103,7 @@ def cli() -> None:
         savefile=args["savefile"],
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_ccsd_emb"],
+        unit=args["unit"]
     )
 
 

@@ -1,6 +1,9 @@
 # Data directory
 data/
 
+# ignore locally defined structures
+molecular_structures/
+
 tmp*
 
 *.hdf5
