@@ -19,6 +19,7 @@ from openfermion.ops.representations import get_active_space_integrals
 
 from nbed.exceptions import NbedConfigError
 from nbed.localizers.base import Localizer
+from io import StringIO
 
 from .localizers import BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer
 from .scf import huzinaga_RHF
@@ -30,9 +31,7 @@ class NbedDriver(object):
     """Function to return the embedding Qubit Hamiltonian.
 
     Args:
-        molecule (str): name of molecular system (if geometry is not defined, pubchem search using this
-                             name is done to find geometry). If geometry is defined, then no pubchem search is done.
-        geometry (Path): A path to an .xyz file describing moleclar geometry. If not defined, pubchem geometry used.
+        geometry (str): Path to .xyz file containing molecular geometry or raw xyz string.
         n_active_atoms (int): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
@@ -61,7 +60,7 @@ class NbedDriver(object):
 
     def __init__(
         self,
-        molecule: str,
+        geometry: str,
         n_active_atoms: int,
         basis: str,
         xc_functional: str,
@@ -97,6 +96,7 @@ class NbedDriver(object):
         if not config_valid:
             raise NbedConfigError("Invalid config.")
 
+        self.geometry = geometry
         self.n_active_atoms = n_active_atoms
         self.basis = basis.lower()
         self.xc_functional = xc_functional.lower()
@@ -113,58 +113,7 @@ class NbedDriver(object):
         self.savefile = savefile
         self.unit = unit
 
-        if os.path.exists(molecule):
-            self.geometry = molecule
-        else:
-            self.geometry = self._get_geometry(molecule)
-
         self.embed()
-
-    def _get_geometry(self, molecule_name) -> Path:
-        """Openfermion function to extract geometry using the molecule's name from the PubChem
-        database. Note function saves .xyz file in a local directory . Either saves at self.savefile location if defined
-        otherwise saves in: ../Nbed/molecular_structures/
-
-        Function returns the path to this file.
-
-        Args:
-            molecule_name (str): Name of molecule to search on pubchem
-
-        Returns:
-            xyz_file_path (Path): path to .xyz structure of molecule defined by pubchem, note distances in Angstrom.
-        """
-        geometry_pubchem = geometry_from_pubchem(molecule_name,
-                                                 structure='3d')
-
-        if geometry_pubchem is None:
-            raise NbedConfigError(f'''Could not find geometry of {molecule_name} on PubChem...
-                                 make sure molecule input is a correct path to an xyz file or real molecule
-                                ''')
-
-        # save xyz file
-        if self.savefile is None:
-            top_directory = os.path.dirname(os.path.abspath(__file__))
-        else:
-            top_directory = self.savefile
-
-        struct_dir = os.path.join(top_directory, 'molecular_structures')
-
-        # if directory doesn't exist, make a new dir
-        if not os.path.exists(struct_dir):
-            os.makedirs(struct_dir)
-
-        xyz_file_path = os.path.join(struct_dir, f'{molecule_name}.xyz')
-
-        # write xyz file
-        with open(xyz_file_path, 'w') as outfile:
-            n_atoms = len(geometry_pubchem)
-            outfile.write(f'{n_atoms}')
-            outfile.write(f'\n \n')
-            for atom, xyz in geometry_pubchem:
-                outfile.write(f'{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n')
-
-        self.unit = 'angstrom'
-        return xyz_file_path
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
@@ -173,9 +122,16 @@ class NbedDriver(object):
             full_mol (gto.mol): built PySCF molecule object
         """
         logger.debug("Construcing molecule.")
-        full_mol = gto.Mole(
-            atom=self.geometry, basis=self.basis, charge=self.charge, unit=self.unit
-        ).build()
+        if os.path.exists(self.geometry):
+            # geometry is an xyz file
+            full_mol = gto.Mole(
+                atom=self.geometry, basis=self.basis, charge=self.charge, unit=self.unit
+            ).build()
+        else:
+            # geometry is raw xyz string
+            full_mol = gto.Mole(
+                atom=self.geometry[3:], basis=self.basis, charge=self.charge, unit=self.unit
+            ).build()
         return full_mol
 
     @cached_property
