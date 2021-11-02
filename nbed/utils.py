@@ -4,12 +4,15 @@ import argparse
 import logging
 from logging.config import dictConfig
 from pathlib import Path
+from typing import Optional
+import os
 
 import yaml
 from openfermion import count_qubits
 
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
+from openfermion.chem.pubchem import geometry_from_pubchem
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +53,10 @@ def parse():
         help="Path to a config file. Overwrites other arguments.",
     )
     parser.add_argument(
-        "--molecule",
-        "-m",
+        "--geometry",
+        "-g",
         type=str,
-        help="Path to an XYZ file or molecule name to search on pubchem database.",
+        help="Path to an XYZ file or raw xyz string of molecular structure (note active atoms must appear first).",
     )
     parser.add_argument(
         "--active_atoms",
@@ -68,18 +71,28 @@ def parse():
         help="Basis set to use.",
     )
     parser.add_argument(
-        "--unit",
-        "-u",
-        type=str,
-        choices = ['angstrom', 'bohr'],
-        help="Distance unit of molecular geometry",
-    )
-    parser.add_argument(
         "--xc_functional",
         "--xc",
         "-x",
         type=str,
         help="Exchange correlation functional to use in DFT calculations.",
+    )
+    parser.add_argument(
+        "--projector",
+        "-p",
+        type=str,
+        choices=[
+            "huzinaga",
+            "mu",
+        ],
+        help="Which projector method to use.",
+    )
+    parser.add_argument(
+        "--unit",
+        "-u",
+        type=str,
+        choices = ['angstrom', 'bohr'],
+        help="Distance unit of molecular geometry",
     )
     parser.add_argument(
         "--localization",
@@ -109,15 +122,44 @@ def parse():
         help="Convergence tolerance for calculations.",
     )
     parser.add_argument(
+        "--charge",
+        type=int,
+        help="Charge of molecular system.",
+    )
+    parser.add_argument(
         "--savefile",
         "-s",
         type=str,
         help="Path to save file.",
     )
     parser.add_argument(
-        "--ccsd",
-        action="store_true",
-        help="Include if you want to run a ccsd calculation of the whole system.",
+        "--run_ccsd_emb",
+        type=bool,
+        choices=[True, False],
+        help="Include if you want to run a ccsd calculation of the active embedded system.",
+    )
+    parser.add_argument(
+        "--run_fci_emb",
+        type=bool,
+        choices=[True, False],
+        help="Include if you want to run a fci calculation of the active embedded system.",
+    )
+    parser.add_argument(
+        "--ram",
+        type=str,
+        help="amount of ram in MB that PySCF can use",
+    )
+    parser.add_argument(
+        "--mu_shift",
+        type=int,
+        help="mu energy shift value",
+    )
+    parser.add_argument(
+        "--virtual_localization",
+        "--virt_loc",
+        type=bool,
+        choices=[True, False],
+        help="whether to run localization of virutal (unoccupied) orbitals",
     )
     args = parser.parse_args()
 
@@ -128,7 +170,14 @@ def parse():
         args = yaml.safe_load(stream)["nbed"]
 
         # Optional argument defaults
-        args["ccsd"] = args.get("ccsd", False)
+        args["unit"] = args.get("unit", 'angstrom')
+        args["charge"] = args.get("charge", 0)
+        args["convergence"] =  args.get("convergence", 1e-6)
+        args["run_ccsd_emb"] = args.get("run_ccsd_emb", False)
+        args["run_fci_emb"] = args.get("run_fci_emb", False)
+        args["mu_shift"] = args.get("mu_shift", 1e6)
+        args["ram"] = args.get("ram", 4_000)
+        args["virtual_localization"] = args.get("virtual_localization", False)
     else:
         # Transform the namespace object to a dict.
         args = vars(args)
@@ -220,3 +269,137 @@ def print_summary(driver: NbedDriver, fci: bool = False):
         f"length of full system fermionic Hamiltonian: {len(list(driver.full_system_hamiltonian))}"
     )
     logger.info(f"number of qubits required: {count_qubits(driver.full_system_hamiltonian)}")
+
+
+def pubchem_mol_geometry(molecule_name) -> dict:
+        """Wrapper of Openfermion function to extract geometry using the molecule's name from the PubChem.
+        Returns a dictionary of atomic type and xyz location, each indexed by dictionary key
+
+        Args:
+            molecule_name (str): Name of molecule to search on pubchem
+        Returns:
+            struct_dict (dict): Keys index atoms and values contain Tuple of ('atom_id', (x_loc, y_loc, z_loc)
+
+        Example
+
+        output = pubchem_mol_geometry('H2O')
+        print(output)
+
+        >> { 0: ('O', (0, 0, 0)),
+             1: ('H', (0.2774, 0.8929, 0.2544)),
+             2: ('H', (0.6068, -0.2383, -0.7169))
+             }
+
+        """
+        geometry_pubchem = geometry_from_pubchem(molecule_name,
+                                                 structure='3d')
+
+        if geometry_pubchem is None:
+            raise ValueError(f'''Could not find geometry of {molecule_name} on PubChem...
+                                 make sure molecule input is a correct path to an xyz file or real molecule
+                                ''')
+
+        struct_dict = {}
+        for ind, atom_xyz in enumerate(geometry_pubchem):
+            struct_dict[ind] = atom_xyz
+        return struct_dict
+
+
+def save_ordered_xyz_file(file_name:str, struct_dict: dict, atom_ordering_by_inds: list, save_location: Optional[Path] = None) -> Path:
+    """Saves .xyz file in a molecular_structures directory. The location of this director is either at save_location,
+    or if not defined then in current working dir. Function returns the path to xyz file.
+
+    This function orders the atoms in struct_dict according to the ordering given in atom_ordering_by_inds list.
+
+    Args:
+        file_name (str): Name of xyz file
+        struct_dict (dict): Name of molecule to search on pubchem
+        atom_ordering_by_inds (list): ordered list of indices, defining order of atoms in xyz file.
+        save_location (Path): Path of where to save xyz file. If not defined then current working dir used.
+    Returns:
+        xyz_file_path (Path): Path to xyz file
+
+        Example
+
+        input_struct_dict = { 0: ('O', (0, 0, 0)),
+                              1: ('H', (0.2774, 0.8929, 0.2544)),
+                              2: ('H', (0.6068, -0.2383, -0.7169))
+                            }
+
+        path = save_ordered_xyz_file('water', input_struct_dict, [1,0,2])
+        print(path)
+        >> ../molecular_structures/water.xyz
+
+        with open(path,'r') as infile:
+            xyz_string = infile.read()
+        print(xyz_string)
+
+         >> 3
+
+            H	0.2774	0.8929	0.2544
+            O	0	0	0
+            H	0.6068	-0.2383	-0.7169
+
+    """
+    if sorted(atom_ordering_by_inds) != sorted(list(struct_dict.keys())):
+        raise ValueError('need atom ordering indices to match indices in structural dict ')
+
+    if save_location is None:
+        save_location = os.getcwd()
+
+    struct_dir = os.path.join(save_location, 'molecular_structures')
+    if not os.path.exists(struct_dir):
+        os.makedirs(struct_dir)
+
+    xyz_file_path = os.path.join(struct_dir, f'{file_name}.xyz')
+    # write xyz file
+    with open(xyz_file_path, 'w') as outfile:
+        n_atoms = len(struct_dict)
+        outfile.write(f'{n_atoms}')
+        outfile.write(f'\n \n')
+        for atom_ind in atom_ordering_by_inds:
+            atom, xyz = struct_dict[atom_ind]
+            outfile.write(f'{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n')
+
+    return xyz_file_path
+
+
+def build_ordered_xyz_string(struct_dict: dict, atom_ordering_by_inds: list) -> str:
+    """Get raw xyz string of molecular geometry.
+
+    This function orders the atoms in struct_dict according to the ordering given in atom_ordering_by_inds list.
+
+    Args:
+        struct_dict (dict): Name of molecule to search on pubchem
+        atom_ordering_by_inds (list): ordered list of indices, defining order of atoms in xyz file.
+    Returns:
+        xyz_string (str): raw xyz string of molecular geometry (atoms ordered by atom_ordering_by_inds list)
+
+        Example
+
+        input_struct_dict = { 0: ('O', (0, 0, 0)),
+                              1: ('H', (0.2774, 0.8929, 0.2544)),
+                              2: ('H', (0.6068, -0.2383, -0.7169))
+                            }
+
+        xyz_string = ordered_xyz_string('water', input_struct_dict, [1,0,2])
+        print(xyz_string)
+
+         >> 3
+
+            H	0.2774	0.8929	0.2544
+            O	0	0	0
+            H	0.6068	-0.2383	-0.7169
+
+    """
+    if sorted(atom_ordering_by_inds) != sorted(list(struct_dict.keys())):
+        raise ValueError('need atom ordering indices to match indices in structural dict ')
+
+    n_atoms = len(struct_dict)
+    xyz_file = f'{n_atoms}'
+    xyz_file += f'\n \n'
+    for atom_ind in atom_ordering_by_inds:
+        atom, xyz = struct_dict[atom_ind]
+        xyz_file += f'{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n'
+
+    return xyz_file
