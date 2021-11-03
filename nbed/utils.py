@@ -315,72 +315,6 @@ def pubchem_mol_geometry(molecule_name) -> dict:
     return struct_dict
 
 
-def save_ordered_xyz_file(
-    file_name: str,
-    struct_dict: dict,
-    atom_ordering_by_inds: list,
-    save_location: Optional[Path] = None,
-) -> Path:
-    """Saves .xyz file in a molecular_structures directory. The location of this director is either at save_location,
-    or if not defined then in current working dir. Function returns the path to xyz file.
-
-    This function orders the atoms in struct_dict according to the ordering given in atom_ordering_by_inds list.
-
-    Args:
-        file_name (str): Name of xyz file
-        struct_dict (dict): Name of molecule to search on pubchem
-        atom_ordering_by_inds (list): ordered list of indices, defining order of atoms in xyz file.
-        save_location (Path): Path of where to save xyz file. If not defined then current working dir used.
-    Returns:
-        xyz_file_path (Path): Path to xyz file
-
-        Example
-
-        input_struct_dict = { 0: ('O', (0, 0, 0)),
-                              1: ('H', (0.2774, 0.8929, 0.2544)),
-                              2: ('H', (0.6068, -0.2383, -0.7169))
-                            }
-
-        path = save_ordered_xyz_file('water', input_struct_dict, [1,0,2])
-        print(path)
-        >> ../molecular_structures/water.xyz
-
-        with open(path,'r') as infile:
-            xyz_string = infile.read()
-        print(xyz_string)
-
-         >> 3
-
-            H	0.2774	0.8929	0.2544
-            O	0	0	0
-            H	0.6068	-0.2383	-0.7169
-
-    """
-    if sorted(atom_ordering_by_inds) != sorted(list(struct_dict.keys())):
-        raise ValueError(
-            "need atom ordering indices to match indices in structural dict "
-        )
-
-    if save_location is None:
-        save_location = os.getcwd()
-
-    struct_dir = os.path.join(save_location, "molecular_structures")
-    if not os.path.exists(struct_dir):
-        os.makedirs(struct_dir)
-
-    xyz_file_path = os.path.join(struct_dir, f"{file_name}.xyz")
-    # write xyz file
-    with open(xyz_file_path, "w") as outfile:
-        n_atoms = len(struct_dict)
-        outfile.write(f"{n_atoms}")
-        outfile.write(f"\n \n")
-        for atom_ind in atom_ordering_by_inds:
-            atom, xyz = struct_dict[atom_ind]
-            outfile.write(f"{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n")
-
-    return xyz_file_path
-
-
 def build_ordered_xyz_string(struct_dict: dict, atom_ordering_by_inds: list) -> str:
     """Get raw xyz string of molecular geometry.
 
@@ -422,3 +356,61 @@ def build_ordered_xyz_string(struct_dict: dict, atom_ordering_by_inds: list) -> 
         xyz_file += f"{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n"
 
     return xyz_file
+
+
+def save_ordered_xyz_file(
+    file_name: str,
+    struct_dict: dict,
+    atom_ordering_by_inds: list,
+    save_location: Optional[Path] = None,
+) -> Path:
+    """Saves .xyz file in a molecular_structures directory. The location of this director is either at save_location,
+    or if not defined then in current working dir. Function returns the path to xyz file.
+
+    This function orders the atoms in struct_dict according to the ordering given in atom_ordering_by_inds list.
+
+    Args:
+        file_name (str): Name of xyz file
+        struct_dict (dict): Name of molecule to search on pubchem
+        atom_ordering_by_inds (list): ordered list of indices, defining order of atoms in xyz file.
+        save_location (Path): Path of where to save xyz file. If not defined then current working dir used.
+    Returns:
+        xyz_file_path (Path): Path to xyz file
+
+        Example
+
+        input_struct_dict = { 0: ('O', (0, 0, 0)),
+                              1: ('H', (0.2774, 0.8929, 0.2544)),
+                              2: ('H', (0.6068, -0.2383, -0.7169))
+                            }
+
+        path = save_ordered_xyz_file('water', input_struct_dict, [1,0,2])
+        print(path)
+        >> ../molecular_structures/water.xyz
+
+        with open(path,'r') as infile:
+            xyz_string = infile.read()
+        print(xyz_string)
+
+         >> 3
+
+            H	0.2774	0.8929	0.2544
+            O	0	0	0
+            H	0.6068	-0.2383	-0.7169
+
+    """
+    xyz_string = build_ordered_xyz_string(struct_dict, atom_ordering_by_inds)
+
+    if save_location is None:
+        save_location = os.getcwd()
+
+    output_dir = os.path.join(save_location, "molecular_structures")
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    xyz_file_path = os.path.join(output_dir, f"{file_name}.xyz")
+
+    with open(xyz_file_path, "w") as outfile:
+        outfile.write(xyz_string)
+
+    return xyz_file_path
