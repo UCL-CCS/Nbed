@@ -19,7 +19,6 @@ from openfermion.ops.representations import get_active_space_integrals
 
 from nbed.exceptions import NbedConfigError
 from nbed.localizers.base import Localizer
-from io import StringIO
 
 from .localizers import BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer
 from .scf import huzinaga_RHF
