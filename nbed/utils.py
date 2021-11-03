@@ -134,14 +134,12 @@ def parse():
     )
     parser.add_argument(
         "--run_ccsd_emb",
-        type=bool,
-        choices=[True, False],
+        action="store_true",
         help="Include if you want to run a ccsd calculation of the active embedded system.",
     )
     parser.add_argument(
         "--run_fci_emb",
-        type=bool,
-        choices=[True, False],
+        action="store_true",
         help="Include if you want to run a fci calculation of the active embedded system.",
     )
     parser.add_argument(
@@ -157,8 +155,7 @@ def parse():
     parser.add_argument(
         "--virtual_localization",
         "--virt_loc",
-        type=bool,
-        choices=[True, False],
+        action="store_true",
         help="whether to run localization of virutal (unoccupied) orbitals",
     )
     args = parser.parse_args()
