@@ -29,6 +29,8 @@ def nbed(
     pyscf_print_level: int = 1,
     savefile: Optional[Path] = None,
     unit: Optional[str] = "angstrom",
+    occupied_threshold: Optional[float] = 0.95,
+    virtual_threshold: Optional[float] = 0.95,
 ):
     """Import interface for the nbed package.
 
@@ -73,6 +75,8 @@ def nbed(
         max_ram_memory=max_ram_memory,
         pyscf_print_level=pyscf_print_level,
         unit=unit,
+        occupied_threshold=occupied_threshold,
+        virtual_threshold=virtual_threshold,
     )
     converter = HamiltonianConverter(driver.molecular_ham, transform=transform)
     qham = getattr(converter, output)
@@ -103,6 +107,8 @@ def cli() -> None:
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_ccsd_emb"],
         unit=args["unit"],
+        occupied_threshold=args['occupied_threshold'],
+        virtual_threshold=args['virtual_threshold'],
     )
 
 
