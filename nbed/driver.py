@@ -11,14 +11,12 @@ from cached_property import cached_property
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
 from pyscf import ao2mo, cc, fci, gto, scf
-from openfermion.chem.pubchem import geometry_from_pubchem
 import os
 
 from pyscf.lib import StreamObject
 from openfermion.ops.representations import get_active_space_integrals
 
 from nbed.exceptions import NbedConfigError
-from nbed.localizers.base import Localizer
 
 from .localizers import BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer
 from .scf import huzinaga_RHF
@@ -75,6 +73,8 @@ class NbedDriver(object):
         pyscf_print_level: int = 1,
         savefile: Optional[Path] = None,
         unit: Optional[str] = "angstrom",
+        occupied_threshold: Optional[float] = 0.95,
+        virtual_threshold: Optional[float] = 0.95,
     ):
         """Initialise class."""
         config_valid = True
@@ -111,6 +111,8 @@ class NbedDriver(object):
         self.pyscf_print_level = pyscf_print_level
         self.savefile = savefile
         self.unit = unit
+        self.occupied_threshold = occupied_threshold
+        self.virtual_threshold = virtual_threshold
 
         self.embed()
 
@@ -203,8 +205,8 @@ class NbedDriver(object):
         localized_system = localizers[self.localization](
             self._global_rks,
             self.n_active_atoms,
-            occ_cutoff=0.95,
-            virt_cutoff=0.95,
+            occ_cutoff=self.occupied_threshold,
+            virt_cutoff=self.virtual_threshold,
             run_virtual_localization=self.run_virtual_localization,
         )
         return localized_system

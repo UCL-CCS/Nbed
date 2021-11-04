@@ -44,6 +44,25 @@ def setup_logs() -> None:
     dictConfig(config_dict)
 
 
+def restricted_float_percentage(x: float) -> float:
+    """Checks input x is within 0-1 range (percentage) and is a float
+
+    Args:
+        x (float): input number between 0 and 1 (inclusive)
+
+    Returns:
+        x (float): input percentage
+    """
+    try:
+        x = float(x)
+    except ValueError:
+        raise argparse.ArgumentTypeError("%r not a floating-point literal" % (x,))
+
+    if x < 0.0 or x > 1.0:
+        raise argparse.ArgumentTypeError("%r not in range [0.0, 1.0]"%(x,))
+    return x
+
+
 def parse():
     """Parse arguments from command line interface."""
     parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
@@ -158,6 +177,18 @@ def parse():
         action="store_true",
         help="whether to run localization of virutal (unoccupied) orbitals",
     )
+    parser.add_argument(
+        "--occupied_threshold",
+        "--ot",
+        type=restricted_float_percentage,
+        help="occupation threshold (float between 0 and 1 inclusive) used to localize occupied molecular orbs (unnecessary for spade approach)",
+    )
+    parser.add_argument(
+        "--virtual_threshold",
+        "--vt",
+        type=restricted_float_percentage,
+        help="threshold (float between 0 and 1 inclusive) used to localize unoccupied (virtual) molecular orbs (necessary for spade approach)",
+    )
     args = parser.parse_args()
 
     if args.config:
@@ -175,6 +206,8 @@ def parse():
         args["mu_shift"] = args.get("mu_shift", 1e6)
         args["ram"] = args.get("ram", 4_000)
         args["virtual_localization"] = args.get("virtual_localization", False)
+        args["occupied_threshold"] = args.get("occupied_threshold", 0.95)
+        args["virtual_threshold"] = args.get("virtual_threshold", 0.95)
     else:
         # Transform the namespace object to a dict.
         args = vars(args)
