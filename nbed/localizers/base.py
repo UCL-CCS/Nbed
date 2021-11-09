@@ -12,6 +12,8 @@ from pyscf.lib import StreamObject, tag_array
 from pyscf.lo import vvo
 from scipy import linalg
 
+# from ..utils import restricted_float_percentage
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,12 +67,27 @@ class Localizer(ABC):
 
         self._global_rks = pyscf_rks
         self._n_active_atoms = n_active_atoms
-        self._occ_cutoff = occ_cutoff
-        self._virt_cutoff = virt_cutoff
+
+        self._occ_cutoff = self._valid_threshold(occ_cutoff)
+        self._virt_cutoff = self._valid_threshold(virt_cutoff)
         self._run_virtual_localization = run_virtual_localization
 
         # Run the localization procedure
         self.run()
+
+    def _valid_threshold(self, threshold: float):
+        """Checks if threshold is within 0-1 range (percentage)
+
+        Args:
+            threshold (float): input number between 0 and 1 (inclusive)
+
+        Returns:
+            threshold (float): input percentage
+        """
+        if threshold >= 0.0 and threshold <= 1.0:
+            return threshold
+        else:
+            raise ValueError(f"threshold: {threshold} is not in range [0,1] inclusive")
 
     @cached_property
     def _local_basis_transform(

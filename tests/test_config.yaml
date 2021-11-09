@@ -1,6 +1,6 @@
 ---
 nbed:
-  molecule: tests/molecules/water.xyz
+  geometry: tests/molecules/water.xyz
   n_active_atoms: 2
   basis: STO-3G
   xc_functional: b3lyp
@@ -11,5 +11,5 @@ nbed:
   savefile: data/savefile.json
   transform: jordan_wigner
   run_ccsd_emb: True
-  run_emb_fci: True
+  run_fci_emb: True
   unit: angstrom
