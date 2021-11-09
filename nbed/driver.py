@@ -18,7 +18,13 @@ from openfermion.ops.representations import get_active_space_integrals
 
 from nbed.exceptions import NbedConfigError
 
-from .localizers import BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer, Localizer
+from .localizers import (
+    BOYSLocalizer,
+    IBOLocalizer,
+    PMLocalizer,
+    SPADELocalizer,
+    Localizer,
+)
 from .scf import huzinaga_RHF
 
 logger = logging.getLogger(__name__)

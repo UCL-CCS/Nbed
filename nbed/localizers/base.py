@@ -84,10 +84,10 @@ class Localizer(ABC):
         Returns:
             threshold (float): input percentage
         """
-        if (threshold >= 0.0 and threshold <= 1.0):
+        if threshold >= 0.0 and threshold <= 1.0:
             return threshold
         else:
-            raise ValueError(f'threshold: {threshold} is not in range [0,1] inclusive')
+            raise ValueError(f"threshold: {threshold} is not in range [0,1] inclusive")
 
     @cached_property
     def _local_basis_transform(

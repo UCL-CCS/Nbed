@@ -107,8 +107,8 @@ def cli() -> None:
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_ccsd_emb"],
         unit=args["unit"],
-        occupied_threshold=args['occupied_threshold'],
-        virtual_threshold=args['virtual_threshold'],
+        occupied_threshold=args["occupied_threshold"],
+        virtual_threshold=args["virtual_threshold"],
     )
 
 
