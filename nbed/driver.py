@@ -11,16 +11,20 @@ from cached_property import cached_property
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import InteractionOperator
 from pyscf import ao2mo, cc, fci, gto, scf
-from openfermion.chem.pubchem import geometry_from_pubchem
 import os
 
 from pyscf.lib import StreamObject
 from openfermion.ops.representations import get_active_space_integrals
 
 from nbed.exceptions import NbedConfigError
-from nbed.localizers.base import Localizer
 
-from .localizers import BOYSLocalizer, IBOLocalizer, PMLocalizer, SPADELocalizer
+from .localizers import (
+    BOYSLocalizer,
+    IBOLocalizer,
+    PMLocalizer,
+    SPADELocalizer,
+    Localizer,
+)
 from .scf import huzinaga_RHF
 
 logger = logging.getLogger(__name__)
@@ -30,9 +34,7 @@ class NbedDriver(object):
     """Function to return the embedding Qubit Hamiltonian.
 
     Args:
-        molecule (str): name of molecular system (if geometry is not defined, pubchem search using this
-                             name is done to find geometry). If geometry is defined, then no pubchem search is done.
-        geometry (Path): A path to an .xyz file describing moleclar geometry. If not defined, pubchem geometry used.
+        geometry (str): Path to .xyz file containing molecular geometry or raw xyz string.
         n_active_atoms (int): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
@@ -61,7 +63,7 @@ class NbedDriver(object):
 
     def __init__(
         self,
-        molecule: str,
+        geometry: str,
         n_active_atoms: int,
         basis: str,
         xc_functional: str,
@@ -76,7 +78,9 @@ class NbedDriver(object):
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
         savefile: Optional[Path] = None,
-        unit: Optional[str] = 'angstrom'
+        unit: Optional[str] = "angstrom",
+        occupied_threshold: Optional[float] = 0.95,
+        virtual_threshold: Optional[float] = 0.95,
     ):
         """Initialise class."""
         config_valid = True
@@ -97,6 +101,7 @@ class NbedDriver(object):
         if not config_valid:
             raise NbedConfigError("Invalid config.")
 
+        self.geometry = geometry
         self.n_active_atoms = n_active_atoms
         self.basis = basis.lower()
         self.xc_functional = xc_functional.lower()
@@ -112,59 +117,10 @@ class NbedDriver(object):
         self.pyscf_print_level = pyscf_print_level
         self.savefile = savefile
         self.unit = unit
-
-        if os.path.exists(molecule):
-            self.geometry = molecule
-        else:
-            self.geometry = self._get_geometry(molecule)
+        self.occupied_threshold = occupied_threshold
+        self.virtual_threshold = virtual_threshold
 
         self.embed()
-
-    def _get_geometry(self, molecule_name) -> Path:
-        """Openfermion function to extract geometry using the molecule's name from the PubChem
-        database. Note function saves .xyz file in a local directory . Either saves at self.savefile location if defined
-        otherwise saves in: ../Nbed/molecular_structures/
-
-        Function returns the path to this file.
-
-        Args:
-            molecule_name (str): Name of molecule to search on pubchem
-
-        Returns:
-            xyz_file_path (Path): path to .xyz structure of molecule defined by pubchem, note distances in Angstrom.
-        """
-        geometry_pubchem = geometry_from_pubchem(molecule_name,
-                                                 structure='3d')
-
-        if geometry_pubchem is None:
-            raise NbedConfigError(f'''Could not find geometry of {molecule_name} on PubChem...
-                                 make sure molecule input is a correct path to an xyz file or real molecule
-                                ''')
-
-        # save xyz file
-        if self.savefile is None:
-            top_directory = os.path.dirname(os.path.abspath(__file__))
-        else:
-            top_directory = self.savefile
-
-        struct_dir = os.path.join(top_directory, 'molecular_structures')
-
-        # if directory doesn't exist, make a new dir
-        if not os.path.exists(struct_dir):
-            os.makedirs(struct_dir)
-
-        xyz_file_path = os.path.join(struct_dir, f'{molecule_name}.xyz')
-
-        # write xyz file
-        with open(xyz_file_path, 'w') as outfile:
-            n_atoms = len(geometry_pubchem)
-            outfile.write(f'{n_atoms}')
-            outfile.write(f'\n \n')
-            for atom, xyz in geometry_pubchem:
-                outfile.write(f'{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n')
-
-        self.unit = 'angstrom'
-        return xyz_file_path
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
@@ -173,9 +129,19 @@ class NbedDriver(object):
             full_mol (gto.mol): built PySCF molecule object
         """
         logger.debug("Construcing molecule.")
-        full_mol = gto.Mole(
-            atom=self.geometry, basis=self.basis, charge=self.charge, unit=self.unit
-        ).build()
+        if os.path.exists(self.geometry):
+            # geometry is an xyz file
+            full_mol = gto.Mole(
+                atom=self.geometry, basis=self.basis, charge=self.charge, unit=self.unit
+            ).build()
+        else:
+            # geometry is raw xyz string
+            full_mol = gto.Mole(
+                atom=self.geometry[3:],
+                basis=self.basis,
+                charge=self.charge,
+                unit=self.unit,
+            ).build()
         return full_mol
 
     @cached_property
@@ -245,8 +211,8 @@ class NbedDriver(object):
         localized_system = localizers[self.localization](
             self._global_rks,
             self.n_active_atoms,
-            occ_cutoff=0.95,
-            virt_cutoff=0.95,
+            occ_cutoff=self.occupied_threshold,
+            virt_cutoff=self.virtual_threshold,
             run_virtual_localization=self.run_virtual_localization,
         )
         return localized_system
@@ -437,7 +403,9 @@ class NbedDriver(object):
         e_ccsd_corr, _, _ = ccsd.kernel()
         return ccsd, e_ccsd_corr
 
-    def _run_emb_FCI(self, emb_pyscf_scf_rhf: scf.RHF, frozen_orb_list: Optional[list] = None) -> fci.FCI:
+    def _run_emb_FCI(
+        self, emb_pyscf_scf_rhf: scf.RHF, frozen_orb_list: Optional[list] = None
+    ) -> fci.FCI:
         """Function run FCI on embedded restricted Hartree Fock object.
 
         Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
@@ -548,9 +516,7 @@ class NbedDriver(object):
         n_env_mo = len(self.localized_system.enviro_MO_inds)
 
         if method == "huzinaga":
-            frozen_enviro_orb_inds = [
-                i for i in range(n_act_mo, n_act_mo + n_env_mo)
-            ]
+            frozen_enviro_orb_inds = [i for i in range(n_act_mo, n_act_mo + n_env_mo)]
 
             active_MOs_occ_and_virt_embedded = [
                 mo_i
@@ -572,13 +538,21 @@ class NbedDriver(object):
         else:
             raise ValueError("Must use mu or huzinaga flag.")
 
-        logger.info(f"Orbital indices for embedded system {active_MOs_occ_and_virt_embedded}")
-        logger.info(f"Orbital indices removed from embedded system {frozen_enviro_orb_inds}")
+        logger.info(
+            f"Orbital indices for embedded system {active_MOs_occ_and_virt_embedded}"
+        )
+        logger.info(
+            f"Orbital indices removed from embedded system {frozen_enviro_orb_inds}"
+        )
 
         # delete enviroment orbitals and associated energies
         # overwrites varibles keeping only active part (both occupied and virtual)
-        embedded_rhf.mo_coeff = embedded_rhf.mo_coeff[:, active_MOs_occ_and_virt_embedded]
-        embedded_rhf.mo_energy = embedded_rhf.mo_energy[active_MOs_occ_and_virt_embedded]
+        embedded_rhf.mo_coeff = embedded_rhf.mo_coeff[
+            :, active_MOs_occ_and_virt_embedded
+        ]
+        embedded_rhf.mo_energy = embedded_rhf.mo_energy[
+            active_MOs_occ_and_virt_embedded
+        ]
         embedded_rhf.mo_occ = embedded_rhf.mo_occ[active_MOs_occ_and_virt_embedded]
 
         return embedded_rhf
@@ -588,7 +562,7 @@ class NbedDriver(object):
         scf_method: StreamObject,
         constant_e_shift: Optional[float] = 0,
         active_indices: Optional[list] = None,
-        occupied_indices: Optional[list] = None
+        occupied_indices: Optional[list] = None,
     ) -> InteractionOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
@@ -630,11 +604,16 @@ class NbedDriver(object):
         two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
 
         if occupied_indices or active_indices:
-            core_constant, one_body_integrals, two_body_integrals = get_active_space_integrals(
-                                                                        one_body_integrals,
-                                                                        two_body_integrals,
-                                                                        occupied_indices=occupied_indices,
-                                                                        active_indices=active_indices)
+            (
+                core_constant,
+                one_body_integrals,
+                two_body_integrals,
+            ) = get_active_space_integrals(
+                one_body_integrals,
+                two_body_integrals,
+                occupied_indices=occupied_indices,
+                active_indices=active_indices,
+            )
         else:
             core_constant = 0
 
@@ -643,7 +622,9 @@ class NbedDriver(object):
         )
 
         molecular_hamiltonian = InteractionOperator(
-            (constant_e_shift + core_constant), one_body_coefficients, 0.5 * two_body_coefficients
+            (constant_e_shift + core_constant),
+            one_body_coefficients,
+            0.5 * two_body_coefficients,
         )
 
         return molecular_hamiltonian

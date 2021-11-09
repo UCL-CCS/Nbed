@@ -6,6 +6,7 @@ molecular_structures/
 
 tmp*
 
+*.DS_Store
 *.hdf5
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,pycharm,visualstudiocode
