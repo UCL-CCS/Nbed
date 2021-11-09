@@ -59,7 +59,7 @@ def restricted_float_percentage(x: float) -> float:
         raise argparse.ArgumentTypeError("%r not a floating-point literal" % (x,))
 
     if x < 0.0 or x > 1.0:
-        raise argparse.ArgumentTypeError("%r not in range [0.0, 1.0]"%(x,))
+        raise argparse.ArgumentTypeError("%r not in range [0.0, 1.0]" % (x,))
     return x
 
 
@@ -348,14 +348,15 @@ def pubchem_mol_geometry(molecule_name) -> dict:
     return struct_dict
 
 
-def build_ordered_xyz_string(struct_dict: dict, atom_ordering_by_inds: list) -> str:
+def build_ordered_xyz_string(struct_dict: dict, active_atom_inds: list) -> str:
     """Get raw xyz string of molecular geometry.
 
     This function orders the atoms in struct_dict according to the ordering given in atom_ordering_by_inds list.
 
     Args:
-        struct_dict (dict): Name of molecule to search on pubchem
-        atom_ordering_by_inds (list): ordered list of indices, defining order of atoms in xyz file.
+        struct_dict (dict): Dictionary of indexed atoms and Cartesian coordinates (x,y,z)
+        active_atom_inds (list): list of indices to be considered active. This will put these atoms to the top of the xyz file.
+                                 Note indices are chosen from the struct_dict.
     Returns:
         xyz_string (str): raw xyz string of molecular geometry (atoms ordered by atom_ordering_by_inds list)
 
@@ -376,15 +377,20 @@ def build_ordered_xyz_string(struct_dict: dict, atom_ordering_by_inds: list) -> 
             H	0.6068	-0.2383	-0.7169
 
     """
-    if sorted(atom_ordering_by_inds) != sorted(list(struct_dict.keys())):
+    if not set(active_atom_inds).issubset(set(list(struct_dict.keys()))):
         raise ValueError(
-            "need atom ordering indices to match indices in structural dict "
+            f"active atom indices not subset of indices in structural dict "
         )
+
+    ordering = (
+        *active_atom_inds,
+        *[ind for ind in struct_dict.keys() if ind not in active_atom_inds],
+    )
 
     n_atoms = len(struct_dict)
     xyz_file = f"{n_atoms}"
     xyz_file += f"\n \n"
-    for atom_ind in atom_ordering_by_inds:
+    for atom_ind in ordering:
         atom, xyz = struct_dict[atom_ind]
         xyz_file += f"{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n"
 
@@ -394,7 +400,7 @@ def build_ordered_xyz_string(struct_dict: dict, atom_ordering_by_inds: list) -> 
 def save_ordered_xyz_file(
     file_name: str,
     struct_dict: dict,
-    atom_ordering_by_inds: list,
+    active_atom_inds: list,
     save_location: Optional[Path] = None,
 ) -> Path:
     """Saves .xyz file in a molecular_structures directory. The location of this director is either at save_location,
@@ -404,8 +410,10 @@ def save_ordered_xyz_file(
 
     Args:
         file_name (str): Name of xyz file
-        struct_dict (dict): Name of molecule to search on pubchem
-        atom_ordering_by_inds (list): ordered list of indices, defining order of atoms in xyz file.
+        struct_dict (dict): Dictionary of indexed atoms and Cartesian coordinates (x,y,z)
+        struct_dict (dict): Dictionary of indexed atoms and Cartesian coordinates (x,y,z)
+        active_atom_inds (list): list of indices to be considered active. This will put these atoms to the top of the xyz file.
+                                 Note indices are chosen from the struct_dict.
         save_location (Path): Path of where to save xyz file. If not defined then current working dir used.
     Returns:
         xyz_file_path (Path): Path to xyz file
@@ -432,7 +440,7 @@ def save_ordered_xyz_file(
             H	0.6068	-0.2383	-0.7169
 
     """
-    xyz_string = build_ordered_xyz_string(struct_dict, atom_ordering_by_inds)
+    xyz_string = build_ordered_xyz_string(struct_dict, active_atom_inds)
 
     if save_location is None:
         save_location = os.getcwd()
