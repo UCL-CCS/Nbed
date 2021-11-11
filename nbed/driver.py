@@ -120,6 +120,8 @@ class NbedDriver(object):
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
 
+        self._check_active_atoms()
+
         self.embed()
 
     def _build_mol(self) -> gto.mole:
@@ -195,6 +197,14 @@ class NbedDriver(object):
         logger.info(f"global RKS {global_rks.e_tot}")
 
         return global_rks
+
+    def _check_active_atoms(self):
+        """Check that the number of active atoms is valid."""
+        max_atoms = self._build_mol().natm
+        if not 0 < self.n_active_atoms < max_atoms:
+            raise NbedConfigError(
+                f"Invalid number of active atoms. Choose from 0 to {max_atoms}."
+            )        
 
     def localize(self):
         """Run the localizer class."""
