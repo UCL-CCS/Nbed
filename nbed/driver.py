@@ -1,29 +1,30 @@
 """Module containg the NbedDriver Class."""
 
 import logging
+import os
+from copy import copy
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
-from copy import copy
 
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
 from openfermion.chem.molecular_data import spinorb_from_spatial
-from openfermion.ops.representations import InteractionOperator
+from openfermion.ops.representations import (
+    InteractionOperator,
+    get_active_space_integrals,
+)
 from pyscf import ao2mo, cc, fci, gto, scf
-import os
-
 from pyscf.lib import StreamObject
-from openfermion.ops.representations import get_active_space_integrals
 
 from nbed.exceptions import NbedConfigError
 
 from .localizers import (
     BOYSLocalizer,
     IBOLocalizer,
+    Localizer,
     PMLocalizer,
     SPADELocalizer,
-    Localizer,
 )
 from .scf import huzinaga_RHF
 
@@ -120,6 +121,8 @@ class NbedDriver(object):
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
 
+        self._check_active_atoms()
+
         self.embed()
 
     def _build_mol(self) -> gto.mole:
@@ -195,6 +198,14 @@ class NbedDriver(object):
         logger.info(f"global RKS {global_rks.e_tot}")
 
         return global_rks
+
+    def _check_active_atoms(self):
+        """Check that the number of active atoms is valid."""
+        max_atoms = self._build_mol().natm
+        if self.n_active_atoms not in range(1, max_atoms):
+            raise NbedConfigError(
+                f"Invalid number of active atoms. Choose a number between 0 and {max_atoms}."
+            )
 
     def localize(self):
         """Run the localizer class."""
