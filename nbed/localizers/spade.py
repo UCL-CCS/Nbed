@@ -64,8 +64,12 @@ class SPADELocalizer(Localizer):
         logger.debug(f"Singular Values: {sigma}")
 
         # n_act_mos, n_env_mos = embed.orbital_partition(sigma)
-        value_diffs = sigma[:-1] - sigma[1:]
-        n_act_mos = np.argmax(value_diffs) + 1
+        # Prevents an error with argmax
+        if len(sigma) == 1:
+            n_act_mos = 1
+        else:
+            value_diffs = sigma[:-1] - sigma[1:]
+            n_act_mos = np.argmax(value_diffs) + 1
         n_env_mos = n_occupied_orbitals - n_act_mos
         logger.debug(f"{n_act_mos} active MOs.")
         logger.debug(f"{n_env_mos} environment MOs.")
