@@ -2,17 +2,17 @@
 
 import argparse
 import logging
+import os
 from logging.config import dictConfig
 from pathlib import Path
 from typing import Optional
-import os
 
 import yaml
 from openfermion import count_qubits
+from openfermion.chem.pubchem import geometry_from_pubchem
 
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
-from openfermion.chem.pubchem import geometry_from_pubchem
 
 logger = logging.getLogger(__name__)
 

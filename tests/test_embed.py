@@ -3,8 +3,9 @@ File to contain tests of the embed.py script.
 """
 from pathlib import Path
 
-from nbed.embed import nbed
 from openfermion import QubitOperator
+
+from nbed.embed import nbed
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 

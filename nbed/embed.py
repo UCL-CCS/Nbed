@@ -6,7 +6,7 @@ from typing import Optional
 
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
-from .utils import parse, setup_logs, print_summary
+from .utils import parse, print_summary, setup_logs
 
 logger = logging.getLogger(__name__)
 
