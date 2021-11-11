@@ -1,29 +1,30 @@
 """Module containg the NbedDriver Class."""
 
 import logging
+import os
+from copy import copy
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
-from copy import copy
 
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
 from openfermion.chem.molecular_data import spinorb_from_spatial
-from openfermion.ops.representations import InteractionOperator
+from openfermion.ops.representations import (
+    InteractionOperator,
+    get_active_space_integrals,
+)
 from pyscf import ao2mo, cc, fci, gto, scf
-import os
-
 from pyscf.lib import StreamObject
-from openfermion.ops.representations import get_active_space_integrals
 
 from nbed.exceptions import NbedConfigError
 
 from .localizers import (
     BOYSLocalizer,
     IBOLocalizer,
+    Localizer,
     PMLocalizer,
     SPADELocalizer,
-    Localizer,
 )
 from .scf import huzinaga_RHF
 
