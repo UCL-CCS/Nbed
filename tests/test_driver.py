@@ -2,9 +2,12 @@
 File to contain tests of the driver.py script.
 """
 from pathlib import Path
-from nbed.driver import NbedDriver
+
 import pytest
 from openfermion.ops.representations import InteractionOperator
+
+from nbed.driver import NbedDriver
+from nbed.exceptions import NbedConfigError
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
@@ -76,8 +79,6 @@ def test_driver_standard_xyz_file_input() -> None:
     sec_quant_h = driver.molecular_ham
     assert isinstance(sec_quant_h, InteractionOperator)
 
-    return None
-
 
 def test_driver_standard_xyz_string_input() -> None:
     """test to check driver works... raw xyz string given"""
@@ -112,7 +113,54 @@ def test_driver_standard_xyz_string_input() -> None:
     sec_quant_h = driver.molecular_ham
     assert isinstance(sec_quant_h, InteractionOperator)
 
-    return None
+
+def test_n_active_atoms_valid() -> None:
+    """test to check driver works... path to xyz file given"""
+
+    args = {
+        "geometry": str(water_filepath),
+        "basis": "STO-3G",
+        "xc_functional": "b3lyp",
+        "projector": "mu",
+        "localization": "spade",
+        "convergence": 1e-6,
+        "savefile": None,
+        "run_ccsd_emb": True,
+        "run_fci_emb": True,
+    }
+    error_msg = "Invalid number of active atoms. Choose a number between 0 and 3."
+
+    with pytest.raises(NbedConfigError) as e:
+        NbedDriver(
+            geometry=args["geometry"],
+            n_active_atoms=0,
+            basis=args["basis"],
+            xc_functional=args["xc_functional"],
+            projector=args["projector"],
+            localization=args["localization"],
+            convergence=args["convergence"],
+            savefile=args["savefile"],
+            run_ccsd_emb=args["run_ccsd_emb"],
+            run_fci_emb=args["run_fci_emb"],
+        )
+
+    assert error_msg == str(e.value)
+
+    with pytest.raises(NbedConfigError) as e:
+        NbedDriver(
+            geometry=args["geometry"],
+            n_active_atoms=3,
+            basis=args["basis"],
+            xc_functional=args["xc_functional"],
+            projector=args["projector"],
+            localization=args["localization"],
+            convergence=args["convergence"],
+            savefile=args["savefile"],
+            run_ccsd_emb=args["run_ccsd_emb"],
+            run_fci_emb=args["run_fci_emb"],
+        )
+
+    assert error_msg == str(e.value)
 
 
 if __name__ == "__main__":
