@@ -203,8 +203,8 @@ class NbedDriver(object):
         max_atoms = self._build_mol().natm
         if not 0 < self.n_active_atoms < max_atoms:
             raise NbedConfigError(
-                f"Invalid number of active atoms. Choose from 0 to {max_atoms}."
-            )        
+                f"Invalid number of active atoms. Choose a number between 0 and {max_atoms}."
+            )
 
     def localize(self):
         """Run the localizer class."""
