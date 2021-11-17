@@ -57,10 +57,11 @@ class PySCFLocalizer(Localizer, ABC):
         ao_slice_matrix = self._global_rks.mol.aoslice_by_atom()
 
         # TODO: Check the following:
-        # S_ovlp = pyscf_scf.get_ovlp()
+        # S_ovlp = self._global_rks.get_ovlp()
+        # import scipy as sp
         # S_half = sp.linalg.fractional_matrix_power(S_ovlp , 0.5)
-        # C_loc_occ_ORTHO = S_half@C_loc_occ_full
-        # run numerator_all and denominator_all in ortho basis
+        # C_loc_occ_ORTHO = S_half@c_loc_occ
+        # # run numerator_all and denominator_all in ortho basis
 
         # find indices of AO of active atoms
         ao_active_inds = np.arange(
@@ -79,13 +80,13 @@ class PySCFLocalizer(Localizer, ABC):
 
         active_MO_inds = np.where(MO_active_percentage > self._occ_cutoff)[0]
         enviro_MO_inds = np.array(
-            [i for i in range(c_loc_occ.shape[1]) if i not in active_MO_inds]
+            [i for i in range(c_loc_occ.shape[1]) if i not in active_MO_inds], dtype=int
         )
 
         # define active MO orbs and environment
         #    take MO (columns of C_matrix) that have high dependence from active AOs
-        c_active = c_loc_occ[:, active_MO_inds]
-        c_enviro = c_loc_occ[:, enviro_MO_inds]
+        c_active = np.take(c_loc_occ, active_MO_inds, axis=1)
+        c_enviro = np.take(c_loc_occ, enviro_MO_inds, axis=1)
 
         return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
 
