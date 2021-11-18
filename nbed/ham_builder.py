@@ -5,7 +5,6 @@ from openfermion import InteractionOperator
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import get_active_space_integrals
 import numpy as np
-from cached_property import cached_property
 
 class HamiltonianBuilder:
     """Class to build molecular hamiltonians."""
@@ -22,7 +21,7 @@ class HamiltonianBuilder:
         self.active_indices = active_indices
         self.occupied_indices = occupied_indices
 
-    @cached_property
+    @property
     def _one_body_integrals(self) -> np.ndarray:
         """Get the one electron integrals."""
         c_matrix_active = self.scf_method.mo_coeff
@@ -33,7 +32,7 @@ class HamiltonianBuilder:
         )
         return one_body_integrals
     
-    @cached_property
+    @property
     def _two_body_integrals(self) -> np.ndarray:
         """Get the two electron integrals."""
         c_matrix_active = self.scf_method.mo_coeff
@@ -47,6 +46,10 @@ class HamiltonianBuilder:
         # Openfermion uses physicist notation whereas pyscf uses chemists
         two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
         return two_body_integrals
+
+    def __taper(self) -> None:
+        """Taper a hamiltonian."""
+        raise NotImplementedError("Tapering not yet implemented")
 
     def build(self) -> InteractionOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
@@ -69,33 +72,14 @@ class HamiltonianBuilder:
         Returns:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
-        # C_matrix containing orbitals to be considered
-        # if there are any environment orbs that have been projected out... these should NOT be present in the
-        # scf_method.mo_coeff array (aka columns should be deleted!)
-        c_matrix_active = self.scf_method.mo_coeff
-        n_orbs = c_matrix_active.shape[1]
-
-        # one body terms
-        one_body_integrals = (
-            c_matrix_active.T @ self.scf_method.get_hcore() @ c_matrix_active
-        )
-
-        two_body_compressed = ao2mo.kernel(self.scf_method.mol, c_matrix_active)
-
-        # get electron repulsion integrals
-        eri = ao2mo.restore(1, two_body_compressed, n_orbs)  # no permutation symmetry
-
-        # Openfermion uses physicist notation whereas pyscf uses chemists
-        two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
-
         if self.occupied_indices or self.active_indices:
             (
                 core_constant,
                 one_body_integrals,
                 two_body_integrals,
             ) = get_active_space_integrals(
-                one_body_integrals,
-                two_body_integrals,
+                self._one_body_integrals,
+                self._two_body_integrals,
                 occupied_indices=self.occupied_indices,
                 active_indices=self.active_indices,
             )
@@ -111,5 +95,7 @@ class HamiltonianBuilder:
             one_body_coefficients,
             0.5 * two_body_coefficients,
         )
+
+        # TODO add tapering here
 
         return molecular_hamiltonian
