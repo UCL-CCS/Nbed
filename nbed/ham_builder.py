@@ -1,9 +1,11 @@
 from pyscf.lib import StreamObject
+from pyscf import ao2mo
 from typing import Optional
 from openfermion import InteractionOperator
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import get_active_space_integrals
 import numpy as np
+from cached_property import cached_property
 
 class HamiltonianBuilder:
     """Class to build molecular hamiltonians."""
@@ -19,6 +21,32 @@ class HamiltonianBuilder:
         self.constant_e_shift = constant_e_shift
         self.active_indices = active_indices
         self.occupied_indices = occupied_indices
+
+    @cached_property
+    def _one_body_integrals(self) -> np.ndarray:
+        """Get the one electron integrals."""
+        c_matrix_active = self.scf_method.mo_coeff
+
+        # one body terms
+        one_body_integrals = (
+            c_matrix_active.T @ self.scf_method.get_hcore() @ c_matrix_active
+        )
+        return one_body_integrals
+    
+    @cached_property
+    def _two_body_integrals(self) -> np.ndarray:
+        """Get the two electron integrals."""
+        c_matrix_active = self.scf_method.mo_coeff
+        n_orbs = c_matrix_active.shape[1]
+
+        two_body_compressed = ao2mo.kernel(self.scf_method.mol, c_matrix_active)
+
+        # get electron repulsion integrals
+        eri = ao2mo.restore(1, two_body_compressed, n_orbs)  # no permutation symmetry
+
+        # Openfermion uses physicist notation whereas pyscf uses chemists
+        two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
+        return two_body_integrals
 
     def build(self) -> InteractionOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
@@ -52,10 +80,10 @@ class HamiltonianBuilder:
             c_matrix_active.T @ self.scf_method.get_hcore() @ c_matrix_active
         )
 
-        two_body_compressed = self.ao2mo.kernel(self.scf_method.mol, c_matrix_active)
+        two_body_compressed = ao2mo.kernel(self.scf_method.mol, c_matrix_active)
 
         # get electron repulsion integrals
-        eri = self.ao2mo.restore(1, two_body_compressed, n_orbs)  # no permutation symmetry
+        eri = ao2mo.restore(1, two_body_compressed, n_orbs)  # no permutation symmetry
 
         # Openfermion uses physicist notation whereas pyscf uses chemists
         two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
