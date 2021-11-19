@@ -1,15 +1,18 @@
-from pyscf.lib import StreamObject
-from pyscf import ao2mo
-from typing import Optional, Union, List
+import logging
+from typing import List, Optional, Union
+
+import numpy as np
+import openfermion.transforms as of_transforms
 from openfermion import InteractionOperator, QubitOperator
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import get_active_space_integrals
-import numpy as np
-import openfermion.transforms as of_transforms
+from pyscf import ao2mo
+from pyscf.lib import StreamObject
+
 from .exceptions import HamiltonianBuilderError
-import logging
 
 logger = logging.getLogger(__name__)
+
 
 class HamiltonianBuilder:
     """Class to build molecular hamiltonians."""
@@ -19,7 +22,7 @@ class HamiltonianBuilder:
         scf_method: StreamObject,
         constant_e_shift: Optional[float] = 0,
         num_qubits: Optional[int] = None,
-        transform: Optional[str] = 'jordan_wigner',
+        transform: Optional[str] = "jordan_wigner",
     ) -> None:
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
@@ -37,7 +40,7 @@ class HamiltonianBuilder:
             c_matrix_active.T @ self.scf_method.get_hcore() @ c_matrix_active
         )
         return one_body_integrals
-    
+
     @property
     def _two_body_integrals(self) -> np.ndarray:
         """Get the two electron integrals."""
@@ -57,7 +60,11 @@ class HamiltonianBuilder:
         """Taper a hamiltonian."""
         raise NotImplementedError("Tapering not yet implemented")
 
-    def _reduce_active_space(self, active_indices: Union[np.ndarray, List], frozen_indices: Union[np.ndarray, List]) -> None:
+    def _reduce_active_space(
+        self,
+        active_indices: Union[np.ndarray, List],
+        frozen_indices: Union[np.ndarray, List],
+    ) -> None:
         """Reduce the active space to accommodate a certain number of qubits."""
         if self._active_indices or self._frozen_indices:
             (
@@ -120,7 +127,11 @@ class HamiltonianBuilder:
         Returns:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
-        core_constant, one_body_integrals, two_body_integrals = self.reduce_active_space()
+        (
+            core_constant,
+            one_body_integrals,
+            two_body_integrals,
+        ) = self.reduce_active_space()
 
         one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
             one_body_integrals, two_body_integrals
@@ -136,9 +147,13 @@ class HamiltonianBuilder:
 
         # TODO add tapering here
         from qiskit.opflow import Z2Symmetries
+
         from .ham_converter import HamiltonianConverter
+
         converter = HamiltonianConverter(qham)
         symmetries = Z2Symmetries().find_Z2_symmetries(converter.qiskit)
+        tapered_qham = symmetries.taper(converter.qiskit)
+        import pdb;pdb.set_trace()
 
         # tapered_hamiltonian = self.taper(molecular_hamiltonian)
 

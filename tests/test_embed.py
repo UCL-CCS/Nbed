@@ -3,8 +3,9 @@ File to contain tests of the embed.py script.
 """
 from pathlib import Path
 
-from nbed.embed import nbed
 from openfermion import QubitOperator
+
+from nbed.embed import nbed
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
@@ -24,6 +25,7 @@ def test_nbed_openfermion() -> None:
         "savefile": None,
         "run_ccsd_emb": True,
         "run_fci_emb": True,
+        "qubits": None
     }
 
     qham = nbed(
@@ -39,6 +41,7 @@ def test_nbed_openfermion() -> None:
         savefile=args["savefile"],
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
+        qubits=args["qubits"],
     )
 
     assert isinstance(qham, QubitOperator)

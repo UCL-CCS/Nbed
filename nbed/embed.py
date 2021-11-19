@@ -4,9 +4,11 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from nbed.ham_builder import HamiltonianBuilder
+
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
-from .utils import parse, setup_logs, print_summary
+from .utils import parse, print_summary, setup_logs
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,7 @@ def nbed(
     projector: str,
     output: str,
     transform: str,
+    qubits: Optional[int] = None,
     localization: Optional[str] = "spade",
     convergence: Optional[float] = 1e-6,
     charge: Optional[int] = 0,
@@ -60,6 +63,7 @@ def nbed(
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
     driver = NbedDriver(
+        qubits=qubits,
         geometry=geometry,
         n_active_atoms=n_active_atoms,
         basis=basis,
@@ -77,6 +81,7 @@ def nbed(
         unit=unit,
         occupied_threshold=occupied_threshold,
         virtual_threshold=virtual_threshold,
+        transform=transform,
     )
     converter = HamiltonianConverter(driver.molecular_ham, transform=transform)
     qham = getattr(converter, output)

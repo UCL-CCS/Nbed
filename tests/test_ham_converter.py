@@ -15,7 +15,9 @@ hamiltonian = 0.5 * QubitOperator("")
 hamiltonian += 0.25 * QubitOperator("X2")
 hamiltonian += 0.2 * QubitOperator("Y3")
 
-qiskit_hamiltonian = PauliSumOp.from_list([("IIII", 0.5), ("IIXI", 0.25), ("IIIY", 0.2)])
+qiskit_hamiltonian = PauliSumOp.from_list(
+    [("IIII", 0.5), ("IIXI", 0.25), ("IIIY", 0.2)]
+)
 pennylane_hamiltonian = qml.Hamiltonian(
     [0.5, 0.25, 0.2],
     [

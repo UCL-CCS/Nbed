@@ -140,7 +140,7 @@ class HamiltonianConverter:
         """
         if self._input is not None:
             return self._input
-        
+
         operator = self._intermediate["I" * self.n_qubits] * QubitOperator("")
         for key, value in self._intermediate.items():
             term = ""
@@ -191,10 +191,10 @@ class HamiltonianConverter:
             intermediate (dict[str, float]): Intermediate representation of a qubit hamiltonian.
 
         Returns:
-            qiskit_nature.operators.second_quantization.SpinOp
+            qiskit_nature.opflow.PauliSumOp
         """
         from qiskit.opflow.primitive_ops import PauliSumOp
+
         input_list = [(key, value) for key, value in self._intermediate.items()]
 
-        hamiltonian = PauliSumOp.from_list(input_list)
-        return hamiltonian
+        return PauliSumOp.from_list(input_list)
