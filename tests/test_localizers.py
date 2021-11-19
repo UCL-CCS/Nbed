@@ -1,10 +1,12 @@
 """Tests for localization functions."""
 
 from pathlib import Path
-from pyscf import gto, scf
-from nbed.localizers.pyscf import PMLocalizer
-import scipy as sp
+
 import numpy as np
+import scipy as sp
+from pyscf import gto, scf
+
+from nbed.localizers.pyscf import PMLocalizer
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 

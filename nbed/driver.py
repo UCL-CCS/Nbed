@@ -1,27 +1,27 @@
 """Module containg the NbedDriver Class."""
 
 import logging
+import os
+from copy import copy
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
-from copy import copy
 
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
 from openfermion.ops.representations import InteractionOperator
 from pyscf import ao2mo, cc, fci, gto, scf
-import os
-
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
+from nbed.ham_builder import HamiltonianBuilder
 
 from .localizers import (
     BOYSLocalizer,
     IBOLocalizer,
+    Localizer,
     PMLocalizer,
     SPADELocalizer,
-    Localizer,
 )
 from .scf import huzinaga_RHF
 
@@ -80,6 +80,7 @@ class NbedDriver:
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
+        transform: Optional[str] = "jordan_wigner",
     ):
         """Initialise class."""
         config_valid = True
@@ -119,6 +120,7 @@ class NbedDriver:
         self.unit = unit
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
+        self.transform = transform
 
         self.embed()
 
@@ -595,11 +597,11 @@ class NbedDriver:
 
         self._mu = {}
         self._huzinaga = {}
-        for name, method in embeddings.items():
+        for name, embedding_method in embeddings.items():
             rhf_copy = copy(local_rhf)
             result = getattr(self, "_" + name)
 
-            result["v_emb"], result["rhf"] = method(rhf_copy)
+            result["v_emb"], result["rhf"] = embedding_method(rhf_copy)
             result["rhf"] = self._delete_environment(result["rhf"], name)
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
@@ -621,9 +623,12 @@ class NbedDriver:
             )
 
             # Hamiltonian
-            result["hamiltonian"] = self.build_molecular_hamiltonian(
-                result["rhf"], result["classical_energy"]
-            )
+            result["hamiltonian"] = HamiltonianBuilder(
+                scf_method=result["rhf"], 
+                constant_e_shift=result["classical_energy"],
+                num_qubits=self.qubits,
+                transform=self.transform,
+            ).build()
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:

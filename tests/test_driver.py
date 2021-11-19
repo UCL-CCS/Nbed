@@ -2,9 +2,11 @@
 File to contain tests of the driver.py script.
 """
 from pathlib import Path
-from nbed.driver import NbedDriver
+
 import pytest
 from openfermion.ops.representations import InteractionOperator
+
+from nbed.driver import NbedDriver
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
