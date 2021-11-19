@@ -11,6 +11,7 @@ from cached_property import cached_property
 from openfermion.ops.operators.qubit_operator import QubitOperator
 from openfermion.utils import count_qubits
 from pennylane import Identity, PauliX, PauliY, PauliZ
+from qiskit.opflow.primitive_ops.pauli_sum_op import PauliSumOp
 from qiskit_nature.operators.second_quantization import SpinOp
 
 from .exceptions import HamiltonianConverterError
@@ -192,7 +193,8 @@ class HamiltonianConverter:
         Returns:
             qiskit_nature.operators.second_quantization.SpinOp
         """
+        from qiskit.opflow.primitive_ops import PauliSumOp
         input_list = [(key, value) for key, value in self._intermediate.items()]
 
-        hamiltonian = SpinOp(input_list)
+        hamiltonian = PauliSumOp.from_list(input_list)
         return hamiltonian
