@@ -601,8 +601,8 @@ class NbedDriver:
             rhf_copy = copy(local_rhf)
             result = getattr(self, "_" + name)
 
-            result["v_emb"], result["rhf"] = embedding_method(rhf_copy)
-            result["rhf"] = self._delete_environment(result["rhf"], name)
+            result["v_emb"], result["scf"] = embedding_method(rhf_copy)
+            result["scf"] = self._delete_environment(result["scf"], name)
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
 
@@ -611,7 +611,7 @@ class NbedDriver:
                 "ij,ij", result["v_emb"], self.localized_system.dm_active
             )
             result["e_rhf"] = (
-                result["rhf"].e_tot
+                result["scf"].e_tot
                 + self.e_env
                 + self.two_e_cross
                 - result["correction"]
@@ -624,7 +624,7 @@ class NbedDriver:
 
             # Hamiltonian
             result["hamiltonian"] = HamiltonianBuilder(
-                scf_method=result["rhf"], 
+                scf_method=result["scf"], 
                 constant_e_shift=result["classical_energy"],
                 num_qubits=self.qubits,
                 transform=self.transform,
@@ -633,7 +633,7 @@ class NbedDriver:
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
                 ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(
-                    result["rhf"], frozen_orb_list=None
+                    result["scf"], frozen_orb_list=None
                 )
                 result["e_ccsd"] = (
                     ccsd_emb.e_hf
@@ -645,7 +645,7 @@ class NbedDriver:
                 logger.info(f"CCSD Energy {name}:\n\t{result['e_ccsd']}")
 
             if self.run_fci_emb is True:
-                fci_emb = self._run_emb_FCI(result["rhf"], frozen_orb_list=None)
+                fci_emb = self._run_emb_FCI(result["scf"], frozen_orb_list=None)
                 result["e_fci"] = (
                     (fci_emb.e_tot)
                     + self.e_env
@@ -655,19 +655,19 @@ class NbedDriver:
                 logger.info(f"FCI Energy {name}:\n\t{result['e_fci']}")
 
         if self.projector == "both":
-            self.molecular_ham = (
-                self._mu["hamiltonian"],
-                self._huzinaga["hamiltonian"],
+            self.embedded_scf = (
+                self._mu["scf"],
+                self._huzinaga["scf"],
             )
             self.classical_energy = (
                 self._mu["classical_energy"],
                 self._huzinaga["classical_energy"],
             )
         elif self.projector == "mu":
-            self.molecular_ham = self._mu["hamiltonian"]
+            self.embedded_scf = self._mu["scf"]
             self.classical_energy = self._mu["classical_energy"]
         elif self.projector == "huzinaga":
-            self.molecular_ham = self._huzinaga["hamiltonian"]
+            self.embedded_scf = self._huzinaga["scf"]
             self.classical_energy = self._huzinaga["classical_energy"]
 
         logger.info(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")
