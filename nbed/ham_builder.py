@@ -135,6 +135,11 @@ class HamiltonianBuilder:
         qham = self._qubit_transform(self.transform, molecular_hamiltonian)
 
         # TODO add tapering here
+        from qiskit.opflow import Z2Symmetries
+        from .ham_converter import HamiltonianConverter
+        converter = HamiltonianConverter(qham)
+        symmetries = Z2Symmetries().find_Z2_symmetries(converter.qiskit)
+
         # tapered_hamiltonian = self.taper(molecular_hamiltonian)
 
         return qham
