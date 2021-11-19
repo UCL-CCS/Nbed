@@ -131,7 +131,7 @@ class HamiltonianBuilder:
             core_constant,
             one_body_integrals,
             two_body_integrals,
-        ) = self.reduce_active_space()
+        ) = self._reduce_active_space()
 
         one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
             one_body_integrals, two_body_integrals
