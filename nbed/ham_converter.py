@@ -52,31 +52,6 @@ class HamiltonianConverter:
                 "Input Hamiltonian must be an openfermion.InteractionOperator or path."
             )
 
-    def transform(self, transform):
-        """Transform second quantised hamiltonain to qubit hamiltonian."""
-        if transform is None or hasattr(of.transforms, transform) is False:
-            raise HamiltonianConverterError(
-                "Invalid transform. Please use a transform from `openfermion.transforms`."
-            )
-
-        transform = getattr(of.transforms, transform)
-
-        try:
-            qubit_hamiltonain: QubitOperator = transform(self._second_quantized)
-        except TypeError:
-            logger.error(
-                "Transform selected is not a valid InteractionOperator transform."
-            )
-            raise HamiltonianConverterError(
-                "Transform selected is not a valid InteractionOperator transform."
-            )
-
-        if type(qubit_hamiltonain) is not QubitOperator:
-            raise HamiltonianConverterError(
-                "Transform selected must output a QubitOperator"
-            )
-
-        return qubit_hamiltonain
 
     def convert(self, output_format: str) -> object:
         """Return the required qubit hamiltonian format.
