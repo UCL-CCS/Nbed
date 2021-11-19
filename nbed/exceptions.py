@@ -17,3 +17,8 @@ class HamiltonianConverterError(Exception):
     """Base Exception class."""
 
     pass
+
+class HamiltnianBuilderError(Exception):
+    """Base Exception class."""
+
+    pass

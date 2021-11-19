@@ -1,10 +1,12 @@
 from pyscf.lib import StreamObject
 from pyscf import ao2mo
-from typing import Optional
+from typing import Optional, Union, List
 from openfermion import InteractionOperator
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import get_active_space_integrals
 import numpy as np
+import openfermion.transforms as of_transforms
+
 
 class HamiltonianBuilder:
     """Class to build molecular hamiltonians."""
@@ -13,6 +15,7 @@ class HamiltonianBuilder:
         self,
         scf_method: StreamObject,
         constant_e_shift: Optional[float] = 0,
+        num_qubits: Optional[int] = None,
         active_indices: Optional[list] = None,
         occupied_indices: Optional[list] = None,
     ) -> None:
@@ -20,6 +23,8 @@ class HamiltonianBuilder:
         self.constant_e_shift = constant_e_shift
         self.active_indices = active_indices
         self.occupied_indices = occupied_indices
+        self.num_qubits = num_qubits
+        self._core_constant = 0
 
     @property
     def _one_body_integrals(self) -> np.ndarray:
@@ -47,9 +52,51 @@ class HamiltonianBuilder:
         two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
         return two_body_integrals
 
-    def __taper(self) -> None:
+    def __taper(self) -> InteractionOperator:
         """Taper a hamiltonian."""
         raise NotImplementedError("Tapering not yet implemented")
+
+    def reduce_active_space(self, active_indices: Union[np.ndarray, List], frozen_indices: Union[np.ndarray, List]) -> None:
+        """Reduce the active space to accommodate a certain number of qubits."""
+        if self._active_indices or self._frozen_indices:
+            (
+                core_constant,
+                one_body_integrals,
+                two_body_integrals,
+            ) = get_active_space_integrals(
+                self._one_body_integrals,
+                self._two_body_integrals,
+                occupied_indices=self._frozen_indices,
+                active_indices=self._active_indices,
+            )
+
+        return core_constant, one_body_integrals, two_body_integrals
+
+    def transform(self, transform):
+        """Transform second quantised hamiltonain to qubit hamiltonian."""
+        if transform is None or hasattr(of_transforms, transform) is False:
+            raise HamiltonianBuilderError(
+                "Invalid transform. Please use a transform from `openfermion.transforms`."
+            )
+
+        transform = getattr(of_transforms, transform)
+
+        try:
+            qubit_hamiltonain: QubitOperator = transform(self._second_quantized)
+        except TypeError:
+            logger.error(
+                "Transform selected is not a valid InteractionOperator transform."
+            )
+            raise HamiltonianConverterError(
+                "Transform selected is not a valid InteractionOperator transform."
+            )
+
+        if type(qubit_hamiltonain) is not QubitOperator:
+            raise HamiltonianConverterError(
+                "Transform selected must output a QubitOperator"
+            )
+
+        return qubit_hamiltonain
 
     def build(self) -> InteractionOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
@@ -72,19 +119,7 @@ class HamiltonianBuilder:
         Returns:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
-        if self.occupied_indices or self.active_indices:
-            (
-                core_constant,
-                one_body_integrals,
-                two_body_integrals,
-            ) = get_active_space_integrals(
-                self._one_body_integrals,
-                self._two_body_integrals,
-                occupied_indices=self.occupied_indices,
-                active_indices=self.active_indices,
-            )
-        else:
-            core_constant = 0
+        core_constant, one_body_integrals, two_body_integrals = self.reduce_active_space()
 
         one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
             one_body_integrals, two_body_integrals
@@ -97,5 +132,6 @@ class HamiltonianBuilder:
         )
 
         # TODO add tapering here
+        # tapered_hamiltonian = self.taper(molecular_hamiltonian)
 
         return molecular_hamiltonian
