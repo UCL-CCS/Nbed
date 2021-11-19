@@ -23,8 +23,7 @@ class HamiltonianConverter:
 
     def __init__(
         self,
-        input_hamiltonian: Union[of.InteractionOperator, of.QubitOperator, str, Path],
-        transform: Optional[str] = None,
+        input_hamiltonian: Union[of.QubitOperator, str, Path],
     ) -> None:
         """Initialise class and return output.
 
@@ -33,25 +32,19 @@ class HamiltonianConverter:
             transform (str): Transform used to convert to qubit hamiltonian.
             output_format (str): The name of the desired output format.
         """
-        if type(input_hamiltonian) is of.InteractionOperator:
-            self._second_quantized = input_hamiltonian
-            self.openfermion = self.transform(transform.lower())
-            self.n_qubits = count_qubits(input_hamiltonian)
-            self._intermediate = self._of_to_int()
+        self._input = None
 
-        elif type(input_hamiltonian) is of.QubitOperator:
-            self.openfermion = input_hamiltonian
+        if type(input_hamiltonian) is of.QubitOperator:
+            self._input = input_hamiltonian
             self.n_qubits = count_qubits(input_hamiltonian)
             self._intermediate = self._of_to_int()
 
         elif type(input_hamiltonian) in [Path, str]:
             self._intermediate = self._read_file(input_hamiltonian)
-            self.openfermion = self._int_to_of()
         else:
             raise TypeError(
                 "Input Hamiltonian must be an openfermion.InteractionOperator or path."
             )
-
 
     def convert(self, output_format: str) -> object:
         """Return the required qubit hamiltonian format.
@@ -135,7 +128,8 @@ class HamiltonianConverter:
 
         return intermediate
 
-    def _int_to_of(self) -> of.QubitOperator:
+    @cached_property
+    def openfermion(self) -> of.QubitOperator:
         """Convert from IR to openfermion.
 
         This is needed for reading from file.
@@ -143,6 +137,9 @@ class HamiltonianConverter:
         Returns:
             openfermion.QubitOperator: Qubit Hamiltonian in openfermion form.
         """
+        if self._input is not None:
+            return self._input
+        
         operator = self._intermediate["I" * self.n_qubits] * QubitOperator("")
         for key, value in self._intermediate.items():
             term = ""
