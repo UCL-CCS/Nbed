@@ -63,7 +63,6 @@ def nbed(
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
     driver = NbedDriver(
-        qubits=qubits,
         geometry=geometry,
         n_active_atoms=n_active_atoms,
         basis=basis,
@@ -81,9 +80,14 @@ def nbed(
         unit=unit,
         occupied_threshold=occupied_threshold,
         virtual_threshold=virtual_threshold,
-        transform=transform,
     )
-    converter = HamiltonianConverter(driver.molecular_ham, transform=transform)
+    qham = HamiltonianBuilder(
+        scf_method=driver.embedded_scf, 
+        constant_e_shift=driver.classical_energy,
+        num_qubits=qubits,
+        transform=transform,
+    ).build()
+    converter = HamiltonianConverter(qham, transform=transform)
     qham = getattr(converter, output)
     print_summary(driver, fci=True)
 

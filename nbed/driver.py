@@ -63,7 +63,6 @@ class NbedDriver:
         self,
         geometry: str,
         n_active_atoms: int,
-        qubits: int,
         basis: str,
         xc_functional: str,
         projector: str,
@@ -80,7 +79,6 @@ class NbedDriver:
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
-        transform: Optional[str] = "jordan_wigner",
     ):
         """Initialise class."""
         config_valid = True
@@ -103,7 +101,6 @@ class NbedDriver:
 
         self.geometry = geometry
         self.n_active_atoms = n_active_atoms
-        self.qubits = qubits
         self.basis = basis.lower()
         self.xc_functional = xc_functional.lower()
         self.projector = projector.lower()
@@ -120,7 +117,6 @@ class NbedDriver:
         self.unit = unit
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
-        self.transform = transform
 
         self.embed()
 
@@ -621,14 +617,6 @@ class NbedDriver:
             result["classical_energy"] = (
                 self.e_env + self.two_e_cross + e_nuc - result["correction"]
             )
-
-            # Hamiltonian
-            result["hamiltonian"] = HamiltonianBuilder(
-                scf_method=result["scf"], 
-                constant_e_shift=result["classical_energy"],
-                num_qubits=self.qubits,
-                transform=self.transform,
-            ).build()
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
