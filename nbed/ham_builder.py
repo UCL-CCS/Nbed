@@ -1,11 +1,12 @@
 from pyscf.lib import StreamObject
 from pyscf import ao2mo
 from typing import Optional, Union, List
-from openfermion import InteractionOperator
+from openfermion import InteractionOperator, QubitOperator
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import get_active_space_integrals
 import numpy as np
 import openfermion.transforms as of_transforms
+from .exceptions import HamiltnianBuilderError
 
 
 class HamiltonianBuilder:
@@ -87,12 +88,12 @@ class HamiltonianBuilder:
             logger.error(
                 "Transform selected is not a valid InteractionOperator transform."
             )
-            raise HamiltonianConverterError(
+            raise HamiltonianBuilderError(
                 "Transform selected is not a valid InteractionOperator transform."
             )
 
         if type(qubit_hamiltonain) is not QubitOperator:
-            raise HamiltonianConverterError(
+            raise HamiltonianBuilderError(
                 "Transform selected must output a QubitOperator"
             )
 
