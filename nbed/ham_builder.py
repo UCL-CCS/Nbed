@@ -76,9 +76,8 @@ class HamiltonianBuilder:
         occupied = np.where(scf.mo_occ > 0)[0]
         unoccupied = np.where(scf.mo_occ == 0)[0]
 
-        # +1 because we expect tapering to cut at least one qubit
-        # and we need even numbers for closed shell systems
-        n_orbitals = qubit_reduction // 2
+        # +1 because each MO is 2 qubits for closed shell.
+        n_orbitals = (qubit_reduction+1) // 2
         logger.debug(f"Reducing active space to {n_orbitals}.")
         # Again +1 because we want to use odd numbers to reduce
         # occupied orbitals
@@ -87,11 +86,11 @@ class HamiltonianBuilder:
 
         # We want the MOs nearest the fermi level
         # unoccupied orbitals go from 0->N and occupied from N->M
-        active_indices = np.append(occupied[occupied_reduction:], unoccupied[:unoccupied_reduction])
+        self._active_indices = np.append(occupied[occupied_reduction:], unoccupied[:unoccupied_reduction])
         
-        core_indices = occupied[:occupied_reduction]
-        logger.debug(f"Active indices {active_indices}.")
-        logger.debug(f"Core indices {core_indices}.")
+        self._core_indices = occupied[:occupied_reduction]
+        logger.debug(f"Active indices {self._active_indices}.")
+        logger.debug(f"Core indices {self._core_indices}.")
 
         (
             core_constant,
@@ -100,8 +99,8 @@ class HamiltonianBuilder:
         ) = get_active_space_integrals(
             self._one_body_integrals,
             self._two_body_integrals,
-            occupied_indices=core_indices,
-            active_indices=active_indices,
+            occupied_indices=self._core_indices,
+            active_indices=self._active_indices,
         )
 
         logger.debug("Active space reduced.")
