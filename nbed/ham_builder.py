@@ -1,5 +1,6 @@
 import logging
 from typing import List, Optional, Union, Tuple
+from typing_extensions import final
 from cached_property import cached_property
 
 import numpy as np
@@ -62,18 +63,13 @@ class HamiltonianBuilder:
         logger.debug("Two body integrals found.")
         return two_body_integrals
 
-    def _reduce_active_space(self, n_qubits: int) -> None:
+    def _reduce_active_space(self, qubit_reduction: int) -> None:
         """Reduce the active space to accommodate a certain number of qubits."""
         logger.debug("Reducing the active space.")
 
-        if type(n_qubits) is not int:
-            logger.error("Invalid n_qubits of type %s.", type(n_qubits))
-            raise HamiltonianBuilderError("n_qubits must be an Intger")
-        if n_qubits < 4:
-            logger.error("Must use at least 4 qubits to build hamiltonian.")
-            raise HamiltonianBuilderError(
-                "Must use at least 4 qubits to build Hamiltonian."
-            )
+        if type(qubit_reduction) is not int:
+            logger.error("Invalid qubit_reduction of type %s.", type(qubit_reduction))
+            raise HamiltonianBuilderError("qubit_reduction must be an Intger")
 
         # find where the last occupied level is
         scf = self.scf_method
@@ -82,18 +78,18 @@ class HamiltonianBuilder:
 
         # +1 because we expect tapering to cut at least one qubit
         # and we need even numbers for closed shell systems
-        n_orbitals = (n_qubits + 1) // 2
+        n_orbitals = qubit_reduction // 2
         logger.debug(f"Reducing active space to {n_orbitals}.")
-        # Again +1 because we want to take one more active than
-        # occupied when n_orbitals is odd
-        n_unoccupied = (n_orbitals + 1) // 2
-        n_occupied = n_orbitals - n_unoccupied
+        # Again +1 because we want to use odd numbers to reduce
+        # occupied orbitals
+        occupied_reduction = (n_orbitals + 1) // 2
+        unoccupied_reduction = qubit_reduction - occupied_reduction
 
         # We want the MOs nearest the fermi level
         # unoccupied orbitals go from 0->N and occupied from N->M
-        active_indices = np.append(occupied[-n_occupied:], unoccupied[:n_unoccupied])
+        active_indices = np.append(occupied[occupied_reduction:], unoccupied[:unoccupied_reduction])
         
-        core_indices = occupied[:-n_occupied]
+        core_indices = occupied[:occupied_reduction]
         logger.debug(f"Active indices {active_indices}.")
         logger.debug(f"Core indices {core_indices}.")
 
@@ -178,45 +174,47 @@ class HamiltonianBuilder:
         Returns:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
-        if n_qubits is None:
-            logger.debug("Number of qubits not set so full Hamiltonian will be found.")
-            core_constant = 0
-            one_body_integrals = self._one_body_integrals
-            two_body_integrals = self._two_body_integrals
-        else:
-            print("Building for %s qubits.", n_qubits)
+        print("Building for %s qubits.", n_qubits)
+        valid_qubits = False
+        core_constant = 0
+        one_body_integrals = self._one_body_integrals
+        two_body_integrals = self._two_body_integrals
+
+        while valid_qubits is False:
+
+            one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
+                one_body_integrals, two_body_integrals
+            )
+
+            molecular_hamiltonian = InteractionOperator(
+                (self.constant_e_shift + core_constant),
+                one_body_coefficients,
+                0.5 * two_body_coefficients,
+            )
+
+            qham = self._qubit_transform(self.transform, molecular_hamiltonian)
+            inital_n_qubits = count_qubits(qham)
+
+            # Don't like this option sitting with the recursive 
+            # call beneath it - just a little too complicated.
+            # ...but it works for now.
+            if n_qubits is None:
+                logger.debug("Unreduced Hamiltonain found.")
+                return qham
+
+            qham = self._taper(qham)
+
+            # Wanted to do a recursive thing to get the correct number from tapering but it takes ages.
+            final_n_qubits = count_qubits(qham)
+
+            if final_n_qubits <= n_qubits:
+                return qham
+
+            # Check that we have the right number of qubits.
+            excess = final_n_qubits - n_qubits
+
             (
                 core_constant,
                 one_body_integrals,
                 two_body_integrals,
-            ) = self._reduce_active_space(n_qubits)
-
-        one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
-            one_body_integrals, two_body_integrals
-        )
-
-        molecular_hamiltonian = InteractionOperator(
-            (self.constant_e_shift + core_constant),
-            one_body_coefficients,
-            0.5 * two_body_coefficients,
-        )
-
-        qham = self._qubit_transform(self.transform, molecular_hamiltonian)
-        
-        # Don't like this option sitting with the recursive 
-        # call beneath it - just a little too complicated.
-        # ...but it works for now.
-        if n_qubits is None:
-            logger.debug("Unreduced Hamiltonain found.")
-            return qham
-
-        qham = self._taper(qham)
-
-        final_n_qubits = count_qubits(qham)
-
-        # Check that we have the right number of qubits.
-        n_qubits_diff = n_qubits - final_n_qubits
-        if n_qubits_diff != 0:
-            return self.build(n_qubits + n_qubits_diff)
-        else:
-            return qham
+            ) = self._reduce_active_space(excess)
