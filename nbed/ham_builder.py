@@ -175,12 +175,11 @@ class HamiltonianBuilder:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
         logger.debug("Building for %s qubits.", n_qubits)
-        valid_qubits = False
         core_constant = 0
         one_body_integrals = self._one_body_integrals
         two_body_integrals = self._two_body_integrals
-
-        while valid_qubits is False:
+        reduction = 0
+        while True:
 
             one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
                 one_body_integrals, two_body_integrals
@@ -193,6 +192,7 @@ class HamiltonianBuilder:
             )
 
             qham = self._qubit_transform(self.transform, molecular_hamiltonian)
+            initial_n_qubits = count_qubits(qham)
 
             # Don't like this option sitting with the recursive 
             # call beneath it - just a little too complicated.
@@ -208,10 +208,11 @@ class HamiltonianBuilder:
 
             if final_n_qubits <= n_qubits:
                 return qham
+            
 
             # Check that we have the right number of qubits.
-            excess = final_n_qubits - n_qubits
-
+            #excess = final_n_qubits - n_qubits
+            excess = initial_n_qubits - final_n_qubits
             (
                 core_constant,
                 one_body_integrals,
