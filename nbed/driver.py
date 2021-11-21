@@ -66,6 +66,8 @@ class NbedDriver:
         basis: str,
         xc_functional: str,
         projector: str,
+        qubits: Optional[int] = None,
+        transform: Optional[str] = 'jordan_wigner',
         localization: Optional[str] = "spade",
         convergence: Optional[float] = 1e-6,
         charge: Optional[int] = 0,
@@ -100,6 +102,8 @@ class NbedDriver:
             raise NbedConfigError("Invalid config.")
 
         self.geometry = geometry
+        self.qubits = qubits
+        self.transform = transform.lower()
         self.n_active_atoms = n_active_atoms
         self.basis = basis.lower()
         self.xc_functional = xc_functional.lower()
@@ -148,7 +152,7 @@ class NbedDriver:
 
         Idea is to compare the number of terms to embedded Hamiltonian.
         """
-        return self.build_molecular_hamiltonian(self._global_hf)
+        return HamiltonianBuilder(self._global_hf).build()
 
     @cached_property
     def _global_hf(self) -> StreamObject:
@@ -561,6 +565,7 @@ class NbedDriver:
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
         """
+        logger.debug("Running embedding.")
         self.localized_system = self.localize()
         logger.info(f"Orbital energies {self.localized_system.rks.mo_energy}")
 
@@ -617,6 +622,8 @@ class NbedDriver:
             result["classical_energy"] = (
                 self.e_env + self.two_e_cross + e_nuc - result["correction"]
             )
+
+            result['hamiltonian'] = HamiltonianBuilder(result['scf'], result['classical_energy'], self.transform).build(self.qubits)
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:

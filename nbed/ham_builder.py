@@ -90,9 +90,8 @@ class HamiltonianBuilder:
 
         # We want the MOs nearest the fermi level
         # unoccupied orbitals go from 0->N and occupied from N->M
-        active_indices = np.concatenate(
-            (occupied[-n_occupied:] + unoccupied[:n_unoccupied])
-        )
+        active_indices = np.append(occupied[-n_occupied:], unoccupied[:n_unoccupied])
+        
         core_indices = occupied[:-n_occupied]
         logger.debug(f"Active indices {active_indices}.")
         logger.debug(f"Core indices {core_indices}.")
@@ -178,6 +177,7 @@ class HamiltonianBuilder:
         Returns:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
+        print("Building for %s qubits", n_qubits)
         if n_qubits is None:
             core_constant = 0
             one_body_integrals = self._one_body_integrals
