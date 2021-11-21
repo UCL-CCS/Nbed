@@ -1,5 +1,6 @@
 import logging
 from typing import List, Optional, Union, Tuple
+from cached_property import cached_property
 
 import numpy as np
 import openfermion.transforms as of_transforms
@@ -177,12 +178,13 @@ class HamiltonianBuilder:
         Returns:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
-        print("Building for %s qubits", n_qubits)
         if n_qubits is None:
+            logger.debug("Number of qubits not set so full Hamiltonian will be found.")
             core_constant = 0
             one_body_integrals = self._one_body_integrals
             two_body_integrals = self._two_body_integrals
         else:
+            print("Building for %s qubits.", n_qubits)
             (
                 core_constant,
                 one_body_integrals,
@@ -200,16 +202,17 @@ class HamiltonianBuilder:
         )
 
         qham = self._qubit_transform(self.transform, molecular_hamiltonian)
-
-        qham = self._taper(qham)
-
-        final_n_qubits = count_qubits(qham)
         
         # Don't like this option sitting with the recursive 
         # call beneath it - just a little too complicated.
         # ...but it works for now.
         if n_qubits is None:
+            logger.debug("Unreduced Hamiltonain found.")
             return qham
+
+        qham = self._taper(qham)
+
+        final_n_qubits = count_qubits(qham)
 
         # Check that we have the right number of qubits.
         n_qubits_diff = n_qubits - final_n_qubits
