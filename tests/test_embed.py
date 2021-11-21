@@ -47,6 +47,7 @@ def test_nbed_openfermion() -> None:
     assert isinstance(qham, QubitOperator)
     return None
 
+
 def test_nbed_6_qubits() -> None:
     """test nbed"""
     args = {
@@ -83,6 +84,7 @@ def test_nbed_6_qubits() -> None:
 
     assert count_qubits(qham) == 4
     return None
+
 
 if __name__ == "__main__":
     pass

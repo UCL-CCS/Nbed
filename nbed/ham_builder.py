@@ -1,10 +1,9 @@
 import logging
-from typing import List, Optional, Union, Tuple
-from typing_extensions import final
-from cached_property import cached_property
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import openfermion.transforms as of_transforms
+from cached_property import cached_property
 from openfermion import InteractionOperator, QubitOperator, count_qubits
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import get_active_space_integrals
@@ -12,6 +11,7 @@ from openfermion.transforms import taper_off_qubits
 from pyscf import ao2mo
 from pyscf.lib import StreamObject
 from qiskit.opflow import Z2Symmetries
+from typing_extensions import final
 
 from .exceptions import HamiltonianBuilderError
 from .ham_converter import HamiltonianConverter
@@ -77,7 +77,7 @@ class HamiltonianBuilder:
         unoccupied = np.where(scf.mo_occ == 0)[0]
 
         # +1 because each MO is 2 qubits for closed shell.
-        n_orbitals = (qubit_reduction+1) // 2
+        n_orbitals = (qubit_reduction + 1) // 2
         logger.debug(f"Reducing active space to {n_orbitals}.")
         # Again +1 because we want to use odd numbers to reduce
         # occupied orbitals
@@ -86,8 +86,10 @@ class HamiltonianBuilder:
 
         # We want the MOs nearest the fermi level
         # unoccupied orbitals go from 0->N and occupied from N->M
-        self._active_indices = np.append(occupied[occupied_reduction:], unoccupied[:unoccupied_reduction])
-        
+        self._active_indices = np.append(
+            occupied[occupied_reduction:], unoccupied[:unoccupied_reduction]
+        )
+
         self._core_indices = occupied[:occupied_reduction]
         logger.debug(f"Active indices {self._active_indices}.")
         logger.debug(f"Core indices {self._core_indices}.")
@@ -145,7 +147,9 @@ class HamiltonianBuilder:
 
         stabilizers = []
         for string in symm_strings:
-            term = [f"{pauli}{index}" for index, pauli in enumerate(string) if pauli != 'I']
+            term = [
+                f"{pauli}{index}" for index, pauli in enumerate(string) if pauli != "I"
+            ]
             term = " ".join(term)
             stabilizers.append(QubitOperator(term=term))
 
@@ -193,7 +197,7 @@ class HamiltonianBuilder:
             qham = self._qubit_transform(self.transform, molecular_hamiltonian)
             initial_n_qubits = count_qubits(qham)
 
-            # Don't like this option sitting with the recursive 
+            # Don't like this option sitting with the recursive
             # call beneath it - just a little too complicated.
             # ...but it works for now.
             if n_qubits is None:
@@ -207,10 +211,9 @@ class HamiltonianBuilder:
 
             if final_n_qubits <= n_qubits:
                 return qham
-            
 
             # Check that we have the right number of qubits.
-            #excess = final_n_qubits - n_qubits
+            # excess = final_n_qubits - n_qubits
             excess = initial_n_qubits - final_n_qubits
             (
                 core_constant,

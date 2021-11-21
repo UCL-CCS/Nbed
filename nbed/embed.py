@@ -3,8 +3,8 @@
 import logging
 from pathlib import Path
 from typing import Optional
-from nbed.exceptions import NbedConfigError
 
+from nbed.exceptions import NbedConfigError
 from nbed.ham_builder import HamiltonianBuilder
 
 from .driver import NbedDriver
@@ -63,7 +63,7 @@ def nbed(
     Returns:
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
-    if projector == 'both':
+    if projector == "both":
         raise NbedConfigError(f"Cannot use 'both' as value of projector.")
 
     driver = NbedDriver(
@@ -95,7 +95,7 @@ def nbed(
     converter = HamiltonianConverter(qham)
 
     qham = getattr(converter, output.lower())
-    #print_summary(driver, fci=True, transform=transform)
+    # print_summary(driver, fci=True, transform=transform)
     return qham
 
 
