@@ -82,7 +82,7 @@ def test_nbed_6_qubits() -> None:
         qubits=args["qubits"],
     )
 
-    assert count_qubits(qham) == 4
+    assert count_qubits(qham) == 3
     return None
 
 
