@@ -6,6 +6,7 @@ from pathlib import Path
 from openfermion import QubitOperator, count_qubits
 
 from nbed.embed import nbed
+from nbed.embed import nbed
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
