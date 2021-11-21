@@ -25,7 +25,7 @@ def test_nbed_openfermion() -> None:
         "savefile": None,
         "run_ccsd_emb": True,
         "run_fci_emb": True,
-        "qubits": None
+        "qubits": None,
     }
 
     qham = nbed(
