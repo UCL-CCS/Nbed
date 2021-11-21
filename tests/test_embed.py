@@ -62,7 +62,7 @@ def test_nbed_6_qubits() -> None:
         "savefile": None,
         "run_ccsd_emb": True,
         "run_fci_emb": True,
-        "qubits": 6,
+        "qubits": 10,
     }
 
     qham = nbed(
