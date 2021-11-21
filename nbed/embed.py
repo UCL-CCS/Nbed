@@ -82,7 +82,7 @@ def nbed(
         virtual_threshold=virtual_threshold,
     )
     qham = HamiltonianBuilder(
-        scf_method=driver.embedded_scf, 
+        scf_method=driver.embedded_scf,
         constant_e_shift=driver.classical_energy,
         num_qubits=qubits,
         transform=transform,

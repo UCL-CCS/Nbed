@@ -8,7 +8,10 @@ from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import get_active_space_integrals
 from pyscf import ao2mo
 from pyscf.lib import StreamObject
+from qiskit.opflow import Z2Symmetries
 
+from .ham_converter import HamiltonianConverter
+from openfermion.transforms import taper_off_qubits
 from .exceptions import HamiltonianBuilderError
 
 logger = logging.getLogger(__name__)
@@ -56,31 +59,61 @@ class HamiltonianBuilder:
         two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
         return two_body_integrals
 
-    def __taper(self) -> InteractionOperator:
-        """Taper a hamiltonian."""
-        raise NotImplementedError("Tapering not yet implemented")
-
     def _reduce_active_space(
         self,
-        active_indices: Union[np.ndarray, List],
-        frozen_indices: Union[np.ndarray, List],
     ) -> None:
         """Reduce the active space to accommodate a certain number of qubits."""
-        if self._active_indices or self._frozen_indices:
-            (
-                core_constant,
-                one_body_integrals,
-                two_body_integrals,
-            ) = get_active_space_integrals(
-                self._one_body_integrals,
-                self._two_body_integrals,
-                occupied_indices=self._frozen_indices,
-                active_indices=self._active_indices,
-            )
+        logger.debug("Reducing the active space.")
+        if self.num_qubits is None:
+            logger.debug("qubits parameter not set, not reducing.")
+            #return 0, self._one_body_integrals, self._two_body_integrals
+
+        # find where the last occupied level is
+        scf = self.scf_method
+        occupied = np.where(scf.mo_occ>0)[0]
+        unoccupied = np.where(scf.mo_occ==0)[0]
+
+        #+1 because we expect tapering to cut at least one qubit
+        # and we need even numbers for closed shell systems
+        n_orbitals = (self.num_qubits+1)//2
+        # Again +1 because we want to take one more active than 
+        # occupied when n_orbitals is odd
+        n_unoccupied = (n_orbitals+1)//2
+        n_occupied = n_orbitals - n_unoccupied
+
+        # We want the MOs nearest the fermi level
+        # unoccupied orbitals go from 0->N and occupied from N->M
+        active_indices = np.concatenate((occupied[-n_occupied:] + unoccupied[:n_unoccupied]))
+        core_indices = occupied[:-n_occupied]
+
+        (
+            core_constant,
+            one_body_integrals,
+            two_body_integrals,
+        ) = get_active_space_integrals(
+            self._one_body_integrals,
+            self._two_body_integrals,
+            occupied_indices=core_indices,
+            active_indices=active_indices,
+        )
 
         return core_constant, one_body_integrals, two_body_integrals
 
-    def _qubit_transform(transform, intop: InteractionOperator) -> QubitOperator:
+    def _taper(self, qham: QubitOperator) -> QubitOperator:
+        """Taper a hamiltonian."""
+        converter = HamiltonianConverter(qham)
+        symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
+        symm_strings = [symm.to_label() for symm in symmetries]
+
+        stabilizers = []
+        for string in symm_strings:
+            term = [f"{pauli}{index}" for index, pauli in enumerate(string)]
+            term = " ".join(term)
+            stabilizers.apend(QubitOperator(term=term))
+
+        return taper_off_qubits(qham, stabilizers)
+        
+    def _qubit_transform(self, transform, intop: InteractionOperator) -> QubitOperator:
         """Transform second quantised hamiltonain to qubit hamiltonian."""
         if transform is None or hasattr(of_transforms, transform) is False:
             raise HamiltonianBuilderError(
@@ -145,16 +178,6 @@ class HamiltonianBuilder:
 
         qham = self._qubit_transform(self.transform, molecular_hamiltonian)
 
-        # TODO add tapering here
-        from qiskit.opflow import Z2Symmetries
-
-        from .ham_converter import HamiltonianConverter
-
-        converter = HamiltonianConverter(qham)
-        symmetries = Z2Symmetries().find_Z2_symmetries(converter.qiskit)
-        tapered_qham = symmetries.taper(converter.qiskit)
-        import pdb;pdb.set_trace()
-
-        # tapered_hamiltonian = self.taper(molecular_hamiltonian)
+        qham = self._taper(molecular_hamiltonian)
 
         return qham
