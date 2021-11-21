@@ -24,14 +24,12 @@ class HamiltonianBuilder:
         self,
         scf_method: StreamObject,
         constant_e_shift: Optional[float] = 0,
-        num_qubits: Optional[int] = None,
         transform: Optional[str] = "jordan_wigner",
     ) -> None:
         logger.debug("Initialising HamiltonianBuilder.")
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
         self.transform = transform
-        self.num_qubits = num_qubits
 
     @property
     def _one_body_integrals(self) -> np.ndarray:
@@ -83,7 +81,7 @@ class HamiltonianBuilder:
 
         # +1 because we expect tapering to cut at least one qubit
         # and we need even numbers for closed shell systems
-        n_orbitals = (self.num_qubits + 1) // 2
+        n_orbitals = (n_qubits + 1) // 2
         logger.debug(f"Reducing active space to {n_orbitals}.")
         # Again +1 because we want to take one more active than
         # occupied when n_orbitals is odd
@@ -148,13 +146,13 @@ class HamiltonianBuilder:
         logger.debug("Beginning qubit tapering.")
         converter = HamiltonianConverter(qham)
         symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
-        symm_strings = [symm.to_label() for symm in symmetries]
+        symm_strings = [symm.to_label() for symm in symmetries.sq_paulis]
 
         stabilizers = []
         for string in symm_strings:
-            term = [f"{pauli}{index}" for index, pauli in enumerate(string)]
+            term = [f"{pauli}{index}" for index, pauli in enumerate(string) if pauli != 'I']
             term = " ".join(term)
-            stabilizers.apend(QubitOperator(term=term))
+            stabilizers.append(QubitOperator(term=term))
 
         logger.debug("Tapering complete.")
         return taper_off_qubits(qham, stabilizers)
