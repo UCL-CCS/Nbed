@@ -174,7 +174,7 @@ class HamiltonianBuilder:
         Returns:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
-        print("Building for %s qubits.", n_qubits)
+        logger.debug("Building for %s qubits.", n_qubits)
         valid_qubits = False
         core_constant = 0
         one_body_integrals = self._one_body_integrals
@@ -193,7 +193,6 @@ class HamiltonianBuilder:
             )
 
             qham = self._qubit_transform(self.transform, molecular_hamiltonian)
-            inital_n_qubits = count_qubits(qham)
 
             # Don't like this option sitting with the recursive 
             # call beneath it - just a little too complicated.
