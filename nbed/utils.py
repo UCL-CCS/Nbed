@@ -11,6 +11,8 @@ import yaml
 from openfermion import count_qubits
 from openfermion.chem.pubchem import geometry_from_pubchem
 
+from nbed.ham_builder import HamiltonianBuilder
+
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
 
