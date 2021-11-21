@@ -44,7 +44,7 @@ class HamiltonianConverter:
             self._intermediate = self._read_file(input_hamiltonian)
         else:
             raise TypeError(
-                "Input Hamiltonian must be an openfermion.InteractionOperator or path."
+                "Input Hamiltonian must be an openfermion.QubitOperator or path."
             )
 
     def convert(self, output_format: str) -> object:
