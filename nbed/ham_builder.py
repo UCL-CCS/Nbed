@@ -6,13 +6,13 @@ import openfermion.transforms as of_transforms
 from openfermion import InteractionOperator, QubitOperator, count_qubits
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import get_active_space_integrals
+from openfermion.transforms import taper_off_qubits
 from pyscf import ao2mo
 from pyscf.lib import StreamObject
 from qiskit.opflow import Z2Symmetries
 
-from .ham_converter import HamiltonianConverter
-from openfermion.transforms import taper_off_qubits
 from .exceptions import HamiltonianBuilderError
+from .ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ class HamiltonianBuilder:
         num_qubits: Optional[int] = None,
         transform: Optional[str] = "jordan_wigner",
     ) -> None:
+        logger.debug("Initialising HamiltonianBuilder.")
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
         self.transform = transform
@@ -35,17 +36,20 @@ class HamiltonianBuilder:
     @property
     def _one_body_integrals(self) -> np.ndarray:
         """Get the one electron integrals."""
+        logger.debug("Calculating one body integrals.")
         c_matrix_active = self.scf_method.mo_coeff
 
         # one body terms
         one_body_integrals = (
             c_matrix_active.T @ self.scf_method.get_hcore() @ c_matrix_active
         )
+        logger.debug("One body integrals found.")
         return one_body_integrals
 
     @property
     def _two_body_integrals(self) -> np.ndarray:
         """Get the two electron integrals."""
+        logger.debug("Calculating two body integrals.")
         c_matrix_active = self.scf_method.mo_coeff
         n_orbs = c_matrix_active.shape[1]
 
@@ -56,34 +60,44 @@ class HamiltonianBuilder:
 
         # Openfermion uses physicist notation whereas pyscf uses chemists
         two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
+        logger.debug("Two body integrals found.")
         return two_body_integrals
 
-    def _reduce_active_space(
-        self,
-    ) -> None:
+    def _reduce_active_space(self, n_qubits: int) -> None:
         """Reduce the active space to accommodate a certain number of qubits."""
         logger.debug("Reducing the active space.")
-        if self.num_qubits is None:
-            logger.debug("qubits parameter not set, not reducing.")
-            #return 0, self._one_body_integrals, self._two_body_integrals
+
+        if type(n_qubits) is not int:
+            logger.error("Invalid n_qubits of type %s.", type(n_qubits))
+            raise HamiltonianBuilderError("n_qubits must be an Intger")
+        if n_qubits < 4:
+            logger.error("Must use at least 4 qubits to build hamiltonian.")
+            raise HamiltonianBuilderError(
+                "Must use at least 4 qubits to build Hamiltonian."
+            )
 
         # find where the last occupied level is
         scf = self.scf_method
-        occupied = np.where(scf.mo_occ>0)[0]
-        unoccupied = np.where(scf.mo_occ==0)[0]
+        occupied = np.where(scf.mo_occ > 0)[0]
+        unoccupied = np.where(scf.mo_occ == 0)[0]
 
-        #+1 because we expect tapering to cut at least one qubit
+        # +1 because we expect tapering to cut at least one qubit
         # and we need even numbers for closed shell systems
-        n_orbitals = (self.num_qubits+1)//2
-        # Again +1 because we want to take one more active than 
+        n_orbitals = (self.num_qubits + 1) // 2
+        logger.debug(f"Reducing active space to {n_orbitals}.")
+        # Again +1 because we want to take one more active than
         # occupied when n_orbitals is odd
-        n_unoccupied = (n_orbitals+1)//2
+        n_unoccupied = (n_orbitals + 1) // 2
         n_occupied = n_orbitals - n_unoccupied
 
         # We want the MOs nearest the fermi level
         # unoccupied orbitals go from 0->N and occupied from N->M
-        active_indices = np.concatenate((occupied[-n_occupied:] + unoccupied[:n_unoccupied]))
+        active_indices = np.concatenate(
+            (occupied[-n_occupied:] + unoccupied[:n_unoccupied])
+        )
         core_indices = occupied[:-n_occupied]
+        logger.debug(f"Active indices {active_indices}.")
+        logger.debug(f"Core indices {core_indices}.")
 
         (
             core_constant,
@@ -96,10 +110,14 @@ class HamiltonianBuilder:
             active_indices=active_indices,
         )
 
+        logger.debug("Active space reduced.")
         return core_constant, one_body_integrals, two_body_integrals
-        
-    def _qubit_transform(self, transform: str, intop: InteractionOperator) -> QubitOperator:
+
+    def _qubit_transform(
+        self, transform: str, intop: InteractionOperator
+    ) -> QubitOperator:
         """Transform second quantised hamiltonain to qubit hamiltonian."""
+        logger.debug(f"Transforming to qubit Hamiltonian using {transform} transform.")
         if transform is None or hasattr(of_transforms, transform) is False:
             raise HamiltonianBuilderError(
                 "Invalid transform. Please use a transform from `openfermion.transforms`."
@@ -119,13 +137,15 @@ class HamiltonianBuilder:
 
         if type(qubit_hamiltonain) is not QubitOperator:
             raise HamiltonianBuilderError(
-                "Transform selected must output a QubitOperator"
+                "Transform selected must output a QubitOperator."
             )
 
+        logger.debug("Qubit Hamiltonian constructed.")
         return qubit_hamiltonain
 
     def _taper(self, qham: QubitOperator) -> QubitOperator:
         """Taper a hamiltonian."""
+        logger.debug("Beginning qubit tapering.")
         converter = HamiltonianConverter(qham)
         symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
         symm_strings = [symm.to_label() for symm in symmetries]
@@ -136,6 +156,7 @@ class HamiltonianBuilder:
             term = " ".join(term)
             stabilizers.apend(QubitOperator(term=term))
 
+        logger.debug("Tapering complete.")
         return taper_off_qubits(qham, stabilizers)
 
     def build(self, n_qubits: int) -> InteractionOperator:
