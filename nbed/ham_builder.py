@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 import openfermion.transforms as of_transforms
-from openfermion import InteractionOperator, QubitOperator
+from openfermion import InteractionOperator, QubitOperator, count_qubits
 from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.ops.representations import get_active_space_integrals
 from pyscf import ao2mo
@@ -31,7 +31,6 @@ class HamiltonianBuilder:
         self.constant_e_shift = constant_e_shift
         self.transform = transform
         self.num_qubits = num_qubits
-        self._core_constant = 0
 
     @property
     def _one_body_integrals(self) -> np.ndarray:
@@ -98,22 +97,8 @@ class HamiltonianBuilder:
         )
 
         return core_constant, one_body_integrals, two_body_integrals
-
-    def _taper(self, qham: QubitOperator) -> QubitOperator:
-        """Taper a hamiltonian."""
-        converter = HamiltonianConverter(qham)
-        symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
-        symm_strings = [symm.to_label() for symm in symmetries]
-
-        stabilizers = []
-        for string in symm_strings:
-            term = [f"{pauli}{index}" for index, pauli in enumerate(string)]
-            term = " ".join(term)
-            stabilizers.apend(QubitOperator(term=term))
-
-        return taper_off_qubits(qham, stabilizers)
         
-    def _qubit_transform(self, transform, intop: InteractionOperator) -> QubitOperator:
+    def _qubit_transform(self, transform: str, intop: InteractionOperator) -> QubitOperator:
         """Transform second quantised hamiltonain to qubit hamiltonian."""
         if transform is None or hasattr(of_transforms, transform) is False:
             raise HamiltonianBuilderError(
@@ -139,7 +124,21 @@ class HamiltonianBuilder:
 
         return qubit_hamiltonain
 
-    def build(self) -> InteractionOperator:
+    def _taper(self, qham: QubitOperator) -> QubitOperator:
+        """Taper a hamiltonian."""
+        converter = HamiltonianConverter(qham)
+        symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
+        symm_strings = [symm.to_label() for symm in symmetries]
+
+        stabilizers = []
+        for string in symm_strings:
+            term = [f"{pauli}{index}" for index, pauli in enumerate(string)]
+            term = " ".join(term)
+            stabilizers.apend(QubitOperator(term=term))
+
+        return taper_off_qubits(qham, stabilizers)
+
+    def build(self, n_qubits: int) -> InteractionOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
         constant_e_shift is a constant energy addition... in this code this will be the classical embedding energy
@@ -164,7 +163,7 @@ class HamiltonianBuilder:
             core_constant,
             one_body_integrals,
             two_body_integrals,
-        ) = self._reduce_active_space()
+        ) = self._reduce_active_space(n_qubits)
 
         one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
             one_body_integrals, two_body_integrals
@@ -180,4 +179,12 @@ class HamiltonianBuilder:
 
         qham = self._taper(molecular_hamiltonian)
 
-        return qham
+        # Check that we have the right number of qubits
+        final_n_qubits = count_qubits(qham)
+        n_qubits_diff = n_qubits - final_n_qubits
+
+        # Recursive method
+        if n_qubits_diff != 0:
+            return self.build(n_qubits + n_qubits_diff)
+        else:
+            return qham
