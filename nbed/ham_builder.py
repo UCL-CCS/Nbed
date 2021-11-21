@@ -159,7 +159,7 @@ class HamiltonianBuilder:
         logger.debug("Tapering complete.")
         return taper_off_qubits(qham, stabilizers)
 
-    def build(self, n_qubits: int) -> InteractionOperator:
+    def build(self, n_qubits: Optional[int]) -> QubitOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
         constant_e_shift is a constant energy addition... in this code this will be the classical embedding energy
@@ -180,11 +180,16 @@ class HamiltonianBuilder:
         Returns:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
-        (
-            core_constant,
-            one_body_integrals,
-            two_body_integrals,
-        ) = self._reduce_active_space(n_qubits)
+        if n_qubits is None:
+            core_constant = 0
+            one_body_integrals = self._one_body_integrals
+            two_body_integrals = self._two_body_integrals
+        else:
+            (
+                core_constant,
+                one_body_integrals,
+                two_body_integrals,
+            ) = self._reduce_active_space(n_qubits)
 
         one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
             one_body_integrals, two_body_integrals
@@ -200,11 +205,16 @@ class HamiltonianBuilder:
 
         qham = self._taper(molecular_hamiltonian)
 
-        # Check that we have the right number of qubits
         final_n_qubits = count_qubits(qham)
-        n_qubits_diff = n_qubits - final_n_qubits
+        
+        # Don't like this option sitting with the recursive 
+        # call beneath it - just a little too complicated.
+        # ...but it works for now.
+        if n_qubits is None:
+            return qham
 
-        # Recursive method
+        # Check that we have the right number of qubits.
+        n_qubits_diff = n_qubits - final_n_qubits
         if n_qubits_diff != 0:
             return self.build(n_qubits + n_qubits_diff)
         else:
