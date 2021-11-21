@@ -144,6 +144,7 @@ class HamiltonianBuilder:
         converter = HamiltonianConverter(qham)
         symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
         symm_strings = [symm.to_label() for symm in symmetries.sq_paulis]
+        logger.debug(f"Found {len(symm_strings)} Z2Symmetries")
 
         stabilizers = []
         for string in symm_strings:
