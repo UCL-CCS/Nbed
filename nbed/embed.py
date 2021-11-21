@@ -65,7 +65,7 @@ def nbed(
     """
     if projector == 'both':
         raise NbedConfigError(f"Cannot use 'both' as value of projector.")
-        
+
     driver = NbedDriver(
         geometry=geometry,
         n_active_atoms=n_active_atoms,
@@ -85,15 +85,17 @@ def nbed(
         occupied_threshold=occupied_threshold,
         virtual_threshold=virtual_threshold,
     )
+
     qham = HamiltonianBuilder(
         scf_method=driver.embedded_scf,
         constant_e_shift=driver.classical_energy,
         transform=transform,
     ).build(n_qubits=qubits)
-    converter = HamiltonianConverter(qham)
-    qham = getattr(converter, output)
-    print_summary(driver, fci=True)
 
+    converter = HamiltonianConverter(qham)
+
+    qham = getattr(converter, output.lower())
+    #print_summary(driver, fci=True, transform=transform)
     return qham
 
 

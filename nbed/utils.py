@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
-from openfermion import count_qubits
+from openfermion import count_qubits, transforms
 from openfermion.chem.pubchem import geometry_from_pubchem
 
 from nbed.ham_builder import HamiltonianBuilder
@@ -237,7 +237,7 @@ def load_hamiltonian(filepath: Path, output: str) -> object:
     return HamiltonianConverter(filepath).convert(output)
 
 
-def print_summary(driver: NbedDriver, fci: bool = False):
+def print_summary(driver: NbedDriver, transform: str, fci: bool = False):
     """Print a summary of the package results.
 
     Args:
@@ -307,11 +307,12 @@ def print_summary(driver: NbedDriver, fci: bool = False):
         logger.info(
             f"global (expensive) full FCI calculation {driver._global_fci.e_tot}"
         )
+    full_system_hamiltonian = HamiltonianBuilder(driver._global_hf, constant_e_shift=0, transform=transform)
     logger.info(
-        f"length of full system fermionic Hamiltonian: {len(list(driver.full_system_hamiltonian))}"
+        f"length of full system fermionic Hamiltonian: {len(list(full_system_hamiltonian))}"
     )
     logger.info(
-        f"number of qubits required: {count_qubits(driver.full_system_hamiltonian)}"
+        f"number of qubits required: {count_qubits(full_system_hamiltonian)}"
     )
 
 
