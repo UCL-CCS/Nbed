@@ -90,10 +90,6 @@ def nbed(
     qham = getattr(converter, output)
     print_summary(driver, fci=True)
 
-    from openfermion import eigenspectrum
-
-    logger.info(eigenspectrum(driver.molecular_ham)[0])
-
     return qham
 
 
