@@ -307,13 +307,13 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False):
         logger.info(
             f"global (expensive) full FCI calculation {driver._global_fci.e_tot}"
         )
-    full_system_hamiltonian = HamiltonianBuilder(driver._global_hf, constant_e_shift=0, transform=transform)
+    full_system_hamiltonian = HamiltonianBuilder(
+        driver._global_hf, constant_e_shift=0, transform=transform
+    )
     logger.info(
         f"length of full system fermionic Hamiltonian: {len(list(full_system_hamiltonian))}"
     )
-    logger.info(
-        f"number of qubits required: {count_qubits(full_system_hamiltonian)}"
-    )
+    logger.info(f"number of qubits required: {count_qubits(full_system_hamiltonian)}")
 
 
 def pubchem_mol_geometry(molecule_name) -> dict:
