@@ -5,7 +5,6 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional, Union
 
-import openfermion as of
 import pennylane as qml
 from cached_property import cached_property
 from openfermion.ops.operators.qubit_operator import QubitOperator
@@ -24,7 +23,7 @@ class HamiltonianConverter:
 
     def __init__(
         self,
-        input_hamiltonian: Union[of.QubitOperator, str, Path],
+        input_hamiltonian: Union[QubitOperator, str, Path],
     ) -> None:
         """Initialise class and return output.
 
@@ -35,7 +34,7 @@ class HamiltonianConverter:
         """
         self._input = None
 
-        if type(input_hamiltonian) is of.QubitOperator:
+        if type(input_hamiltonian) is QubitOperator:
             self._input = input_hamiltonian
             self.n_qubits = count_qubits(input_hamiltonian)
             self._intermediate = self._of_to_int()
@@ -130,7 +129,7 @@ class HamiltonianConverter:
         return intermediate
 
     @cached_property
-    def openfermion(self) -> of.QubitOperator:
+    def openfermion(self) -> QubitOperator:
         """Convert from IR to openfermion.
 
         This is needed for reading from file.

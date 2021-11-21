@@ -86,6 +86,7 @@ def nbed(
         constant_e_shift=driver.classical_energy,
         transform=transform,
     ).build(n_qubits=qubits)
+    import pdb; pdb.set_trace()
     converter = HamiltonianConverter(qham, transform=transform)
     qham = getattr(converter, output)
     print_summary(driver, fci=True)

@@ -203,7 +203,7 @@ class HamiltonianBuilder:
 
         qham = self._qubit_transform(self.transform, molecular_hamiltonian)
 
-        qham = self._taper(molecular_hamiltonian)
+        qham = self._taper(qham)
 
         final_n_qubits = count_qubits(qham)
         
