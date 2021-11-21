@@ -66,8 +66,6 @@ class NbedDriver:
         basis: str,
         xc_functional: str,
         projector: str,
-        qubits: Optional[int] = None,
-        transform: Optional[str] = 'jordan_wigner',
         localization: Optional[str] = "spade",
         convergence: Optional[float] = 1e-6,
         charge: Optional[int] = 0,
@@ -102,8 +100,6 @@ class NbedDriver:
             raise NbedConfigError("Invalid config.")
 
         self.geometry = geometry
-        self.qubits = qubits
-        self.transform = transform.lower()
         self.n_active_atoms = n_active_atoms
         self.basis = basis.lower()
         self.xc_functional = xc_functional.lower()
@@ -145,14 +141,6 @@ class NbedDriver:
                 unit=self.unit,
             ).build()
         return full_mol
-
-    @cached_property
-    def full_system_hamiltonian(self):
-        """Build molecular fermionic Hamiltonian (of whole system).
-
-        Idea is to compare the number of terms to embedded Hamiltonian.
-        """
-        return HamiltonianBuilder(self._global_hf).build()
 
     @cached_property
     def _global_hf(self) -> StreamObject:
@@ -622,8 +610,6 @@ class NbedDriver:
             result["classical_energy"] = (
                 self.e_env + self.two_e_cross + e_nuc - result["correction"]
             )
-
-            result['hamiltonian'] = HamiltonianBuilder(result['scf'], result['classical_energy'], self.transform).build(self.qubits)
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
