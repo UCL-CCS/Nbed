@@ -70,6 +70,8 @@ class HamiltonianBuilder:
         if type(qubit_reduction) is not int:
             logger.error("Invalid qubit_reduction of type %s.", type(qubit_reduction))
             raise HamiltonianBuilderError("qubit_reduction must be an Intger")
+        if qubit_reduction == 0:
+            return 0, self._one_body_integrals, self._two_body_integrals
 
         # find where the last occupied level is
         scf = self.scf_method
@@ -90,7 +92,7 @@ class HamiltonianBuilder:
             occupied[occupied_reduction:], unoccupied[:unoccupied_reduction]
         )
 
-        self._core_indices = occupied[:occupied_reduction]
+        occupied_indices = np.where(self.scf_method.mo_occ > 0)
         logger.debug(f"Active indices {self._active_indices}.")
         logger.debug(f"Core indices {self._core_indices}.")
 
@@ -101,7 +103,7 @@ class HamiltonianBuilder:
         ) = get_active_space_integrals(
             self._one_body_integrals,
             self._two_body_integrals,
-            occupied_indices=self._core_indices,
+            occupied_indices=occupied_indices,
             active_indices=self._active_indices,
         )
 
@@ -157,7 +159,7 @@ class HamiltonianBuilder:
         logger.debug("Tapering complete.")
         return taper_off_qubits(qham, stabilizers)
 
-    def build(self, n_qubits: Optional[int] = None) -> QubitOperator:
+    def build(self, n_qubits: Optional[int] = None, taper: Optional[bool] = True) -> QubitOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
         constant_e_shift is a constant energy addition... in this code this will be the classical embedding energy
@@ -205,8 +207,9 @@ class HamiltonianBuilder:
             if n_qubits is None:
                 logger.debug("Unreduced Hamiltonain found.")
                 return qham
-
-            qham = self._taper(qham)
+             
+            if taper is True:
+                qham = self._taper(qham)
 
             # Wanted to do a recursive thing to get the correct number from tapering but it takes ages.
             final_n_qubits = count_qubits(qham)
