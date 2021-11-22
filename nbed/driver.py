@@ -188,10 +188,10 @@ class NbedDriver:
 
     def _check_active_atoms(self):
         """Check that the number of active atoms is valid."""
-        max_atoms = self._build_mol().natm
-        if self.n_active_atoms not in range(1, max_atoms):
+        all_atoms = self._build_mol().natm
+        if self.n_active_atoms not in range(1, all_atoms):
             raise NbedConfigError(
-                f"Invalid number of active atoms. Choose a number between 0 and {max_atoms}."
+                f"Invalid number of active atoms. Choose a number between 0 and {all_atoms}."
             )
 
     def localize(self):
