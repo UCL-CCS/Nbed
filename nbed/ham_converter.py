@@ -38,7 +38,9 @@ class HamiltonianConverter:
             self._input = input_hamiltonian
             self.n_qubits = count_qubits(input_hamiltonian)
             self._intermediate = self._of_to_int()
-
+        elif type(input_hamiltonian) is dict:
+            self.n_qubits = len(input_hamiltonian.keys()[0])
+            self._intermediate = input_hamiltonian
         elif type(input_hamiltonian) in [Path, str]:
             self._intermediate = self._read_file(input_hamiltonian)
         else:
