@@ -159,7 +159,9 @@ class HamiltonianBuilder:
         logger.debug("Tapering complete.")
         return taper_off_qubits(qham, stabilizers)
 
-    def build(self, n_qubits: Optional[int] = None, taper: Optional[bool] = True) -> QubitOperator:
+    def build(
+        self, n_qubits: Optional[int] = None, taper: Optional[bool] = True
+    ) -> QubitOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
         constant_e_shift is a constant energy addition... in this code this will be the classical embedding energy
@@ -207,7 +209,7 @@ class HamiltonianBuilder:
             if n_qubits is None:
                 logger.debug("Unreduced Hamiltonain found.")
                 return qham
-             
+
             if taper is True:
                 qham = self._taper(qham)
 
