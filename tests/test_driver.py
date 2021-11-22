@@ -2,6 +2,8 @@
 File to contain tests of the driver.py script.
 """
 from pathlib import Path
+from numpy import number
+from pyscf.lib.misc import StreamObject
 
 import pytest
 from openfermion.ops.representations import InteractionOperator
@@ -75,10 +77,8 @@ def test_driver_standard_xyz_file_input() -> None:
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
     )
-    sec_quant_h = driver.molecular_ham
-    assert isinstance(sec_quant_h, InteractionOperator)
-
-    return None
+    assert isinstance(driver.embedded_scf, StreamObject)
+    assert isinstance(driver.classical_energy, number)
 
 
 def test_driver_standard_xyz_string_input() -> None:
@@ -111,10 +111,8 @@ def test_driver_standard_xyz_string_input() -> None:
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
     )
-    sec_quant_h = driver.molecular_ham
-    assert isinstance(sec_quant_h, InteractionOperator)
-
-    return None
+    assert isinstance(driver.embedded_scf, StreamObject)
+    assert isinstance(driver.classical_energy, number)
 
 
 if __name__ == "__main__":
