@@ -4,17 +4,15 @@ import logging
 import os
 from copy import copy
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
-from openfermion.ops.representations import InteractionOperator
-from pyscf import ao2mo, cc, fci, gto, scf
+from pyscf import cc, fci, gto, scf
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
-from nbed.ham_builder import HamiltonianBuilder
 
 from .localizers import (
     BOYSLocalizer,
