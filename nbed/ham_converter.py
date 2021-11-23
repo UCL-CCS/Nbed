@@ -186,7 +186,7 @@ class HamiltonianConverter:
         return hamiltonian
 
     @cached_property
-    def qiskit(self) -> SpinOp:
+    def qiskit(self) -> PauliSumOp:
         """Return Qiskit spin operator.
 
         Args:

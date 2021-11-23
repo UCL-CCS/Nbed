@@ -10,6 +10,7 @@ from openfermion.ops.representations import get_active_space_integrals
 from openfermion.transforms import taper_off_qubits
 from pyscf import ao2mo
 from pyscf.lib import StreamObject
+from pyscf.lib.numpy_helper import SYMMETRIC
 from qiskit.opflow import Z2Symmetries
 from typing_extensions import final
 
@@ -88,13 +89,12 @@ class HamiltonianBuilder:
 
         # We want the MOs nearest the fermi level
         # unoccupied orbitals go from 0->N and occupied from N->M
-        self._active_indices = np.append(
+        self._active_space_indices = np.append(
             occupied[occupied_reduction:], unoccupied[:unoccupied_reduction]
         )
 
         occupied_indices = np.where(self.scf_method.mo_occ > 0)
         logger.debug(f"Active indices {self._active_indices}.")
-        logger.debug(f"Core indices {self._core_indices}.")
 
         (
             core_constant,
@@ -104,7 +104,7 @@ class HamiltonianBuilder:
             self._one_body_integrals,
             self._two_body_integrals,
             occupied_indices=occupied_indices,
-            active_indices=self._active_indices,
+            active_indices=self._active_space_indices,
         )
 
         logger.debug("Active space reduced.")
@@ -146,6 +146,8 @@ class HamiltonianBuilder:
         converter = HamiltonianConverter(qham)
         symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
         symm_strings = [symm.to_label() for symm in symmetries.sq_paulis]
+        print(symm_strings[:5])
+
         logger.debug(f"Found {len(symm_strings)} Z2Symmetries")
 
         stabilizers = []
@@ -156,6 +158,7 @@ class HamiltonianBuilder:
             term = " ".join(term)
             stabilizers.append(QubitOperator(term=term))
 
+        print(stabilizers[:5])
         logger.debug("Tapering complete.")
         return taper_off_qubits(qham, stabilizers)
 
@@ -206,12 +209,12 @@ class HamiltonianBuilder:
             # Don't like this option sitting with the recursive
             # call beneath it - just a little too complicated.
             # ...but it works for now.
+            if taper is True:
+                qham = self._taper(qham)
+
             if n_qubits is None:
                 logger.debug("Unreduced Hamiltonain found.")
                 return qham
-
-            if taper is True:
-                qham = self._taper(qham)
 
             # Wanted to do a recursive thing to get the correct number from tapering but it takes ages.
             final_n_qubits = count_qubits(qham)
