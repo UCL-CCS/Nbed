@@ -94,7 +94,7 @@ class HamiltonianBuilder:
         )
 
         occupied_indices = np.where(self.scf_method.mo_occ > 0)
-        logger.debug(f"Active indices {self._active_indices}.")
+        logger.debug(f"Active indices {self._active_space_indices}.")
 
         (
             core_constant,
@@ -146,7 +146,6 @@ class HamiltonianBuilder:
         converter = HamiltonianConverter(qham)
         symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
         symm_strings = [symm.to_label() for symm in symmetries.sq_paulis]
-        print(symm_strings[:5])
 
         logger.debug(f"Found {len(symm_strings)} Z2Symmetries")
 
@@ -157,8 +156,7 @@ class HamiltonianBuilder:
             ]
             term = " ".join(term)
             stabilizers.append(QubitOperator(term=term))
-
-        print(stabilizers[:5])
+        
         logger.debug("Tapering complete.")
         return taper_off_qubits(qham, stabilizers)
 
@@ -186,13 +184,13 @@ class HamiltonianBuilder:
             molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
         """
         logger.debug("Building for %s qubits.", n_qubits)
-        excess = 0
+        qubit_reduction = 0
         while True:
             (
                 core_constant,
                 one_body_integrals,
                 two_body_integrals,
-            ) = self._reduce_active_space(excess)
+            ) = self._reduce_active_space(qubit_reduction)
 
             one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
                 one_body_integrals, two_body_integrals
@@ -211,7 +209,6 @@ class HamiltonianBuilder:
             # ...but it works for now.
             if taper is True:
                 qham = self._taper(qham)
-
             if n_qubits is None:
                 logger.debug("Unreduced Hamiltonain found.")
                 return qham
@@ -223,4 +220,4 @@ class HamiltonianBuilder:
                 return qham
 
             # Check that we have the right number of qubits.
-            excess += final_n_qubits - n_qubits
+            qubit_reduction += final_n_qubits - n_qubits
