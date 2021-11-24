@@ -156,7 +156,7 @@ class HamiltonianBuilder:
             ]
             term = " ".join(term)
             stabilizers.append(QubitOperator(term=term))
-        
+
         logger.debug("Tapering complete.")
         return taper_off_qubits(qham, stabilizers)
 
