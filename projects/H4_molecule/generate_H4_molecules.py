@@ -54,6 +54,6 @@ if __name__ == '__main__':
         file_name = f'H4_beta_{b_angle}_bottom_top_bottom_top_order'
         save_ordered_xyz_file(file_name,
                               struct_dict=H4_struct_dict,
-                              active_atom_inds=[0,2,1,3],
+                              active_atom_inds=[2,0,1,3],
                               save_location=cwd
                               )
