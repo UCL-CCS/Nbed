@@ -4,6 +4,9 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from nbed.exceptions import NbedConfigError
+from nbed.ham_builder import HamiltonianBuilder
+
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
 from .utils import parse, print_summary, setup_logs
@@ -19,6 +22,7 @@ def nbed(
     projector: str,
     output: str,
     transform: str,
+    qubits: Optional[int] = None,
     localization: Optional[str] = "spade",
     convergence: Optional[float] = 1e-6,
     charge: Optional[int] = 0,
@@ -59,6 +63,9 @@ def nbed(
     Returns:
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
+    if projector == "both":
+        raise NbedConfigError(f"Cannot use 'both' as value of projector.")
+
     driver = NbedDriver(
         geometry=geometry,
         n_active_atoms=n_active_atoms,
@@ -78,14 +85,17 @@ def nbed(
         occupied_threshold=occupied_threshold,
         virtual_threshold=virtual_threshold,
     )
-    converter = HamiltonianConverter(driver.molecular_ham, transform=transform)
-    qham = getattr(converter, output)
-    print_summary(driver, fci=True)
 
-    from openfermion import eigenspectrum
+    qham = HamiltonianBuilder(
+        scf_method=driver.embedded_scf,
+        constant_e_shift=driver.classical_energy,
+        transform=transform,
+    ).build(n_qubits=qubits)
 
-    logger.info(eigenspectrum(driver.molecular_ham)[0])
+    converter = HamiltonianConverter(qham)
 
+    qham = getattr(converter, output.lower())
+    # print_summary(driver, fci=True, transform=transform)
     return qham
 
 

@@ -4,17 +4,12 @@ import logging
 import os
 from copy import copy
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
-from openfermion.chem.molecular_data import spinorb_from_spatial
-from openfermion.ops.representations import (
-    InteractionOperator,
-    get_active_space_integrals,
-)
-from pyscf import ao2mo, cc, fci, gto, scf
+from pyscf import cc, fci, gto, scf
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
@@ -31,7 +26,7 @@ from .scf import huzinaga_RHF
 logger = logging.getLogger(__name__)
 
 
-class NbedDriver(object):
+class NbedDriver:
     """Function to return the embedding Qubit Hamiltonian.
 
     Args:
@@ -148,14 +143,6 @@ class NbedDriver(object):
         return full_mol
 
     @cached_property
-    def full_system_hamiltonian(self):
-        """Build molecular fermionic Hamiltonian (of whole system).
-
-        Idea is to compare the number of terms to embedded Hamiltonian.
-        """
-        return self.build_molecular_hamiltonian(self._global_hf)
-
-    @cached_property
     def _global_hf(self) -> StreamObject:
         """Run full system Hartree-Fock."""
         mol_full = self._build_mol()
@@ -201,10 +188,10 @@ class NbedDriver(object):
 
     def _check_active_atoms(self):
         """Check that the number of active atoms is valid."""
-        max_atoms = self._build_mol().natm
-        if self.n_active_atoms not in range(1, max_atoms):
+        all_atoms = self._build_mol().natm
+        if self.n_active_atoms not in range(1, all_atoms):
             raise NbedConfigError(
-                f"Invalid number of active atoms. Choose a number between 0 and {max_atoms}."
+                f"Invalid number of active atoms. Choose a number between 0 and {all_atoms}."
             )
 
     def localize(self):
@@ -568,84 +555,13 @@ class NbedDriver(object):
 
         return embedded_rhf
 
-    def build_molecular_hamiltonian(
-        self,
-        scf_method: StreamObject,
-        constant_e_shift: Optional[float] = 0,
-        active_indices: Optional[list] = None,
-        occupied_indices: Optional[list] = None,
-    ) -> InteractionOperator:
-        """Returns second quantized fermionic molecular Hamiltonian.
-
-        constant_e_shift is a constant energy addition... in this code this will be the classical embedding energy
-        that corrects for the full system.
-
-        The active_indices and occupied indices are an active space approximation... where occupied and virtual orbitals
-        can be frozen. This is different to removing the environment orbitals, as core_constant terms must be added to
-        make this approximation.
-
-        Args:
-            scf_method (StreamObject): A pyscf self-consistent method.
-            constant_e_shift (float): constant energy term to add to Hamiltonian
-            active_indices (list): A list of spatial orbital indices indicating which orbitals should be
-                                   considered active.
-            occupied_indices (list):  A list of spatial orbital indices indicating which orbitals should be
-                                      considered doubly occupied.
-
-        Returns:
-            molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
-        """
-        # C_matrix containing orbitals to be considered
-        # if there are any environment orbs that have been projected out... these should NOT be present in the
-        # scf_method.mo_coeff array (aka columns should be deleted!)
-        c_matrix_active = scf_method.mo_coeff
-        n_orbs = c_matrix_active.shape[1]
-
-        # one body terms
-        one_body_integrals = (
-            c_matrix_active.T @ scf_method.get_hcore() @ c_matrix_active
-        )
-
-        two_body_compressed = ao2mo.kernel(scf_method.mol, c_matrix_active)
-
-        # get electron repulsion integrals
-        eri = ao2mo.restore(1, two_body_compressed, n_orbs)  # no permutation symmetry
-
-        # Openfermion uses physicist notation whereas pyscf uses chemists
-        two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
-
-        if occupied_indices or active_indices:
-            (
-                core_constant,
-                one_body_integrals,
-                two_body_integrals,
-            ) = get_active_space_integrals(
-                one_body_integrals,
-                two_body_integrals,
-                occupied_indices=occupied_indices,
-                active_indices=active_indices,
-            )
-        else:
-            core_constant = 0
-
-        one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
-            one_body_integrals, two_body_integrals
-        )
-
-        molecular_hamiltonian = InteractionOperator(
-            (constant_e_shift + core_constant),
-            one_body_coefficients,
-            0.5 * two_body_coefficients,
-        )
-
-        return molecular_hamiltonian
-
     def embed(self):
         """Generate embedded Hamiltonian.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
         """
+        logger.debug("Running embedding.")
         self.localized_system = self.localize()
         logger.info(f"Orbital energies {self.localized_system.rks.mo_energy}")
 
@@ -678,12 +594,12 @@ class NbedDriver(object):
 
         self._mu = {}
         self._huzinaga = {}
-        for name, method in embeddings.items():
+        for name, embedding_method in embeddings.items():
             rhf_copy = copy(local_rhf)
             result = getattr(self, "_" + name)
 
-            result["v_emb"], result["rhf"] = method(rhf_copy)
-            result["rhf"] = self._delete_environment(result["rhf"], name)
+            result["v_emb"], result["scf"] = embedding_method(rhf_copy)
+            result["scf"] = self._delete_environment(result["scf"], name)
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
 
@@ -692,7 +608,7 @@ class NbedDriver(object):
                 "ij,ij", result["v_emb"], self.localized_system.dm_active
             )
             result["e_rhf"] = (
-                result["rhf"].e_tot
+                result["scf"].e_tot
                 + self.e_env
                 + self.two_e_cross
                 - result["correction"]
@@ -703,15 +619,10 @@ class NbedDriver(object):
                 self.e_env + self.two_e_cross + e_nuc - result["correction"]
             )
 
-            # Hamiltonian
-            result["hamiltonian"] = self.build_molecular_hamiltonian(
-                result["rhf"], result["classical_energy"]
-            )
-
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
                 ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(
-                    result["rhf"], frozen_orb_list=None
+                    result["scf"], frozen_orb_list=None
                 )
                 result["e_ccsd"] = (
                     ccsd_emb.e_hf
@@ -723,7 +634,7 @@ class NbedDriver(object):
                 logger.info(f"CCSD Energy {name}:\n\t{result['e_ccsd']}")
 
             if self.run_fci_emb is True:
-                fci_emb = self._run_emb_FCI(result["rhf"], frozen_orb_list=None)
+                fci_emb = self._run_emb_FCI(result["scf"], frozen_orb_list=None)
                 result["e_fci"] = (
                     (fci_emb.e_tot)
                     + self.e_env
@@ -733,19 +644,19 @@ class NbedDriver(object):
                 logger.info(f"FCI Energy {name}:\n\t{result['e_fci']}")
 
         if self.projector == "both":
-            self.molecular_ham = (
-                self._mu["hamiltonian"],
-                self._huzinaga["hamiltonian"],
+            self.embedded_scf = (
+                self._mu["scf"],
+                self._huzinaga["scf"],
             )
             self.classical_energy = (
                 self._mu["classical_energy"],
                 self._huzinaga["classical_energy"],
             )
         elif self.projector == "mu":
-            self.molecular_ham = self._mu["hamiltonian"]
+            self.embedded_scf = self._mu["scf"]
             self.classical_energy = self._mu["classical_energy"]
         elif self.projector == "huzinaga":
-            self.molecular_ham = self._huzinaga["hamiltonian"]
+            self.embedded_scf = self._huzinaga["scf"]
             self.classical_energy = self._huzinaga["classical_energy"]
 
         logger.info(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")

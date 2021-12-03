@@ -4,7 +4,8 @@ File to contain tests of the driver.py script.
 from pathlib import Path
 
 import pytest
-from openfermion.ops.representations import InteractionOperator
+from numpy import number
+from pyscf.lib.misc import StreamObject
 
 from nbed.driver import NbedDriver
 from nbed.exceptions import NbedConfigError
@@ -76,8 +77,8 @@ def test_driver_standard_xyz_file_input() -> None:
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
     )
-    sec_quant_h = driver.molecular_ham
-    assert isinstance(sec_quant_h, InteractionOperator)
+    assert isinstance(driver.embedded_scf, StreamObject)
+    assert isinstance(driver.classical_energy, number)
 
 
 def test_driver_standard_xyz_string_input() -> None:
@@ -110,8 +111,8 @@ def test_driver_standard_xyz_string_input() -> None:
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
     )
-    sec_quant_h = driver.molecular_ham
-    assert isinstance(sec_quant_h, InteractionOperator)
+    assert isinstance(driver.embedded_scf, StreamObject)
+    assert isinstance(driver.classical_energy, number)
 
 
 def test_n_active_atoms_valid() -> None:

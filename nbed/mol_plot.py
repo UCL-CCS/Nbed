@@ -6,7 +6,6 @@ from typing import List
 
 import numpy as np
 import py3Dmol
-
 from pyscf import gto
 from pyscf.tools import cubegen
 
@@ -14,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 def Draw_molecule(
-    xyz_string: str, width: int = 400, height: int = 400, style: str = 'sphere') -> py3Dmol.view:
+    xyz_string: str, width: int = 400, height: int = 400, style: str = "sphere"
+) -> py3Dmol.view:
     """Draw molecule from xyz string.
 
     Note if molecule has unrealistic bonds, then style should be sphere. Otherwise stick style can be used
@@ -31,18 +31,19 @@ def Draw_molecule(
     Returns:
         view (py3dmol.view object). Run view.show() method to print molecule.
     """
-    if style == 'sphere':
-        view = py3Dmol.view(data=xyz_string,
-                            style={"sphere": {'radius': 0.2}},
-                            width=width,
-                            height=height)
-    elif style == 'stick':
-        view = py3Dmol.view(data=xyz_string,
-                            style={"stick": {}},
-                            width=width,
-                            height=height)
+    if style == "sphere":
+        view = py3Dmol.view(
+            data=xyz_string,
+            style={"sphere": {"radius": 0.2}},
+            width=width,
+            height=height,
+        )
+    elif style == "stick":
+        view = py3Dmol.view(
+            data=xyz_string, style={"stick": {}}, width=width, height=height
+        )
     else:
-        raise ValueError(f'unknown py3dmol style: {style}')
+        raise ValueError(f"unknown py3dmol style: {style}")
 
     view.zoomTo()
     return view
@@ -55,7 +56,7 @@ def Draw_cube_orbital(
     index_list: List[int],
     width: int = 400,
     height: int = 400,
-    style: str = 'sphere'
+    style: str = "sphere",
 ) -> List:
     """Draw orbials given a C_matrix and xyz string of molecule.
 
@@ -89,12 +90,12 @@ def Draw_cube_orbital(
 
         view = py3Dmol.view(width=width, height=height)
         view.addModel(xyz_string, "xyz")
-        if style == 'sphere':
-            view.setStyle({"sphere": {'radius': 0.2}})
-        elif style == 'stick':
+        if style == "sphere":
+            view.setStyle({"sphere": {"radius": 0.2}})
+        elif style == "stick":
             view.setStyle({"stick": {}})
         else:
-            raise ValueError(f'unknown py3dmol style: {style}')
+            raise ValueError(f"unknown py3dmol style: {style}")
 
         with open(File_name, "r") as f:
             view.addVolumetricData(
