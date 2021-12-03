@@ -143,7 +143,7 @@ class HamiltonianConverter:
         if self._input is not None:
             return self._input
 
-        operator = self._intermediate["I" * self.n_qubits] * QubitOperator("")
+        operator = self._intermediate.get("I" * self.n_qubits, 0) * QubitOperator("")
         for key, value in self._intermediate.items():
             term = ""
 
