@@ -90,9 +90,7 @@ class Localizer(ABC):
             raise ValueError(f"threshold: {threshold} is not in range [0,1] inclusive")
 
     @cached_property
-    def _local_basis_transform(
-        self,
-    ) -> np.ndarray:
+    def _local_basis_transform(self,) -> np.ndarray:
         """Canonical to Localized Orbital Transform.
 
         Get operator that changes from standard canonical orbitals (C_matrix standard) to
@@ -158,10 +156,8 @@ class Localizer(ABC):
             @ self._local_basis_transform
         )
 
-        local_rks.get_veff = (
-            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: self._rks_veff(
-                local_rks, self._local_basis_transform, dm=dm, check_result=True
-            )
+        local_rks.get_veff = lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: self._rks_veff(
+            local_rks, self._local_basis_transform, dm=dm, check_result=True
         )
 
         # overwrite C matrix with localised orbitals

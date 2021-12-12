@@ -262,10 +262,8 @@ class NbedDriver:
 
             return new_veff
 
-        local_rhf.get_veff = (
-            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: new_rhf_veff(
-                local_rhf, dm=dm, hermi=hermi
-            )
+        local_rhf.get_veff = lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: new_rhf_veff(
+            local_rhf, dm=dm, hermi=hermi
         )
 
         return local_rhf
@@ -275,8 +273,7 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
-            localized_system: Localizer,
-            subsystem_dm: np.ndarray,
+            localized_system: Localizer, subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
