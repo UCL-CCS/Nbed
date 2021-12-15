@@ -476,6 +476,7 @@ class NbedDriver:
             mo_embedded_energy,
             dm_active_embedded,
             huzinaga_op_std,
+            huz_rhf_conv_flag
         ) = huzinaga_RHF(
             localized_rhf,
             self._dft_potential,
@@ -494,6 +495,7 @@ class NbedDriver:
         )
         localized_rhf.mo_energy = mo_embedded_energy
         localized_rhf.e_tot = localized_rhf.energy_tot(dm=dm_active_embedded)
+        localized_rhf.conv_check = huz_rhf_conv_flag
 
         logger.info(f"Huzinaga rhf energy: {localized_rhf.e_tot}")
 

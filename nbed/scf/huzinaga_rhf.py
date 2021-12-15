@@ -104,6 +104,6 @@ def huzinaga_RHF(
     if conv_flag is False:
         logger.warning("SCF has NOT converged.")
 
-    e_total = rhf_energy + scf_method.energy_nuc()
+    # e_total = rhf_energy + scf_method.energy_nuc()
 
-    return mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std
+    return mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std, conv_flag
