@@ -44,7 +44,7 @@ class NbedDriver:
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
-
+        max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
     Attributes:
         _global_fci (StreamObject): A Qubit Hamiltonian of some kind
         e_act (float): Active energy from subsystem DFT calculation
@@ -77,6 +77,7 @@ class NbedDriver:
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
+        max_hf_cycles=50,
     ):
         """Initialise class."""
         config_valid = True
@@ -115,7 +116,7 @@ class NbedDriver:
         self.unit = unit
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
-
+        self.max_hf_cycles = max_hf_cycles
         self._check_active_atoms()
 
         self.embed()
@@ -151,6 +152,7 @@ class NbedDriver:
         global_hf.conv_tol = self.convergence
         global_hf.max_memory = self.max_ram_memory
         global_hf.verbose = self.pyscf_print_level
+        global_hf.max_cycle = self.max_hf_cycles
         global_hf.kernel()
         logger.info(f"global HF: {global_hf.e_tot}")
         return global_hf
@@ -229,6 +231,7 @@ class NbedDriver:
         local_rhf.max_memory = self.max_ram_memory
         local_rhf.conv_tol = self.convergence
         local_rhf.verbose = self.pyscf_print_level
+        local_rhf.max_cycle= self.max_hf_cycles
 
         logger.debug("Define Hartree-Fock object in localized basis")
         # TODO: need to check if change of basis here is necessary (START)
