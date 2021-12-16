@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import scipy as sp
-from pyscf.lib import StreamObject
+from pyscf.lib import StreamObject, diis
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,7 @@ def huzinaga_RHF(
     enviro_proj_ortho_basis: np.ndarray,
     dm_conv_tol: float = 1e-6,
     dm_initial_guess: Optional[np.ndarray] = None,
+    use_DIIS: Optional[np.ndarray] = True,
 ):
     """Manual RHF calculation that is implemented using the huzinaga operator
     Note this function uses lowdin (symmetric) orthogonalization only! (PySCF sometimes uses meta-lowdin and NAO). Also
@@ -31,6 +32,7 @@ def huzinaga_RHF(
         s_half (np.ndarray): AO overlap matrix to the power of 1/2
         dm_conv_tol (float): density matrix convergence tolerance
         dm_initial_guess (np.ndarray): Optional initial guess density matrix
+        use_DIIS (bool): whether to use  Direct Inversion in the Iterative Subspace (DIIS) method
     Returns:
         conv_flag (bool): Flag to indicate whether SCF has converged or not
         e_total (float): RHF energy (includes nuclear energy)
@@ -63,12 +65,16 @@ def huzinaga_RHF(
     dm_mat = dm_initial_guess
     conv_flag = False
     rhf_energy_prev = 0
-    for _ in range(scf_method.max_cycle):
+    if use_DIIS: adiis = diis.DIIS()
+    for i in range(scf_method.max_cycle):
         # build fock matrix
         vhf = scf_method.get_veff(dm=dm_mat)
         fock = scf_method.get_hcore() + dft_potential + vhf
 
-        # else continue alg
+        if use_DIIS and (i > 1):
+            # DIIS update of Fock matrix
+            fock = adiis.update(fock)
+
         fock_ortho = s_neg_half @ fock @ s_neg_half
         huzinaga_op_ortho = -1 * (
             fock_ortho @ enviro_proj_ortho_basis + enviro_proj_ortho_basis @ fock_ortho
@@ -95,6 +101,7 @@ def huzinaga_RHF(
         # check convergence
         run_diff = np.abs(rhf_energy - rhf_energy_prev)
         norm_dm_diff = np.linalg.norm(dm_mat - dm_mat_old)
+
         if (run_diff < scf_method.conv_tol) and (norm_dm_diff < dm_conv_tol):
             conv_flag = True
             break
@@ -104,6 +111,6 @@ def huzinaga_RHF(
     if conv_flag is False:
         logger.warning("SCF has NOT converged.")
 
-    e_total = rhf_energy + scf_method.energy_nuc()
+    # e_total = rhf_energy + scf_method.energy_nuc()
 
-    return mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std
+    return mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std, conv_flag

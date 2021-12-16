@@ -13,6 +13,7 @@ from pyscf import cc, fci, gto, scf
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
+import collections
 
 from .localizers import (
     BOYSLocalizer,
@@ -44,7 +45,7 @@ class NbedDriver:
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
-
+        max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
     Attributes:
         _global_fci (StreamObject): A Qubit Hamiltonian of some kind
         e_act (float): Active energy from subsystem DFT calculation
@@ -55,6 +56,7 @@ class NbedDriver:
         classical_energy (float): environment correction energy to obtain total energy (for mu shift method)
         molecular_ham (InteractionOperator): molecular Hamiltonian for active subsystem (projection using huzianga operator)
         classical_energy (float): environment correction energy to obtain total energy (for huzianga method)
+        _init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
     """
 
     def __init__(
@@ -77,6 +79,8 @@ class NbedDriver:
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
+        max_hf_cycles=50,
+        _init_huzinaga_rhf_with_mu=False
     ):
         """Initialise class."""
         config_valid = True
@@ -115,10 +119,11 @@ class NbedDriver:
         self.unit = unit
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
-
+        self.max_hf_cycles = max_hf_cycles
         self._check_active_atoms()
 
-        self.embed()
+        # run embedding calc
+        self.embed(init_huzinaga_rhf_with_mu=_init_huzinaga_rhf_with_mu)
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
@@ -151,6 +156,7 @@ class NbedDriver:
         global_hf.conv_tol = self.convergence
         global_hf.max_memory = self.max_ram_memory
         global_hf.verbose = self.pyscf_print_level
+        global_hf.max_cycle = self.max_hf_cycles
         global_hf.kernel()
         logger.info(f"global HF: {global_hf.e_tot}")
         return global_hf
@@ -229,6 +235,7 @@ class NbedDriver:
         local_rhf.max_memory = self.max_ram_memory
         local_rhf.conv_tol = self.convergence
         local_rhf.verbose = self.pyscf_print_level
+        local_rhf.max_cycle= self.max_hf_cycles
 
         logger.debug("Define Hartree-Fock object in localized basis")
         # TODO: need to check if change of basis here is necessary (START)
@@ -456,12 +463,12 @@ class NbedDriver:
 
         return v_emb, localized_rhf
 
-    def _huzinaga_embed(self, localized_rhf: StreamObject) -> np.ndarray:
+    def _huzinaga_embed(self, localized_rhf: StreamObject, dm_initial_guess: Optional[np.array]=None) -> np.ndarray:
         """Embed using Huzinaga projector.
 
         Args:
             localized_rhf (StreamObject): A PySCF RHF method in the localized basis.
-
+            dm_initial_guess (np.array): initial guess for dm matrix
         Returns:
             np.ndarray: Matrix form of the embedding potential.
             StreamObject: The embedded RHF object.
@@ -473,12 +480,13 @@ class NbedDriver:
             mo_embedded_energy,
             dm_active_embedded,
             huzinaga_op_std,
+            huz_rhf_conv_flag
         ) = huzinaga_RHF(
             localized_rhf,
             self._dft_potential,
             self._orthogonal_projector,
             dm_conv_tol=1e-6,
-            dm_initial_guess=None,
+            dm_initial_guess=dm_initial_guess,
         )  # TODO: use dm_active_embedded (use mu answer to initialize!)
 
         # write results to pyscf object
@@ -491,6 +499,7 @@ class NbedDriver:
         )
         localized_rhf.mo_energy = mo_embedded_energy
         localized_rhf.e_tot = localized_rhf.energy_tot(dm=dm_active_embedded)
+        localized_rhf.conv_check = huz_rhf_conv_flag
 
         logger.info(f"Huzinaga rhf energy: {localized_rhf.e_tot}")
 
@@ -511,7 +520,7 @@ class NbedDriver:
         n_env_mo = len(self.localized_system.enviro_MO_inds)
 
         if method == "huzinaga":
-            frozen_enviro_orb_inds = [i for i in range(n_act_mo, n_act_mo + n_env_mo)]
+            frozen_enviro_orb_inds = [i for i in range(n_act_mo+1, n_act_mo + n_env_mo+1)]
 
             active_MOs_occ_and_virt_embedded = [
                 mo_i
@@ -552,7 +561,7 @@ class NbedDriver:
 
         return embedded_rhf
 
-    def embed(self):
+    def embed(self, init_huzinaga_rhf_with_mu=False):
         """Generate embedded Hamiltonian.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
@@ -591,11 +600,20 @@ class NbedDriver:
 
         self._mu = {}
         self._huzinaga = {}
-        for name, embedding_method in embeddings.items():
+
+        # run mu shift first to ensure we can seed huz calc if desired!
+        ordered_embeddings = collections.OrderedDict(sorted(embeddings.items(), reverse=True))
+        for name, embedding_method in ordered_embeddings.items():
             rhf_copy = copy(local_rhf)
             result = getattr(self, "_" + name)
 
-            result["v_emb"], result["scf"] = embedding_method(rhf_copy)
+            if init_huzinaga_rhf_with_mu and (name == 'huzinaga'):
+                # seed huzinaga calc with mu result!
+                result["v_emb"], result["scf"] = embedding_method(rhf_copy,
+                                                                  dm_initial_guess=self._mu['scf'].make_rdm1())
+            else:
+                result["v_emb"], result["scf"] = embedding_method(rhf_copy)
+
             result["scf"] = self._delete_environment(result["scf"], name)
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
