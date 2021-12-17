@@ -93,7 +93,7 @@ class HamiltonianBuilder:
             occupied[occupied_reduction:], unoccupied[:unoccupied_reduction]
         )
 
-        occupied_indices = np.where(self.scf_method.mo_occ > 0)
+        occupied_indices = np.where(self.scf_method.mo_occ > 0)[0]
         logger.debug(f"Active indices {self._active_space_indices}.")
 
         (
