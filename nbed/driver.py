@@ -13,7 +13,6 @@ from pyscf import cc, fci, gto, scf
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
-import collections
 
 from .localizers import (
     BOYSLocalizer,
@@ -602,8 +601,9 @@ class NbedDriver:
         self._huzinaga = {}
 
         # run mu shift first to ensure we can seed huz calc if desired!
-        ordered_embeddings = collections.OrderedDict(sorted(embeddings.items(), reverse=True))
-        for name, embedding_method in ordered_embeddings.items():
+        ordered_embedding_list = sorted(embeddings.keys(), reverse=True)
+        for name in ordered_embedding_list:
+            embedding_method = embeddings[name]
             rhf_copy = copy(local_rhf)
             result = getattr(self, "_" + name)
 
