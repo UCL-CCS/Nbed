@@ -162,7 +162,7 @@ class HamiltonianBuilder:
         return taper_off_qubits(qham, stabilizers)
 
     def build(
-        self, n_qubits: Optional[int] = None, taper: Optional[bool] = True
+        self, n_qubits: Optional[int] = None, taper: Optional[bool] = False
     ) -> QubitOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
