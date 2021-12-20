@@ -68,6 +68,9 @@ class Localizer(ABC):
         self._global_rks = pyscf_rks
         self._n_active_atoms = n_active_atoms
 
+        self._cannonical_rks_mo_energy = np.diag(pyscf_rks.mo_coeff.conj().T @
+                                                 pyscf_rks.get_fock() @ pyscf_rks.mo_coeff)
+
         self._occ_cutoff = self._valid_threshold(occ_cutoff)
         self._virt_cutoff = self._valid_threshold(virt_cutoff)
         self._run_virtual_localization = run_virtual_localization
@@ -89,7 +92,6 @@ class Localizer(ABC):
         else:
             raise ValueError(f"threshold: {threshold} is not in range [0,1] inclusive")
 
-    @cached_property
     def _local_basis_transform(self,) -> np.ndarray:
         """Canonical to Localized Orbital Transform.
 
@@ -118,6 +120,11 @@ class Localizer(ABC):
         # move back into non orthogonal basis
         matrix_std_to_loc = s_neg_half @ unitary_ORTHO_std_onto_loc @ s_half
 
+        # as non ortho basis, also need conj() T version [cannot do matrix_std_to_loc.conj().T to get this!]
+        # matrix_std_to_loc_dagger = s_half @ unitary_ORTHO_std_onto_loc.conj().T @ s_neg_half
+        # print(np.allclose(matrix_std_to_loc.conj().T,matrix_std_to_loc_dagger))
+        # ignore!  (can use .conj().T!)
+
         # if np.allclose(unitary_ORTHO_std_onto_loc @ ortho_loc, ortho_std) is not True:
         #     raise ValueError(
         #         "Change of basis incorrect... U_ORTHO_std_onto_loc*C_ortho_loc !=  C_ortho_STD"
@@ -141,8 +148,8 @@ class Localizer(ABC):
         #     raise ValueError(
         #         "Change of basis incorrect... U_std*C_std !=  C_loc_occ_and_virt"
         #     )
-
-        return matrix_std_to_loc
+        self.basis_trans_std_to_loc = matrix_std_to_loc
+        # return matrix_std_to_loc
 
     @cached_property
     def rks(self) -> StreamObject:
@@ -150,14 +157,15 @@ class Localizer(ABC):
         local_rks = self._global_rks
 
         hcore_std = local_rks.get_hcore()
+
         local_rks.get_hcore = (
-            lambda *args: self._local_basis_transform.conj().T
+            lambda *args: self.basis_trans_std_to_loc.conj().T
             @ hcore_std
-            @ self._local_basis_transform
+            @ self.basis_trans_std_to_loc
         )
 
         local_rks.get_veff = lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: self._rks_veff(
-            local_rks, self._local_basis_transform, dm=dm, check_result=True
+            local_rks, self.basis_trans_std_to_loc, dm=dm, check_result=True
         )
 
         # overwrite C matrix with localised orbitals
@@ -169,11 +177,6 @@ class Localizer(ABC):
         # fock_locbasis = _local_rks.get_hcore() + _local_rks.get_veff(dm=dm_loc)
         fock_locbasis = local_rks.get_fock(dm=dm_loc)
 
-        # orbital_energies_std = _local_rks.mo_energy
-        orbital_energies_loc = np.diag(
-            local_rks.mo_coeff.conj().T @ fock_locbasis @ local_rks.mo_coeff
-        )
-
         # check electronic energy matches standard global calc
         local_rks_total_energy_loc = local_rks.energy_tot(dm=dm_loc)
         if not np.isclose(local_rks.e_tot, local_rks_total_energy_loc):
@@ -181,10 +184,14 @@ class Localizer(ABC):
                 "electronic energy of standard calculation not matching localized calculation"
             )
 
-        local_rks.mo_energy = orbital_energies_loc
-        # check if mo energies match - too strict maye change of basis operator not exact
-        # if not np.allclose(local_rks.mo_energy, orbital_energies_loc):
-        # raise ValueError('orbital energies of standard calc not matching localized calc')
+        fock_locbasis = local_rks.get_fock(dm=dm_loc)
+        orbital_energies_loc = np.diag(
+            local_rks.mo_coeff.conj().T @ fock_locbasis @ local_rks.mo_coeff
+        )
+
+        # check if mo energies match
+        if not np.allclose(self._cannonical_rks_mo_energy, orbital_energies_loc):
+            raise ValueError('orbital energies of standard calc not matching localized calc')
 
         return local_rks
 
@@ -381,3 +388,4 @@ class Localizer(ABC):
             c_virtual = self._global_rks.mo_coeff[:, self._global_rks.mo_occ < 2]
 
         self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
+        self._local_basis_transform()

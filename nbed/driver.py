@@ -187,6 +187,7 @@ class NbedDriver:
         global_rks.max_memory = self.max_ram_memory
         global_rks.verbose = self.pyscf_print_level
         global_rks.kernel()
+        # global_rks.mo_energy = np.diag(c_global_rks_full.conj().T @ global_rks_Fock @ c_global_rks_full)
         logger.info(f"global RKS {global_rks.e_tot}")
 
         return global_rks
@@ -241,9 +242,9 @@ class NbedDriver:
         h_core = local_rhf.get_hcore()
 
         local_rhf.get_hcore = (
-            lambda *args: self.localized_system._local_basis_transform.conj().T
+            lambda *args: self.localized_system.basis_trans_std_to_loc.conj().T
             @ h_core
-            @ self.localized_system._local_basis_transform
+            @ self.localized_system.basis_trans_std_to_loc
         )
 
         def new_rhf_veff(rhf: scf.RHF, dm: np.ndarray = None, hermi: int = 1):
@@ -261,9 +262,9 @@ class NbedDriver:
 
             # v_eff = pyscf_obj.get_veff(dm=dm)
             new_veff = (
-                self.localized_system._local_basis_transform.conj().T
+                self.localized_system.basis_trans_std_to_loc.conj().T
                 @ v_eff
-                @ self.localized_system._local_basis_transform
+                @ self.localized_system.basis_trans_std_to_loc
             )
 
             return new_veff
@@ -483,7 +484,7 @@ class NbedDriver:
         ) = huzinaga_RHF(
             localized_rhf,
             self._dft_potential,
-            self._orthogonal_projector,
+            self._orthogonal_projector, #self._orthogonal_projector,  self.localized_system.dm_enviro
             dm_conv_tol=1e-6,
             dm_initial_guess=dm_initial_guess,
         )  # TODO: use dm_active_embedded (use mu answer to initialize!)
@@ -518,8 +519,30 @@ class NbedDriver:
         n_act_mo = len(self.localized_system.active_MO_inds)
         n_env_mo = len(self.localized_system.enviro_MO_inds)
 
+        # c_mat = embedded_rhf.mo_coeff
+        # mo_occ = embedded_rhf.get_occ()
+        # dmat = embedded_rhf.make_rdm1(mo_coeff=c_mat, mo_occ=mo_occ)
+        # F = embedded_rhf.get_fock(dm=dmat)
+
+        # print(np.around(c_mat.T @ F @ c_mat,
+        #                 3))
+        # print(embedded_rhf.mo_energy)
+        # print()
+        # print(np.around(c_mat.T @ self._orthogonal_projector @ c_mat,
+        #                 3))
+
         if method == "huzinaga":
-            frozen_enviro_orb_inds = [i for i in range(n_act_mo+1, n_act_mo + n_env_mo+1)]
+            # frozen_enviro_orb_inds = [i for i in range(n_act_mo, n_act_mo + n_env_mo)]
+
+            c_mat = embedded_rhf.mo_coeff
+            # find <psi  | Proj| psi > =  <psi  |  psi_proj >
+            # delete orbs with most overlap (as has large overlap with env)
+            s_mat = self.localized_system.rks.get_ovlp()
+            s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
+            enviro_projector = s_half @ self._orthogonal_projector @ s_half
+            overlap = np.einsum('ij, ki -> i', c_mat.T, enviro_projector @ c_mat)
+            overlap_by_size = overlap.argsort()[::-1]
+            frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]
 
             active_MOs_occ_and_virt_embedded = [
                 mo_i
