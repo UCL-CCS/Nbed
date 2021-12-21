@@ -344,7 +344,7 @@ def pubchem_mol_geometry(molecule_name) -> dict:
 
     struct_dict = {}
     for ind, atom_xyz in enumerate(geometry_pubchem):
-        struct_dict[ind] = (atom_xyz[0], (float(coord) for coord in atom_xyz[1]))
+        struct_dict[ind] = (atom_xyz[0], tuple(float(coord) for coord in atom_xyz[1]))
     return struct_dict
 
 
