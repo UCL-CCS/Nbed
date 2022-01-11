@@ -44,6 +44,8 @@ class NbedDriver:
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
+        max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
+        _init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
 
     Attributes:
         _global_fci (StreamObject): A Qubit Hamiltonian of some kind
@@ -77,6 +79,8 @@ class NbedDriver:
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
+        _init_huzinaga_rhf_with_mu: bool = False,
+        max_hf_cycles: int =50
     ):
         """Initialise class."""
         config_valid = True
@@ -115,10 +119,11 @@ class NbedDriver:
         self.unit = unit
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
+        self.max_hf_cycles = max_hf_cycles
 
         self._check_active_atoms()
 
-        self.embed()
+        self.embed(init_huzinaga_rhf_with_mu=_init_huzinaga_rhf_with_mu)
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
@@ -151,6 +156,7 @@ class NbedDriver:
         global_hf.conv_tol = self.convergence
         global_hf.max_memory = self.max_ram_memory
         global_hf.verbose = self.pyscf_print_level
+        global_hf.max_cycle = self.max_hf_cycles
         global_hf.kernel()
         logger.info(f"global HF: {global_hf.e_tot}")
         return global_hf
@@ -230,6 +236,7 @@ class NbedDriver:
         local_rhf.max_memory = self.max_ram_memory
         local_rhf.conv_tol = self.convergence
         local_rhf.verbose = self.pyscf_print_level
+        local_rhf.max_cycle = self.max_hf_cycles
 
         return local_rhf
 
@@ -238,7 +245,7 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
-            localized_system: Localizer, subsystem_dm: np.ndarray,
+            rks_system: Localizer, subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -255,7 +262,7 @@ class NbedDriver:
             """
             dm_matrix = subsystem_dm
             # It seems that PySCF lumps J and K in the J array
-            two_e_term = localized_system.rks.get_veff(dm=dm_matrix)
+            two_e_term = rks_system.get_veff(dm=dm_matrix)
             j_mat = two_e_term.vj
             # k_mat = np.zeros_like(j_mat)
 
@@ -263,7 +270,7 @@ class NbedDriver:
             # v_xc = two_e_term - j_mat
 
             energy_elec = (
-                np.einsum("ij,ji->", localized_system.rks.get_hcore(), dm_matrix)
+                np.einsum("ij,ji->", rks_system.get_hcore(), dm_matrix)
                 + two_e_term.ecoul
                 + two_e_term.exc
             )
@@ -484,14 +491,14 @@ class NbedDriver:
 
             active_MOs_occ_and_virt_embedded = [
                 mo_i
-                for mo_i in range(self.localized_system.rks.mo_coeff.shape[1])
+                for mo_i in range(embedded_rhf.mo_coeff.shape[1])
                 if mo_i not in frozen_enviro_orb_inds
             ]
 
         elif method == "mu":
-            shift = self.localized_system.rks.mol.nao - n_env_mo
+            shift = embedded_rhf.mol.nao - n_env_mo
             frozen_enviro_orb_inds = [
-                mo_i for mo_i in range(shift, self.localized_system.rks.mol.nao)
+                mo_i for mo_i in range(shift, embedded_rhf.mol.nao)
             ]
             active_MOs_occ_and_virt_embedded = [
                 mo_i
@@ -521,7 +528,7 @@ class NbedDriver:
 
         return embedded_rhf
 
-    def embed(self):
+    def embed(self, init_huzinaga_rhf_with_mu=False):
         """Generate embedded Hamiltonian.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
@@ -558,7 +565,13 @@ class NbedDriver:
             local_rhf = self._init_local_rhf()
             result = getattr(self, "_" + name)
 
-            result["v_emb"], result["scf"] = embedding_method(local_rhf)
+            if init_huzinaga_rhf_with_mu and (name == 'huzinaga'):
+                # seed huzinaga calc with mu result!
+                result["v_emb"], result["scf"] = embedding_method(local_rhf,
+                                                                  dm_initial_guess=self._mu['scf'].make_rdm1())
+            else:
+                result["v_emb"], result["scf"] = embedding_method(local_rhf)
+
             result["scf"] = self._delete_environment(result["scf"], name)
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
