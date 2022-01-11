@@ -317,6 +317,25 @@ class NbedDriver:
 
         return None
 
+    def _init_local_rks(self) -> scf.RKS:
+        """Function to build embedded restricted Hartree Fock object for active subsystem.
+
+        Note this function overwrites the total number of electrons to only include active number
+        """
+        embedded_mol: gto.Mole = self._build_mol()
+
+        # overwrite total number of electrons to only include active system
+        embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
+
+        logger.debug("Define Hartree-Fock object")
+        local_rks: StreamObject = scf.RKS(embedded_mol)
+        local_rks.max_memory = self.max_ram_memory
+        local_rks.conv_tol = self.convergence
+        local_rks.verbose = self.pyscf_print_level
+        local_rks.xc = self.xc_functional
+
+        return local_rks
+
     @cached_property
     def _env_projector(self):
         """Return a projector onto the environment in orthogonal basis."""
@@ -419,10 +438,11 @@ class NbedDriver:
             mo_embedded_energy,
             dm_active_embedded,
             huzinaga_op_std,
+            huz_rhf_conv_flag
         ) = huzinaga_RHF(
             localized_rhf,
             self._dft_potential,
-            self._orthogonal_projector,
+            self.localized_system.dm_enviro,
             dm_conv_tol=1e-6,
             dm_initial_guess=None,
         )  # TODO: use dm_active_embedded (use mu answer to initialize!)
@@ -437,9 +457,10 @@ class NbedDriver:
         )
         localized_rhf.mo_energy = mo_embedded_energy
         localized_rhf.e_tot = localized_rhf.energy_tot(dm=dm_active_embedded)
+        # localized_rhf.conv_check = huz_rhf_conv_flag
+        localized_rhf.converged = huz_rhf_conv_flag
 
         logger.info(f"Huzinaga rhf energy: {localized_rhf.e_tot}")
-
         return v_emb, localized_rhf
 
     def _delete_environment(self, embedded_rhf, method: str) -> np.ndarray:
@@ -452,12 +473,14 @@ class NbedDriver:
         Returns:
             embedded_rhf (StreamObject): Returns input, but with environment orbitals deleted
         """
-
-        n_act_mo = len(self.localized_system.active_MO_inds)
         n_env_mo = len(self.localized_system.enviro_MO_inds)
 
         if method == "huzinaga":
-            frozen_enviro_orb_inds = [i for i in range(n_act_mo, n_act_mo + n_env_mo)]
+            # find <psi  | Proj| psi > =  <psi  |  psi_proj >
+            # delete orbs with most overlap (as has large overlap with env)
+            overlap = np.einsum('ij, ki -> i', embedded_rhf.mo_coeff.T, self._env_projector @ embedded_rhf.mo_coeff)
+            overlap_by_size = overlap.argsort()[::-1]
+            frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]
 
             active_MOs_occ_and_virt_embedded = [
                 mo_i
@@ -579,6 +602,10 @@ class NbedDriver:
                     - result["correction"]
                 )
                 logger.info(f"FCI Energy {name}:\n\t{result['e_fci']}")
+
+            ## TODO: Could add DFT in DFT check here (and add better DFT method here to for DFT embedding!)
+            # local_DFT_obj = _init_local_rks
+            # need to add mu and huz projection schemes here!
 
         if self.projector == "both":
             self.embedded_scf = (
