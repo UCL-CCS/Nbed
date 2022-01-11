@@ -169,6 +169,12 @@ def parse():
         type=restricted_float_percentage,
         help="threshold (float between 0 and 1 inclusive) used to localize unoccupied (virtual) molecular orbs (necessary for spade approach)",
     )
+    parser.add_argument(
+        "--max_hf_cycles",
+        "--hf_c",
+        type=int,
+        help="max number of Hartree-Fock iterations allowed for global and local Hartree-Fock calcs",
+    )
     args = parser.parse_args()
 
     if args.config:
@@ -188,6 +194,7 @@ def parse():
         args["virtual_localization"] = args.get("virtual_localization", False)
         args["occupied_threshold"] = args.get("occupied_threshold", 0.95)
         args["virtual_threshold"] = args.get("virtual_threshold", 0.95)
+        args["max_hf_cycles"] = args.get("max_hf_cycles", 50)
     else:
         # Transform the namespace object to a dict.
         args = vars(args)
