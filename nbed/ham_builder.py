@@ -93,7 +93,7 @@ class HamiltonianBuilder:
             occupied[occupied_reduction:], unoccupied[:unoccupied_reduction]
         )
 
-        occupied_indices = np.where(self.scf_method.mo_occ > 0)
+        occupied_indices = np.where(self.scf_method.mo_occ > 0)[0]
         logger.debug(f"Active indices {self._active_space_indices}.")
 
         (
@@ -142,6 +142,7 @@ class HamiltonianBuilder:
 
     def _taper(self, qham: QubitOperator) -> QubitOperator:
         """Taper a hamiltonian."""
+        raise ValueError('tapering currently NOT working properly!')
         logger.debug("Beginning qubit tapering.")
         converter = HamiltonianConverter(qham)
         symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
@@ -161,7 +162,7 @@ class HamiltonianBuilder:
         return taper_off_qubits(qham, stabilizers)
 
     def build(
-        self, n_qubits: Optional[int] = None, taper: Optional[bool] = True
+        self, n_qubits: Optional[int] = None, taper: Optional[bool] = False
     ) -> QubitOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
