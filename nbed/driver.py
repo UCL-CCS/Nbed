@@ -221,6 +221,7 @@ class NbedDriver:
         Note this function overwrites the total number of electrons to only include active number
         """
         embedded_mol: gto.Mole = self._build_mol()
+
         # overwrite total number of electrons to only include active system
         embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
 
@@ -229,42 +230,6 @@ class NbedDriver:
         local_rhf.max_memory = self.max_ram_memory
         local_rhf.conv_tol = self.convergence
         local_rhf.verbose = self.pyscf_print_level
-
-        logger.debug("Define Hartree-Fock object in localized basis")
-        # TODO: need to check if change of basis here is necessary (START)
-        h_core = local_rhf.get_hcore()
-
-        local_rhf.get_hcore = (
-            lambda *args: self.localized_system._local_basis_transform.conj().T
-            @ h_core
-            @ self.localized_system._local_basis_transform
-        )
-
-        def new_rhf_veff(rhf: scf.RHF, dm: np.ndarray = None, hermi: int = 1):
-            if dm is None:
-                if rhf.mo_coeff is not None:
-                    dm = rhf.make_rdm1(rhf.mo_coeff, rhf.mo_occ)
-                else:
-                    dm = rhf.init_guess_by_1e()
-
-            # if pyscf_RHF._eri is None:
-            #     pyscf_RHF._eri = pyscf_RHF.mol.intor('int2e', aosym='s8')
-
-            vj, vk = rhf.get_jk(mol=rhf.mol, dm=dm, hermi=hermi)
-            v_eff = vj - vk * 0.5
-
-            # v_eff = pyscf_obj.get_veff(dm=dm)
-            new_veff = (
-                self.localized_system._local_basis_transform.conj().T
-                @ v_eff
-                @ self.localized_system._local_basis_transform
-            )
-
-            return new_veff
-
-        local_rhf.get_veff = lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: new_rhf_veff(
-            local_rhf, dm=dm, hermi=hermi
-        )
 
         return local_rhf
 
@@ -311,15 +276,15 @@ class NbedDriver:
             return energy_elec, e_xc, j_mat
 
         (self.e_act, e_xc_act, j_act) = _rks_components(
-            self.localized_system, self.localized_system.dm_active
+            self._global_rks, self.localized_system.dm_active
         )
         (self.e_env, e_xc_env, j_env) = _rks_components(
-            self.localized_system, self.localized_system.dm_enviro
+            self._global_rks, self.localized_system.dm_enviro
         )
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
 
-        two_e_term_total = self.localized_system.rks.get_veff(
+        two_e_term_total = self._global_rks.get_veff(
             dm=self.localized_system.dm_active + self.localized_system.dm_enviro
         )
         e_xc_total = two_e_term_total.exc
@@ -353,24 +318,11 @@ class NbedDriver:
         return None
 
     @cached_property
-    def _orthogonal_projector(self):
+    def _env_projector(self):
         """Return a projector onto the environment in orthogonal basis."""
-        # get system matrices
-        s_mat = self.localized_system.rks.get_ovlp()
-        s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
-
-        # 1. Get orthogonal C matrix (localized)
-        c_loc_ortho = s_half @ self.localized_system.c_loc_occ_and_virt
-
-        # 2. Define projector that projects MO orbs of subsystem B onto themselves and system A onto zero state!
-        #    (do this in orthongoal basis!)
-        #    note we only take MO environment indices!
-        ortho_proj = np.einsum(
-            "ik,jk->ij",
-            c_loc_ortho[:, self.localized_system.enviro_MO_inds],
-            c_loc_ortho[:, self.localized_system.enviro_MO_inds],
-        )
-        return ortho_proj
+        s_mat = self._global_rks.get_ovlp()
+        env_projector = s_mat @ self.localized_system.dm_enviro @ s_mat
+        return env_projector
 
     def _run_emb_CCSD(
         self, emb_pyscf_scf_rhf: scf.RHF, frozen_orb_list: Optional[list] = None
@@ -432,14 +384,8 @@ class NbedDriver:
             np.ndarray: Matrix form of the embedding potential.
             StreamObject: The embedded RHF object.
         """
-        # Get Projector
-        s_mat = self.localized_system.rks.get_ovlp()
-        s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
-        # convert to standard basis
-        enviro_projector = s_half @ self._orthogonal_projector @ s_half
-
-        # run SCF
-        v_emb = (self.mu_level_shift * enviro_projector) + self._dft_potential
+        # modify hcore to embedded version
+        v_emb = (self.mu_level_shift * self._env_projector) + self._dft_potential
         hcore_std = localized_rhf.get_hcore()
         localized_rhf.get_hcore = lambda *args: hcore_std + v_emb
 
@@ -558,27 +504,21 @@ class NbedDriver:
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
         """
-        logger.debug("Running embedding.")
+        logger.debug("Running orb localization on global DFT object.")
         self.localized_system = self.localize()
-        logger.info(f"Orbital energies {self.localized_system.rks.mo_energy}")
 
-        e_nuc = self.localized_system.rks.mol.energy_nuc()
+        e_nuc = self._global_rks.energy_nuc()
 
-        local_rks = self.localized_system.rks
-        logger.info(f"Energy of localized RKS: {local_rks.e_tot}")
         # Run subsystem DFT (calls localized rks)
         self._subsystem_dft()
 
         logger.debug("Get global DFT potential to optimize embedded calc in.")
-        g_act_and_env = local_rks.get_veff(
+        g_act_and_env = self._global_rks.get_veff(
             dm=(self.localized_system.dm_active + self.localized_system.dm_enviro)
         )
-        g_act = local_rks.get_veff(dm=self.localized_system.dm_active)
+        g_act = self._global_rks.get_veff(dm=self.localized_system.dm_active)
         self._dft_potential = g_act_and_env - g_act
         logger.info(f"DFT potential average {np.mean(self._dft_potential)}")
-
-        # Initialise here, cause we're going to overwrite properties.
-        local_rhf = self._init_local_rhf()
 
         embeddings: Dict[str, callable] = {
             "huzinaga": self._huzinaga_embed,
@@ -592,10 +532,10 @@ class NbedDriver:
         self._mu = {}
         self._huzinaga = {}
         for name, embedding_method in embeddings.items():
-            rhf_copy = copy(local_rhf)
+            local_rhf = self._init_local_rhf()
             result = getattr(self, "_" + name)
 
-            result["v_emb"], result["scf"] = embedding_method(rhf_copy)
+            result["v_emb"], result["scf"] = embedding_method(local_rhf)
             result["scf"] = self._delete_environment(result["scf"], name)
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
