@@ -78,6 +78,13 @@ class PySCFLocalizer(Localizer, ABC):
         logger.debug(f"threshold for active part: {self._occ_cutoff}")
 
         active_MO_inds = np.where(MO_active_percentage > self._occ_cutoff)[0]
+        # print(active_MO_inds)
+        if len(active_MO_inds)==0:
+            # if no active indices, then take largest possible overlap
+            MO_active_percentage_inds_by_size = MO_active_percentage.argsort()[::-1]
+            active_MO_inds = MO_active_percentage_inds_by_size[:1] # take first element
+            print(f'active system %: {MO_active_percentage[active_MO_inds][0]} \n')
+
         enviro_MO_inds = np.array(
             [i for i in range(c_loc_occ.shape[1]) if i not in active_MO_inds]
         )
@@ -86,7 +93,6 @@ class PySCFLocalizer(Localizer, ABC):
         #    take MO (columns of C_matrix) that have high dependence from active AOs
         c_active = c_loc_occ[:, active_MO_inds]
         c_enviro = c_loc_occ[:, enviro_MO_inds]
-
         return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
 
 
