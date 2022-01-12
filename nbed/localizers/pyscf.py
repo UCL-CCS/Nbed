@@ -92,7 +92,14 @@ class PySCFLocalizer(Localizer, ABC):
         # define active MO orbs and environment
         #    take MO (columns of C_matrix) that have high dependence from active AOs
         c_active = c_loc_occ[:, active_MO_inds]
-        c_enviro = c_loc_occ[:, enviro_MO_inds]
+
+        if len(enviro_MO_inds)==0:
+            # case for when no environement
+            logger.warning("no environment electronic density")
+            c_enviro = np.zeros((c_active.shape[0],1))
+        else:
+            c_enviro = c_loc_occ[:, enviro_MO_inds]
+
         return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
 
 
