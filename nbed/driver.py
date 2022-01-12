@@ -21,7 +21,7 @@ from .localizers import (
     PMLocalizer,
     SPADELocalizer,
 )
-from .scf import huzinaga_RHF
+from .scf import huzinaga_RHF, huzinaga_RKS
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +122,9 @@ class NbedDriver:
         self.max_hf_cycles = max_hf_cycles
 
         self._check_active_atoms()
+        self.localized_system = None
+        self.two_e_cross = None
+        self._dft_potential = None
 
         self.embed(init_huzinaga_rhf_with_mu=_init_huzinaga_rhf_with_mu)
 
@@ -324,7 +327,7 @@ class NbedDriver:
 
         return None
 
-    def _init_local_rks(self) -> scf.RKS:
+    def _init_local_rks(self, xc_functional) -> scf.RKS:
         """Function to build embedded restricted Hartree Fock object for active subsystem.
 
         Note this function overwrites the total number of electrons to only include active number
@@ -339,7 +342,7 @@ class NbedDriver:
         local_rks.max_memory = self.max_ram_memory
         local_rks.conv_tol = self.convergence
         local_rks.verbose = self.pyscf_print_level
-        local_rks.xc = self.xc_functional
+        local_rks.xc = xc_functional
 
         return local_rks
 
@@ -616,10 +619,6 @@ class NbedDriver:
                 )
                 logger.info(f"FCI Energy {name}:\n\t{result['e_fci']}")
 
-            ## TODO: Could add DFT in DFT check here (and add better DFT method here to for DFT embedding!)
-            # local_DFT_obj = _init_local_rks
-            # need to add mu and huz projection schemes here!
-
         if self.projector == "both":
             self.embedded_scf = (
                 self._mu["scf"],
@@ -639,3 +638,155 @@ class NbedDriver:
         logger.info(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")
         logger.info(self.localized_system.active_MO_inds)
         logger.info(self.localized_system.enviro_MO_inds)
+
+    def embed_dft_in_dft(self, new_xc_func):
+        """Generate embedded Hamiltonian.
+
+        Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
+        This is done when object is initialized.
+        """
+        if self.localized_system is None:
+            logger.debug("Running orb localization on global DFT object.")
+            self.localized_system = self.localize()
+
+        e_nuc = self._global_rks.energy_nuc()
+
+        # Run subsystem DFT (calls localized rks)
+        if self.two_e_cross is None:
+            self._subsystem_dft()
+
+        logger.debug("Get global DFT potential to optimize embedded calc in.")
+        if self._dft_potential is None:
+            g_act_and_env = self._global_rks.get_veff(
+                dm=(self.localized_system.dm_active + self.localized_system.dm_enviro)
+            )
+            g_act = self._global_rks.get_veff(dm=self.localized_system.dm_active)
+            self._dft_potential = g_act_and_env - g_act
+            logger.info(f"DFT potential average {np.mean(self._dft_potential)}")
+
+        embeddings: Dict[str, callable] = {
+            "huzinaga_dft": self._huzinaga_embed_dft_in_dft,
+            "mu_dft": self._mu_embed_dft_in_dft,
+        }
+        if self.projector not in ["huzinaga", "both"]:
+            embeddings.pop("huzinaga")
+        if self.projector not in ["mu", "both"]:
+            embeddings.pop("mu")
+
+        self._mu_dft = {}
+        self._huzinaga_dft = {}
+        for name, embedding_method in embeddings.items():
+            local_rks_same_functional = self._init_local_rks(self._global_rks.xc)
+            hcore_std_cheap = local_rks_same_functional.get_hcore()
+            local_rks_new_functional = self._init_local_rks(new_xc_func)
+            hcore_std_expen = local_rks_new_functional.get_hcore()
+
+            result = getattr(self, "_" + name)
+
+            result["v_emb_cheap_dft"], result["scf_cheap_dft"] = embedding_method(local_rks_same_functional)
+            result["v_emb_expen_dft"], result["scf_expen_dft"] = embedding_method(local_rks_new_functional)
+
+            ##### cheap result
+            y_emb_cheap = result["scf_cheap_dft"].make_rdm1()
+            # calculate correction
+            result["correction_cheap"] = np.einsum(
+                "ij,ij", result["v_emb_cheap_dft"], (y_emb_cheap -self.localized_system.dm_active)
+            )
+            veff_cheap = result["scf_cheap_dft"].get_veff(dm=y_emb_cheap)
+            cheap_rks_e_elec = veff_cheap.exc + veff_cheap.ecoul + np.einsum("ij,ij", hcore_std_cheap, y_emb_cheap)
+
+            result["e_rks_cheap"] = (
+                cheap_rks_e_elec +
+                + self.e_env
+                + self.two_e_cross
+                + result["correction_cheap"]
+                + e_nuc
+            )
+            result["classical_energy_cheap"] = (
+                    self.e_env + self.two_e_cross + e_nuc - result["correction_cheap"]
+            )
+
+            ##### expensive result
+            y_emb_expen = result["scf_expen_dft"].make_rdm1()
+
+            veff_expen = result["scf_expen_dft"].get_veff(dm=y_emb_expen)
+            expen_rks_e_elec = veff_expen.exc + veff_expen.ecoul + np.einsum("ij,ij", hcore_std_expen, y_emb_expen)
+            result["correction_expen"] = np.einsum(
+                "ij,ij", result["v_emb_expen_dft"], (y_emb_expen - self.localized_system.dm_active)
+            )
+
+            result["e_rks_expen"] = (
+                expen_rks_e_elec +
+                + self.e_env
+                + self.two_e_cross
+                + result["correction_expen"]
+                + e_nuc
+            )
+
+            # classical energy
+            result["classical_energy_expen"] = (
+                self.e_env + self.two_e_cross + e_nuc - result["correction_expen"]
+            )
+
+    def _mu_embed_dft_in_dft(self, localized_rks: StreamObject) -> np.ndarray:
+        """Embed using the Mu-shift projector.
+
+        Args:
+            localized_rks (StreamObject): A PySCF RKS method in the localized basis.
+
+        Returns:
+            np.ndarray: Matrix form of the embedding potential.
+            StreamObject: The embedded RHF object.
+        """
+        # modify hcore to embedded version
+        v_emb = (self.mu_level_shift * self._env_projector) + self._dft_potential
+        hcore_std = localized_rks.get_hcore()
+        localized_rks.get_hcore = lambda *args: hcore_std + v_emb
+
+        logger.debug("Running embedded RHF calculation.")
+        localized_rks.kernel()
+        logger.info(
+            f"embedded HF energy MU_SHIFT: {localized_rks.e_tot}, converged: {localized_rks.converged}"
+        )
+        return v_emb, localized_rks
+
+    def _huzinaga_embed_dft_in_dft(self, localized_rks: StreamObject) -> np.ndarray:
+        """Embed using Huzinaga projector.
+
+        Args:
+            localized_rks (StreamObject): A PySCF RKS method of localized system.
+
+        Returns:
+            np.ndarray: Matrix form of the embedding potential.
+            StreamObject: The embedded RKS object.
+        """
+        # Fock matrix with each cycle
+        (
+            c_active_embedded,
+            mo_embedded_energy,
+            dm_active_embedded,
+            huzinaga_op_std,
+            huz_rhf_conv_flag
+        ) = huzinaga_RKS(
+            localized_rks,
+            self._dft_potential,
+            self.localized_system.dm_enviro,
+            dm_conv_tol=1e-6,
+            dm_initial_guess=None,
+        )  # TODO: use dm_active_embedded (use mu answer to initialize!)
+
+        # write results to pyscf object
+        hcore_std = localized_rks.get_hcore()
+        v_emb = huzinaga_op_std + self._dft_potential
+        localized_rks.get_hcore = lambda *args: hcore_std + v_emb
+        localized_rks.mo_coeff = c_active_embedded
+        localized_rks.mo_occ = localized_rks.get_occ(
+            mo_embedded_energy, c_active_embedded
+        )
+        localized_rks.mo_energy = mo_embedded_energy
+        localized_rks.e_tot = localized_rks.energy_tot(dm=dm_active_embedded)
+        # localized_rhf.conv_check = huz_rhf_conv_flag
+        localized_rks.converged = huz_rhf_conv_flag
+
+        logger.info(f"Huzinaga rhf energy: {localized_rks.e_tot}")
+        return v_emb, localized_rks
