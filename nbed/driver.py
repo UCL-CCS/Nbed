@@ -431,7 +431,7 @@ class NbedDriver:
 
         return v_emb, localized_rhf
 
-    def _huzinaga_embed(self, localized_rhf: StreamObject) -> np.ndarray:
+    def _huzinaga_embed(self, localized_rhf: StreamObject, dmat_initial_guess=None) -> np.ndarray:
         """Embed using Huzinaga projector.
 
         Args:
@@ -454,7 +454,7 @@ class NbedDriver:
             self._dft_potential,
             self.localized_system.dm_enviro,
             dm_conv_tol=1e-6,
-            dm_initial_guess=None,
+            dm_initial_guess=dmat_initial_guess,
         )  # TODO: use dm_active_embedded (use mu answer to initialize!)
 
         # write results to pyscf object
@@ -564,14 +564,15 @@ class NbedDriver:
 
         self._mu = {}
         self._huzinaga = {}
-        for name, embedding_method in embeddings.items():
+        for name in sorted(embeddings.keys(), reverse=True):
+            embedding_method = embeddings[name]
             local_rhf = self._init_local_rhf()
             result = getattr(self, "_" + name)
 
             if init_huzinaga_rhf_with_mu and (name == 'huzinaga'):
                 # seed huzinaga calc with mu result!
                 result["v_emb"], result["scf"] = embedding_method(local_rhf,
-                                                                  dm_initial_guess=self._mu['scf'].make_rdm1())
+                                                                  dmat_initial_guess=self._mu['scf'].make_rdm1())
             else:
                 result["v_emb"], result["scf"] = embedding_method(local_rhf)
 
