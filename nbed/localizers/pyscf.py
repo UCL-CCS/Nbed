@@ -79,10 +79,23 @@ class PySCFLocalizer(Localizer, ABC):
 
         active_MO_inds = np.where(MO_active_percentage > self._occ_cutoff)[0]
         # print(active_MO_inds)
-        if len(active_MO_inds)==0:
+
+        all_ao_percentages_same_bool = np.allclose(np.zeros_like(MO_active_percentage),
+                          MO_active_percentage - MO_active_percentage.sum() / len(MO_active_percentage))
+
+        if all_ao_percentages_same_bool:
+            # case for highly symmetric molecules
+            # overlap is the same everywhere hence everything goes into env or act part
+
+            # edge case put half and half!
+            logger.warning("AO subsystem selection % same everywhere. Splitting half and half")
+            print(f'MO_active_percentage: {MO_active_percentage}')
+            active_MO_inds = np.array(range(0, c_loc_occ.shape[1]//2), dtype=int)
+        elif len(active_MO_inds)==0:
             # if no active indices, then take largest possible overlap
             MO_active_percentage_inds_by_size = MO_active_percentage.argsort()[::-1]
             active_MO_inds = MO_active_percentage_inds_by_size[:1] # take first element
+            logger.warning("no active AOs - forcing one to be active")
             print(f'active system %: {MO_active_percentage[active_MO_inds][0]} \n')
 
         enviro_MO_inds = np.array(
