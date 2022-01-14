@@ -569,6 +569,7 @@ class NbedDriver:
             local_rhf = self._init_local_rhf()
             result = getattr(self, "_" + name)
 
+            result["mo_energies_pre_emb"] = local_rhf.mo_energy
             if init_huzinaga_rhf_with_mu and (name == 'huzinaga'):
                 # seed huzinaga calc with mu result!
                 result["v_emb"], result["scf"] = embedding_method(local_rhf,
@@ -577,6 +578,8 @@ class NbedDriver:
                 result["v_emb"], result["scf"] = embedding_method(local_rhf)
 
             result["scf"] = self._delete_environment(result["scf"], name)
+
+            result["mo_energies_post_emb"] = local_rhf.mo_energy
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
 
