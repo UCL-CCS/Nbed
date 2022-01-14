@@ -197,6 +197,12 @@ def parse():
         type=int,
         help="max number of Hartree-Fock iterations allowed for global and local Hartree-Fock calcs",
     )
+    parser.add_argument(
+        "--max_dft_cycles",
+        "--dft_c",
+        type=int,
+        help="max number of DFT iterations allowed in scf calc",
+    )
     args = parser.parse_args()
 
     if args.config:
@@ -217,6 +223,7 @@ def parse():
         args["occupied_threshold"] = args.get("occupied_threshold", 0.95)
         args["virtual_threshold"] = args.get("virtual_threshold", 0.95)
         args["max_hf_cycles"] = args.get("max_hf_cycles", 50)
+        args["max_dft_cycles"] = args.get("max_dft_cycles", 50)
     else:
         # Transform the namespace object to a dict.
         args = vars(args)

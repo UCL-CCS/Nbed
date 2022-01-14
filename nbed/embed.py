@@ -36,7 +36,8 @@ def nbed(
     unit: Optional[str] = "angstrom",
     occupied_threshold: Optional[float] = 0.95,
     virtual_threshold: Optional[float] = 0.95,
-    max_hf_cycles=50,
+    max_hf_cycles: int =50,
+    max_dft_cycles: int  =50,
 ):
     """Import interface for the nbed package.
 
@@ -62,6 +63,7 @@ def nbed(
         qubits (int): The number of qubits available for the output hamiltonian.
         unit (str): molecular geometry unit 'angstrom' or 'bohr'
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
+        max_dft_cycles (int): max number of DFT iterations allowed in scf calc
     Returns:
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
@@ -87,6 +89,7 @@ def nbed(
         occupied_threshold=occupied_threshold,
         virtual_threshold=virtual_threshold,
         max_hf_cycles=max_hf_cycles,
+        max_dft_cycles=max_dft_cycles,
     )
 
     qham = HamiltonianBuilder(
@@ -123,6 +126,7 @@ def cli() -> None:
         occupied_threshold=args["occupied_threshold"],
         virtual_threshold=args["virtual_threshold"],
         max_hf_cycles=args["max_hf_cycles"],
+        max_dft_cycles=args["max_dft_cycles"]
     )
     assert(isinstance(qham, QubitOperator))
 

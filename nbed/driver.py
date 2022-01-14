@@ -45,6 +45,7 @@ class NbedDriver:
         pyscf_print_level (int): Amount of information PySCF prints
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
+        max_dft_cycles (int): max number of DFT iterations allowed in scf calc
         _init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
 
     Attributes:
@@ -81,6 +82,7 @@ class NbedDriver:
         virtual_threshold: Optional[float] = 0.95,
         _init_huzinaga_rhf_with_mu: bool = False,
         max_hf_cycles: int = 50,
+        max_dft_cycles: int = 50
     ):
         """Initialise class."""
         config_valid = True
@@ -120,6 +122,7 @@ class NbedDriver:
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
         self.max_hf_cycles = max_hf_cycles
+        self.max_dft_cycles = max_dft_cycles
 
         self._check_active_atoms()
         self.localized_system = None
@@ -190,8 +193,12 @@ class NbedDriver:
         global_rks.xc = self.xc_functional
         global_rks.max_memory = self.max_ram_memory
         global_rks.verbose = self.pyscf_print_level
+        global_rks.max_cycle = self.max_dft_cycles
         global_rks.kernel()
         logger.info(f"global RKS {global_rks.e_tot}")
+
+        if global_rks.converged is not True:
+            logger.warning("(cheap) global DFT calculation has NOT converged!")
 
         return global_rks
 
