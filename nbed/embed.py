@@ -124,7 +124,7 @@ def cli() -> None:
         virtual_threshold=args["virtual_threshold"],
         max_hf_cycles=args["max_hf_cycles"],
     )
-    assert(isinstance(qham, QubitOperator))
+    assert isinstance(qham, QubitOperator)
 
 
 if __name__ == "__main__":
