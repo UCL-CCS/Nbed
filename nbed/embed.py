@@ -6,10 +6,11 @@ from typing import Optional
 
 from nbed.exceptions import NbedConfigError
 from nbed.ham_builder import HamiltonianBuilder
+from openfermion.ops.operators.qubit_operator import QubitOperator
 
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
-from .utils import parse, print_summary, setup_logs
+from .utils import parse, setup_logs
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def nbed(
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
     if projector == "both":
-        raise NbedConfigError(f"Cannot use 'both' as value of projector.")
+        raise NbedConfigError("Cannot use 'both' as value of projector.")
 
     driver = NbedDriver(
         geometry=geometry,
@@ -85,7 +86,7 @@ def nbed(
         unit=unit,
         occupied_threshold=occupied_threshold,
         virtual_threshold=virtual_threshold,
-        max_hf_cycles=max_hf_cycles
+        max_hf_cycles=max_hf_cycles,
     )
 
     qham = HamiltonianBuilder(
@@ -123,6 +124,7 @@ def cli() -> None:
         virtual_threshold=args["virtual_threshold"],
         max_hf_cycles=args["max_hf_cycles"],
     )
+    assert(isinstance(qham, QubitOperator))
 
 
 if __name__ == "__main__":

@@ -142,7 +142,7 @@ class HamiltonianBuilder:
 
     def _taper(self, qham: QubitOperator) -> QubitOperator:
         """Taper a hamiltonian."""
-        raise ValueError('tapering currently NOT working properly!')
+        raise ValueError("tapering currently NOT working properly!")
         logger.debug("Beginning qubit tapering.")
         converter = HamiltonianConverter(qham)
         symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)

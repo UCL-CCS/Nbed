@@ -80,7 +80,7 @@ class NbedDriver:
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
         _init_huzinaga_rhf_with_mu: bool = False,
-        max_hf_cycles: int =50
+        max_hf_cycles: int = 50,
     ):
         """Initialise class."""
         config_valid = True
@@ -248,7 +248,8 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
-            rks_system: Localizer, subsystem_dm: np.ndarray,
+            rks_system: Localizer,
+            subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -431,7 +432,9 @@ class NbedDriver:
 
         return v_emb, localized_rhf
 
-    def _huzinaga_embed(self, localized_rhf: StreamObject, dmat_initial_guess=None) -> np.ndarray:
+    def _huzinaga_embed(
+        self, localized_rhf: StreamObject, dmat_initial_guess=None
+    ) -> np.ndarray:
         """Embed using Huzinaga projector.
 
         Args:
@@ -448,7 +451,7 @@ class NbedDriver:
             mo_embedded_energy,
             dm_active_embedded,
             huzinaga_op_std,
-            huz_rhf_conv_flag
+            huz_rhf_conv_flag,
         ) = huzinaga_RHF(
             localized_rhf,
             self._dft_potential,
@@ -488,7 +491,11 @@ class NbedDriver:
         if method == "huzinaga":
             # find <psi  | Proj| psi > =  <psi  |  psi_proj >
             # delete orbs with most overlap (as has large overlap with env)
-            overlap = np.einsum('ij, ki -> i', embedded_rhf.mo_coeff.T, self._env_projector @ embedded_rhf.mo_coeff)
+            overlap = np.einsum(
+                "ij, ki -> i",
+                embedded_rhf.mo_coeff.T,
+                self._env_projector @ embedded_rhf.mo_coeff,
+            )
             overlap_by_size = overlap.argsort()[::-1]
             frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]
 
@@ -570,10 +577,11 @@ class NbedDriver:
             result = getattr(self, "_" + name)
 
             result["mo_energies_pre_emb"] = local_rhf.mo_energy
-            if init_huzinaga_rhf_with_mu and (name == 'huzinaga'):
+            if init_huzinaga_rhf_with_mu and (name == "huzinaga"):
                 # seed huzinaga calc with mu result!
-                result["v_emb"], result["scf"] = embedding_method(local_rhf,
-                                                                  dmat_initial_guess=self._mu['scf'].make_rdm1())
+                result["v_emb"], result["scf"] = embedding_method(
+                    local_rhf, dmat_initial_guess=self._mu["scf"].make_rdm1()
+                )
             else:
                 result["v_emb"], result["scf"] = embedding_method(local_rhf)
 
@@ -687,41 +695,57 @@ class NbedDriver:
 
             result = getattr(self, "_" + name)
 
-            result["v_emb_cheap_dft"], result["scf_cheap_dft"] = embedding_method(local_rks_same_functional)
-            result["v_emb_expen_dft"], result["scf_expen_dft"] = embedding_method(local_rks_new_functional)
+            result["v_emb_cheap_dft"], result["scf_cheap_dft"] = embedding_method(
+                local_rks_same_functional
+            )
+            result["v_emb_expen_dft"], result["scf_expen_dft"] = embedding_method(
+                local_rks_new_functional
+            )
 
-            ##### cheap result
+            # cheap result
             y_emb_cheap = result["scf_cheap_dft"].make_rdm1()
             # calculate correction
             result["correction_cheap"] = np.einsum(
-                "ij,ij", result["v_emb_cheap_dft"], (y_emb_cheap -self.localized_system.dm_active)
+                "ij,ij",
+                result["v_emb_cheap_dft"],
+                (y_emb_cheap - self.localized_system.dm_active),
             )
             veff_cheap = result["scf_cheap_dft"].get_veff(dm=y_emb_cheap)
-            cheap_rks_e_elec = veff_cheap.exc + veff_cheap.ecoul + np.einsum("ij,ij", hcore_std_cheap, y_emb_cheap)
+            cheap_rks_e_elec = (
+                veff_cheap.exc
+                + veff_cheap.ecoul
+                + np.einsum("ij,ij", hcore_std_cheap, y_emb_cheap)
+            )
 
             result["e_rks_cheap"] = (
-                cheap_rks_e_elec +
-                + self.e_env
+                cheap_rks_e_elec
+                + +self.e_env
                 + self.two_e_cross
                 + result["correction_cheap"]
                 + e_nuc
             )
             result["classical_energy_cheap"] = (
-                    self.e_env + self.two_e_cross + e_nuc - result["correction_cheap"]
+                self.e_env + self.two_e_cross + e_nuc - result["correction_cheap"]
             )
 
-            ##### expensive result
+            # expensive result
             y_emb_expen = result["scf_expen_dft"].make_rdm1()
 
             veff_expen = result["scf_expen_dft"].get_veff(dm=y_emb_expen)
-            expen_rks_e_elec = veff_expen.exc + veff_expen.ecoul + np.einsum("ij,ij", hcore_std_expen, y_emb_expen)
+            expen_rks_e_elec = (
+                veff_expen.exc
+                + veff_expen.ecoul
+                + np.einsum("ij,ij", hcore_std_expen, y_emb_expen)
+            )
             result["correction_expen"] = np.einsum(
-                "ij,ij", result["v_emb_expen_dft"], (y_emb_expen - self.localized_system.dm_active)
+                "ij,ij",
+                result["v_emb_expen_dft"],
+                (y_emb_expen - self.localized_system.dm_active),
             )
 
             result["e_rks_expen"] = (
-                expen_rks_e_elec +
-                + self.e_env
+                expen_rks_e_elec
+                + +self.e_env
                 + self.two_e_cross
                 + result["correction_expen"]
                 + e_nuc
@@ -770,7 +794,7 @@ class NbedDriver:
             mo_embedded_energy,
             dm_active_embedded,
             huzinaga_op_std,
-            huz_rhf_conv_flag
+            huz_rhf_conv_flag,
         ) = huzinaga_RKS(
             localized_rks,
             self._dft_potential,

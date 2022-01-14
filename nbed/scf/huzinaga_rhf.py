@@ -9,6 +9,7 @@ from pyscf.lib import StreamObject, diis
 
 logger = logging.getLogger(__name__)
 
+
 def huzinaga_RHF(
     scf_method: StreamObject,
     dft_potential: np.ndarray,
@@ -51,7 +52,7 @@ def huzinaga_RHF(
         FDS = fock @ dm_env_S
         huzinaga_op_std = -0.5 * (FDS + FDS.T)
 
-        fock+= huzinaga_op_std
+        fock += huzinaga_op_std
         # Create the orthogonal fock operator
         fock_ortho = s_neg_half @ fock @ s_neg_half
 
@@ -63,7 +64,8 @@ def huzinaga_RHF(
     dm_mat = dm_initial_guess
     conv_flag = False
     rhf_energy_prev = 0
-    if use_DIIS: adiis = diis.DIIS()
+    if use_DIIS:
+        adiis = diis.DIIS()
     for i in range(scf_method.max_cycle):
         # build fock matrix
         vhf = scf_method.get_veff(dm=dm_mat)
