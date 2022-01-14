@@ -113,6 +113,9 @@ class PySCFLocalizer(Localizer, ABC):
         else:
             c_enviro = c_loc_occ[:, enviro_MO_inds]
 
+        # storing condition used to select env system
+        self.enviro_selection_condition = MO_active_percentage
+
         return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
 
 

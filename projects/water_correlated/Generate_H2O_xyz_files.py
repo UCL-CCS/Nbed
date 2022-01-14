@@ -42,9 +42,16 @@ if __name__ == '__main__':
     for R in R_length_list:
         H2O_struct_dict = generate_H2O_from_reference(R_length=R)
 
-        file_name = f'H2O_{int(R*10)}'
+        file_name = f'act_stretch_H2O_{int(R*10)}'
         save_ordered_xyz_file(file_name,
                               struct_dict=H2O_struct_dict,
                               active_atom_inds=[0,1,2],
+                              save_location=cwd
+                              )
+
+        file_name = f'act_nonstretch_H2O_{int(R*10)}'
+        save_ordered_xyz_file(file_name,
+                              struct_dict=H2O_struct_dict,
+                              active_atom_inds=[2,1,0],
                               save_location=cwd
                               )
