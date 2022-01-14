@@ -9,6 +9,7 @@ from pyscf.lib import StreamObject, diis
 
 logger = logging.getLogger(__name__)
 
+
 def huzinaga_RKS(
     scf_method: StreamObject,
     dft_potential: np.ndarray,
@@ -63,7 +64,8 @@ def huzinaga_RKS(
     dm_mat = dm_initial_guess
     conv_flag = False
     rks_energy_prev = 0
-    if use_DIIS: adiis = diis.DIIS()
+    if use_DIIS:
+        adiis = diis.DIIS()
     for i in range(scf_method.max_cycle):
 
         # build fock matrix
@@ -92,10 +94,15 @@ def huzinaga_RKS(
         # Find RKS energy
         #     rks_energy = scf_method.energy_elec(dm=dm_mat)[0]
         vhf_updated = scf_method.get_veff(dm=dm_mat)
-        rks_energy = vhf_updated.ecoul + vhf_updated.exc + np.einsum('ij, ji->', dm_mat, (scf_method.get_hcore() +
-                                                                                          huzinaga_op_std +
-                                                                                          dft_potential)
-                                                                     )
+        rks_energy = (
+            vhf_updated.ecoul
+            + vhf_updated.exc
+            + np.einsum(
+                "ij, ji->",
+                dm_mat,
+                (scf_method.get_hcore() + huzinaga_op_std + dft_potential),
+            )
+        )
 
         # check convergence
         run_diff = np.abs(rks_energy - rks_energy_prev)
