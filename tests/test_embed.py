@@ -63,7 +63,7 @@ def test_nbed_6_qubits() -> None:
         "savefile": None,
         "run_ccsd_emb": True,
         "run_fci_emb": True,
-        "qubits": 4,
+        "qubits": 6,
     }
 
     qham = nbed(
@@ -82,7 +82,7 @@ def test_nbed_6_qubits() -> None:
         qubits=args["qubits"],
     )
 
-    assert count_qubits(qham) == 3
+    assert count_qubits(qham) == 6
     return None
 
 

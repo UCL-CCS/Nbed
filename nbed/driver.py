@@ -21,7 +21,7 @@ from .localizers import (
     PMLocalizer,
     SPADELocalizer,
 )
-from .scf import huzinaga_RHF
+from .scf import huzinaga_RHF, huzinaga_RKS
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,9 @@ class NbedDriver:
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
+        max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
+        max_dft_cycles (int): max number of DFT iterations allowed in scf calc
+        init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
 
     Attributes:
         _global_fci (StreamObject): A Qubit Hamiltonian of some kind
@@ -77,6 +80,9 @@ class NbedDriver:
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
+        init_huzinaga_rhf_with_mu: bool = False,
+        max_hf_cycles: int = 50,
+        max_dft_cycles: int = 50,
     ):
         """Initialise class."""
         config_valid = True
@@ -115,10 +121,15 @@ class NbedDriver:
         self.unit = unit
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
+        self.max_hf_cycles = max_hf_cycles
+        self.max_dft_cycles = max_dft_cycles
 
         self._check_active_atoms()
+        self.localized_system = None
+        self.two_e_cross = None
+        self._dft_potential = None
 
-        self.embed()
+        self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
@@ -151,6 +162,7 @@ class NbedDriver:
         global_hf.conv_tol = self.convergence
         global_hf.max_memory = self.max_ram_memory
         global_hf.verbose = self.pyscf_print_level
+        global_hf.max_cycle = self.max_hf_cycles
         global_hf.kernel()
         logger.info(f"global HF: {global_hf.e_tot}")
         return global_hf
@@ -181,8 +193,12 @@ class NbedDriver:
         global_rks.xc = self.xc_functional
         global_rks.max_memory = self.max_ram_memory
         global_rks.verbose = self.pyscf_print_level
+        global_rks.max_cycle = self.max_dft_cycles
         global_rks.kernel()
         logger.info(f"global RKS {global_rks.e_tot}")
+
+        if global_rks.converged is not True:
+            logger.warning("(cheap) global DFT calculation has NOT converged!")
 
         return global_rks
 
@@ -221,6 +237,7 @@ class NbedDriver:
         Note this function overwrites the total number of electrons to only include active number
         """
         embedded_mol: gto.Mole = self._build_mol()
+
         # overwrite total number of electrons to only include active system
         embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
 
@@ -229,42 +246,7 @@ class NbedDriver:
         local_rhf.max_memory = self.max_ram_memory
         local_rhf.conv_tol = self.convergence
         local_rhf.verbose = self.pyscf_print_level
-
-        logger.debug("Define Hartree-Fock object in localized basis")
-        # TODO: need to check if change of basis here is necessary (START)
-        h_core = local_rhf.get_hcore()
-
-        local_rhf.get_hcore = (
-            lambda *args: self.localized_system._local_basis_transform.conj().T
-            @ h_core
-            @ self.localized_system._local_basis_transform
-        )
-
-        def new_rhf_veff(rhf: scf.RHF, dm: np.ndarray = None, hermi: int = 1):
-            if dm is None:
-                if rhf.mo_coeff is not None:
-                    dm = rhf.make_rdm1(rhf.mo_coeff, rhf.mo_occ)
-                else:
-                    dm = rhf.init_guess_by_1e()
-
-            # if pyscf_RHF._eri is None:
-            #     pyscf_RHF._eri = pyscf_RHF.mol.intor('int2e', aosym='s8')
-
-            vj, vk = rhf.get_jk(mol=rhf.mol, dm=dm, hermi=hermi)
-            v_eff = vj - vk * 0.5
-
-            # v_eff = pyscf_obj.get_veff(dm=dm)
-            new_veff = (
-                self.localized_system._local_basis_transform.conj().T
-                @ v_eff
-                @ self.localized_system._local_basis_transform
-            )
-
-            return new_veff
-
-        local_rhf.get_veff = lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: new_rhf_veff(
-            local_rhf, dm=dm, hermi=hermi
-        )
+        local_rhf.max_cycle = self.max_hf_cycles
 
         return local_rhf
 
@@ -273,7 +255,7 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
-            localized_system: Localizer, subsystem_dm: np.ndarray,
+            rks_system: Localizer, subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -290,7 +272,7 @@ class NbedDriver:
             """
             dm_matrix = subsystem_dm
             # It seems that PySCF lumps J and K in the J array
-            two_e_term = localized_system.rks.get_veff(dm=dm_matrix)
+            two_e_term = rks_system.get_veff(dm=dm_matrix)
             j_mat = two_e_term.vj
             # k_mat = np.zeros_like(j_mat)
 
@@ -298,7 +280,7 @@ class NbedDriver:
             # v_xc = two_e_term - j_mat
 
             energy_elec = (
-                np.einsum("ij,ji->", localized_system.rks.get_hcore(), dm_matrix)
+                np.einsum("ij,ji->", rks_system.get_hcore(), dm_matrix)
                 + two_e_term.ecoul
                 + two_e_term.exc
             )
@@ -311,15 +293,15 @@ class NbedDriver:
             return energy_elec, e_xc, j_mat
 
         (self.e_act, e_xc_act, j_act) = _rks_components(
-            self.localized_system, self.localized_system.dm_active
+            self._global_rks, self.localized_system.dm_active
         )
         (self.e_env, e_xc_env, j_env) = _rks_components(
-            self.localized_system, self.localized_system.dm_enviro
+            self._global_rks, self.localized_system.dm_enviro
         )
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
 
-        two_e_term_total = self.localized_system.rks.get_veff(
+        two_e_term_total = self._global_rks.get_veff(
             dm=self.localized_system.dm_active + self.localized_system.dm_enviro
         )
         e_xc_total = two_e_term_total.exc
@@ -352,25 +334,31 @@ class NbedDriver:
 
         return None
 
+    def _init_local_rks(self, xc_functional) -> scf.RKS:
+        """Function to build embedded restricted Hartree Fock object for active subsystem.
+
+        Note this function overwrites the total number of electrons to only include active number
+        """
+        embedded_mol: gto.Mole = self._build_mol()
+
+        # overwrite total number of electrons to only include active system
+        embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
+
+        logger.debug("Define Hartree-Fock object")
+        local_rks: StreamObject = scf.RKS(embedded_mol)
+        local_rks.max_memory = self.max_ram_memory
+        local_rks.conv_tol = self.convergence
+        local_rks.verbose = self.pyscf_print_level
+        local_rks.xc = xc_functional
+
+        return local_rks
+
     @cached_property
-    def _orthogonal_projector(self):
+    def _env_projector(self):
         """Return a projector onto the environment in orthogonal basis."""
-        # get system matrices
-        s_mat = self.localized_system.rks.get_ovlp()
-        s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
-
-        # 1. Get orthogonal C matrix (localized)
-        c_loc_ortho = s_half @ self.localized_system.c_loc_occ_and_virt
-
-        # 2. Define projector that projects MO orbs of subsystem B onto themselves and system A onto zero state!
-        #    (do this in orthongoal basis!)
-        #    note we only take MO environment indices!
-        ortho_proj = np.einsum(
-            "ik,jk->ij",
-            c_loc_ortho[:, self.localized_system.enviro_MO_inds],
-            c_loc_ortho[:, self.localized_system.enviro_MO_inds],
-        )
-        return ortho_proj
+        s_mat = self._global_rks.get_ovlp()
+        env_projector = s_mat @ self.localized_system.dm_enviro @ s_mat
+        return env_projector
 
     def _run_emb_CCSD(
         self, emb_pyscf_scf_rhf: scf.RHF, frozen_orb_list: Optional[list] = None
@@ -432,14 +420,8 @@ class NbedDriver:
             np.ndarray: Matrix form of the embedding potential.
             StreamObject: The embedded RHF object.
         """
-        # Get Projector
-        s_mat = self.localized_system.rks.get_ovlp()
-        s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
-        # convert to standard basis
-        enviro_projector = s_half @ self._orthogonal_projector @ s_half
-
-        # run SCF
-        v_emb = (self.mu_level_shift * enviro_projector) + self._dft_potential
+        # modify hcore to embedded version
+        v_emb = (self.mu_level_shift * self._env_projector) + self._dft_potential
         hcore_std = localized_rhf.get_hcore()
         localized_rhf.get_hcore = lambda *args: hcore_std + v_emb
 
@@ -456,7 +438,9 @@ class NbedDriver:
 
         return v_emb, localized_rhf
 
-    def _huzinaga_embed(self, localized_rhf: StreamObject) -> np.ndarray:
+    def _huzinaga_embed(
+        self, localized_rhf: StreamObject, dmat_initial_guess=None
+    ) -> np.ndarray:
         """Embed using Huzinaga projector.
 
         Args:
@@ -473,12 +457,13 @@ class NbedDriver:
             mo_embedded_energy,
             dm_active_embedded,
             huzinaga_op_std,
+            huz_rhf_conv_flag,
         ) = huzinaga_RHF(
             localized_rhf,
             self._dft_potential,
-            self._orthogonal_projector,
+            self.localized_system.dm_enviro,
             dm_conv_tol=1e-6,
-            dm_initial_guess=None,
+            dm_initial_guess=dmat_initial_guess,
         )  # TODO: use dm_active_embedded (use mu answer to initialize!)
 
         # write results to pyscf object
@@ -491,9 +476,10 @@ class NbedDriver:
         )
         localized_rhf.mo_energy = mo_embedded_energy
         localized_rhf.e_tot = localized_rhf.energy_tot(dm=dm_active_embedded)
+        # localized_rhf.conv_check = huz_rhf_conv_flag
+        localized_rhf.converged = huz_rhf_conv_flag
 
         logger.info(f"Huzinaga rhf energy: {localized_rhf.e_tot}")
-
         return v_emb, localized_rhf
 
     def _delete_environment(self, embedded_rhf, method: str) -> np.ndarray:
@@ -506,23 +492,29 @@ class NbedDriver:
         Returns:
             embedded_rhf (StreamObject): Returns input, but with environment orbitals deleted
         """
-
-        n_act_mo = len(self.localized_system.active_MO_inds)
         n_env_mo = len(self.localized_system.enviro_MO_inds)
 
         if method == "huzinaga":
-            frozen_enviro_orb_inds = [i for i in range(n_act_mo, n_act_mo + n_env_mo)]
+            # find <psi  | Proj| psi > =  <psi  |  psi_proj >
+            # delete orbs with most overlap (as has large overlap with env)
+            overlap = np.einsum(
+                "ij, ki -> i",
+                embedded_rhf.mo_coeff.T,
+                self._env_projector @ embedded_rhf.mo_coeff,
+            )
+            overlap_by_size = overlap.argsort()[::-1]
+            frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]
 
             active_MOs_occ_and_virt_embedded = [
                 mo_i
-                for mo_i in range(self.localized_system.rks.mo_coeff.shape[1])
+                for mo_i in range(embedded_rhf.mo_coeff.shape[1])
                 if mo_i not in frozen_enviro_orb_inds
             ]
 
         elif method == "mu":
-            shift = self.localized_system.rks.mol.nao - n_env_mo
+            shift = embedded_rhf.mol.nao - n_env_mo
             frozen_enviro_orb_inds = [
-                mo_i for mo_i in range(shift, self.localized_system.rks.mol.nao)
+                mo_i for mo_i in range(shift, embedded_rhf.mol.nao)
             ]
             active_MOs_occ_and_virt_embedded = [
                 mo_i
@@ -552,33 +544,27 @@ class NbedDriver:
 
         return embedded_rhf
 
-    def embed(self):
+    def embed(self, init_huzinaga_rhf_with_mu=False):
         """Generate embedded Hamiltonian.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
         """
-        logger.debug("Running embedding.")
+        logger.debug("Running orb localization on global DFT object.")
         self.localized_system = self.localize()
-        logger.info(f"Orbital energies {self.localized_system.rks.mo_energy}")
 
-        e_nuc = self.localized_system.rks.mol.energy_nuc()
+        e_nuc = self._global_rks.energy_nuc()
 
-        local_rks = self.localized_system.rks
-        logger.info(f"Energy of localized RKS: {local_rks.e_tot}")
         # Run subsystem DFT (calls localized rks)
         self._subsystem_dft()
 
         logger.debug("Get global DFT potential to optimize embedded calc in.")
-        g_act_and_env = local_rks.get_veff(
+        g_act_and_env = self._global_rks.get_veff(
             dm=(self.localized_system.dm_active + self.localized_system.dm_enviro)
         )
-        g_act = local_rks.get_veff(dm=self.localized_system.dm_active)
+        g_act = self._global_rks.get_veff(dm=self.localized_system.dm_active)
         self._dft_potential = g_act_and_env - g_act
         logger.info(f"DFT potential average {np.mean(self._dft_potential)}")
-
-        # Initialise here, cause we're going to overwrite properties.
-        local_rhf = self._init_local_rhf()
 
         embeddings: Dict[str, callable] = {
             "huzinaga": self._huzinaga_embed,
@@ -591,12 +577,22 @@ class NbedDriver:
 
         self._mu = {}
         self._huzinaga = {}
-        for name, embedding_method in embeddings.items():
-            rhf_copy = copy(local_rhf)
+        for name in sorted(embeddings.keys(), reverse=True):
+            embedding_method = embeddings[name]
+            local_rhf = self._init_local_rhf()
             result = getattr(self, "_" + name)
 
-            result["v_emb"], result["scf"] = embedding_method(rhf_copy)
+            if init_huzinaga_rhf_with_mu and (name == "huzinaga"):
+                # seed huzinaga calc with mu result!
+                result["v_emb"], result["scf"] = embedding_method(
+                    local_rhf, dmat_initial_guess=self._mu["scf"].make_rdm1()
+                )
+            else:
+                result["v_emb"], result["scf"] = embedding_method(local_rhf)
+
+            result["mo_energies_emb_pre_del"] = local_rhf.mo_energy
             result["scf"] = self._delete_environment(result["scf"], name)
+            result["mo_energies_emb_post_del"] = local_rhf.mo_energy
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
 
@@ -659,3 +655,171 @@ class NbedDriver:
         logger.info(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")
         logger.info(self.localized_system.active_MO_inds)
         logger.info(self.localized_system.enviro_MO_inds)
+
+    def embed_dft_in_dft(self, new_xc_func):
+        """Generate embedded Hamiltonian.
+
+        Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
+        This is done when object is initialized.
+        """
+        if self.localized_system is None:
+            logger.debug("Running orb localization on global DFT object.")
+            self.localized_system = self.localize()
+
+        e_nuc = self._global_rks.energy_nuc()
+
+        # Run subsystem DFT (calls localized rks)
+        if self.two_e_cross is None:
+            self._subsystem_dft()
+
+        logger.debug("Get global DFT potential to optimize embedded calc in.")
+        if self._dft_potential is None:
+            g_act_and_env = self._global_rks.get_veff(
+                dm=(self.localized_system.dm_active + self.localized_system.dm_enviro)
+            )
+            g_act = self._global_rks.get_veff(dm=self.localized_system.dm_active)
+            self._dft_potential = g_act_and_env - g_act
+            logger.info(f"DFT potential average {np.mean(self._dft_potential)}")
+
+        embeddings: Dict[str, callable] = {
+            "huzinaga_dft": self._huzinaga_embed_dft_in_dft,
+            "mu_dft": self._mu_embed_dft_in_dft,
+        }
+        if self.projector not in ["huzinaga", "both"]:
+            embeddings.pop("huzinaga")
+        if self.projector not in ["mu", "both"]:
+            embeddings.pop("mu")
+
+        self._mu_dft = {}
+        self._huzinaga_dft = {}
+        for name, embedding_method in embeddings.items():
+            local_rks_same_functional = self._init_local_rks(self._global_rks.xc)
+            hcore_std_cheap = local_rks_same_functional.get_hcore()
+            local_rks_new_functional = self._init_local_rks(new_xc_func)
+            hcore_std_expen = local_rks_new_functional.get_hcore()
+
+            result = getattr(self, "_" + name)
+
+            result["v_emb_cheap_dft"], result["scf_cheap_dft"] = embedding_method(
+                local_rks_same_functional
+            )
+            result["v_emb_expen_dft"], result["scf_expen_dft"] = embedding_method(
+                local_rks_new_functional
+            )
+
+            # cheap result
+            y_emb_cheap = result["scf_cheap_dft"].make_rdm1()
+            # calculate correction
+            result["correction_cheap"] = np.einsum(
+                "ij,ij",
+                result["v_emb_cheap_dft"],
+                (y_emb_cheap - self.localized_system.dm_active),
+            )
+            veff_cheap = result["scf_cheap_dft"].get_veff(dm=y_emb_cheap)
+            cheap_rks_e_elec = (
+                veff_cheap.exc
+                + veff_cheap.ecoul
+                + np.einsum("ij,ij", hcore_std_cheap, y_emb_cheap)
+            )
+
+            result["e_rks_cheap"] = (
+                cheap_rks_e_elec
+                + +self.e_env
+                + self.two_e_cross
+                + result["correction_cheap"]
+                + e_nuc
+            )
+            result["classical_energy_cheap"] = (
+                self.e_env + self.two_e_cross + e_nuc - result["correction_cheap"]
+            )
+
+            # expensive result
+            y_emb_expen = result["scf_expen_dft"].make_rdm1()
+
+            veff_expen = result["scf_expen_dft"].get_veff(dm=y_emb_expen)
+            expen_rks_e_elec = (
+                veff_expen.exc
+                + veff_expen.ecoul
+                + np.einsum("ij,ij", hcore_std_expen, y_emb_expen)
+            )
+            result["correction_expen"] = np.einsum(
+                "ij,ij",
+                result["v_emb_expen_dft"],
+                (y_emb_expen - self.localized_system.dm_active),
+            )
+
+            result["e_rks_expen"] = (
+                expen_rks_e_elec
+                + +self.e_env
+                + self.two_e_cross
+                + result["correction_expen"]
+                + e_nuc
+            )
+
+            # classical energy
+            result["classical_energy_expen"] = (
+                self.e_env + self.two_e_cross + e_nuc - result["correction_expen"]
+            )
+
+    def _mu_embed_dft_in_dft(self, localized_rks: StreamObject) -> np.ndarray:
+        """Embed using the Mu-shift projector.
+
+        Args:
+            localized_rks (StreamObject): A PySCF RKS method in the localized basis.
+
+        Returns:
+            np.ndarray: Matrix form of the embedding potential.
+            StreamObject: The embedded RHF object.
+        """
+        # modify hcore to embedded version
+        v_emb = (self.mu_level_shift * self._env_projector) + self._dft_potential
+        hcore_std = localized_rks.get_hcore()
+        localized_rks.get_hcore = lambda *args: hcore_std + v_emb
+
+        logger.debug("Running embedded RHF calculation.")
+        localized_rks.kernel()
+        logger.info(
+            f"embedded HF energy MU_SHIFT: {localized_rks.e_tot}, converged: {localized_rks.converged}"
+        )
+        return v_emb, localized_rks
+
+    def _huzinaga_embed_dft_in_dft(self, localized_rks: StreamObject) -> np.ndarray:
+        """Embed using Huzinaga projector.
+
+        Args:
+            localized_rks (StreamObject): A PySCF RKS method of localized system.
+
+        Returns:
+            np.ndarray: Matrix form of the embedding potential.
+            StreamObject: The embedded RKS object.
+        """
+        # Fock matrix with each cycle
+        (
+            c_active_embedded,
+            mo_embedded_energy,
+            dm_active_embedded,
+            huzinaga_op_std,
+            huz_rhf_conv_flag,
+        ) = huzinaga_RKS(
+            localized_rks,
+            self._dft_potential,
+            self.localized_system.dm_enviro,
+            dm_conv_tol=1e-6,
+            dm_initial_guess=None,
+        )  # TODO: use dm_active_embedded (use mu answer to initialize!)
+
+        # write results to pyscf object
+        hcore_std = localized_rks.get_hcore()
+        v_emb = huzinaga_op_std + self._dft_potential
+        localized_rks.get_hcore = lambda *args: hcore_std + v_emb
+        localized_rks.mo_coeff = c_active_embedded
+        localized_rks.mo_occ = localized_rks.get_occ(
+            mo_embedded_energy, c_active_embedded
+        )
+        localized_rks.mo_energy = mo_embedded_energy
+        localized_rks.e_tot = localized_rks.energy_tot(dm=dm_active_embedded)
+        # localized_rhf.conv_check = huz_rhf_conv_flag
+        localized_rks.converged = huz_rhf_conv_flag
+
+        logger.info(f"Huzinaga rhf energy: {localized_rks.e_tot}")
+        return v_emb, localized_rks
