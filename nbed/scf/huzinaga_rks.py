@@ -65,7 +65,7 @@ def huzinaga_RKS(
     dm_mat = dm_initial_guess
     converged = False
     rks_energy_prev = 0
-    
+
     if use_DIIS:
         adiis = diis.DIIS()
 
