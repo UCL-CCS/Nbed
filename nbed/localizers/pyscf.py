@@ -80,12 +80,12 @@ class PySCFLocalizer(Localizer, ABC):
         active_MO_inds = np.where(mo_active_share > self._occ_cutoff)[0]
         # print(active_MO_inds)
 
-        all_ao_percentages_same_bool = np.allclose(
+        all_ao_shares_same_bool = np.allclose(
             np.zeros_like(mo_active_share),
             mo_active_share - mo_active_share.sum() / len(mo_active_share),
         )
 
-        if all_ao_percentages_same_bool:
+        if all_ao_shares_same_bool:
             # case for highly symmetric molecules
             # overlap is the same everywhere hence everything goes into env or act part
 

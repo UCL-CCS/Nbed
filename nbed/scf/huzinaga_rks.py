@@ -1,4 +1,4 @@
-"""Perform Huzinaga RHF with PySCF"""
+"""Perform Huzinaga RHF with PySCF."""
 
 import logging
 from typing import Optional, Tuple
@@ -18,7 +18,8 @@ def huzinaga_RKS(
     dm_initial_guess: Optional[np.ndarray] = None,
     use_DIIS: Optional[np.ndarray] = True,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
-    """Manual RHF calculation that is implemented using the huzinaga operator
+    """Manual RHF calculation that is implemented using the huzinaga operator.
+    
     Note this function uses lowdin (symmetric) orthogonalization only! (PySCF sometimes uses meta-lowdin and NAO). Also
     the intial density matrix guess is based on the modified core Hamilotnian (containing projector and DFT potential)
     PySCF has other methods for initial guess that aren't available here. Manual guess can also be given).
@@ -34,7 +35,7 @@ def huzinaga_RKS(
         dm_initial_guess (np.ndarray): Optional initial guess density matrix
         use_DIIS (bool): whether to use  Direct Inversion in the Iterative Subspace (DIIS) method
     Returns:
-        conv_flag (bool): Flag to indicate whether SCF has converged or not
+        converged (bool): Flag to indicate whether SCF has converged or not
         e_total (float): RHF energy (includes nuclear energy)
         mo_coeff_std (np.ndarray): Optimized C_matrix (columns are optimized moelcular orbtials)
         mo_energy (np.ndarray): 1D array of molecular orbital energies
@@ -49,8 +50,8 @@ def huzinaga_RKS(
     if dm_initial_guess is None:
         fock = scf_method.get_hcore() + dft_potential
 
-        FDS = fock @ dm_env_S
-        huzinaga_op_std = -0.5 * (FDS + FDS.T)
+        fds = fock @ dm_env_S
+        huzinaga_op_std = -0.5 * (fds + fds.T)
 
         fock += huzinaga_op_std
         # Create the orthogonal fock operator
@@ -62,10 +63,12 @@ def huzinaga_RKS(
         dm_initial_guess = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
 
     dm_mat = dm_initial_guess
-    conv_flag = False
+    converged = False
     rks_energy_prev = 0
+    
     if use_DIIS:
         adiis = diis.DIIS()
+
     for i in range(scf_method.max_cycle):
 
         # build fock matrix
@@ -73,8 +76,8 @@ def huzinaga_RKS(
         fock = scf_method.get_hcore() + vhf + dft_potential
 
         # projector
-        FDS = fock @ dm_env_S
-        huzinaga_op_std = -0.5 * (FDS + FDS.T)
+        fds = fock @ dm_env_S
+        huzinaga_op_std = -0.5 * (fds + fds.T)
 
         fock += huzinaga_op_std
 
@@ -108,12 +111,12 @@ def huzinaga_RKS(
         run_diff = np.abs(rks_energy - rks_energy_prev)
         norm_dm_diff = np.linalg.norm(dm_mat - dm_mat_old)
         if (run_diff < scf_method.conv_tol) and (norm_dm_diff < dm_conv_tol):
-            conv_flag = True
+            converged = True
             break
 
         rks_energy_prev = rks_energy
 
-    if conv_flag is False:
+    if converged is False:
         logger.warning("SCF has NOT converged.")
 
-    return mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std, conv_flag
+    return mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std, converged

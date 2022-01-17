@@ -49,8 +49,8 @@ def huzinaga_RHF(
     if dm_initial_guess is None:
         fock = scf_method.get_hcore() + dft_potential
 
-        FDS = fock @ dm_env_S
-        huzinaga_op_std = -0.5 * (FDS + FDS.T)
+        fds = fock @ dm_env_S
+        huzinaga_op_std = -0.5 * (fds + fds.T)
 
         fock += huzinaga_op_std
         # Create the orthogonal fock operator
@@ -71,8 +71,8 @@ def huzinaga_RHF(
         vhf = scf_method.get_veff(dm=dm_mat)
         fock = scf_method.get_hcore() + dft_potential + vhf
 
-        FDS = fock @ dm_env_S
-        huzinaga_op_std = -0.5 * (FDS + FDS.T)
+        fds = fock @ dm_env_S
+        huzinaga_op_std = -0.5 * (fds + fds.T)
 
         fock += huzinaga_op_std
 
