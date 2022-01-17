@@ -82,7 +82,7 @@ class NbedDriver:
         virtual_threshold: Optional[float] = 0.95,
         init_huzinaga_rhf_with_mu: bool = False,
         max_hf_cycles: int = 50,
-        max_dft_cycles: int = 50
+        max_dft_cycles: int = 50,
     ):
         """Initialise class."""
         config_valid = True

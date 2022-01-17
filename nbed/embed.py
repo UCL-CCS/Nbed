@@ -36,7 +36,7 @@ def nbed(
     occupied_threshold: Optional[float] = 0.95,
     virtual_threshold: Optional[float] = 0.95,
     max_hf_cycles: int = 50,
-    max_dft_cycles: int  =50,
+    max_dft_cycles: int = 50,
 ):
     """Import interface for the nbed package.
 
@@ -108,7 +108,7 @@ def cli() -> None:
     """CLI Interface."""
     setup_logs()
     args = parse()
-    qham = nbed(
+    nbed(
         geometry=args["geometry"],
         n_active_atoms=args["n_active_atoms"],
         basis=args["basis"],
@@ -125,7 +125,7 @@ def cli() -> None:
         occupied_threshold=args["occupied_threshold"],
         virtual_threshold=args["virtual_threshold"],
         max_hf_cycles=args["max_hf_cycles"],
-        max_dft_cycles=args["max_dft_cycles"]
+        max_dft_cycles=args["max_dft_cycles"],
     )
 
 
