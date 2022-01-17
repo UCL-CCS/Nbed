@@ -169,6 +169,18 @@ def parse():
         type=restricted_float_percentage,
         help="threshold (float between 0 and 1 inclusive) used to localize unoccupied (virtual) molecular orbs (necessary for spade approach)",
     )
+    parser.add_argument(
+        "--max_hf_cycles",
+        "--hf_c",
+        type=int,
+        help="max number of Hartree-Fock iterations allowed for global and local Hartree-Fock calcs",
+    )
+    parser.add_argument(
+        "--max_dft_cycles",
+        "--dft_c",
+        type=int,
+        help="max number of DFT iterations allowed in scf calc",
+    )
     args = parser.parse_args()
 
     if args.config:
@@ -188,6 +200,8 @@ def parse():
         args["virtual_localization"] = args.get("virtual_localization", False)
         args["occupied_threshold"] = args.get("occupied_threshold", 0.95)
         args["virtual_threshold"] = args.get("virtual_threshold", 0.95)
+        args["max_hf_cycles"] = args.get("max_hf_cycles", 50)
+        args["max_dft_cycles"] = args.get("max_dft_cycles", 50)
     else:
         # Transform the namespace object to a dict.
         args = vars(args)
@@ -360,7 +374,7 @@ def build_ordered_xyz_string(struct_dict: dict, active_atom_inds: list) -> str:
     """
     if not set(active_atom_inds).issubset(set(list(struct_dict.keys()))):
         raise ValueError(
-            f"active atom indices not subset of indices in structural dict "
+            "active atom indices not subset of indices in structural dict "
         )
 
     ordering = (
@@ -370,7 +384,7 @@ def build_ordered_xyz_string(struct_dict: dict, active_atom_inds: list) -> str:
 
     n_atoms = len(struct_dict)
     xyz_file = f"{n_atoms}"
-    xyz_file += f"\n \n"
+    xyz_file += "\n \n"
     for atom_ind in ordering:
         atom, xyz = struct_dict[atom_ind]
         xyz_file += f"{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n"
