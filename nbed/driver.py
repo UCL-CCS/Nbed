@@ -46,7 +46,7 @@ class NbedDriver:
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
         max_dft_cycles (int): max number of DFT iterations allowed in scf calc
-        _init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
+        init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
 
     Attributes:
         _global_fci (StreamObject): A Qubit Hamiltonian of some kind
@@ -80,7 +80,7 @@ class NbedDriver:
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
-        _init_huzinaga_rhf_with_mu: bool = False,
+        init_huzinaga_rhf_with_mu: bool = False,
         max_hf_cycles: int = 50,
         max_dft_cycles: int = 50
     ):
@@ -129,7 +129,7 @@ class NbedDriver:
         self.two_e_cross = None
         self._dft_potential = None
 
-        self.embed(init_huzinaga_rhf_with_mu=_init_huzinaga_rhf_with_mu)
+        self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
