@@ -262,8 +262,10 @@ class NbedDriver:
 
             return new_veff
 
-        local_rhf.get_veff = lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: new_rhf_veff(
-            local_rhf, dm=dm, hermi=hermi
+        local_rhf.get_veff = (
+            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: new_rhf_veff(
+                local_rhf, dm=dm, hermi=hermi
+            )
         )
 
         return local_rhf
@@ -273,7 +275,8 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
-            localized_system: Localizer, subsystem_dm: np.ndarray,
+            localized_system: Localizer,
+            subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -497,7 +500,9 @@ class NbedDriver:
         return v_emb, localized_rhf
 
     def _delete_environment(self, embedded_rhf, method: str) -> np.ndarray:
-        """Remove enironment orbit from embedded rhf object. This function removes (in fact deletes completely) the
+        """Remove enironment orbit from embedded rhf object.
+        
+        This function removes (in fact deletes completely) the
         molecular orbitals defined by the environment (defined by the environment of the localized system)
 
         Args:
@@ -506,7 +511,6 @@ class NbedDriver:
         Returns:
             embedded_rhf (StreamObject): Returns input, but with environment orbitals deleted
         """
-
         n_act_mo = len(self.localized_system.active_MO_inds)
         n_env_mo = len(self.localized_system.enviro_MO_inds)
 

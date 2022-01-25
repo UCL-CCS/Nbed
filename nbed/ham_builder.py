@@ -1,3 +1,4 @@
+"""Class to build qubit Hamiltonians from scf object."""
 import logging
 from typing import List, Optional, Tuple, Union
 
@@ -29,6 +30,13 @@ class HamiltonianBuilder:
         constant_e_shift: Optional[float] = 0,
         transform: Optional[str] = "jordan_wigner",
     ) -> None:
+        """Initialise the HamiltonianBuilder.
+        
+        Args:
+            scf_method: Pyscf scf object.
+            constant_e_shift: Constant energy shift to apply to the Hamiltonian.
+            transform: Transformation to apply to the Hamiltonian.
+        """
         logger.debug("Initialising HamiltonianBuilder.")
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
@@ -113,7 +121,15 @@ class HamiltonianBuilder:
     def _qubit_transform(
         self, transform: str, intop: InteractionOperator
     ) -> QubitOperator:
-        """Transform second quantised hamiltonain to qubit hamiltonian."""
+        """Transform second quantised hamiltonain to qubit Hamiltonian.
+        
+        Args:
+            transform: Transformation to apply to the Hamiltonian.
+            intop: InteractionOperator to transform.
+
+        Returns:
+            QubitOperator: Transformed qubit Hamiltonian.
+        """
         logger.debug(f"Transforming to qubit Hamiltonian using {transform} transform.")
         if transform is None or hasattr(of_transforms, transform) is False:
             raise HamiltonianBuilderError(
@@ -141,7 +157,14 @@ class HamiltonianBuilder:
         return qubit_hamiltonain
 
     def _taper(self, qham: QubitOperator) -> QubitOperator:
-        """Taper a hamiltonian."""
+        """Taper a hamiltonian.
+        
+        Args:
+            qham: QubitOperator to taper.
+            
+        Returns:
+            QubitOperator: Tapered QubitOperator.
+        """
         logger.debug("Beginning qubit tapering.")
         converter = HamiltonianConverter(qham)
         symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
