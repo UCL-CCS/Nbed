@@ -31,7 +31,7 @@ class HamiltonianBuilder:
         transform: Optional[str] = "jordan_wigner",
     ) -> None:
         """Initialise the HamiltonianBuilder.
-        
+
         Args:
             scf_method: Pyscf scf object.
             constant_e_shift: Constant energy shift to apply to the Hamiltonian.
@@ -122,7 +122,7 @@ class HamiltonianBuilder:
         self, transform: str, intop: InteractionOperator
     ) -> QubitOperator:
         """Transform second quantised hamiltonain to qubit Hamiltonian.
-        
+
         Args:
             transform: Transformation to apply to the Hamiltonian.
             intop: InteractionOperator to transform.
@@ -158,10 +158,10 @@ class HamiltonianBuilder:
 
     def _taper(self, qham: QubitOperator) -> QubitOperator:
         """Taper a hamiltonian.
-        
+
         Args:
             qham: QubitOperator to taper.
-            
+
         Returns:
             QubitOperator: Tapered QubitOperator.
         """

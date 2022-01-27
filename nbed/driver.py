@@ -501,7 +501,7 @@ class NbedDriver:
 
     def _delete_environment(self, embedded_rhf, method: str) -> np.ndarray:
         """Remove enironment orbit from embedded rhf object.
-        
+
         This function removes (in fact deletes completely) the
         molecular orbitals defined by the environment (defined by the environment of the localized system)
 
