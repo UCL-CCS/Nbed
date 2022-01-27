@@ -2,9 +2,9 @@
 
 # Nbed
 
-This package contains a method for embedding quantum simulation algorithms within DFT.
+This package implements projection-based embedding methods to reduce the size of a molecular Hamiltonain via embedding in DFT. Output qubit hamiltonains can be solved by a suitable quantum algorithm.
 
-Note: PySCF is not supported on Windows, so until alternative chemistry backends are implemented, this package will work only for Linux and MacOS.
+Nbed uses PySCF as a backend for chemistry caluculations, which is not supported on Windows. Alternative chemistry backends are planned, however in the mean time this package will work only for Linux and MacOS.
 ## Installation
 ### Pip
 
@@ -45,20 +45,24 @@ Installing this package also exposes a command line tool `nbed`, which can be us
 nbed --config <path to .yaml>
 ```
 
-Your yaml config file should look something like this:
+Your YAML config file should look something like this:
 
 ```
 ---
 nbed:
   geometry: tests/molecules/water.xyz
-  active_atoms: 2
-  convergence: !!float 1e-6
-  qubits: 8
+  n_active_atoms: 3
   basis: STO-3G
   xc_functional: b3lyp
   output: openfermion
+  projector: huzinaga
   localization: spade
+  convergence: !!float 1e-9
   savefile: data/savefile.json
+  transform: jordan_wigner
+  run_ccsd_emb: True
+  run_fci_emb: True
+  unit: angstrom
 ```
 
 Alternatively you can provide each of the components to the command line.

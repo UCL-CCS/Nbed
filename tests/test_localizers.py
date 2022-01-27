@@ -45,7 +45,6 @@ def test_PMLocalizer_local_basis_transform() -> None:
         virt_cutoff=virt_cutoff,
         run_virtual_localization=run_virtual_localization,
     )
-    change_basis = loc_system._local_basis_transform
 
     # check manual
     s_mat = global_rks.get_ovlp()
@@ -69,11 +68,6 @@ def test_PMLocalizer_local_basis_transform() -> None:
     assert np.allclose(
         unitary_ORTHO_std_onto_loc.conj().T @ unitary_ORTHO_std_onto_loc,
         np.eye(unitary_ORTHO_std_onto_loc.shape[0]),
-    )
-
-    # Check change of basis incorrect... U_std*C_std !=  C_loc_occ_and_virt
-    assert np.allclose(
-        change_basis @ loc_system.c_loc_occ_and_virt, global_rks.mo_coeff
     )
 
     return None
