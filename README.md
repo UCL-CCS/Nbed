@@ -5,6 +5,11 @@
 This package implements projection-based embedding methods to reduce the size of a molecular Hamiltonain via embedding in DFT. Output qubit hamiltonains can be solved by a suitable quantum algorithm.
 
 Nbed uses PySCF as a backend for chemistry caluculations, which is not supported on Windows. Alternative chemistry backends are planned, however in the mean time this package will work only for Linux and MacOS.
+
+## Documentation
+
+Full documentation is available at [https://nbed.readthedocs.io](https://nbed.readthedocs.io).
+
 ## Installation
 ### Pip
 
