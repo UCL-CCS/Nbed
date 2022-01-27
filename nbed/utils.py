@@ -384,7 +384,7 @@ def build_ordered_xyz_string(struct_dict: dict, active_atom_inds: list) -> str:
     """
     if not set(active_atom_inds).issubset(set(list(struct_dict.keys()))):
         raise ValueError(
-            f"active atom indices not subset of indices in structural dict "
+            "active atom indices not subset of indices in structural dict "
         )
 
     ordering = (
@@ -394,7 +394,7 @@ def build_ordered_xyz_string(struct_dict: dict, active_atom_inds: list) -> str:
 
     n_atoms = len(struct_dict)
     xyz_file = f"{n_atoms}"
-    xyz_file += f"\n \n"
+    xyz_file += "\n \n"
     for atom_ind in ordering:
         atom, xyz = struct_dict[atom_ind]
         xyz_file += f"{atom}\t{xyz[0]}\t{xyz[1]}\t{xyz[2]}\n"

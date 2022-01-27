@@ -64,7 +64,7 @@ def nbed(
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
     if projector == "both":
-        raise NbedConfigError(f"Cannot use 'both' as value of projector.")
+        raise NbedConfigError("Cannot use 'both' as value of projector.")
 
     driver = NbedDriver(
         geometry=geometry,
@@ -103,7 +103,7 @@ def cli() -> None:
     """CLI Interface."""
     setup_logs()
     args = parse()
-    qham = nbed(
+    nbed(
         geometry=args["geometry"],
         n_active_atoms=args["n_active_atoms"],
         basis=args["basis"],

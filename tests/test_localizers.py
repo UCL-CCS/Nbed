@@ -50,7 +50,7 @@ def test_PMLocalizer_local_basis_transform() -> None:
     # check manual
     s_mat = global_rks.get_ovlp()
     s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
-    s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
+    # s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
     # find orthogonal orbitals
     ortho_std = s_half @ global_rks.mo_coeff
@@ -60,7 +60,7 @@ def test_PMLocalizer_local_basis_transform() -> None:
     unitary_ORTHO_std_onto_loc = np.einsum("ik,jk->ij", ortho_std, ortho_loc)
 
     # move back into non orthogonal basis
-    matrix_std_to_loc = s_neg_half @ unitary_ORTHO_std_onto_loc @ s_half
+    # matrix_std_to_loc = s_neg_half @ unitary_ORTHO_std_onto_loc @ s_half
 
     # Check U_ORTHO_std_onto_loc*C_ortho_loc ==  C_ortho_STD
     assert np.allclose(unitary_ORTHO_std_onto_loc @ ortho_loc, ortho_std)
