@@ -10,7 +10,7 @@ from pyscf.lib import StreamObject, diis
 logger = logging.getLogger(__name__)
 
 
-def huzinaga_RHF(
+def huzinaga_RKS(
     scf_method: StreamObject,
     dft_potential: np.ndarray,
     dm_enviroment: np.ndarray,
@@ -25,7 +25,6 @@ def huzinaga_RHF(
     PySCF has other methods for initial guess that aren't available here. Manual guess can also be given).
     TODO: make a subclass from PySCF RHF object. Can include all this functionality there. Problems in this function
     can occur due to DIIS and other clever PySCF methods not being available.
-
     Args:
         scf_method (StreamObjecty):PySCF RHF object (containing info about max cycles and convergence tolerence)
         dft_potential (np.ndarray): DFT active and environment two body terms - DFT active environemnt two body term
@@ -36,7 +35,7 @@ def huzinaga_RHF(
         dm_initial_guess (np.ndarray): Optional initial guess density matrix
         use_DIIS (bool): whether to use  Direct Inversion in the Iterative Subspace (DIIS) method
     Returns:
-        conv_flag (bool): Flag to indicate whether SCF has converged or not
+        converged (bool): Flag to indicate whether SCF has converged or not
         e_total (float): RHF energy (includes nuclear energy)
         mo_coeff_std (np.ndarray): Optimized C_matrix (columns are optimized moelcular orbtials)
         mo_energy (np.ndarray): 1D array of molecular orbital energies
@@ -64,15 +63,19 @@ def huzinaga_RHF(
         dm_initial_guess = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
 
     dm_mat = dm_initial_guess
-    conv_flag = False
-    rhf_energy_prev = 0
+    converged = False
+    rks_energy_prev = 0
+
     if use_DIIS:
         adiis = diis.DIIS()
+
     for i in range(scf_method.max_cycle):
+
         # build fock matrix
         vhf = scf_method.get_veff(dm=dm_mat)
-        fock = scf_method.get_hcore() + dft_potential + vhf
+        fock = scf_method.get_hcore() + vhf + dft_potential
 
+        # projector
         fds = fock @ dm_env_S
         huzinaga_op_std = -0.5 * (fds + fds.T)
 
@@ -91,26 +94,29 @@ def huzinaga_RHF(
         # Create initial values for i+1 run.
         dm_mat_old = dm_mat
         dm_mat = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
-        # Find RHF energy
-        e_core_dft = np.einsum(
-            "ij,ji->", scf_method.get_hcore() + dft_potential, dm_mat
+        # Find RKS energy
+        #     rks_energy = scf_method.energy_elec(dm=dm_mat)[0]
+        vhf_updated = scf_method.get_veff(dm=dm_mat)
+        rks_energy = (
+            vhf_updated.ecoul
+            + vhf_updated.exc
+            + np.einsum(
+                "ij, ji->",
+                dm_mat,
+                (scf_method.get_hcore() + huzinaga_op_std + dft_potential),
+            )
         )
-        e_coul = 0.5 * np.einsum("ij,ji->", vhf, dm_mat)
-        e_huz = np.einsum("ij,ji->", huzinaga_op_std, dm_mat)
-        rhf_energy = e_core_dft + e_coul + e_huz
 
         # check convergence
-        run_diff = np.abs(rhf_energy - rhf_energy_prev)
+        run_diff = np.abs(rks_energy - rks_energy_prev)
         norm_dm_diff = np.linalg.norm(dm_mat - dm_mat_old)
-
         if (run_diff < scf_method.conv_tol) and (norm_dm_diff < dm_conv_tol):
-            conv_flag = True
+            converged = True
             break
 
-        rhf_energy_prev = rhf_energy
+        rks_energy_prev = rks_energy
 
-    if conv_flag is False:
+    if converged is False:
         logger.warning("SCF has NOT converged.")
 
-    # v_emb = huzinaga_op_std + dft_potential
-    return mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std, conv_flag
+    return mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std, converged

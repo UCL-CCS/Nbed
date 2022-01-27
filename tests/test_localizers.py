@@ -45,32 +45,19 @@ def test_PMLocalizer_local_basis_transform() -> None:
         virt_cutoff=virt_cutoff,
         run_virtual_localization=run_virtual_localization,
     )
+    dm_full_std = global_rks.make_rdm1()
+    dm_active_sys = loc_system.dm_active
+    dm_enviro_sys = loc_system.dm_enviro
+    # y_active + y_enviro = y_total
+    assert np.allclose(dm_full_std, dm_active_sys + dm_enviro_sys)
 
-    # check manual
-    s_mat = global_rks.get_ovlp()
-    s_half = sp.linalg.fractional_matrix_power(s_mat, 0.5)
-    # s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
+    n_all_electrons = global_rks.mol.nelectron
+    s_ovlp = global_rks.get_ovlp()
+    n_active_electrons = np.trace(dm_active_sys @ s_ovlp)
+    n_enviro_electrons = np.trace(dm_enviro_sys @ s_ovlp)
 
-    # find orthogonal orbitals
-    ortho_std = s_half @ global_rks.mo_coeff
-    ortho_loc = s_half @ loc_system.c_loc_occ_and_virt
-
-    # Build change of basis operator (maps between orthonormal basis (canonical and localized)
-    unitary_ORTHO_std_onto_loc = np.einsum("ik,jk->ij", ortho_std, ortho_loc)
-
-    # move back into non orthogonal basis
-    # matrix_std_to_loc = s_neg_half @ unitary_ORTHO_std_onto_loc @ s_half
-
-    # Check U_ORTHO_std_onto_loc*C_ortho_loc ==  C_ortho_STD
-    assert np.allclose(unitary_ORTHO_std_onto_loc @ ortho_loc, ortho_std)
-
-    # Change of basis (U_ORTHO_std_onto_loc) is not Unitary
-    assert np.allclose(
-        unitary_ORTHO_std_onto_loc.conj().T @ unitary_ORTHO_std_onto_loc,
-        np.eye(unitary_ORTHO_std_onto_loc.shape[0]),
-    )
-
-    return None
+    # check number of electrons is still the same after orbitals have been localized (change of basis)
+    assert np.isclose(n_all_electrons, n_active_electrons + n_enviro_electrons)
 
 
 if __name__ == "__main__":

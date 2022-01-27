@@ -105,12 +105,36 @@ class PySCFLocalizer(Localizer, ABC):
         # all AOs coeffs for a given MO j
         denominator_all = np.einsum("ij->j", c_loc_occ ** 2)
 
-        MO_active_percentage = numerator_all / denominator_all
+        mo_active_share = numerator_all / denominator_all
 
-        logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(MO_active_percentage, 4)}")
+        logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(mo_active_share, 4)}")
         logger.debug(f"threshold for active part: {self._occ_cutoff}")
 
-        active_MO_inds = np.where(MO_active_percentage > self._occ_cutoff)[0]
+        active_MO_inds = np.where(mo_active_share > self._occ_cutoff)[0]
+        # print(active_MO_inds)
+
+        all_ao_shares_same_bool = np.allclose(
+            np.zeros_like(mo_active_share),
+            mo_active_share - mo_active_share.sum() / len(mo_active_share),
+        )
+
+        if all_ao_shares_same_bool:
+            # case for highly symmetric molecules
+            # overlap is the same everywhere hence everything goes into env or act part
+
+            # edge case put half and half!
+            logger.warning(
+                "AO subsystem selection % same everywhere. Splitting half and half"
+            )
+            print(f"mo_active_share: {mo_active_share}")
+            active_MO_inds = np.array(range(0, c_loc_occ.shape[1] // 2), dtype=int)
+        elif len(active_MO_inds) == 0:
+            # if no active indices, then take largest possible overlap
+            mo_active_percentage_inshare = mo_active_share.argsort()[::-1]
+            active_MO_inds = mo_active_percentage_inshare[:1]  # take first element
+            logger.warning("no active AOs - forcing one to be active")
+            print(f"active system %: {mo_active_share[active_MO_inds][0]} \n")
+
         enviro_MO_inds = np.array(
             [i for i in range(c_loc_occ.shape[1]) if i not in active_MO_inds]
         )
@@ -118,7 +142,16 @@ class PySCFLocalizer(Localizer, ABC):
         # define active MO orbs and environment
         #    take MO (columns of C_matrix) that have high dependence from active AOs
         c_active = c_loc_occ[:, active_MO_inds]
-        c_enviro = c_loc_occ[:, enviro_MO_inds]
+
+        if len(enviro_MO_inds) == 0:
+            # case for when no environement
+            logger.warning("no environment electronic density")
+            c_enviro = np.zeros((c_active.shape[0], 1))
+        else:
+            c_enviro = c_loc_occ[:, enviro_MO_inds]
+
+        # storing condition used to select env system
+        self.enviro_selection_condition = mo_active_share
 
         return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
 
