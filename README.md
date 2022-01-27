@@ -2,9 +2,9 @@
 
 # Nbed
 
-This package contains a method for embedding quantum simulation algorithms within DFT.
+This package implements projection-based embedding methods to reduce the size of a molecular Hamiltonain via embedding in DFT. Output qubit hamiltonains can be solved by a suitable quantum algorithm.
 
-Note: PySCF is not supported on Windows, so until alternative chemistry backends are implemented, this package will work only for Linux and MacOS.
+Nbed uses PySCF as a backend for chemistry caluculations, which is not supported on Windows. Alternative chemistry backends are planned, however in the mean time this package will work only for Linux and MacOS.
 ## Installation
 ### Pip
 
@@ -45,20 +45,24 @@ Installing this package also exposes a command line tool `nbed`, which can be us
 nbed --config <path to .yaml>
 ```
 
-Your yaml config file should look something like this:
+Your YAML config file should look something like this:
 
 ```
 ---
 nbed:
   geometry: tests/molecules/water.xyz
-  active_atoms: 2
-  convergence: !!float 1e-6
-  qubits: 8
+  n_active_atoms: 3
   basis: STO-3G
   xc_functional: b3lyp
   output: openfermion
+  projector: huzinaga
   localization: spade
+  convergence: !!float 1e-9
   savefile: data/savefile.json
+  transform: jordan_wigner
+  run_ccsd_emb: True
+  run_fci_emb: True
+  unit: angstrom
 ```
 
 Alternatively you can provide each of the components to the command line.
@@ -111,10 +115,10 @@ VQE_IN_DFT
     notebooks
     tests
     nbed
+    logs
 ```
 
 ### Notebooks
-
 This folder contains jupyter notebooks which explain the embedding procedure in detail, including relevant theory.
 
 ### Tests
@@ -125,8 +129,10 @@ Contains all tests of the package
 
 Main functionality of the package.
 
-- embed - main functionality
-- ham_converter - class to convert between Hamiltonian formats as well as save to and read from JSON.
-- localization - methods of orbital localization
-- mol_plot - functions to plot the systems localised molecular orbitals.
-- utils - log settings and cli parsing.
+- `embed.py` - main functionality
+- `driver.py` - Class which carries out the algorithm. Main point of access for functionality.
+- `ham_converter.py` - class to convert between Hamiltonian formats as well as save to and read from JSON.
+- `ham_builder.py` - class to build Hamiltonians from quantum chemistry calculations.
+- `localizers/` - Classes which perform localization.
+- `mol_plot.py` - functions to plot the systems localised molecular orbitals.
+- `utils.py` - log settings and cli parsing.

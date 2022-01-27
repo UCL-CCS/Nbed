@@ -76,7 +76,7 @@ class Localizer(ABC):
         self.run()
 
     def _valid_threshold(self, threshold: float):
-        """Checks if threshold is within 0-1 range (percentage)
+        """Checks if threshold is within 0-1 range (percentage).
 
         Args:
             threshold (float): input number between 0 and 1 (inclusive)
