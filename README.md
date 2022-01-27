@@ -115,6 +115,7 @@ VQE_IN_DFT
     notebooks
     tests
     nbed
+    logs
 ```
 
 ### Notebooks
@@ -132,6 +133,6 @@ Main functionality of the package.
 - `driver.py` - Class which carries out the algorithm. Main point of access for functionality.
 - `ham_converter.py` - class to convert between Hamiltonian formats as well as save to and read from JSON.
 - `ham_builder.py` - class to build Hamiltonians from quantum chemistry calculations.
-- `localizers/` - methods of orbital localization
+- `localizers/` - Classes which perform localization.
 - `mol_plot.py` - functions to plot the systems localised molecular orbitals.
 - `utils.py` - log settings and cli parsing.
