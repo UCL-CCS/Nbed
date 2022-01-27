@@ -39,11 +39,11 @@ if __name__ == "__main__":
     # if not os.path.exists(output_dir):
     #     os.mkdir(output_dir)
 
-    R_length_list = [0.5, 0.8, 1, 1.5, 2, 3, 4, 5]
+    R_length_list = [0.4, 0.6, 0.7989538439284714, 1, 1.2, 1.5, 2, 3, 4, 5]
     for R in R_length_list:
         H2O_struct_dict = generate_H2O_from_reference(R_length=R)
 
-        file_name = f"act_stretch_H2O_{int(R*10)}"
+        file_name = f"act_stretch_H2O_{int(R*100)}"
         save_ordered_xyz_file(
             file_name,
             struct_dict=H2O_struct_dict,
