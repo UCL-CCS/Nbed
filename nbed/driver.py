@@ -23,8 +23,32 @@ from .localizers import (
 )
 from .scf import huzinaga_RHF, huzinaga_RKS
 
-logger = logging.getLogger(__name__)
+logfile = Path(__file__).parent/Path(".nbed.log")
 
+# Create the Logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create the Handler for logging data to a file
+file_handler = logging.FileHandler(filename=logfile, mode="w")
+file_handler.setLevel(logging.DEBUG)
+
+# Create a Formatter for formatting the log messages
+file_formatter = logging.Formatter("%(asctime)s:%(name)s:%(levelname)s:%(message)s")
+stream_formatter = logging.Formatter("%(levelname)s %(message)s")
+
+# Create the Handler for logging data to console
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.INFO)
+
+# Add the Formatter to the Handlers
+file_handler.setFormatter(file_formatter)
+stream_handler.setFormatter(stream_formatter)
+
+# Add the Handler to the Logger
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
+logger.debug("Logging configured.")
 
 class NbedDriver:
     """Function to return the embedding Qubit Hamiltonian.

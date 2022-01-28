@@ -2,14 +2,14 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from nbed.exceptions import NbedConfigError
 from nbed.ham_builder import HamiltonianBuilder
 
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
-from .utils import parse, setup_logs
+from .utils import parse, setup_logs, print_summary
 
 logger = logging.getLogger(__name__)
 
@@ -90,23 +90,35 @@ def nbed(
         max_hf_cycles=max_hf_cycles,
         max_dft_cycles=max_dft_cycles,
     )
+    # Needed for 'both' projector
+    if isinstance(driver.embedded_scf, tuple):
+        hamiltonians = ()
+        for scf, e_classical in zip(driver.embedded_scf, driver.e_classical):
+            qham = HamiltonianBuilder(
+            scf_method=scf,
+            constant_e_shift=e_classical,
+            transform=transform,
+            ).build(n_qubits=qubits)
+            converter = HamiltonianConverter(qham)
+            qham = getattr(converter, output.lower())
 
-    qham = HamiltonianBuilder(
-        scf_method=driver.embedded_scf,
-        constant_e_shift=driver.classical_energy,
-        transform=transform,
-    ).build(n_qubits=qubits)
+            hamiltonians += (qham,)
+    else:
+        qham = HamiltonianBuilder(
+            scf_method=driver.embedded_scf,
+            constant_e_shift=driver.classical_energy,
+            transform=transform,
+        ).build(n_qubits=qubits)
 
-    converter = HamiltonianConverter(qham)
-
-    qham = getattr(converter, output.lower())
-    # print_summary(driver, fci=True, transform=transform)
+        converter = HamiltonianConverter(qham)
+        hamiltonians = getattr(converter, output.lower())
+        
+    print_summary(hamiltonians, driver, transform, full_system=False)
     return qham
 
 
 def cli() -> None:
     """CLI Interface."""
-    setup_logs()
     args = parse()
     nbed(
         geometry=args["geometry"],
