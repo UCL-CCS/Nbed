@@ -2,8 +2,8 @@
 
 import argparse
 import logging
+import logging.config
 import os
-from logging.config import dictConfig
 from pathlib import Path
 from typing import Optional, Union, Tuple
 
@@ -18,7 +18,6 @@ from .ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 
-
 def setup_logs() -> None:
     """Initialise logging."""
     config_dict = {
@@ -32,7 +31,8 @@ def setup_logs() -> None:
                 "class": "logging.FileHandler",
                 "level": "DEBUG",
                 "formatter": "standard",
-                "filename": Path(__file__).parent/Path(".nbed.log"),
+                "filename": ".nbed.log",
+                "mode": "w",
                 "encoding": "utf-8",
             },
             "stream_handler": {
@@ -41,10 +41,17 @@ def setup_logs() -> None:
                 "formatter": "standard",
             },
         },
+        "loggers": {
+            '':{
+                "handlers": ["file_handler", "stream_handler"],
+                "level": "DEBUG",
+            }
+        }
     }
 
-    dictConfig(config_dict)
-
+    logging.config.dictConfig(config_dict)
+    logger = logging.getLogger(__name__)
+    logger.debug("Logging initialised.")
 
 def restricted_float_percentage(x: float) -> float:
     """Checks input x is within 0-1 range (percentage) and is a float

@@ -9,7 +9,7 @@ from nbed.ham_builder import HamiltonianBuilder
 
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
-from .utils import parse, setup_logs, print_summary
+from .utils import parse, print_summary
 
 logger = logging.getLogger(__name__)
 
