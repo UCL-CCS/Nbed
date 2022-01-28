@@ -602,11 +602,11 @@ class NbedDriver:
         # This is reverse so that huz can be initialised with mu
         for name in sorted(embeddings.keys(), reverse=True):
             logger.debug(f"Runnning embedding with {name} projector.")
-            embedding_method = embeddings[name]
-            local_rhf = self._init_local_rhf()
-
             setattr(self, "_" + name, {})
             result = getattr(self, "_" + name)
+
+            embedding_method = embeddings[name]
+            local_rhf = self._init_local_rhf()
 
             if init_huzinaga_rhf_with_mu and (name == "huzinaga"):
                 logger.debug("Initializing huzinaga with mu-shift.")
@@ -685,107 +685,48 @@ class NbedDriver:
         logger.info(self.localized_system.active_MO_inds)
         logger.info(self.localized_system.enviro_MO_inds)
 
-    def embed_dft_in_dft(self, new_xc_func):
-        """Generate embedded Hamiltonian.
+    def embed_dft_in_dft(self, xc_func: str, embedding_method: Callable):
+        """Return energy of DFT in DFT embedding
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
-        """
-        if self.localized_system is None:
-            logger.debug("Running orb localization on global DFT object.")
-            self.localized_system = self.localize()
 
+        Args:
+            xc_func (str): XC functional to use in active region.
+            embedding_method (callable): Embedding method to use (mu or huzinaga).
+        
+        Returns:
+            float: Energy of DFT in embedding.
+        """
+        result = {}
         e_nuc = self._global_rks.energy_nuc()
 
-        # Run subsystem DFT (calls localized rks)
-        if self.two_e_cross is None:
-            self._subsystem_dft()
+        local_rks_same_functional = self._init_local_rks(self._global_rks.xc)
+        hcore_std = local_rks_same_functional.get_hcore()
+        result["v_emb_dft"], result["scf_dft"] = embedding_method(
+            local_rks_same_functional
+        )
+        y_emb = result["scf_dft"].make_rdm1()
+        # calculate correction
+        result["correction"] = np.einsum(
+            "ij,ij",
+            result["v_emb_dft"],
+            (y_emb - self.localized_system.dm_active),
+        )
+        veff = result["scf_dft"].get_veff(dm=y_emb)
+        rks_e_elec = (
+            veff.exc
+            + veff.ecoul
+            + np.einsum("ij,ij", hcore_std, y_emb)
+        )
 
-        logger.debug("Get global DFT potential to optimize embedded calc in.")
-        if self._dft_potential is None:
-            g_act_and_env = self._global_rks.get_veff(
-                dm=(self.localized_system.dm_active + self.localized_system.dm_enviro)
-            )
-            g_act = self._global_rks.get_veff(dm=self.localized_system.dm_active)
-            self._dft_potential = g_act_and_env - g_act
-            logger.info(f"DFT potential average {np.mean(self._dft_potential)}")
+        result["e_rks"] = (
+            rks_e_elec
+            + self.e_env
+            + self.two_e_cross
+            + result["correction"]
+            + e_nuc
+        )
 
-        embeddings: Dict[str, callable] = {
-            "huzinaga_dft": self._huzinaga_embed,
-            "mu_dft": self._mu_embed,
-        }
-        if self.projector not in ["huzinaga", "both"]:
-            embeddings.pop("huzinaga")
-        if self.projector not in ["mu", "both"]:
-            embeddings.pop("mu")
+        return result['e_rks']
 
-        self._mu_dft = {}
-        self._huzinaga_dft = {}
-        for name, embedding_method in embeddings.items():
-            local_rks_same_functional = self._init_local_rks(self._global_rks.xc)
-            hcore_std_cheap = local_rks_same_functional.get_hcore()
-            local_rks_new_functional = self._init_local_rks(new_xc_func)
-            hcore_std_expen = local_rks_new_functional.get_hcore()
-
-            result = getattr(self, "_" + name)
-
-            result["v_emb_cheap_dft"], result["scf_cheap_dft"] = embedding_method(
-                local_rks_same_functional
-            )
-            result["v_emb_expen_dft"], result["scf_expen_dft"] = embedding_method(
-                local_rks_new_functional
-            )
-
-            # cheap result
-            y_emb_cheap = result["scf_cheap_dft"].make_rdm1()
-            # calculate correction
-            result["correction_cheap"] = np.einsum(
-                "ij,ij",
-                result["v_emb_cheap_dft"],
-                (y_emb_cheap - self.localized_system.dm_active),
-            )
-            veff_cheap = result["scf_cheap_dft"].get_veff(dm=y_emb_cheap)
-            cheap_rks_e_elec = (
-                veff_cheap.exc
-                + veff_cheap.ecoul
-                + np.einsum("ij,ij", hcore_std_cheap, y_emb_cheap)
-            )
-
-            result["e_rks_cheap"] = (
-                cheap_rks_e_elec
-                + +self.e_env
-                + self.two_e_cross
-                + result["correction_cheap"]
-                + e_nuc
-            )
-            result["classical_energy_cheap"] = (
-                self.e_env + self.two_e_cross + e_nuc - result["correction_cheap"]
-            )
-
-            # expensive result
-            y_emb_expen = result["scf_expen_dft"].make_rdm1()
-
-            veff_expen = result["scf_expen_dft"].get_veff(dm=y_emb_expen)
-            expen_rks_e_elec = (
-                veff_expen.exc
-                + veff_expen.ecoul
-                + np.einsum("ij,ij", hcore_std_expen, y_emb_expen)
-            )
-            result["correction_expen"] = np.einsum(
-                "ij,ij",
-                result["v_emb_expen_dft"],
-                (y_emb_expen - self.localized_system.dm_active),
-            )
-
-            result["e_rks_expen"] = (
-                expen_rks_e_elec
-                + +self.e_env
-                + self.two_e_cross
-                + result["correction_expen"]
-                + e_nuc
-            )
-
-            # classical energy
-            result["classical_energy_expen"] = (
-                self.e_env + self.two_e_cross + e_nuc - result["correction_expen"]
-            )
