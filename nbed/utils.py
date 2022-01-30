@@ -67,6 +67,7 @@ def restricted_float_percentage(x: float) -> float:
 
 def parse():
     """Parse arguments from command line interface."""
+    logger.debug("Adding CLI arguments.")
     parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
     parser.add_argument(
         "--config", type=str, help="Path to a config file. Overwrites other arguments.",
@@ -181,6 +182,7 @@ def parse():
         type=int,
         help="max number of DFT iterations allowed in scf calc",
     )
+    logger.debug("Parsing CLI arguments.")
     args = parser.parse_args()
 
     if args.config:

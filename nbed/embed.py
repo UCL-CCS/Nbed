@@ -106,7 +106,6 @@ def nbed(
 
 def cli() -> None:
     """CLI Interface."""
-    setup_logs()
     args = parse()
     nbed(
         geometry=args["geometry"],

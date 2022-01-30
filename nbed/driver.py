@@ -132,6 +132,7 @@ class NbedDriver:
         self._dft_potential = None
 
         self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
+        logger.debug("Driver initialisation complete.")
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
@@ -206,7 +207,7 @@ class NbedDriver:
         global_rks.verbose = self.pyscf_print_level
         global_rks.max_cycle = self.max_dft_cycles
         global_rks.kernel()
-        logger.info(f"Global RKS {global_rks.e_tot}")
+        logger.info(f"Global RKS: {global_rks.e_tot}")
 
         if global_rks.converged is not True:
             logger.warning("(cheap) global DFT calculation has NOT converged!")
@@ -249,7 +250,7 @@ class NbedDriver:
 
         Note this function overwrites the total number of electrons to only include active number.
         """
-        logger.debug("Constructing embedded RHF object.")
+        logger.debug("Constructing localised RHF object.")
         embedded_mol: gto.Mole = self._build_mol()
 
         # overwrite total number of electrons to only include active system
@@ -274,12 +275,12 @@ class NbedDriver:
         Returns:
             local_rks (scf.RKS): embedded restricted Kohn-Sham DFT object.
         """
+        logger.debug("Initialising localised RKS object.")
         embedded_mol: gto.Mole = self._build_mol()
 
         # overwrite total number of electrons to only include active system
         embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
 
-        logger.debug("Define Hartree-Fock object")
         local_rks: StreamObject = scf.RKS(embedded_mol)
         local_rks.max_memory = self.max_ram_memory
         local_rks.conv_tol = self.convergence
@@ -288,7 +289,7 @@ class NbedDriver:
 
         return local_rks
 
-    def _subsystem_dft(self):
+    def _subsystem_dft(self) -> None:
         """Function to perform subsystem RKS DFT calculation."""
         logger.debug("Calculating active and environment subsystem terms.")
 
@@ -308,6 +309,7 @@ class NbedDriver:
                 e_xc (float): exchange correlation energy defined by input density matrix
                 J_mat (np.ndarray): J_matrix defined by input density matrix
             """
+            logger.debug("Finding subsystem RKS componenets.")
             dm_matrix = subsystem_dm
             # It seems that PySCF lumps J and K in the J array
             two_e_term = rks_system.get_veff(dm=dm_matrix)
@@ -327,7 +329,7 @@ class NbedDriver:
             #     energy_elec_pyscf = self._global_rks.energy_elec(dm=dm_matrix)[0]
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
-
+            logger.debug(f"Subsystem RKS components found.")
             return energy_elec, e_xc, j_mat
 
         (self.e_act, e_xc_act, j_act) = _rks_components(
@@ -365,15 +367,15 @@ class NbedDriver:
         logger.info(self.two_e_cross)
         logger.info(self._global_rks.energy_nuc())
         if not np.isclose(energy_DFT_components, self._global_rks.e_tot):
-
+            logger.error("DFT energy of localized components not matching supersystem DFT.")
             raise ValueError(
-                "DFT energy of localized components not matching supersystem DFT"
+                "DFT energy of localized components not matching supersystem DFT."
             )
 
         return None
 
     @cached_property
-    def _env_projector(self):
+    def _env_projector(self) -> np.ndarray:
         """Return a projector onto the environment in orthogonal basis."""
         s_mat = self._global_rks.get_ovlp()
         env_projector = s_mat @ self.localized_system.dm_enviro @ s_mat
@@ -395,6 +397,7 @@ class NbedDriver:
             ccsd (cc.CCSD): PySCF CCSD object
             e_ccsd_corr (float): electron correlation CCSD energy
         """
+        logger.debug("Starting embedded CCSD calculation.")
         ccsd = cc.CCSD(emb_pyscf_scf_rhf)
         ccsd.conv_tol = self.convergence
         ccsd.max_memory = self.max_ram_memory
@@ -403,6 +406,7 @@ class NbedDriver:
         # Set which orbitals are to be frozen
         ccsd.frozen = frozen_orb_list
         e_ccsd_corr, _, _ = ccsd.kernel()
+        logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
         return ccsd, e_ccsd_corr
 
     def _run_emb_FCI(
@@ -420,6 +424,7 @@ class NbedDriver:
         Returns:
             fci_scf (fci.FCI): PySCF FCI object
         """
+        logger.debug("Starting embedded FCI calculation.")
         fci_scf = fci.FCI(emb_pyscf_scf_rhf)
         fci_scf.conv_tol = self.convergence
         fci_scf.verbose = self.pyscf_print_level
@@ -427,6 +432,7 @@ class NbedDriver:
 
         fci_scf.frozen = frozen_orb_list
         fci_scf.run()
+        logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
         return fci_scf
 
     def _mu_embed(self, localized_scf: StreamObject) -> np.ndarray:
@@ -469,6 +475,7 @@ class NbedDriver:
             np.ndarray: Matrix form of the embedding potential.
             StreamObject: The embedded scf object.
         """
+        logger.debug("Starting Huzinaga embedding method.")
         if isinstance(localized_scf, scf.RKS):
             huz_method: Callable = huzinaga_RKS
         elif isinstance(localized_scf, scf.RHF):
@@ -491,6 +498,7 @@ class NbedDriver:
         )  # TODO: use dm_active_embedded (use mu answer to initialize!)
 
         # write results to pyscf object
+        logger.debug("Writing results to PySCF object.")
         hcore_std = localized_scf.get_hcore()
         v_emb = huzinaga_op_std + self._dft_potential
         localized_scf.get_hcore = lambda *args: hcore_std + v_emb
@@ -516,6 +524,7 @@ class NbedDriver:
         Returns:
             embedded_rhf (StreamObject): Returns input, but with environment orbitals deleted
         """
+        logger.debug("Deleting environment from C matrix.")
         n_env_mo = len(self.localized_system.enviro_MO_inds)
 
         if method == "huzinaga":
@@ -547,13 +556,14 @@ class NbedDriver:
             ]
 
         else:
+            logger.error("Delete environment method not recognized.")
             raise ValueError("Must use mu or huzinaga flag.")
 
         logger.info(
-            f"Orbital indices for embedded system {active_MOs_occ_and_virt_embedded}"
+            f"Orbital indices for embedded system: {active_MOs_occ_and_virt_embedded}"
         )
         logger.info(
-            f"Orbital indices removed from embedded system {frozen_enviro_orb_inds}"
+            f"Orbital indices removed from embedded system: {frozen_enviro_orb_inds}"
         )
 
         # delete enviroment orbitals and associated energies
@@ -566,6 +576,7 @@ class NbedDriver:
         ]
         embedded_rhf.mo_occ = embedded_rhf.mo_occ[active_MOs_occ_and_virt_embedded]
 
+        logger.debug("Environment deleted.")
         return embedded_rhf
 
     def embed(self, init_huzinaga_rhf_with_mu=False):
@@ -642,6 +653,7 @@ class NbedDriver:
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
+                logger.debug("Performing CCSD-in-DFT embedding.")
                 ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(
                     result["scf"], frozen_orb_list=None
                 )
@@ -655,6 +667,7 @@ class NbedDriver:
                 logger.info(f"CCSD Energy {name}:\t{result['e_ccsd']}")
 
             if self.run_fci_emb is True:
+                logger.debug("Performing FCI-in-DFT embedding.")
                 fci_emb = self._run_emb_FCI(result["scf"], frozen_orb_list=None)
                 result["e_fci"] = (
                     (fci_emb.e_tot)
@@ -663,6 +676,10 @@ class NbedDriver:
                     - result["correction"]
                 )
                 logger.info(f"FCI Energy {name}:\t{result['e_fci']}")
+
+            if self.run_dft_in_dft is True:
+                did = self.embed_dft_in_dft(self._global_rks.xc, embedding_method)
+                result['e_dft_in_dft'] = did['e_rks']
 
         if self.projector == "both":
             logger.warning("Outputting both mu and huzinaga embedding results as tuple.")
@@ -681,7 +698,7 @@ class NbedDriver:
             self.embedded_scf = self._huzinaga["scf"]
             self.classical_energy = self._huzinaga["classical_energy"]
 
-        logger.info(f"num e emb: {2 * len(self.localized_system.active_MO_inds)}")
+        logger.info(f"Number of embedded electrons: {2 * len(self.localized_system.active_MO_inds)}")
         logger.info(self.localized_system.active_MO_inds)
         logger.info(self.localized_system.enviro_MO_inds)
 
@@ -701,7 +718,7 @@ class NbedDriver:
         result = {}
         e_nuc = self._global_rks.energy_nuc()
 
-        local_rks_same_functional = self._init_local_rks(self._global_rks.xc)
+        local_rks_same_functional = self._init_local_rks(xc_func)
         hcore_std = local_rks_same_functional.get_hcore()
         result["v_emb_dft"], result["scf_dft"] = embedding_method(
             local_rks_same_functional
@@ -728,5 +745,5 @@ class NbedDriver:
             + e_nuc
         )
 
-        return result['e_rks']
+        return result
 
