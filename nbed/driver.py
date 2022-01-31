@@ -101,6 +101,7 @@ class NbedDriver:
         run_ccsd_emb: Optional[bool] = False,
         run_fci_emb: Optional[bool] = False,
         run_virtual_localization: Optional[bool] = False,
+        run_dft_in_dft: Optional[bool] = False,
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
         savefile: Optional[Path] = None,
@@ -144,6 +145,7 @@ class NbedDriver:
         self.run_ccsd_emb = run_ccsd_emb
         self.run_fci_emb = run_fci_emb
         self.run_virtual_localization = run_virtual_localization
+        self.run_dft_in_dft = run_dft_in_dft
         self.max_ram_memory = max_ram_memory
         self.pyscf_print_level = pyscf_print_level
         self.savefile = savefile
