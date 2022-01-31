@@ -621,6 +621,11 @@ class NbedDriver:
         """
         logger.debug("Embedding molecule.")
         self.localized_system = self.localize()
+        logger.info(
+            f"Number of embedded electrons: {2 * len(self.localized_system.active_MO_inds)}"
+        )
+        logger.info(self.localized_system.active_MO_inds)
+        logger.info(self.localized_system.enviro_MO_inds)
 
         e_nuc = self._global_rks.energy_nuc()
 
@@ -734,11 +739,7 @@ class NbedDriver:
             self.embedded_scf = self._huzinaga["scf"]
             self.classical_energy = self._huzinaga["classical_energy"]
 
-        logger.info(
-            f"Number of embedded electrons: {2 * len(self.localized_system.active_MO_inds)}"
-        )
-        logger.info(self.localized_system.active_MO_inds)
-        logger.info(self.localized_system.enviro_MO_inds)
+        logger.info("Embedding complete.")
 
     def embed_dft_in_dft(self, xc_func: str, embedding_method: Callable):
         """Return energy of DFT in DFT embedding
