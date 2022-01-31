@@ -43,7 +43,7 @@ class SPADELocalizer(Localizer):
             c_enviro (np.array): C matrix of localized occupied ennironment MOs
             c_loc_occ (np.array): full C matrix of localized occupied MOs
         """
-        logger.info("Localising with SPADE.")
+        logger.debug("Localising with SPADE.")
         n_occupied_orbitals = np.count_nonzero(self._global_rks.mo_occ == 2)
         occupied_orbitals = self._global_rks.mo_coeff[:, :n_occupied_orbitals]
 

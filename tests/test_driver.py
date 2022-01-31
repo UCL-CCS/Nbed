@@ -12,22 +12,23 @@ from nbed.exceptions import NbedConfigError
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
+
 def test_incorrect_geometry_path() -> None:
     """test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
 
-    molecule = 'THIS IS NOT A PATH TO AN XYZ FILE'
+    molecule = "THIS IS NOT A PATH TO AN XYZ FILE"
 
-    args ={
-        'geometry': molecule,
+    args = {
+        "geometry": molecule,
         "n_active_atoms": 1,
-        "basis": 'STO-3G',
-        "xc_functional": 'b3lyp',
-        "projector": 'mu',
-        "localization": 'spade',
+        "basis": "STO-3G",
+        "xc_functional": "b3lyp",
+        "projector": "mu",
+        "localization": "spade",
         "convergence": 1e-6,
         "savefile": None,
         "run_ccsd_emb": True,
-        "run_fci_emb":True
+        "run_fci_emb": True,
     }
 
     regex_match_any_string = r"[\s\S]*"
@@ -162,6 +163,7 @@ def test_n_active_atoms_valid() -> None:
         )
 
     assert error_msg == str(e.value)
+
 
 # Test DFT in DFT
 

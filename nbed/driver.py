@@ -9,7 +9,7 @@ from typing import Dict, Optional, Tuple, Callable
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
-from pyscf import cc, fci, gto, scf
+from pyscf import cc, fci, gto, scf, dft
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
@@ -22,6 +22,7 @@ from .localizers import (
     SPADELocalizer,
 )
 from .scf import huzinaga_RHF, huzinaga_RKS
+
 # from .log_conf import setup_logs
 
 # logfile = Path(__file__).parent/Path(".nbed.log")
@@ -50,6 +51,7 @@ logger = logging.getLogger(__name__)
 # logger.addHandler(file_handler)
 # logger.addHandler(stream_handler)
 # logger.debug("Logging configured.")
+
 
 class NbedDriver:
     """Function to return the embedding Qubit Hamiltonian.
@@ -172,7 +174,9 @@ class NbedDriver:
                 atom=self.geometry, basis=self.basis, charge=self.charge, unit=self.unit
             ).build()
         else:
-            logger.info("Input geometry is not an existing file. Assumng raw xyz input.")
+            logger.info(
+                "Input geometry is not an existing file. Assumng raw xyz input."
+            )
             # geometry is raw xyz string
             full_mol = gto.Mole(
                 atom=self.geometry[3:],
@@ -201,8 +205,8 @@ class NbedDriver:
 
     @cached_property
     def _global_fci(self) -> StreamObject:
-        """Function to run full molecule FCI calculation. 
-        
+        """Function to run full molecule FCI calculation.
+
         WARNING: FACTORIAL SCALING IN BASIS STATES!
         """
         logger.debug("Running full system FCI.")
@@ -319,7 +323,8 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
-            rks_system: Localizer, subsystem_dm: np.ndarray,
+            rks_system: Localizer,
+            subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -392,7 +397,9 @@ class NbedDriver:
         logger.info(self.two_e_cross)
         logger.info(self._global_rks.energy_nuc())
         if not np.isclose(energy_DFT_components, self._global_rks.e_tot):
-            logger.error("DFT energy of localized components not matching supersystem DFT.")
+            logger.error(
+                "DFT energy of localized components not matching supersystem DFT."
+            )
             raise ValueError(
                 "DFT energy of localized components not matching supersystem DFT."
             )
@@ -501,9 +508,9 @@ class NbedDriver:
             StreamObject: The embedded scf object.
         """
         logger.debug("Starting Huzinaga embedding method.")
-        if isinstance(localized_scf, scf.RKS):
+        if isinstance(localized_scf, dft.rks.RKS):
             huz_method: Callable = huzinaga_RKS
-        elif isinstance(localized_scf, scf.RHF):
+        elif isinstance(localized_scf, scf.hf.RHF):
             huz_method: Callable = huzinaga_RHF
 
         # We need to run manual HF to update
@@ -633,10 +640,10 @@ class NbedDriver:
             "mu": self._mu_embed,
         }
         if self.projector in embeddings:
-            embeddings = embeddings[self.projector]
+            embeddings = {self.projector: embeddings[self.projector]}
 
         # This is reverse so that huz can be initialised with mu
-        for name in sorted(embeddings.keys(), reverse=True):
+        for name in sorted(embeddings, reverse=True):
             logger.debug(f"Runnning embedding with {name} projector.")
             setattr(self, "_" + name, {})
             result = getattr(self, "_" + name)
@@ -704,10 +711,12 @@ class NbedDriver:
 
             if self.run_dft_in_dft is True:
                 did = self.embed_dft_in_dft(self._global_rks.xc, embedding_method)
-                result['e_dft_in_dft'] = did['e_rks']
+                result["e_dft_in_dft"] = did["e_rks"]
 
         if self.projector == "both":
-            logger.warning("Outputting both mu and huzinaga embedding results as tuple.")
+            logger.warning(
+                "Outputting both mu and huzinaga embedding results as tuple."
+            )
             self.embedded_scf = (
                 self._mu["scf"],
                 self._huzinaga["scf"],
@@ -723,7 +732,9 @@ class NbedDriver:
             self.embedded_scf = self._huzinaga["scf"]
             self.classical_energy = self._huzinaga["classical_energy"]
 
-        logger.info(f"Number of embedded electrons: {2 * len(self.localized_system.active_MO_inds)}")
+        logger.info(
+            f"Number of embedded electrons: {2 * len(self.localized_system.active_MO_inds)}"
+        )
         logger.info(self.localized_system.active_MO_inds)
         logger.info(self.localized_system.enviro_MO_inds)
 
@@ -736,7 +747,7 @@ class NbedDriver:
         Args:
             xc_func (str): XC functional to use in active region.
             embedding_method (callable): Embedding method to use (mu or huzinaga).
-        
+
         Returns:
             float: Energy of DFT in embedding.
         """
@@ -756,19 +767,10 @@ class NbedDriver:
             (y_emb - self.localized_system.dm_active),
         )
         veff = result["scf_dft"].get_veff(dm=y_emb)
-        rks_e_elec = (
-            veff.exc
-            + veff.ecoul
-            + np.einsum("ij,ij", hcore_std, y_emb)
-        )
+        rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
 
         result["e_rks"] = (
-            rks_e_elec
-            + self.e_env
-            + self.two_e_cross
-            + result["correction"]
-            + e_nuc
+            rks_e_elec + self.e_env + self.two_e_cross + result["correction"] + e_nuc
         )
 
         return result
-

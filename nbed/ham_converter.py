@@ -21,7 +21,10 @@ logger = logging.getLogger(__name__)
 class HamiltonianConverter:
     """Class to create and output qubit hamiltonians."""
 
-    def __init__(self, input_hamiltonian: Union[QubitOperator, str, Path],) -> None:
+    def __init__(
+        self,
+        input_hamiltonian: Union[QubitOperator, str, Path],
+    ) -> None:
         """Initialise class and return output.
 
         Args:
@@ -29,6 +32,7 @@ class HamiltonianConverter:
             transform (str): Transform used to convert to qubit hamiltonian.
             output_format (str): The name of the desired output format.
         """
+        logger.debug("Initialising HamiltonianConverter.")
         self._input = None
 
         if type(input_hamiltonian) is QubitOperator:
@@ -55,6 +59,7 @@ class HamiltonianConverter:
         output = getattr(self, output_format, None)
 
         if output is None:
+            logger.debug(f"Output format {output_format} not supported.")
             raise NotImplementedError(
                 f"{output_format} is not a valid hamiltonian output format."
             )
@@ -68,11 +73,13 @@ class HamiltonianConverter:
         Args:
             filepath (Path): Path to the save file location.
         """
+        logger.info(f"Saving Hamiltonian to {filepath}.")
         data_to_save = {"qubits": self.n_qubits, "hamiltonian": self._intermediate}
         json_ir = json.dumps(data_to_save)
 
         with open(filepath, "w") as file:
             file.write(json_ir)
+        logger.debug("File saved.")
 
     def _read_file(self, filepath) -> Dict[str, float]:
         """Read the Intermediate Representation from a file.
@@ -80,6 +87,7 @@ class HamiltonianConverter:
         Args:
             filepath (Path): Path to a .json file containing the IR.
         """
+        logger.debug("Reading IR from file.")
         with open(filepath, "r") as file:
             file_data = json.load(file)
 
@@ -87,6 +95,7 @@ class HamiltonianConverter:
         intermediate = file_data["hamiltonian"]
 
         # Validate input
+        logger.debug("Validating input file.")
         error_string = ""
         keys = [key for key in intermediate.keys()]
         if not all([type(key) is str for key in keys]):
@@ -104,6 +113,7 @@ class HamiltonianConverter:
             error_string += "All operator weights must be ints or floats.\n"
 
         if error_string:
+            logger.error(f"{error_string}")
             raise HamiltonianConverterError(error_string)
 
         return intermediate
@@ -114,6 +124,7 @@ class HamiltonianConverter:
         Returns:
             Dict[str, float]: Generic representation of a qubit hamiltonian.
         """
+        logger.debug("Creating IR from openfermion representation.")
         intermediate: Dict[str, float] = {}
         for term, value in self.openfermion.terms.items():
             # Assume I for each qubit unless explicity stated
@@ -137,6 +148,7 @@ class HamiltonianConverter:
         Returns:
             openfermion.QubitOperator: Qubit Hamiltonian in openfermion form.
         """
+        logger.debug("Converting to openfermion QubitOperator.")
         if self._input is not None:
             return self._input
 
@@ -152,6 +164,7 @@ class HamiltonianConverter:
                     term += op + str(pos) + " "
             operator += value * QubitOperator(term)
 
+        logger.debug("Openfermion QubitOperator created.")
         return operator
 
     @cached_property
@@ -161,6 +174,7 @@ class HamiltonianConverter:
         Returns:
             qml.Hamiltonian: Hamiltonian pennylane object.
         """
+        logger.debug("Converting to pennylane Hamiltonian.")
         opdict = {"I": Identity, "X": PauliX, "Y": PauliY, "Z": PauliZ}
 
         # Initialise the operator with the identity contribution
@@ -180,6 +194,7 @@ class HamiltonianConverter:
 
         hamiltonian = qml.Hamiltonian(values, operators)
 
+        logger.debug("Pennylane Hamiltonian created.")
         return hamiltonian
 
     @cached_property
@@ -192,8 +207,10 @@ class HamiltonianConverter:
         Returns:
             qiskit_nature.opflow.PauliSumOp
         """
+        logger.debug("Converting to qiskit PauliSumOp.")
         from qiskit.opflow.primitive_ops import PauliSumOp
 
         input_list = [(key, value) for key, value in self._intermediate.items()]
 
+        logger.debug("Qiskit PauliSumOp created.")
         return PauliSumOp.from_list(input_list)
