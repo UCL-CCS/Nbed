@@ -372,6 +372,10 @@ def print_summary(
         print(f"number of qubits required: {count_qubits(mu_qham)}")
         logger.info(f"number of qubits required: {count_qubits(mu_qham)}")
 
+    full_system_hamiltonian = HamiltonianBuilder(
+        driver._global_hf, constant_e_shift=0, transform=transform
+    ).build()
+    
     print("".center(80, "*"))
     logger.info("".center(80, "*"))
     print("  Summary of reference Calculation".center(80))
@@ -386,9 +390,6 @@ def print_summary(
         logger.info(
             f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}"
         )
-    full_system_hamiltonian = HamiltonianBuilder(
-        driver._global_hf, constant_e_shift=0, transform=transform
-    ).build()
 
     print(
         f"length of full system fermionic Hamiltonian: {len(full_system_hamiltonian.terms)}"
