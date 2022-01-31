@@ -226,5 +226,5 @@ class Localizer(ABC):
             c_virtual = self._global_rks.mo_coeff[:, self._global_rks.mo_occ < 2]
 
         self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
-        
+
         logger.debug("Localization complete.")

@@ -216,7 +216,7 @@ class HamiltonianBuilder:
                 logger.debug("Unreduced Hamiltonain found.")
                 return qham
 
-            # Wanted to do a recursive thing to get the correct number 
+            # Wanted to do a recursive thing to get the correct number
             # from tapering but it takes ages.
             final_n_qubits = count_qubits(qham)
 
