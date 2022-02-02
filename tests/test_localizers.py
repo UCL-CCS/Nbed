@@ -25,11 +25,7 @@ def test_PMLocalizer_local_basis_transform() -> None:
     run_virtual_localization = False
 
     # define RKS DFT object
-    full_mol = gto.Mole(
-        atom=str(water_filepath),
-        basis=basis,
-        charge=charge,
-    ).build()
+    full_mol = gto.Mole(atom=str(water_filepath), basis=basis, charge=charge,).build()
     global_rks = scf.RKS(full_mol)
     global_rks.conv_tol = convergence
     global_rks.xc = xc_functional
