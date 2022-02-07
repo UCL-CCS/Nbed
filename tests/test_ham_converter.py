@@ -1,6 +1,8 @@
 """Tests for the hamiltonian converter."""
 
+from nis import match
 from pathlib import Path
+from pytest import raises
 
 import numpy as np
 import pennylane as qml
@@ -8,6 +10,7 @@ from openfermion import QubitOperator
 from qiskit.opflow.primitive_ops.pauli_sum_op import PauliSumOp
 
 from nbed.ham_converter import HamiltonianConverter
+from nbed.exceptions import HamiltonianConverterError
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
@@ -33,6 +36,13 @@ def test_intermediate_input() -> None:
     converted_ham = HamiltonianConverter(intermediate).openfermion
     assert type(converted_ham) is QubitOperator
     assert converted_ham == hamiltonian
+
+def test_file_input() -> None:
+    assert HamiltonianConverter("tests/test.qham")._intermediate == intermediate    
+
+def test_bad_input() -> None:
+    with raises(TypeError, match="Input Hamiltonian must be an openfermion.QubitOperator or path."):
+        HamiltonianConverter([0,1,2,3])
 
 def test_qiskit() -> None:
     converted_ham = HamiltonianConverter(hamiltonian).convert("qiskit")
