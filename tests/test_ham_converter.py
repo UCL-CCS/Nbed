@@ -11,6 +11,8 @@ from nbed.ham_converter import HamiltonianConverter
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
+intermediate = {'IIII': 0.5, 'IIXI': 0.25, 'IIIY': 0.2}
+
 hamiltonian = 0.5 * QubitOperator("")
 hamiltonian += 0.25 * QubitOperator("X2")
 hamiltonian += 0.2 * QubitOperator("Y3")
@@ -27,6 +29,10 @@ pennylane_hamiltonian = qml.Hamiltonian(
     ],
 )
 
+def test_intermediate_input() -> None:
+    converted_ham = HamiltonianConverter(intermediate).openfermion
+    assert type(converted_ham) is QubitOperator
+    assert converted_ham == hamiltonian
 
 def test_qiskit() -> None:
     converted_ham = HamiltonianConverter(hamiltonian).convert("qiskit")
