@@ -325,7 +325,8 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
-            rks_system: Localizer, subsystem_dm: np.ndarray,
+            rks_system: Localizer,
+            subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -764,7 +765,9 @@ class NbedDriver:
         y_emb = result["scf_dft"].make_rdm1()
         # calculate correction
         result["correction"] = np.einsum(
-            "ij,ij", result["v_emb_dft"], (y_emb - self.localized_system.dm_active),
+            "ij,ij",
+            result["v_emb_dft"],
+            (y_emb - self.localized_system.dm_active),
         )
         veff = result["scf_dft"].get_veff(dm=y_emb)
         rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)

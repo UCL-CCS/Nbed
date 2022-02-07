@@ -14,7 +14,7 @@ from nbed.exceptions import HamiltonianConverterError
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
-intermediate = {'IIII': 0.5, 'IIXI': 0.25, 'IIIY': 0.2}
+intermediate = {"IIII": 0.5, "IIXI": 0.25, "IIIY": 0.2}
 
 hamiltonian = 0.5 * QubitOperator("")
 hamiltonian += 0.25 * QubitOperator("X2")
@@ -32,17 +32,23 @@ pennylane_hamiltonian = qml.Hamiltonian(
     ],
 )
 
+
 def test_intermediate_input() -> None:
-    converted_ham = HamiltonianConverter(intermediate).openfermion
-    assert type(converted_ham) is QubitOperator
-    assert converted_ham == hamiltonian
+    converted_ham = HamiltonianConverter(intermediate)._intermediate
+    assert converted_ham == intermediate
+
 
 def test_file_input() -> None:
-    assert HamiltonianConverter("tests/test.qham")._intermediate == intermediate    
+    assert HamiltonianConverter("tests/test.qham")._intermediate == intermediate
+
 
 def test_bad_input() -> None:
-    with raises(TypeError, match="Input Hamiltonian must be an openfermion.QubitOperator or path."):
-        HamiltonianConverter([0,1,2,3])
+    with raises(
+        TypeError,
+        match="Input Hamiltonian must be an openfermion.QubitOperator or path.",
+    ):
+        HamiltonianConverter([0, 1, 2, 3])
+
 
 def test_qiskit() -> None:
     converted_ham = HamiltonianConverter(hamiltonian).convert("qiskit")
