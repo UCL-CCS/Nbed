@@ -2,8 +2,10 @@
 
 import json
 import logging
+from numbers import Number
 from pathlib import Path
 from typing import Dict, Optional, Union
+import re
 
 import pennylane as qml
 from cached_property import cached_property
@@ -36,16 +38,23 @@ class HamiltonianConverter:
         self._input = None
 
         if type(input_hamiltonian) is QubitOperator:
+            logger.debug("Openfermion Hamiltonian input")
             self._input = input_hamiltonian
             self.n_qubits = count_qubits(input_hamiltonian)
             self._intermediate = self._of_to_int()
         elif type(input_hamiltonian) is dict:
+            logger.debug("Dictionary input.")
             # Turn keys into an iterator and get the length of the first item.
+            self._validate(input_hamiltonian)
             self.n_qubits = len(next(iter(input_hamiltonian.keys())))
             self._intermediate = input_hamiltonian
         elif type(input_hamiltonian) in [Path, str]:
+            logger.debug("Filepath input")
             self._intermediate = self._read_file(input_hamiltonian)
         else:
+            logger.error(
+                "Input Hamiltonian must be an openfermion.QubitOperator, dict or filepath."
+            )
             raise TypeError(
                 "Input Hamiltonian must be an openfermion.QubitOperator, dict or filepath."
             )
@@ -94,29 +103,34 @@ class HamiltonianConverter:
         self.n_qubits = file_data["qubits"]
         intermediate = file_data["hamiltonian"]
 
+        self._validate(intermediate)
+
+        return intermediate
+
+    def _validate(self, dict_input: Dict[str, Number]) -> None:
         # Validate input
         logger.debug("Validating input file.")
         error_string = ""
-        keys = [key for key in intermediate.keys()]
-        if not all([type(key) is str for key in keys]):
-            error_string += "JSON file must use strings as operator keys.\n"
+        keys = [key for key in dict_input]
+
+        if not all([re.match("[IXYZixyz]+", key) for key in keys]):
+            error_string += "Input dict keys must only contain I,X,Y,Z\n"
 
         elif not all(len(key) == len(keys[0]) for key in keys):
             error_string += "All operator keys must be of equal length.\n"
 
         elif not all(
             [
-                type(value) is int or type(value) is float
-                for value in intermediate.values()
+                isinstance(value, Number)
+                for value in dict_input.values()
             ]
         ):
-            error_string += "All operator weights must be ints or floats.\n"
+            error_string += "All operator weights must be numbers.\n"
 
         if error_string:
             logger.error(f"{error_string}")
             raise HamiltonianConverterError(error_string)
-
-        return intermediate
+        logger.debug("Input dict valid.")
 
     def _of_to_int(self) -> Dict[str, float]:
         """Construct intermediate representation of qubit hamiltonian from openfermion representation.

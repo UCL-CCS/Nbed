@@ -37,17 +37,27 @@ def test_intermediate_input() -> None:
     converted_ham = HamiltonianConverter(intermediate)._intermediate
     assert converted_ham == intermediate
 
+    with raises(HamiltonianConverterError, match=".*Input dict keys must only contain I,X,Y,Z.*"):
+        HamiltonianConverter({"A": 1, "1": 2})
+
+    with raises(HamiltonianConverterError, match=".*All operator keys must be of equal length.*"):
+        HamiltonianConverter({"x": 1, "YIZ": 2})
+
+    with raises(HamiltonianConverterError, match=".*All operator weights must be numbers.*"):
+        HamiltonianConverter({"I": "1"})
 
 def test_file_input() -> None:
     assert HamiltonianConverter("tests/test.qham")._intermediate == intermediate
 
 
-def test_bad_input() -> None:
-    with raises(
-        TypeError,
-        match="Input Hamiltonian must be an openfermion.QubitOperator or path.",
-    ):
+def test_bad_input_type() -> None:
+    error_message = (
+        "Input Hamiltonian must be an openfermion.QubitOperator, dict or filepath."
+    )
+    with raises(TypeError, match=error_message):
         HamiltonianConverter([0, 1, 2, 3])
+    with raises(TypeError, match=error_message):
+        HamiltonianConverter({"a", 1, 0.1})
 
 
 def test_qiskit() -> None:
