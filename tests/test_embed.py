@@ -85,10 +85,5 @@ def test_nbed_6_qubits() -> None:
     assert count_qubits(qham) == 6
     return None
 
-def test_cli() -> None:
-    """Test the cli interface."""
-    import subprocess
-    subprocess.run("nbed --config tests/test_config.yaml")
-
 if __name__ == "__main__":
     pass
