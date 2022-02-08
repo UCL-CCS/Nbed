@@ -32,7 +32,6 @@ pennylane_hamiltonian = qml.Hamiltonian(
     ],
 )
 
-
 def test_intermediate_input() -> None:
     converted_ham = HamiltonianConverter(intermediate)._intermediate
     assert converted_ham == intermediate
@@ -49,7 +48,6 @@ def test_intermediate_input() -> None:
 def test_file_input() -> None:
     assert HamiltonianConverter("tests/test.qham")._intermediate == intermediate
 
-
 def test_bad_input_type() -> None:
     error_message = (
         "Input Hamiltonian must be an openfermion.QubitOperator, dict or filepath."
@@ -59,18 +57,15 @@ def test_bad_input_type() -> None:
     with raises(TypeError, match=error_message):
         HamiltonianConverter({"a", 1, 0.1})
 
-
 def test_qiskit() -> None:
     converted_ham = HamiltonianConverter(hamiltonian).convert("qiskit")
     assert type(converted_ham) is PauliSumOp
     assert np.all(converted_ham.to_matrix() - qiskit_hamiltonian.to_matrix() == 0)
 
-
 def test_pennylane() -> None:
     converted_ham = HamiltonianConverter(hamiltonian).convert("pennylane")
     assert type(converted_ham) is qml.Hamiltonian
     assert pennylane_hamiltonian.compare(pennylane_hamiltonian)
-
 
 if __name__ == "__main__":
     pass

@@ -13,7 +13,6 @@ from openfermion.ops.operators.qubit_operator import QubitOperator
 from openfermion.utils import count_qubits
 from pennylane import Identity, PauliX, PauliY, PauliZ
 from qiskit.opflow.primitive_ops.pauli_sum_op import PauliSumOp
-from qiskit_nature.operators.second_quantization import SpinOp
 
 from .exceptions import HamiltonianConverterError
 
@@ -228,3 +227,18 @@ class HamiltonianConverter:
 
         logger.debug("Qiskit PauliSumOp created.")
         return PauliSumOp.from_list(input_list)
+
+
+def load_hamiltonian(filepath: Path, output: str) -> Union[QubitOperator, qml.Hamiltonian, PauliSumOp]:
+    """Create a Hamiltonian from a file.
+
+    Reads the input file and converts to the desired output format.
+
+    Args:
+        filepath (Path): Path to a saved Qubit Hamiltonian file.
+        output (str): One of 'openfermion', 'pennylane', 'qiskit'
+
+    Returns:
+        object: A qubit Hamiltonian.
+    """
+    return HamiltonianConverter(filepath).convert(output)
