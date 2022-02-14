@@ -18,14 +18,14 @@ class PySCFLocalizer(Localizer, ABC):
 
     def __init__(
         self,
-        pyscf_rks: StreamObject,
+        global_ks: StreamObject,
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
         run_virtual_localization: Optional[bool] = False,
     ):
         super().__init__(
-            pyscf_rks,
+            global_ks,
             n_active_atoms,
             occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,
@@ -71,7 +71,7 @@ class PySCFLocalizer(Localizer, ABC):
         numerator_all = np.einsum("ij->j", (c_loc_occ[ao_active_inds, :]) ** 2)
 
         # all AOs coeffs for a given MO j
-        denominator_all = np.einsum("ij->j", c_loc_occ ** 2)
+        denominator_all = np.einsum("ij->j", c_loc_occ**2)
 
         mo_active_share = numerator_all / denominator_all
 

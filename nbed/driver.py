@@ -164,10 +164,10 @@ class NbedDriver:
 
         if self.charge % 2 == 0:
             logger.debug("Closed shells, using restricted SCF.")
-            self.restricted_scf = True
+            self._restricted_scf = True
         else:
             logger.debug("Open shells, using unrestricted SCF.")
-            self.restricted_scf = False
+            self._restricted_scf = False
 
         # self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
         logger.debug("Driver initialisation complete.")
@@ -182,7 +182,11 @@ class NbedDriver:
         if os.path.exists(self.geometry):
             # geometry is an xyz file
             full_mol = gto.Mole(
-                atom=self.geometry, basis=self.basis, charge=self.charge, unit=self.unit, spin=self.spin
+                atom=self.geometry,
+                basis=self.basis,
+                charge=self.charge,
+                unit=self.unit,
+                spin=self.spin,
             ).build()
         else:
             logger.info(
@@ -205,7 +209,7 @@ class NbedDriver:
         logger.debug("Running full system HF.")
         mol_full = self._build_mol()
         # run Hartree-Fock
-        global_hf = scf.RHF(mol_full) if self.restricted_scf else scf.UHF(mol_full)
+        global_hf = scf.RHF(mol_full) if self._restricted_scf else scf.UHF(mol_full)
         global_hf.conv_tol = self.convergence
         global_hf.max_memory = self.max_ram_memory
         global_hf.verbose = self.pyscf_print_level
@@ -241,7 +245,7 @@ class NbedDriver:
         logger.debug("Running full system RKS DFT.")
         mol_full = self._build_mol()
 
-        global_ks = scf.RKS(mol_full) if self.restricted_scf else scf.UKS(mol_full)
+        global_ks = scf.RKS(mol_full) if self._restricted_scf else scf.UKS(mol_full)
         global_ks.conv_tol = self.convergence
         global_ks.xc = self.xc_functional
         global_ks.max_memory = self.max_ram_memory
@@ -334,8 +338,8 @@ class NbedDriver:
         """Function to perform subsystem RKS DFT calculation."""
         logger.debug("Calculating active and environment subsystem terms.")
 
-        def _rks_components(
-            rks_system: Localizer,
+        def _ks_components(
+            ks_system: Localizer,
             subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
@@ -352,9 +356,8 @@ class NbedDriver:
                 J_mat (np.ndarray): J_matrix defined by input density matrix
             """
             logger.debug("Finding subsystem RKS componenets.")
-            dm_matrix = subsystem_dm
             # It seems that PySCF lumps J and K in the J array
-            two_e_term = rks_system.get_veff(dm=dm_matrix)
+            two_e_term = ks_system.get_veff(dm=subsystem_dm)
             j_mat = two_e_term.vj
             # k_mat = np.zeros_like(j_mat)
 
@@ -362,7 +365,7 @@ class NbedDriver:
             # v_xc = two_e_term - j_mat
 
             energy_elec = (
-                np.einsum("ij,ji->", rks_system.get_hcore(), dm_matrix)
+                np.einsum("ij,ji->", ks_system.get_hcore(), subsystem_dm)
                 + two_e_term.ecoul
                 + two_e_term.exc
             )
@@ -374,10 +377,10 @@ class NbedDriver:
             logger.debug(f"Subsystem RKS components found.")
             return energy_elec, e_xc, j_mat
 
-        (self.e_act, e_xc_act, j_act) = _rks_components(
+        (self.e_act, e_xc_act, j_act) = _ks_components(
             self._global_ks, self.localized_system.dm_active
         )
-        (self.e_env, e_xc_env, j_env) = _rks_components(
+        (self.e_env, e_xc_env, j_env) = _ks_components(
             self._global_ks, self.localized_system.dm_enviro
         )
         # Computing cross subsystem terms
@@ -630,7 +633,7 @@ class NbedDriver:
         This is done when object is initialized.
         """
         logger.debug("Embedding molecule.")
-        self.localized_system = self.localize()
+        self.localized_system = self._localize()
         logger.info(
             f"Number of embedded electrons: {2 * len(self.localized_system.active_MO_inds)}"
         )
@@ -750,4 +753,3 @@ class NbedDriver:
             self.classical_energy = self._huzinaga["classical_energy"]
 
         logger.info("Embedding complete.")
-

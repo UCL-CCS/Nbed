@@ -4,7 +4,7 @@ import logging
 from typing import Optional, Tuple
 
 import numpy as np
-from pyscf import gto
+from pyscf import gto, dft
 from scipy import linalg
 
 from .base import Localizer
@@ -31,21 +31,20 @@ class SPADELocalizer(Localizer):
             run_virtual_localization=run_virtual_localization,
         )
 
-    def _localize(
-        self,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Localise orbitals using SPADE.
+    def _localize_spin(self, c_matrix: np.ndarray) -> np.ndarray:
+        """Localize orbitals using SPADE.
+
+        Args:
+            occupancy (np.ndarray): Occupancy of orbitals.
+            c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
 
         Returns:
-            active_MO_inds (np.array): 1D array of active occupied MO indices
-            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
-            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
-            c_enviro (np.array): C matrix of localized occupied ennironment MOs
-            c_loc_occ (np.array): full C matrix of localized occupied MOs
+            np.ndarray: Localized C matrix of occupied orbitals.
         """
         logger.debug("Localising with SPADE.")
-        n_occupied_orbitals = np.count_nonzero(self._global_ks.mo_occ == 2)
-        occupied_orbitals = self._global_ks.mo_coeff[:, :n_occupied_orbitals]
+        occupancy = np.sum(self._global_ks.mo_occ, 0)
+        n_occupied_orbitals = np.count_nonzero(occupancy)
+        occupied_orbitals = c_matrix[:, :n_occupied_orbitals]
 
         n_act_aos = self._global_ks.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_aos} active AOs.")
@@ -87,3 +86,24 @@ class SPADELocalizer(Localizer):
         self.enviro_selection_condition = sigma
 
         return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
+
+    def _localize(
+        self,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Localise orbitals using SPADE.
+
+        Returns:
+            active_MO_inds (np.array): 1D array of active occupied MO indices
+            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
+            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
+            c_enviro (np.array): C matrix of localized occupied ennironment MOs
+            c_loc_occ (np.array): full C matrix of localized occupied MOs
+        """
+        if self._restricted_scf:
+            alpha = self._localize_spin(self._global_ks.mo_coeff)
+            beta = None
+        else:
+            alpha = self._localize_spin(self._global_ks.mo_coeff[0])
+            beta = self._localize_spin(self._global_ks.mo_coeff[1])
+
+        return (alpha, beta)

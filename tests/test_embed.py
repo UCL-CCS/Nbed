@@ -85,5 +85,6 @@ def test_nbed_6_qubits() -> None:
     assert count_qubits(qham) == 6
     return None
 
+
 if __name__ == "__main__":
     pass

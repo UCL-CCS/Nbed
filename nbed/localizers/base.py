@@ -11,6 +11,7 @@ from pyscf import dft, gto, lo
 from pyscf.lib import StreamObject, tag_array
 from pyscf.lo import vvo
 from scipy import linalg
+from sympy import beta
 
 # from ..utils import restricted_float_percentage
 
@@ -27,7 +28,7 @@ class Localizer(ABC):
     Mulliken charges. As a result, IBOs are always well-defined.  (Ref: J. Chem. Theory Comput. 2013, 9, 4834−4843)
 
     Args:
-        pyscf_rks (gto.Mole): PySCF molecule object
+        global_ks (gto.Mole): PySCF molecule object
         n_active_atoms (int): Number of active atoms
         localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
         occ_cutoff (float): Threshold for selecting occupied active region (only requried if
@@ -53,7 +54,7 @@ class Localizer(ABC):
 
     def __init__(
         self,
-        pyscf_rks: StreamObject,
+        global_ks: StreamObject,
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
@@ -61,17 +62,18 @@ class Localizer(ABC):
     ):
         """Initialise class."""
         logger.debug("Initialising Localizer.")
-        if pyscf_rks.mo_coeff is None:
+        if global_ks.mo_coeff is None:
             logger.debug("SCF method not initialised, running now...")
-            pyscf_rks.run()
+            global_ks.run()
             logger.debug("SCF method initialised.")
 
-        self._global_ks = pyscf_rks
+        self._global_ks = global_ks
         self._n_active_atoms = n_active_atoms
 
         self._occ_cutoff = self._valid_threshold(occ_cutoff)
         self._virt_cutoff = self._valid_threshold(virt_cutoff)
         self._run_virtual_localization = run_virtual_localization
+        self._restricted_scf = not isinstance(self._global_ks, dft.uks.UKS)
 
         # Run the localization procedure
         self.run()
@@ -138,7 +140,7 @@ class Localizer(ABC):
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
 
         Args:
-            pyscf_rks (StreamObject): PySCF molecule object
+            global_ks (StreamObject): PySCF molecule object
             n_active_atoms (int): Number of active atoms
             virt_cutoff (float): Threshold for selecting unoccupied (virtual) active regio
 
@@ -159,7 +161,7 @@ class Localizer(ABC):
         ao_slice_matrix = self._global_ks.mol.aoslice_by_atom()
 
         # TODO: Check the following:
-        # S_ovlp = pyscf_rks.get_ovlp()
+        # S_ovlp = global_ks.get_ovlp()
         # S_half = sp.linalg.fractional_matrix_power(S_ovlp , 0.5)
         # C_loc_occ_ORTHO = S_half@C_loc_occ_full
         # run numerator_all and denominator_all in ortho basis
@@ -172,7 +174,7 @@ class Localizer(ABC):
         # active AOs coeffs for a given MO j
         numerator_all = np.einsum("ij->j", (c_virtual_loc[ao_active_inds, :]) ** 2)
         # all AOs coeffs for a given MO j
-        denominator_all = np.einsum("ij->j", c_virtual_loc ** 2)
+        denominator_all = np.einsum("ij->j", c_virtual_loc**2)
 
         active_percentage_MO = numerator_all / denominator_all
 
@@ -204,27 +206,57 @@ class Localizer(ABC):
             sanity_check (bool): optional flag to check denisty matrices and electron number after orbital localization
                                  makes sense
         """
+        alpha, beta = self._localize()
+
         (
             self.active_MO_inds,
             self.enviro_MO_inds,
             self.c_active,
             self.c_enviro,
             self._c_loc_occ,
-        ) = self._localize()
+        ) = alpha
 
         self.dm_active = 2.0 * self.c_active @ self.c_active.T
         self.dm_enviro = 2.0 * self.c_enviro @ self.c_enviro.T
+
+        self.beta_active_MO_inds = None
+        self.beta_enviro_MO_inds = None
+        self.beta_c_active = None
+        self.beta_c_enviro = None
+        self._beta_c_loc_occ = None
+        self.beta_dm_active = None
+        self.beta_dm_enviro = None
+
+        if beta is not None:
+            # Weight the DMs by 1 for unrestricted to combine them.
+            self.dm_active *= 0.5
+            self.dm_enviro *= 0.5
+
+            (
+                self.beta_active_MO_inds,
+                self.beta_enviro_MO_inds,
+                self.beta_c_active,
+                self.beta_c_enviro,
+                self._beta_c_loc_occ,
+            ) = beta
+
+            self.beta_dm_active = self.beta_c_active @ self.beta_c_active.T
+            self.beta_dm_enviro = self.beta_c_enviro @ self.beta_c_enviro.T
 
         if sanity_check is True:
             self._check_values()
 
         if self._run_virtual_localization is True:
-            c_virtual = self._localize_virtual_orbs()
+            logger.error("Virtual localization is not implemented.")
+            #c_virtual = self._localize_virtual_orbs()
+            # logger.error("Defualting to unlocalized virtual orbitals.")
+            # c_virtual = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
         else:
             logger.debug("Not localizing virtual orbitals.")
             # appends standard virtual orbitals from SCF calculation (NOT localized in any way)
-            c_virtual = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
+            # c_virtual = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
 
-        self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
+        # Unused
+        # self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
 
         logger.debug("Localization complete.")
