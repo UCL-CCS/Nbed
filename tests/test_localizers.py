@@ -30,29 +30,29 @@ def test_PMLocalizer_local_basis_transform() -> None:
         basis=basis,
         charge=charge,
     ).build()
-    global_rks = scf.RKS(full_mol)
-    global_rks.conv_tol = convergence
-    global_rks.xc = xc_functional
-    global_rks.max_memory = max_ram_memory
-    global_rks.verbose = pyscf_print_level
-    global_rks.kernel()
+    global_ks = scf.RKS(full_mol)
+    global_ks.conv_tol = convergence
+    global_ks.xc = xc_functional
+    global_ks.max_memory = max_ram_memory
+    global_ks.verbose = pyscf_print_level
+    global_ks.kernel()
 
     # run Localizer
     loc_system = PMLocalizer(
-        global_rks,
+        global_ks,
         n_active_atoms=n_active_atoms,
         occ_cutoff=occ_cutoff,
         virt_cutoff=virt_cutoff,
         run_virtual_localization=run_virtual_localization,
     )
-    dm_full_std = global_rks.make_rdm1()
+    dm_full_std = global_ks.make_rdm1()
     dm_active_sys = loc_system.dm_active
     dm_enviro_sys = loc_system.dm_enviro
     # y_active + y_enviro = y_total
     assert np.allclose(dm_full_std, dm_active_sys + dm_enviro_sys)
 
-    n_all_electrons = global_rks.mol.nelectron
-    s_ovlp = global_rks.get_ovlp()
+    n_all_electrons = global_ks.mol.nelectron
+    s_ovlp = global_ks.get_ovlp()
     n_active_electrons = np.trace(dm_active_sys @ s_ovlp)
     n_enviro_electrons = np.trace(dm_enviro_sys @ s_ovlp)
 

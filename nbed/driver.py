@@ -14,14 +14,14 @@ from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
 
-from .localizers import (
+from nbed.localizers import (
     BOYSLocalizer,
     IBOLocalizer,
     Localizer,
     PMLocalizer,
     SPADELocalizer,
 )
-from .scf import huzinaga_RHF, huzinaga_RKS
+from nbed.scf import huzinaga_RHF, huzinaga_RKS
 
 # from .log_conf import setup_logs
 
@@ -97,6 +97,7 @@ class NbedDriver:
         localization: Optional[str] = "spade",
         convergence: Optional[float] = 1e-6,
         charge: Optional[int] = 0,
+        spin: Optional[int] = 0,
         mu_level_shift: Optional[float] = 1e6,
         run_ccsd_emb: Optional[bool] = False,
         run_fci_emb: Optional[bool] = False,
@@ -141,6 +142,7 @@ class NbedDriver:
         self.localization = localization.lower()
         self.convergence = convergence
         self.charge = charge
+        self.spin = spin
         self.mu_level_shift = mu_level_shift
         self.run_ccsd_emb = run_ccsd_emb
         self.run_fci_emb = run_fci_emb
@@ -160,7 +162,14 @@ class NbedDriver:
         self.two_e_cross = None
         self._dft_potential = None
 
-        self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
+        if self.charge % 2 == 0:
+            logger.debug("Closed shells, using restricted SCF.")
+            self.restricted_scf = True
+        else:
+            logger.debug("Open shells, using unrestricted SCF.")
+            self.restricted_scf = False
+
+        # self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
         logger.debug("Driver initialisation complete.")
 
     def _build_mol(self) -> gto.mole:
@@ -173,7 +182,7 @@ class NbedDriver:
         if os.path.exists(self.geometry):
             # geometry is an xyz file
             full_mol = gto.Mole(
-                atom=self.geometry, basis=self.basis, charge=self.charge, unit=self.unit
+                atom=self.geometry, basis=self.basis, charge=self.charge, unit=self.unit, spin=self.spin
             ).build()
         else:
             logger.info(
@@ -184,6 +193,7 @@ class NbedDriver:
                 atom=self.geometry[3:],
                 basis=self.basis,
                 charge=self.charge,
+                spin=self.spin,
                 unit=self.unit,
             ).build()
         logger.debug("Molecule built.")
@@ -195,7 +205,7 @@ class NbedDriver:
         logger.debug("Running full system HF.")
         mol_full = self._build_mol()
         # run Hartree-Fock
-        global_hf = scf.RHF(mol_full)
+        global_hf = scf.RHF(mol_full) if self.restricted_scf else scf.UHF(mol_full)
         global_hf.conv_tol = self.convergence
         global_hf.max_memory = self.max_ram_memory
         global_hf.verbose = self.pyscf_print_level
@@ -223,7 +233,7 @@ class NbedDriver:
         return global_fci
 
     @cached_property
-    def _global_rks(self):
+    def _global_ks(self):
         """Method to run full cheap molecule RKS DFT calculation.
 
         Note this is necessary to perform localization procedure.
@@ -231,19 +241,19 @@ class NbedDriver:
         logger.debug("Running full system RKS DFT.")
         mol_full = self._build_mol()
 
-        global_rks = scf.RKS(mol_full)
-        global_rks.conv_tol = self.convergence
-        global_rks.xc = self.xc_functional
-        global_rks.max_memory = self.max_ram_memory
-        global_rks.verbose = self.pyscf_print_level
-        global_rks.max_cycle = self.max_dft_cycles
-        global_rks.kernel()
-        logger.info(f"Global RKS: {global_rks.e_tot}")
+        global_ks = scf.RKS(mol_full) if self.restricted_scf else scf.UKS(mol_full)
+        global_ks.conv_tol = self.convergence
+        global_ks.xc = self.xc_functional
+        global_ks.max_memory = self.max_ram_memory
+        global_ks.verbose = self.pyscf_print_level
+        global_ks.max_cycle = self.max_dft_cycles
+        global_ks.kernel()
+        logger.info(f"Global RKS: {global_ks.e_tot}")
 
-        if global_rks.converged is not True:
+        if global_ks.converged is not True:
             logger.warning("(cheap) global DFT calculation has NOT converged!")
 
-        return global_rks
+        return global_ks
 
     def _check_active_atoms(self) -> None:
         """Check that the number of active atoms is valid."""
@@ -255,7 +265,7 @@ class NbedDriver:
             )
         logger.debug("Number of active atoms valid.")
 
-    def localize(self):
+    def _localize(self):
         """Run the localizer class."""
         logger.debug(f"Getting localized system using {self.localization}.")
 
@@ -268,7 +278,7 @@ class NbedDriver:
 
         # Should already be validated.
         localized_system = localizers[self.localization](
-            self._global_rks,
+            self._global_ks,
             self.n_active_atoms,
             occ_cutoff=self.occupied_threshold,
             virt_cutoff=self.virtual_threshold,
@@ -358,22 +368,22 @@ class NbedDriver:
             )
 
             # if check_E_with_pyscf:
-            #     energy_elec_pyscf = self._global_rks.energy_elec(dm=dm_matrix)[0]
+            #     energy_elec_pyscf = self._global_ks.energy_elec(dm=dm_matrix)[0]
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
             logger.debug(f"Subsystem RKS components found.")
             return energy_elec, e_xc, j_mat
 
         (self.e_act, e_xc_act, j_act) = _rks_components(
-            self._global_rks, self.localized_system.dm_active
+            self._global_ks, self.localized_system.dm_active
         )
         (self.e_env, e_xc_env, j_env) = _rks_components(
-            self._global_rks, self.localized_system.dm_enviro
+            self._global_ks, self.localized_system.dm_enviro
         )
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
 
-        two_e_term_total = self._global_rks.get_veff(
+        two_e_term_total = self._global_ks.get_veff(
             dm=self.localized_system.dm_active + self.localized_system.dm_enviro
         )
         e_xc_total = two_e_term_total.exc
@@ -391,14 +401,14 @@ class NbedDriver:
         self.two_e_cross = j_cross + k_cross + xc_cross
 
         energy_DFT_components = (
-            self.e_act + self.e_env + self.two_e_cross + self._global_rks.energy_nuc()
+            self.e_act + self.e_env + self.two_e_cross + self._global_ks.energy_nuc()
         )
         logger.info("RKS components")
         logger.info(self.e_act)
         logger.info(self.e_env)
         logger.info(self.two_e_cross)
-        logger.info(self._global_rks.energy_nuc())
-        if not np.isclose(energy_DFT_components, self._global_rks.e_tot):
+        logger.info(self._global_ks.energy_nuc())
+        if not np.isclose(energy_DFT_components, self._global_ks.e_tot):
             logger.error(
                 "DFT energy of localized components not matching supersystem DFT."
             )
@@ -411,7 +421,7 @@ class NbedDriver:
     @cached_property
     def _env_projector(self) -> np.ndarray:
         """Return a projector onto the environment in orthogonal basis."""
-        s_mat = self._global_rks.get_ovlp()
+        s_mat = self._global_ks.get_ovlp()
         env_projector = s_mat @ self.localized_system.dm_enviro @ s_mat
         return env_projector
 
@@ -627,16 +637,16 @@ class NbedDriver:
         logger.info(self.localized_system.active_MO_inds)
         logger.info(self.localized_system.enviro_MO_inds)
 
-        e_nuc = self._global_rks.energy_nuc()
+        e_nuc = self._global_ks.energy_nuc()
 
         # Run subsystem DFT (calls localized rks)
         self._subsystem_dft()
 
         logger.debug("Getting global DFT potential to optimize embedded calc in.")
-        g_act_and_env = self._global_rks.get_veff(
+        g_act_and_env = self._global_ks.get_veff(
             dm=(self.localized_system.dm_active + self.localized_system.dm_enviro)
         )
-        g_act = self._global_rks.get_veff(dm=self.localized_system.dm_active)
+        g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
         self._dft_potential = g_act_and_env - g_act
         logger.info(f"DFT potential average {np.mean(self._dft_potential)}.")
 
@@ -717,7 +727,7 @@ class NbedDriver:
                 logger.info(f"FCI Energy {name}:\t{result['e_fci']}")
 
             if self.run_dft_in_dft is True:
-                did = self.embed_dft_in_dft(self._global_rks.xc, embedding_method)
+                did = self.embed_dft_in_dft(self._global_ks.xc, embedding_method)
                 result["e_dft_in_dft"] = did["e_rks"]
 
         if self.projector == "both":
@@ -741,39 +751,3 @@ class NbedDriver:
 
         logger.info("Embedding complete.")
 
-    def embed_dft_in_dft(self, xc_func: str, embedding_method: Callable):
-        """Return energy of DFT in DFT embedding
-
-        Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
-        This is done when object is initialized.
-
-        Args:
-            xc_func (str): XC functional to use in active region.
-            embedding_method (callable): Embedding method to use (mu or huzinaga).
-
-        Returns:
-            float: Energy of DFT in embedding.
-        """
-        result = {}
-        e_nuc = self._global_rks.energy_nuc()
-
-        local_rks_same_functional = self._init_local_rks(xc_func)
-        hcore_std = local_rks_same_functional.get_hcore()
-        result["v_emb_dft"], result["scf_dft"] = embedding_method(
-            local_rks_same_functional
-        )
-        y_emb = result["scf_dft"].make_rdm1()
-        # calculate correction
-        result["correction"] = np.einsum(
-            "ij,ij",
-            result["v_emb_dft"],
-            (y_emb - self.localized_system.dm_active),
-        )
-        veff = result["scf_dft"].get_veff(dm=y_emb)
-        rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
-
-        result["e_rks"] = (
-            rks_e_elec + self.e_env + self.two_e_cross + result["correction"] + e_nuc
-        )
-
-        return result

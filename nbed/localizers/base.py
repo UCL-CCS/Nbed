@@ -66,7 +66,7 @@ class Localizer(ABC):
             pyscf_rks.run()
             logger.debug("SCF method initialised.")
 
-        self._global_rks = pyscf_rks
+        self._global_ks = pyscf_rks
         self._n_active_atoms = n_active_atoms
 
         self._occ_cutoff = self._valid_threshold(occ_cutoff)
@@ -120,10 +120,10 @@ class Localizer(ABC):
             raise ValueError("gamma_full != gamma_active + gamma_enviro")
 
         # check number of electrons is still the same after orbitals have been localized (change of basis)
-        s_ovlp = self._global_rks.get_ovlp()
+        s_ovlp = self._global_ks.get_ovlp()
         n_active_electrons = np.trace(self.dm_active @ s_ovlp)
         n_enviro_electrons = np.trace(self.dm_enviro @ s_ovlp)
-        n_all_electrons = self._global_rks.mol.nelectron
+        n_all_electrons = self._global_ks.mol.nelectron
         bool_flag_electron_number = np.isclose(
             (n_active_electrons + n_enviro_electrons), n_all_electrons
         )
@@ -148,15 +148,15 @@ class Localizer(ABC):
             enviro_virtual_MO_inds (np.array): 1D array of environment virtual MO indices
         """
         logger.debug("Localizing virtual orbitals.")
-        n_occupied_orbitals = np.count_nonzero(self._global_rks.mo_occ == 2)
-        c_std_occ = self._global_rks.mo_coeff[:, :n_occupied_orbitals]
-        c_std_virt = self._global_rks.mo_coeff[:, self._global_rks.mo_occ < 2]
+        n_occupied_orbitals = np.count_nonzero(self._global_ks.mo_occ == 2)
+        c_std_occ = self._global_ks.mo_coeff[:, :n_occupied_orbitals]
+        c_std_virt = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
 
         c_virtual_loc = vvo.vvo(
-            self._global_rks.mol, c_std_occ, c_std_virt, iaos=None, s=None, verbose=None
+            self._global_ks.mol, c_std_occ, c_std_virt, iaos=None, s=None, verbose=None
         )
 
-        ao_slice_matrix = self._global_rks.mol.aoslice_by_atom()
+        ao_slice_matrix = self._global_ks.mol.aoslice_by_atom()
 
         # TODO: Check the following:
         # S_ovlp = pyscf_rks.get_ovlp()
@@ -223,7 +223,7 @@ class Localizer(ABC):
         else:
             logger.debug("Not localizing virtual orbitals.")
             # appends standard virtual orbitals from SCF calculation (NOT localized in any way)
-            c_virtual = self._global_rks.mo_coeff[:, self._global_rks.mo_occ < 2]
+            c_virtual = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
 
         self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
 

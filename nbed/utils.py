@@ -292,8 +292,8 @@ def print_summary(
     print("".center(80, "*"))
     logger.info("".center(80, "*"))
 
-    print(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
-    logger.info(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
+    print(f"global (cheap) DFT calculation {driver._global_ks.e_tot}")
+    logger.info(f"global (cheap) DFT calculation {driver._global_ks.e_tot}")
 
     if driver.projector in ["huzinaga", "both"]:
         print("".center(80, "*"))
