@@ -49,6 +49,7 @@ class PySCFLocalizer(Localizer, ABC):
         Args:
             method (str): String of orbital localization method: 'pipekmezey', 'boys' or 'ibo'
         """
+        logger.debug("Starting PySCF localization.")
         n_occupied_orbitals = np.count_nonzero(self._global_rks.mo_occ == 2)
         c_std_occ = self._global_rks.mo_coeff[:, :n_occupied_orbitals]
 
@@ -112,7 +113,7 @@ class PySCFLocalizer(Localizer, ABC):
 
         if len(enviro_MO_inds) == 0:
             # case for when no environement
-            logger.warning("no environment electronic density")
+            logger.warning("No environment electronic density")
             c_enviro = np.zeros((c_active.shape[0], 1))
         else:
             c_enviro = c_loc_occ[:, enviro_MO_inds]
@@ -120,6 +121,7 @@ class PySCFLocalizer(Localizer, ABC):
         # storing condition used to select env system
         self.enviro_selection_condition = mo_active_share
 
+        logger.debug("PySCF localization complete.")
         return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
 
 
@@ -146,6 +148,7 @@ class PMLocalizer(PySCFLocalizer):
         Args:
             c_std_occ (np.ndarray): Unlocalized C matrix of occupied orbitals.
         """
+        logger.debug("Using Pipek-Mezey method.")
         # Localise orbitals using Pipek-Mezey localization scheme.
         # This maximizes the sum of orbital-dependent partial charges on the nuclei.
 
@@ -182,6 +185,7 @@ class BOYSLocalizer(PySCFLocalizer):
         Args:
             c_std_occ (np.ndarray): Unlocalized C matrix of occupied orbitals.
         """
+        logger.debug("Using BOYS method.")
         #  Minimizes the spatial extent of the orbitals by minimizing a certain function.
         boys_SCF = lo.boys.Boys(self._global_rks.mol, c_std_occ)
         return boys_SCF.kernel()
@@ -210,6 +214,7 @@ class IBOLocalizer(PySCFLocalizer):
         Args:
             c_std_occ (np.ndarray): Unlocalized C matrix of occupied orbitals.
         """
+        logger.debug("Using IBO method.")
         # Intrinsic bonding orbitals.
         iaos = lo.iao.iao(self._global_rks.mol, c_std_occ)
         # Orthogonalize IAO

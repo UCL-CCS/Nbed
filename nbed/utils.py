@@ -18,6 +18,7 @@ from .ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 
+
 def setup_logs() -> None:
     """Initialise logging."""
     config_dict = {
@@ -42,16 +43,17 @@ def setup_logs() -> None:
             },
         },
         "loggers": {
-            '':{
+            "": {
                 "handlers": ["file_handler", "stream_handler"],
                 "level": "DEBUG",
             }
-        }
+        },
     }
 
     logging.config.dictConfig(config_dict)
     logger = logging.getLogger(__name__)
     logger.debug("Logging initialised.")
+
 
 def restricted_float_percentage(x: float) -> float:
     """Checks input x is within 0-1 range (percentage) and is a float
@@ -74,9 +76,12 @@ def restricted_float_percentage(x: float) -> float:
 
 def parse():
     """Parse arguments from command line interface."""
+    logger.debug("Adding CLI arguments.")
     parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
     parser.add_argument(
-        "--config", type=str, help="Path to a config file. Overwrites other arguments.",
+        "--config",
+        type=str,
+        help="Path to a config file. Overwrites other arguments.",
     )
     parser.add_argument(
         "--geometry",
@@ -91,7 +96,10 @@ def parse():
         help="Number of atoms to include in active region.",
     )
     parser.add_argument(
-        "--basis", "-b", type=str, help="Basis set to use.",
+        "--basis",
+        "-b",
+        type=str,
+        help="Basis set to use.",
     )
     parser.add_argument(
         "--xc_functional",
@@ -104,7 +112,10 @@ def parse():
         "--projector",
         "-p",
         type=str,
-        choices=["huzinaga", "mu",],
+        choices=[
+            "huzinaga",
+            "mu",
+        ],
         help="Which projector method to use.",
     )
     parser.add_argument(
@@ -119,7 +130,12 @@ def parse():
         "--loc",
         "-l",
         type=str.lower,
-        choices=["spade", "pipek-mezey", "ibo", "boys",],
+        choices=[
+            "spade",
+            "pipek-mezey",
+            "ibo",
+            "boys",
+        ],
         help="Method of localization to use.",
     )
     parser.add_argument(
@@ -137,10 +153,15 @@ def parse():
         help="Convergence tolerance for calculations.",
     )
     parser.add_argument(
-        "--charge", type=int, help="Charge of molecular system.",
+        "--charge",
+        type=int,
+        help="Charge of molecular system.",
     )
     parser.add_argument(
-        "--savefile", "-s", type=str, help="Path to save file.",
+        "--savefile",
+        "-s",
+        type=str,
+        help="Path to save file.",
     )
     parser.add_argument(
         "--run_ccsd_emb",
@@ -153,10 +174,14 @@ def parse():
         help="Include if you want to run a fci calculation of the active embedded system.",
     )
     parser.add_argument(
-        "--ram", type=str, help="amount of ram in MB that PySCF can use",
+        "--ram",
+        type=str,
+        help="amount of ram in MB that PySCF can use",
     )
     parser.add_argument(
-        "--mu_shift", type=int, help="mu energy shift value",
+        "--mu_shift",
+        type=int,
+        help="mu energy shift value",
     )
     parser.add_argument(
         "--virtual_localization",
@@ -188,6 +213,7 @@ def parse():
         type=int,
         help="max number of DFT iterations allowed in scf calc",
     )
+    logger.debug("Parsing CLI arguments.")
     args = parser.parse_args()
 
     if args.config:
@@ -228,102 +254,144 @@ def parse():
     return args
 
 
-def load_hamiltonian(filepath: Path, output: str) -> object:
-    """Create a Hamiltonian from a file.
-
-    Reads the input file and converts to the desired output format.
-    """
-    return HamiltonianConverter(filepath).convert(output)
-
-
-def print_summary(qham: Union[object, Tuple[object, object]], driver: NbedDriver, transform: str, full_system: bool = False):
+def print_summary(
+    qham: Union[object, Tuple[object, object]],
+    driver: NbedDriver,
+    transform: str,
+    full_system: bool = False,
+):
     """Print a summary of the package results.
 
     Args:
         driver (NbedDriver): An NbedDriver to summarise.
         fci (bool): Whether to run full system fci.
     """
+    logger.debug("Printing summary of results.")
     # for get statements
     default = "Not calculated."
 
-    if not isinstance(qham, tuple) and driver.projector == 'both':
-        logger.error("Only one Qubit Hamiltonian provided to summary, cannot print 'both'.")
+    if not isinstance(qham, tuple) and driver.projector == "both":
+        logger.error(
+            "Only one Qubit Hamiltonian provided to summary, cannot print 'both'."
+        )
         return
 
     # Would be a great place for a switch statemet when
     # dependencies catch up with python 3.10
-    if driver.projector == 'both':
+    if driver.projector == "both":
         mu_qham, huz_qham = qham
-    elif driver.projector == 'huzinaga':
+    elif driver.projector == "huzinaga":
         mu_qham, huz_qham = None, qham
-    elif driver.projector == 'mu':
+    elif driver.projector == "mu":
         mu_qham, huz_qham = qham, None
 
     print("".center(80, "*"))
+    logger.info("".center(80, "*"))
     print("  Summary of Embedded Calculation".center(80))
+    logger.info("  Summary of Embedded Calculation".center(80))
     print("".center(80, "*"))
+    logger.info("".center(80, "*"))
 
     print(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
+    logger.info(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
 
     if driver.projector in ["huzinaga", "both"]:
         print("".center(80, "*"))
+        logger.info("".center(80, "*"))
         print("  Huzinaga calculation".center(20))
+        logger.info("  Huzinaga calculation".center(20))
         print(
+            f"Total energy - active system at RHF level: {driver._huzinaga.get('e_rhf', default)}"
+        )
+        logger.info(
             f"Total energy - active system at RHF level: {driver._huzinaga.get('e_rhf', default)}"
         )
         if driver.run_ccsd_emb is True:
             print(
                 f"Total energy - active system at CCSD level: {driver._huzinaga.get('e_ccsd', default)}"
             )
+            logger.info(
+                f"Total energy - active system at CCSD level: {driver._huzinaga.get('e_ccsd', default)}"
+            )
         if driver.run_fci_emb is True:
             print(
+                f"Total energy - active system at FCI level: {driver._huzinaga.get('e_fci', default)}"
+            )
+            logger.info(
                 f"Total energy - active system at FCI level: {driver._huzinaga.get('e_fci', default)}"
             )
 
         print(
             f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
         )
-        print(
-            f"number of qubits required: {count_qubits(huz_qham)}"
+
+        logger.info(
+            f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
         )
+        print(f"number of qubits required: {count_qubits(huz_qham)}")
+        logger.info(f"number of qubits required: {count_qubits(huz_qham)}")
 
     if driver.projector in ["mu", "both"]:
         print("".center(80, "*"))
+        logger.info("".center(80, "*"))
         print("  Mu shift calculation".center(20))
-        print(f"Total energy - active system at RHF level: {driver._mu.get('e_rhf', default)}")
+        logger.info("  Mu shift calculation".center(20))
+        print(
+            f"Total energy - active system at RHF level: {driver._mu.get('e_rhf', default)}"
+        )
+        logger.info(
+            f"Total energy - active system at RHF level: {driver._mu.get('e_rhf', default)}"
+        )
         if driver.run_ccsd_emb is True:
             print(
+                f"Total energy - active system at CCSD level: {driver._mu.get('e_ccsd', default)}"
+            )
+            logger.info(
                 f"Total energy - active system at CCSD level: {driver._mu.get('e_ccsd', default)}"
             )
         if driver.run_fci_emb is True:
             print(
                 f"Total energy - active system at FCI level: {driver._mu.get('e_fci', default)}"
             )
+            logger.info(
+                f"Total energy - active system at FCI level: {driver._mu.get('e_fci', default)}"
+            )
 
-        print(
+        print(f"length of mu embedded fermionic Hamiltonian: {len(mu_qham.terms)}")
+        logger.info(
             f"length of mu embedded fermionic Hamiltonian: {len(mu_qham.terms)}"
         )
-        print(
-            f"number of qubits required: {count_qubits(mu_qham)}"
-        )
+        print(f"number of qubits required: {count_qubits(mu_qham)}")
+        logger.info(f"number of qubits required: {count_qubits(mu_qham)}")
 
-    print("".center(80, "*"))
-    print("  Summary of reference Calculation".center(80))
-    print("".center(80, "*"))
-
-    if full_system:
-        print("Running Full system FCI and preparing Hamiltonian.")
-        print(
-            f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}"
-        )
     full_system_hamiltonian = HamiltonianBuilder(
         driver._global_hf, constant_e_shift=0, transform=transform
     ).build()
 
+    print("".center(80, "*"))
+    logger.info("".center(80, "*"))
+    print("  Summary of reference Calculation".center(80))
+    logger.info("  Summary of reference Calculation".center(80))
+    print("".center(80, "*"))
+    logger.info("".center(80, "*"))
+
+    if full_system:
+        print("Running Full system FCI and preparing Hamiltonian.")
+        logger.info("Running Full system FCI and preparing Hamiltonian.")
+        print(f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}")
+        logger.info(
+            f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}"
+        )
+
     print(
         f"length of full system fermionic Hamiltonian: {len(full_system_hamiltonian.terms)}"
     )
+
+    logger.info(
+        f"length of full system fermionic Hamiltonian: {len(full_system_hamiltonian.terms)}"
+    )
     print(f"number of qubits required: {count_qubits(full_system_hamiltonian)}")
+    logger.info(f"number of qubits required: {count_qubits(full_system_hamiltonian)}")
 
 
 def pubchem_mol_geometry(molecule_name) -> dict:
