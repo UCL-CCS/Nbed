@@ -22,6 +22,7 @@ from .localizers import (
     SPADELocalizer,
 )
 from .scf import huzinaga_RHF, huzinaga_RKS
+
 # from .log_conf import setup_logs
 
 # logfile = Path(__file__).parent/Path(".nbed.log")
@@ -50,6 +51,7 @@ logger = logging.getLogger(__name__)
 # logger.addHandler(file_handler)
 # logger.addHandler(stream_handler)
 # logger.debug("Logging configured.")
+
 
 class NbedDriver:
     """Function to return the embedding Qubit Hamiltonian.
@@ -271,6 +273,44 @@ class NbedDriver:
         local_rhf.max_memory = self.max_ram_memory
         local_rhf.conv_tol = self.convergence
         local_rhf.verbose = self.pyscf_print_level
+
+        logger.debug("Define Hartree-Fock object in localized basis")
+        # TODO: need to check if change of basis here is necessary (START)
+        h_core = local_rhf.get_hcore()
+
+        local_rhf.get_hcore = (
+            lambda *args: self.localized_system._local_basis_transform.conj().T
+            @ h_core
+            @ self.localized_system._local_basis_transform
+        )
+
+        def new_rhf_veff(rhf: scf.RHF, dm: np.ndarray = None, hermi: int = 1):
+            if dm is None:
+                if rhf.mo_coeff is not None:
+                    dm = rhf.make_rdm1(rhf.mo_coeff, rhf.mo_occ)
+                else:
+                    dm = rhf.init_guess_by_1e()
+
+            # if pyscf_RHF._eri is None:
+            #     pyscf_RHF._eri = pyscf_RHF.mol.intor('int2e', aosym='s8')
+
+            vj, vk = rhf.get_jk(mol=rhf.mol, dm=dm, hermi=hermi)
+            v_eff = vj - vk * 0.5
+
+            # v_eff = pyscf_obj.get_veff(dm=dm)
+            new_veff = (
+                self.localized_system._local_basis_transform.conj().T
+                @ v_eff
+                @ self.localized_system._local_basis_transform
+            )
+
+            return new_veff
+
+        local_rhf.get_veff = (
+            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: new_rhf_veff(
+                local_rhf, dm=dm, hermi=hermi
+            )
+        )
         local_rhf.max_cycle = self.max_hf_cycles
 
         return local_rhf
@@ -280,7 +320,8 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
-            rks_system: Localizer, subsystem_dm: np.ndarray,
+            rks_system: Localizer,
+            subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -508,7 +549,9 @@ class NbedDriver:
         return v_emb, localized_rhf
 
     def _delete_environment(self, embedded_rhf, method: str) -> np.ndarray:
-        """Remove enironment orbit from embedded rhf object. This function removes (in fact deletes completely) the
+        """Remove enironment orbit from embedded rhf object.
+
+        This function removes (in fact deletes completely) the
         molecular orbitals defined by the environment (defined by the environment of the localized system)
 
         Args:

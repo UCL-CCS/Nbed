@@ -25,6 +25,8 @@ mypy = "^0.902"
 bpython = "^0.21"
 isort = "^5.9.3"
 jupyter = "^1.0.0"
+Sphinx = "^4.4.0"
+sphinx-rtd-theme = "^1.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

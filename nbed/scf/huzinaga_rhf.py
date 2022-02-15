@@ -1,4 +1,4 @@
-"""Perform Huzinaga RHF with PySCF"""
+"""Perform Huzinaga RHF with PySCF."""
 
 import logging
 from typing import Optional, Tuple
@@ -18,12 +18,14 @@ def huzinaga_RHF(
     dm_initial_guess: Optional[np.ndarray] = None,
     use_DIIS: Optional[np.ndarray] = True,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
-    """Manual RHF calculation that is implemented using the huzinaga operator
+    """Manual RHF calculation that is implemented using the huzinaga operator.
+
     Note this function uses lowdin (symmetric) orthogonalization only! (PySCF sometimes uses meta-lowdin and NAO). Also
     the intial density matrix guess is based on the modified core Hamilotnian (containing projector and DFT potential)
     PySCF has other methods for initial guess that aren't available here. Manual guess can also be given).
     TODO: make a subclass from PySCF RHF object. Can include all this functionality there. Problems in this function
     can occur due to DIIS and other clever PySCF methods not being available.
+
     Args:
         scf_method (StreamObjecty):PySCF RHF object (containing info about max cycles and convergence tolerence)
         dft_potential (np.ndarray): DFT active and environment two body terms - DFT active environemnt two body term

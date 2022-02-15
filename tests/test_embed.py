@@ -48,6 +48,28 @@ def test_nbed_openfermion() -> None:
     return None
 
 
+"""
+This test is useful once tapering can force a qubit count.
+"""
+# def test_nbed_6_qubits() -> None:
+#     """test nbed"""
+#     args = {
+#         "geometry": str(water_filepath),
+#         "n_active_atoms": 1,
+#         "basis": "STO-3G",
+#         "xc_functional": "b3lyp",
+#         "projector": "mu",
+#         "localization": "spade",
+#         "transform": "jordan_wigner",
+#         "output": "openfermion",
+#         "convergence": 1e-6,
+#         "savefile": None,
+#         "run_ccsd_emb": True,
+#         "run_fci_emb": True,
+#         "qubits": 4,
+#     }
+
+
 def test_nbed_6_qubits() -> None:
     """test nbed"""
     args = {

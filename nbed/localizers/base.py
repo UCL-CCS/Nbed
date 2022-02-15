@@ -76,7 +76,7 @@ class Localizer(ABC):
         self.run()
 
     def _valid_threshold(self, threshold: float):
-        """Checks if threshold is within 0-1 range (percentage)
+        """Checks if threshold is within 0-1 range (percentage).
 
         Args:
             threshold (float): input number between 0 and 1 (inclusive)
@@ -167,7 +167,7 @@ class Localizer(ABC):
         # active AOs coeffs for a given MO j
         numerator_all = np.einsum("ij->j", (c_virtual_loc[ao_active_inds, :]) ** 2)
         # all AOs coeffs for a given MO j
-        denominator_all = np.einsum("ij->j", c_virtual_loc ** 2)
+        denominator_all = np.einsum("ij->j", c_virtual_loc**2)
 
         active_percentage_MO = numerator_all / denominator_all
 
