@@ -35,7 +35,10 @@ This virtual environment subsequently can be activated with:
     poetry shell
 ## Use
 
-The package has three main interfaces, each to the same function `embed/embedding_terms`. This function is accessable by importing the package into a python file
+The package has three main interfaces, each to the same function `embed/nbed`. 
+
+### Importing the package
+This function is accessable by importing the package into a python file.
 
 ```
 from nbed import nbed
@@ -44,13 +47,14 @@ from nbed import nbed
 nbed(...)
 ```
 
+### Command Line Interface
 Installing this package also exposes a command line tool `nbed`, which can be used in two ways. Firstly, you can provide a YAML config file.
 
 ```
 nbed --config <path to .yaml>
 ```
 
-Your YAML config file should look something like this:
+Your YAML config file should look something like this (which is taken from the `tests` folder):
 
 ```
 ---
@@ -82,7 +86,7 @@ The options for `output` and `localization` can be seen in the command help.
 nbed --help
 ```
 
-### Reference Values
+#### Reference Values
 
 Additionally, to output a CCSD reference value for the whole system energy, add a line to the yaml file when using `--config`
 
@@ -100,11 +104,11 @@ or use the the `--ccsd` flag when inputing values manually.
 nbed --config <path to config file> -
 ```
 
-### Save a Hamiltonian for later
+## Save a Hamiltonian for later
 
-By including the `--savefile` flag or `savefile` item in your config file, you can specify the path to a location where you'd like to save a JSON file containing a description of the qubit Hamiltonian.
+By including the `--savefile` flag or `savefile` item in your config file or giving a `savefile` argument to the function, you can specify the path to a location where you'd like to save a JSON file containing a description of the qubit Hamiltonian.
 
-Once you have a saved Hamiltonian you can use the `load_hamiltonian` function to create a python object of the desired type.
+Once you have a saved Hamiltonian you can use the `nbed.load_hamiltonian` function to create a python object of the desired type.
 
 ```
 from nbed import load_hamiltonian
@@ -117,19 +121,12 @@ qham = load_hamiltonian(<path to hamiltonian JSON>, <output type>)
 
 ```
 VQE_IN_DFT
-    notebooks
-    tests
+    docs_source
     nbed
+    notebooks
     logs
+    tests
 ```
-
-### Notebooks
-This folder contains jupyter notebooks which explain the embedding procedure in detail, including relevant theory.
-
-### Tests
-
-Contains all tests of the package
-
 ### nbed
 
 Main functionality of the package.
@@ -141,3 +138,14 @@ Main functionality of the package.
 - `localizers/` - Classes which perform localization.
 - `mol_plot.py` - functions to plot the systems localised molecular orbitals.
 - `utils.py` - log settings and cli parsing.
+
+### Notebooks
+This folder contains jupyter notebooks which explain the embedding procedure in detail, including relevant theory. Notebooks to replicate results presented in publications can also be found here.
+
+### Tests
+
+Contains all tests of the package.
+
+
+## Development
+If you would like to contribute to this code base please first create an issue and a fork of the repo from which to make your pull request.
