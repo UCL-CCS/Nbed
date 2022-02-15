@@ -248,7 +248,7 @@ class Localizer(ABC):
 
         if self._run_virtual_localization is True:
             logger.error("Virtual localization is not implemented.")
-            #c_virtual = self._localize_virtual_orbs()
+            # c_virtual = self._localize_virtual_orbs()
             # logger.error("Defualting to unlocalized virtual orbitals.")
             # c_virtual = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
         else:
