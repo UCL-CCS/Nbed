@@ -14,7 +14,39 @@ logger = logging.getLogger(__name__)
 
 
 class PySCFLocalizer(Localizer, ABC):
-    """Class to run localization using PySCF functions."""
+    """Object used to localise molecular orbitals (MOs) using PySCF localization functions.
+
+    Running localization returns active and environment systems.
+
+    Note:
+    The major improvement of IBOs over PM orbitals is that they are based on IAO charges instead of the erratic
+    Mulliken charges. As a result, IBOs are always well-defined.  (Ref: J. Chem. Theory Comput. 2013, 9, 4834−4843)
+
+
+    Args:
+        pyscf_rks (gto.Mole): PySCF molecule object
+        n_active_atoms (int): Number of active atoms
+        localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
+        occ_cutoff (float): Threshold for selecting occupied active region (only requried if
+                                spade localization is NOT used)
+        virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
+                                spade approach too!)
+        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
+                                         Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
+
+    Attributes:
+        c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
+        c_enviro (np.array): C matrix of localized occupied ennironment MOs
+        c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
+        dm_active (np.array): active system density matrix
+        dm_enviro (np.array): environment system density matrix
+        active_MO_inds (np.array): 1D array of active occupied MO indices
+        enviro_MO_inds (np.array): 1D array of environment occupied MO indices
+        _c_loc_occ (np.array): C matrix of localized occupied MOs
+
+    Methods:
+        run: Main function to run localization.
+    """
 
     def __init__(
         self,
@@ -24,6 +56,7 @@ class PySCFLocalizer(Localizer, ABC):
         virt_cutoff: Optional[float] = 0.95,
         run_virtual_localization: Optional[bool] = False,
     ):
+        """Initialize PySCF Localizer."""
         super().__init__(
             global_ks,
             n_active_atoms,
@@ -126,6 +159,35 @@ class PySCFLocalizer(Localizer, ABC):
 
 
 class PMLocalizer(PySCFLocalizer):
+    """Object used to localise molecular orbitals (MOs) using Pipek-Mezey localization.
+
+    Running localization returns active and environment systems.
+
+    Args:
+        pyscf_rks (gto.Mole): PySCF molecule object
+        n_active_atoms (int): Number of active atoms
+        localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
+        occ_cutoff (float): Threshold for selecting occupied active region (only requried if
+                                spade localization is NOT used)
+        virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
+                                spade approach too!)
+        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
+                                         Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
+
+    Attributes:
+        c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
+        c_enviro (np.array): C matrix of localized occupied ennironment MOs
+        c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
+        dm_active (np.array): active system density matrix
+        dm_enviro (np.array): environment system density matrix
+        active_MO_inds (np.array): 1D array of active occupied MO indices
+        enviro_MO_inds (np.array): 1D array of environment occupied MO indices
+        _c_loc_occ (np.array): C matrix of localized occupied MOs
+
+    Methods:
+        run: Main function to run localization.
+    """
+
     def __init__(
         self,
         pyscf_scf: StreamObject,
@@ -134,6 +196,7 @@ class PMLocalizer(PySCFLocalizer):
         virt_cutoff: Optional[float] = 0.95,
         run_virtual_localization: Optional[bool] = False,
     ):
+        """Initialize Localizer."""
         super().__init__(
             pyscf_scf,
             n_active_atoms,
@@ -163,6 +226,35 @@ class PMLocalizer(PySCFLocalizer):
 
 
 class BOYSLocalizer(PySCFLocalizer):
+    """Object used to localise molecular orbitals (MOs) using BOYS localization.
+
+    Running localization returns active and environment systems.
+
+    Args:
+        pyscf_rks (gto.Mole): PySCF molecule object
+        n_active_atoms (int): Number of active atoms
+        localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
+        occ_cutoff (float): Threshold for selecting occupied active region (only requried if
+                                spade localization is NOT used)
+        virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
+                                spade approach too!)
+        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
+                                         Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
+
+    Attributes:
+        c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
+        c_enviro (np.array): C matrix of localized occupied ennironment MOs
+        c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
+        dm_active (np.array): active system density matrix
+        dm_enviro (np.array): environment system density matrix
+        active_MO_inds (np.array): 1D array of active occupied MO indices
+        enviro_MO_inds (np.array): 1D array of environment occupied MO indices
+        _c_loc_occ (np.array): C matrix of localized occupied MOs
+
+    Methods:
+        run: Main function to run localization.
+    """
+
     def __init__(
         self,
         pyscf_scf: StreamObject,
@@ -171,6 +263,7 @@ class BOYSLocalizer(PySCFLocalizer):
         virt_cutoff: Optional[float] = 0.95,
         run_virtual_localization: Optional[bool] = False,
     ):
+        """Initialize Localizer."""
         super().__init__(
             pyscf_scf,
             n_active_atoms,
@@ -192,6 +285,35 @@ class BOYSLocalizer(PySCFLocalizer):
 
 
 class IBOLocalizer(PySCFLocalizer):
+    """Object used to localise molecular orbitals (MOs) using IBO localization.
+
+    Running localization returns active and environment systems.
+
+    Args:
+        pyscf_rks (gto.Mole): PySCF molecule object
+        n_active_atoms (int): Number of active atoms
+        localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
+        occ_cutoff (float): Threshold for selecting occupied active region (only requried if
+                                spade localization is NOT used)
+        virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
+                                spade approach too!)
+        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
+                                         Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
+
+    Attributes:
+        c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
+        c_enviro (np.array): C matrix of localized occupied ennironment MOs
+        c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
+        dm_active (np.array): active system density matrix
+        dm_enviro (np.array): environment system density matrix
+        active_MO_inds (np.array): 1D array of active occupied MO indices
+        enviro_MO_inds (np.array): 1D array of environment occupied MO indices
+        _c_loc_occ (np.array): C matrix of localized occupied MOs
+
+    Methods:
+        run: Main function to run localization.
+    """
+
     def __init__(
         self,
         pyscf_scf: StreamObject,
@@ -200,6 +322,7 @@ class IBOLocalizer(PySCFLocalizer):
         virt_cutoff: Optional[float] = 0.95,
         run_virtual_localization: Optional[bool] = False,
     ):
+        """Initialise Localizer."""
         super().__init__(
             pyscf_scf,
             n_active_atoms,

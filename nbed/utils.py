@@ -56,7 +56,7 @@ def setup_logs() -> None:
 
 
 def restricted_float_percentage(x: float) -> float:
-    """Checks input x is within 0-1 range (percentage) and is a float
+    """Checks input x is within 0-1 range (percentage) and is a float.
 
     Args:
         x (float): input number between 0 and 1 (inclusive)
@@ -254,157 +254,103 @@ def parse():
     return args
 
 
-def print_summary(
-    qham: Union[object, Tuple[object, object]],
-    driver: NbedDriver,
-    transform: str,
-    full_system: bool = False,
-):
-    """Print a summary of the package results.
+def load_hamiltonian(filepath: Path, output: str) -> object:
+    """Create a Hamiltonian from a file.
 
+    Reads the input file and converts to the desired output format.
+    """
+    return HamiltonianConverter(filepath).convert(output)
+
+
+def print_summary(driver: NbedDriver, transform: str, fci: bool = False):
+    """Print a summary of the package results.
     Args:
         driver (NbedDriver): An NbedDriver to summarise.
         fci (bool): Whether to run full system fci.
     """
-    logger.debug("Printing summary of results.")
-    # for get statements
-    default = "Not calculated."
-
-    if not isinstance(qham, tuple) and driver.projector == "both":
+    if driver.molecular_ham is None:
         logger.error(
-            "Only one Qubit Hamiltonian provided to summary, cannot print 'both'."
+            "Driver does not have molecular hamiltonian. Cannot print summary."
         )
+        logger.info("Driver does not have molecular hamiltonian. Cannot print summary.")
         return
 
-    # Would be a great place for a switch statemet when
-    # dependencies catch up with python 3.10
-    if driver.projector == "both":
-        mu_qham, huz_qham = qham
-    elif driver.projector == "huzinaga":
-        mu_qham, huz_qham = None, qham
-    elif driver.projector == "mu":
-        mu_qham, huz_qham = qham, None
-
-    print("".center(80, "*"))
     logger.info("".center(80, "*"))
-    print("  Summary of Embedded Calculation".center(80))
     logger.info("  Summary of Embedded Calculation".center(80))
-    print("".center(80, "*"))
     logger.info("".center(80, "*"))
 
-    print(f"global (cheap) DFT calculation {driver._global_ks.e_tot}")
-    logger.info(f"global (cheap) DFT calculation {driver._global_ks.e_tot}")
+    logger.info(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
 
     if driver.projector in ["huzinaga", "both"]:
-        print("".center(80, "*"))
         logger.info("".center(80, "*"))
-        print("  Huzinaga calculation".center(20))
         logger.info("  Huzinaga calculation".center(20))
-        print(
-            f"Total energy - active system at RHF level: {driver._huzinaga.get('e_rhf', default)}"
-        )
         logger.info(
-            f"Total energy - active system at RHF level: {driver._huzinaga.get('e_rhf', default)}"
+            f"Total energy - active system at RHF level: {driver._huzinaga['e_rhf']}"
         )
         if driver.run_ccsd_emb is True:
-            print(
-                f"Total energy - active system at CCSD level: {driver._huzinaga.get('e_ccsd', default)}"
-            )
             logger.info(
-                f"Total energy - active system at CCSD level: {driver._huzinaga.get('e_ccsd', default)}"
+                f"Total energy - active system at CCSD level: {driver._huzinaga['e_ccsd']}"
             )
         if driver.run_fci_emb is True:
-            print(
-                f"Total energy - active system at FCI level: {driver._huzinaga.get('e_fci', default)}"
-            )
             logger.info(
-                f"Total energy - active system at FCI level: {driver._huzinaga.get('e_fci', default)}"
+                f"Total energy - active system at FCI level: {driver._huzinaga['e_fci']}"
             )
-
-        print(
-            f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
-        )
 
         logger.info(
-            f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
+            f"length of huzinaga embedded fermionic Hamiltonian: {len(list(driver._huzinaga['hamiltonian']))}"
         )
-        print(f"number of qubits required: {count_qubits(huz_qham)}")
-        logger.info(f"number of qubits required: {count_qubits(huz_qham)}")
+        logger.info(
+            f"number of qubits required: {count_qubits(driver._huzinaga['hamiltonian'])}"
+        )
 
     if driver.projector in ["mu", "both"]:
-        print("".center(80, "*"))
         logger.info("".center(80, "*"))
-        print("  Mu shift calculation".center(20))
         logger.info("  Mu shift calculation".center(20))
-        print(
-            f"Total energy - active system at RHF level: {driver._mu.get('e_rhf', default)}"
-        )
-        logger.info(
-            f"Total energy - active system at RHF level: {driver._mu.get('e_rhf', default)}"
-        )
+        logger.info(f"Total energy - active system at RHF level: {driver._mu['e_rhf']}")
         if driver.run_ccsd_emb is True:
-            print(
-                f"Total energy - active system at CCSD level: {driver._mu.get('e_ccsd', default)}"
-            )
             logger.info(
-                f"Total energy - active system at CCSD level: {driver._mu.get('e_ccsd', default)}"
+                f"Total energy - active system at CCSD level: {driver._mu['e_ccsd']}"
             )
         if driver.run_fci_emb is True:
-            print(
-                f"Total energy - active system at FCI level: {driver._mu.get('e_fci', default)}"
-            )
             logger.info(
-                f"Total energy - active system at FCI level: {driver._mu.get('e_fci', default)}"
+                f"Total energy - active system at FCI level: {driver._mu['e_fci']}"
             )
 
-        print(f"length of mu embedded fermionic Hamiltonian: {len(mu_qham.terms)}")
         logger.info(
-            f"length of mu embedded fermionic Hamiltonian: {len(mu_qham.terms)}"
+            f"length of mu embedded fermionic Hamiltonian: {len(list(driver._mu['hamiltonian']))}"
         )
-        print(f"number of qubits required: {count_qubits(mu_qham)}")
-        logger.info(f"number of qubits required: {count_qubits(mu_qham)}")
+        logger.info(
+            f"number of qubits required: {count_qubits(driver._mu['hamiltonian'])}"
+        )
 
+    logger.info("".center(80, "*"))
+    logger.info("  Summary of reference Calculation".center(80))
+    logger.info("".center(80, "*"))
+
+    if fci:
+        logger.info(
+            f"global (expensive) full FCI calculation {driver._global_fci.e_tot}"
+        )
     full_system_hamiltonian = HamiltonianBuilder(
         driver._global_hf, constant_e_shift=0, transform=transform
-    ).build()
-
-    print("".center(80, "*"))
-    logger.info("".center(80, "*"))
-    print("  Summary of reference Calculation".center(80))
-    logger.info("  Summary of reference Calculation".center(80))
-    print("".center(80, "*"))
-    logger.info("".center(80, "*"))
-
-    if full_system:
-        print("Running Full system FCI and preparing Hamiltonian.")
-        logger.info("Running Full system FCI and preparing Hamiltonian.")
-        print(f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}")
-        logger.info(
-            f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}"
-        )
-
-    print(
-        f"length of full system fermionic Hamiltonian: {len(full_system_hamiltonian.terms)}"
     )
-
     logger.info(
-        f"length of full system fermionic Hamiltonian: {len(full_system_hamiltonian.terms)}"
+        f"length of full system fermionic Hamiltonian: {len(list(full_system_hamiltonian))}"
     )
-    print(f"number of qubits required: {count_qubits(full_system_hamiltonian)}")
     logger.info(f"number of qubits required: {count_qubits(full_system_hamiltonian)}")
 
 
 def pubchem_mol_geometry(molecule_name) -> dict:
     """Wrapper of Openfermion function to extract geometry using the molecule's name from the PubChem.
-    Returns a dictionary of atomic type and xyz location, each indexed by dictionary key
+
+    Returns a dictionary of atomic type and xyz location, each indexed by dictionary key.
 
     Args:
         molecule_name (str): Name of molecule to search on pubchem
     Returns:
         struct_dict (dict): Keys index atoms and values contain Tuple of ('atom_id', (x_loc, y_loc, z_loc)
 
-    Example
-
+    Example:
     output = pubchem_mol_geometry('H2O')
     print(output)
 
@@ -484,10 +430,12 @@ def save_ordered_xyz_file(
     active_atom_inds: list,
     save_location: Optional[Path] = None,
 ) -> Path:
-    """Saves .xyz file in a molecular_structures directory. The location of this director is either at save_location,
-    or if not defined then in current working dir. Function returns the path to xyz file.
+    """Saves .xyz file in a molecular_structures directory.
 
-    This function orders the atoms in struct_dict according to the ordering given in atom_ordering_by_inds list.
+    This function orders the atoms in struct_dict according to the ordering
+    given in atom_ordering_by_inds list. The file is then saved.
+    The location of this director is either at save_location, or if not defined then in current working dir.
+    Function returns the path to xyz file.
 
     Args:
         file_name (str): Name of xyz file
@@ -496,29 +444,29 @@ def save_ordered_xyz_file(
         active_atom_inds (list): list of indices to be considered active. This will put these atoms to the top of the xyz file.
                                  Note indices are chosen from the struct_dict.
         save_location (Path): Path of where to save xyz file. If not defined then current working dir used.
+
     Returns:
         xyz_file_path (Path): Path to xyz file
 
-        Example
+    Example:
+    input_struct_dict = { 0: ('O', (0, 0, 0)),
+                            1: ('H', (0.2774, 0.8929, 0.2544)),
+                            2: ('H', (0.6068, -0.2383, -0.7169))
+                        }
 
-        input_struct_dict = { 0: ('O', (0, 0, 0)),
-                              1: ('H', (0.2774, 0.8929, 0.2544)),
-                              2: ('H', (0.6068, -0.2383, -0.7169))
-                            }
+    path = save_ordered_xyz_file('water', input_struct_dict, [1,0,2])
+    print(path)
+    >> ../molecular_structures/water.xyz
 
-        path = save_ordered_xyz_file('water', input_struct_dict, [1,0,2])
-        print(path)
-        >> ../molecular_structures/water.xyz
+    with open(path,'r') as infile:
+        xyz_string = infile.read()
+    print(xyz_string)
 
-        with open(path,'r') as infile:
-            xyz_string = infile.read()
-        print(xyz_string)
+        >> 3
 
-         >> 3
-
-            H	0.2774	0.8929	0.2544
-            O	0	0	0
-            H	0.6068	-0.2383	-0.7169
+        H	0.2774	0.8929	0.2544
+        O	0	0	0
+        H	0.6068	-0.2383	-0.7169
 
     """
     xyz_string = build_ordered_xyz_string(struct_dict, active_atom_inds)

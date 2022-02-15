@@ -13,7 +13,34 @@ logger = logging.getLogger(__name__)
 
 
 class SPADELocalizer(Localizer):
-    """Localizer Class to carry out SPADE"""
+    """Object used to localise molecular orbitals (MOs) using SPADE Localization.
+
+    Running localization returns active and environment systems.
+
+    Args:
+        pyscf_rks (gto.Mole): PySCF molecule object
+        n_active_atoms (int): Number of active atoms
+        localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
+        occ_cutoff (float): Threshold for selecting occupied active region (only requried if
+                                spade localization is NOT used)
+        virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
+                                spade approach too!)
+        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
+                                         Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
+
+    Attributes:
+        c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
+        c_enviro (np.array): C matrix of localized occupied ennironment MOs
+        c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
+        dm_active (np.array): active system density matrix
+        dm_enviro (np.array): environment system density matrix
+        active_MO_inds (np.array): 1D array of active occupied MO indices
+        enviro_MO_inds (np.array): 1D array of environment occupied MO indices
+        _c_loc_occ (np.array): C matrix of localized occupied MOs
+
+    Methods:
+        run: Main function to run localization.
+    """
 
     def __init__(
         self,
@@ -23,6 +50,7 @@ class SPADELocalizer(Localizer):
         virt_cutoff: Optional[float] = 0.95,
         run_virtual_localization: Optional[bool] = False,
     ):
+        """Initialize SPADE Localizer object."""
         super().__init__(
             pyscf_scf,
             n_active_atoms,
