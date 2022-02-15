@@ -47,6 +47,7 @@ def test_nbed_openfermion() -> None:
     assert isinstance(qham, QubitOperator)
     return None
 
+
 """
 This test is useful once tapering can force a qubit count.
 """
@@ -67,6 +68,7 @@ This test is useful once tapering can force a qubit count.
 #         "run_fci_emb": True,
 #         "qubits": 4,
 #     }
+
 
 def test_nbed_6_qubits() -> None:
     """test nbed"""

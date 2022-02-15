@@ -18,6 +18,7 @@ from .ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 
+
 def setup_logs() -> None:
     """Initialise logging."""
     config_dict = {
@@ -42,16 +43,17 @@ def setup_logs() -> None:
             },
         },
         "loggers": {
-            '':{
+            "": {
                 "handlers": ["file_handler", "stream_handler"],
                 "level": "DEBUG",
             }
-        }
+        },
     }
 
     logging.config.dictConfig(config_dict)
     logger = logging.getLogger(__name__)
     logger.debug("Logging initialised.")
+
 
 def restricted_float_percentage(x: float) -> float:
     """Checks input x is within 0-1 range (percentage) and is a float.
@@ -269,17 +271,19 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
     # for get statements
     default = "Not calculated."
 
-    if not isinstance(qham, tuple) and driver.projector == 'both':
-        logger.error("Only one Qubit Hamiltonian provided to summary, cannot print 'both'.")
+    if not isinstance(qham, tuple) and driver.projector == "both":
+        logger.error(
+            "Only one Qubit Hamiltonian provided to summary, cannot print 'both'."
+        )
         return
 
     # Would be a great place for a switch statemet when
     # dependencies catch up with python 3.10
-    if driver.projector == 'both':
+    if driver.projector == "both":
         mu_qham, huz_qham = qham
-    elif driver.projector == 'huzinaga':
+    elif driver.projector == "huzinaga":
         mu_qham, huz_qham = None, qham
-    elif driver.projector == 'mu':
+    elif driver.projector == "mu":
         mu_qham, huz_qham = qham, None
 
     print("".center(80, "*"))
@@ -306,14 +310,14 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         print(
             f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
         )
-        print(
-            f"number of qubits required: {count_qubits(huz_qham)}"
-        )
+        print(f"number of qubits required: {count_qubits(huz_qham)}")
 
     if driver.projector in ["mu", "both"]:
         print("".center(80, "*"))
         print("  Mu shift calculation".center(20))
-        print(f"Total energy - active system at RHF level: {driver._mu.get('e_rhf', default)}")
+        print(
+            f"Total energy - active system at RHF level: {driver._mu.get('e_rhf', default)}"
+        )
         if driver.run_ccsd_emb is True:
             print(
                 f"Total energy - active system at CCSD level: {driver._mu.get('e_ccsd', default)}"
@@ -323,12 +327,8 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
                 f"Total energy - active system at FCI level: {driver._mu.get('e_fci', default)}"
             )
 
-        print(
-            f"length of mu embedded fermionic Hamiltonian: {len(mu_qham.terms)}"
-        )
-        print(
-            f"number of qubits required: {count_qubits(mu_qham)}"
-        )
+        print(f"length of mu embedded fermionic Hamiltonian: {len(mu_qham.terms)}")
+        print(f"number of qubits required: {count_qubits(mu_qham)}")
 
     print("".center(80, "*"))
     print("  Summary of reference Calculation".center(80))
@@ -336,9 +336,7 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
 
     if full_system:
         print("Running Full system FCI and preparing Hamiltonian.")
-        print(
-            f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}"
-        )
+        print(f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}")
     full_system_hamiltonian = HamiltonianBuilder(
         driver._global_hf, constant_e_shift=0, transform=transform
     ).build()

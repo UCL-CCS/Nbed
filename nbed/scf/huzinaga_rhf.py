@@ -19,7 +19,7 @@ def huzinaga_RHF(
     use_DIIS: Optional[np.ndarray] = True,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
     """Manual RHF calculation that is implemented using the huzinaga operator.
-    
+
     Note this function uses lowdin (symmetric) orthogonalization only! (PySCF sometimes uses meta-lowdin and NAO). Also
     the intial density matrix guess is based on the modified core Hamilotnian (containing projector and DFT potential)
     PySCF has other methods for initial guess that aren't available here. Manual guess can also be given).

@@ -103,7 +103,7 @@ class PySCFLocalizer(Localizer, ABC):
         numerator_all = np.einsum("ij->j", (c_loc_occ[ao_active_inds, :]) ** 2)
 
         # all AOs coeffs for a given MO j
-        denominator_all = np.einsum("ij->j", c_loc_occ ** 2)
+        denominator_all = np.einsum("ij->j", c_loc_occ**2)
 
         mo_active_share = numerator_all / denominator_all
 

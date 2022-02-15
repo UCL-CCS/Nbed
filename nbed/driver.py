@@ -22,6 +22,7 @@ from .localizers import (
     SPADELocalizer,
 )
 from .scf import huzinaga_RHF, huzinaga_RKS
+
 # from .log_conf import setup_logs
 
 # logfile = Path(__file__).parent/Path(".nbed.log")
@@ -50,6 +51,7 @@ logger = logging.getLogger(__name__)
 # logger.addHandler(file_handler)
 # logger.addHandler(stream_handler)
 # logger.debug("Logging configured.")
+
 
 class NbedDriver:
     """Function to return the embedding Qubit Hamiltonian.
@@ -318,7 +320,8 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
-            rks_system: Localizer, subsystem_dm: np.ndarray,
+            rks_system: Localizer,
+            subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
