@@ -42,7 +42,14 @@ class SPADELocalizer(Localizer):
             np.ndarray: Localized C matrix of occupied orbitals.
         """
         logger.debug("Localising with SPADE.")
-        occupancy = np.sum(self._global_ks.mo_occ, 0)
+
+        occupancy = (
+            np.sum(self._global_ks.mo_occ, 0)
+            if not self._restricted_scf
+            else self._global_ks.mo_occ
+        )
+
+        print(f"{occupancy=}")
         n_occupied_orbitals = np.count_nonzero(occupancy)
         occupied_orbitals = c_matrix[:, :n_occupied_orbitals]
 
@@ -85,7 +92,7 @@ class SPADELocalizer(Localizer):
         # storing condition used to select env system
         self.enviro_selection_condition = sigma
 
-        return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
+        return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
 
     def _localize(
         self,
