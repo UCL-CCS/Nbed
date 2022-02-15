@@ -1,5 +1,5 @@
 cff-version: 1.0
-message: "If you use Nbed, please cite it."
+message: "Nbed enables the application of quauntum simulation algorithms to molecules of arbitrary size. If you use Nbed in your research please cite it."
 authors:
   - family-names: Williams
     given-names: Michael Ifor
