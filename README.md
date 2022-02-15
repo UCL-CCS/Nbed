@@ -1,4 +1,4 @@
-[![CICD Status](https://github.com/AlexisRalli/Nbed/actions/workflows/actions.yaml/badge.svg?branch=master)](https://github.com/AlexisRalli/Nbed/actions/workflows/actions.yaml)
+[![CICD Status](https://github.com/UCL-CCS/Nbed/actions/workflows/release.yaml/badge.svg?branch=master)](https://github.com/UCL-CCS/Nbed/actions/workflows/release.yaml)
 
 # Nbed
 
@@ -46,6 +46,8 @@ from nbed import nbed
 
 nbed(...)
 ```
+
+This function will output a qubit Hamiltonian suitable for the backend specified by the `output` argument.
 
 ### Command Line Interface
 Installing this package also exposes a command line tool `nbed`, which can be used in two ways. Firstly, you can provide a YAML config file.
@@ -120,7 +122,7 @@ qham = load_hamiltonian(<path to hamiltonian JSON>, <output type>)
 ## Structure
 
 ```
-VQE_IN_DFT
+Nbed
     docs_source
     nbed
     notebooks
@@ -144,8 +146,10 @@ This folder contains jupyter notebooks which explain the embedding procedure in 
 
 ### Tests
 
-Contains all tests of the package.
+Contains all tests of the package. These can be run from the command line using `pytest`.
 
+### Logs
+Each time the package is initialised a new log will be started in the top level director at `Nbed/.nbed.log`.
 
 ## Development
 If you would like to contribute to this code base please first create an issue and a fork of the repo from which to make your pull request.
