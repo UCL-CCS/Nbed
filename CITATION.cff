@@ -4,8 +4,8 @@ authors:
   - family-names: Williams
     given-names: Michael Ifor
     orcid:  https://orcid.org/0000-0002-1179-8121
-  - family-names: Alexis
-    given-names: Ralli
+  - family-names: Ralli
+    given-names: Alexis
     orcid: https://orcid.org/0000-0001-8953-1235
 title: "Nbed"
 version: 0.0.1
