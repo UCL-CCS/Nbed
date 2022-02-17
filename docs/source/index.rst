@@ -13,7 +13,6 @@ Welcome to Nbed's documentation!
    notebooks/1. Orbital Plotting and Localization Functions
 
 
-
 Indices and tables
 ==================
 
