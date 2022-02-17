@@ -277,6 +277,10 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         )
         return
 
+    qham = HamiltonianBuilder(
+        driver.embedded_scf, constant_e_shift=driver.classical_energy, transform=transform
+    ).build()
+
     # Would be a great place for a switch statemet when
     # dependencies catch up with python 3.10
     if driver.projector == "both":
@@ -334,9 +338,10 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
     print("  Summary of reference Calculation".center(80))
     print("".center(80, "*"))
 
-    if full_system:
+    if fci:
         print("Running Full system FCI and preparing Hamiltonian.")
         print(f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}")
+
     full_system_hamiltonian = HamiltonianBuilder(
         driver._global_hf, constant_e_shift=0, transform=transform
     ).build()
