@@ -1,4 +1,4 @@
-[![CICD Status](https://github.com/UCL-CCS/Nbed/actions/workflows/release.yaml/badge.svg?branch=master)](https://github.com/UCL-CCS/Nbed/actions/workflows/release.yaml)
+[![CICD Status](https://github.com/UCL-CCS/Nbed/actions/workflows/release.yaml/badge.svg?branch=master)](https://github.com/UCL-CCS/Nbed/actions/workflows/release.yaml)[![Documentation Status](https://readthedocs.org/projects/nbed/badge/?version=latest)](https://nbed.readthedocs.io/en/latest/?badge=latest)
 
 # Nbed
 
