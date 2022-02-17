@@ -252,12 +252,13 @@ def parse():
     logger.debug(f"Arguments: {args}")
     return args
 
+def load_hamiltonian(filepath: Path, output: str) -> object:
+    """Create a Hamiltonian from a file.
+    Reads the input file and converts to the desired output format.
+    """
+    return HamiltonianConverter(filepath).convert(output)
 
-def print_summary(
-    driver: NbedDriver,
-    transform: str,
-    fci: bool = False,
-):
+def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None:
     """Print a summary of the package results.
 
     Args:
@@ -323,7 +324,11 @@ def print_summary(
         print(
             f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
         )
+        logger.info(
+            f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
+        )
         print(f"number of qubits required: {count_qubits(huz_qham)}")
+        logger.info(f"number of qubits required: {count_qubits(huz_qham)}")
 
     if driver.projector in ["mu", "both"]:
         print("".center(80, "*"))
