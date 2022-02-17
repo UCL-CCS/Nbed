@@ -56,7 +56,7 @@ def setup_logs() -> None:
 
 
 def restricted_float_percentage(x: float) -> float:
-    """Checks input x is within 0-1 range (percentage) and is a float
+    """Checks input x is within 0-1 range (percentage) and is a float.
 
     Args:
         x (float): input number between 0 and 1 (inclusive)
@@ -253,17 +253,19 @@ def parse():
     logger.debug(f"Arguments: {args}")
     return args
 
+def load_hamiltonian(filepath: Path, output: str) -> object:
+    """Create a Hamiltonian from a file.
 
-def print_summary(
-    qham: Union[object, Tuple[object, object]],
-    driver: NbedDriver,
-    transform: str,
-    full_system: bool = False,
-):
+    Reads the input file and converts to the desired output format.
+    """
+    return HamiltonianConverter(filepath).convert(output)
+
+def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None:
     """Print a summary of the package results.
 
     Args:
         driver (NbedDriver): An NbedDriver to summarise.
+        transform (str): The transform used to generate a qubit Hamiltonian.
         fci (bool): Whether to run full system fci.
     """
     logger.debug("Printing summary of results.")
@@ -324,7 +326,7 @@ def print_summary(
         print(
             f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
         )
-
+        
         logger.info(
             f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
         )
@@ -396,15 +398,15 @@ def print_summary(
 
 def pubchem_mol_geometry(molecule_name) -> dict:
     """Wrapper of Openfermion function to extract geometry using the molecule's name from the PubChem.
-    Returns a dictionary of atomic type and xyz location, each indexed by dictionary key
+
+    Returns a dictionary of atomic type and xyz location, each indexed by dictionary key.
 
     Args:
         molecule_name (str): Name of molecule to search on pubchem
     Returns:
         struct_dict (dict): Keys index atoms and values contain Tuple of ('atom_id', (x_loc, y_loc, z_loc)
 
-    Example
-
+    Example:
     output = pubchem_mol_geometry('H2O')
     print(output)
 
@@ -484,10 +486,12 @@ def save_ordered_xyz_file(
     active_atom_inds: list,
     save_location: Optional[Path] = None,
 ) -> Path:
-    """Saves .xyz file in a molecular_structures directory. The location of this director is either at save_location,
-    or if not defined then in current working dir. Function returns the path to xyz file.
+    """Saves .xyz file in a molecular_structures directory.
 
-    This function orders the atoms in struct_dict according to the ordering given in atom_ordering_by_inds list.
+    This function orders the atoms in struct_dict according to the ordering
+    given in atom_ordering_by_inds list. The file is then saved.
+    The location of this director is either at save_location, or if not defined then in current working dir.
+    Function returns the path to xyz file.
 
     Args:
         file_name (str): Name of xyz file
@@ -496,29 +500,29 @@ def save_ordered_xyz_file(
         active_atom_inds (list): list of indices to be considered active. This will put these atoms to the top of the xyz file.
                                  Note indices are chosen from the struct_dict.
         save_location (Path): Path of where to save xyz file. If not defined then current working dir used.
+
     Returns:
         xyz_file_path (Path): Path to xyz file
 
-        Example
+    Example:
+    input_struct_dict = { 0: ('O', (0, 0, 0)),
+                            1: ('H', (0.2774, 0.8929, 0.2544)),
+                            2: ('H', (0.6068, -0.2383, -0.7169))
+                        }
 
-        input_struct_dict = { 0: ('O', (0, 0, 0)),
-                              1: ('H', (0.2774, 0.8929, 0.2544)),
-                              2: ('H', (0.6068, -0.2383, -0.7169))
-                            }
+    path = save_ordered_xyz_file('water', input_struct_dict, [1,0,2])
+    print(path)
+    >> ../molecular_structures/water.xyz
 
-        path = save_ordered_xyz_file('water', input_struct_dict, [1,0,2])
-        print(path)
-        >> ../molecular_structures/water.xyz
+    with open(path,'r') as infile:
+        xyz_string = infile.read()
+    print(xyz_string)
 
-        with open(path,'r') as infile:
-            xyz_string = infile.read()
-        print(xyz_string)
+        > 3
 
-         >> 3
-
-            H	0.2774	0.8929	0.2544
-            O	0	0	0
-            H	0.6068	-0.2383	-0.7169
+        H	0.2774	0.8929	0.2544
+        O	0	0	0
+        H	0.6068	-0.2383	-0.7169
 
     """
     xyz_string = build_ordered_xyz_string(struct_dict, active_atom_inds)

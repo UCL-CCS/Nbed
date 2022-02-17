@@ -63,8 +63,7 @@ def Draw_cube_orbital(
 
     This function writes orbitals to tempory cube files then deletes them.
     For standard use the C_matrix input should be C_matrix optimized by a self consistent field (SCF) run.
-
-    Note if molecule has unrealistic bonds, then style should be set to sphere
+    Note if molecule has unrealistic bonds, then style should be set to sphere.
 
     Args:
         PySCF_mol_obj (pyscf.mol): PySCF mol object. Required for pyscf.tools.cubegen function
