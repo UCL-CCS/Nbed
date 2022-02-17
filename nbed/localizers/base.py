@@ -60,6 +60,7 @@ class Localizer(ABC):
         run_virtual_localization: Optional[bool] = False,
     ):
         """Initialise class."""
+        logger.debug("Initialising Localizer.")
         if pyscf_rks.mo_coeff is None:
             logger.debug("SCF method not initialised, running now...")
             pyscf_rks.run()
@@ -84,9 +85,11 @@ class Localizer(ABC):
         Returns:
             threshold (float): input percentage
         """
-        if threshold >= 0.0 and threshold <= 1.0:
+        if 0.0 <= threshold <= 1.0:
+            logger.debug("Localizer threshold valid.")
             return threshold
         else:
+            logger.error("Localizer threshold not valid.")
             raise ValueError(f"threshold: {threshold} is not in range [0,1] inclusive")
 
     @abstractmethod
@@ -106,6 +109,7 @@ class Localizer(ABC):
 
     def _check_values(self) -> None:
         """Check that output values make sense."""
+        logger.debug("Checking density matrix partition.")
         # checking denisty matrix parition makes sense:
         dm_localised_full_system = 2 * self._c_loc_occ @ self._c_loc_occ.conj().T
         bool_density_flag = np.allclose(
@@ -127,6 +131,7 @@ class Localizer(ABC):
             f"N_active_elec + N_environment_elec = N_total_elec is: {bool_flag_electron_number}"
         )
         if not bool_flag_electron_number:
+            logger.error
             raise ValueError("number of electrons in localized orbitals is incorrect")
 
     def _localize_virtual_orbs(self) -> None:
@@ -216,7 +221,10 @@ class Localizer(ABC):
         if self._run_virtual_localization is True:
             c_virtual = self._localize_virtual_orbs()
         else:
+            logger.debug("Not localizing virtual orbitals.")
             # appends standard virtual orbitals from SCF calculation (NOT localized in any way)
             c_virtual = self._global_rks.mo_coeff[:, self._global_rks.mo_occ < 2]
 
         self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
+
+        logger.debug("Localization complete.")

@@ -31,6 +31,7 @@ def Draw_molecule(
     Returns:
         view (py3dmol.view object). Run view.show() method to print molecule.
     """
+    logger.debug("Drawing molecule.")
     if style == "sphere":
         view = py3Dmol.view(
             data=xyz_string,
@@ -76,6 +77,7 @@ def Draw_cube_orbital(
     Returns:
         plotted_orbitals (List): List of plotted orbitals (py3Dmol.view) ordered the same way as in index_list
     """
+    logger.debug("Drawing cube orbital.")
     if not set(index_list).issubset(set(range(C_matrix.shape[1]))):
         raise ValueError(
             "list of MO indices to plot is outside of C_matrix column indices"
