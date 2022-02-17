@@ -33,7 +33,7 @@ def test_incorrect_geometry_path() -> None:
 
     with pytest.raises(RuntimeError, match="Unsupported atom symbol .*"):
         # match will match with any printed error message
-        driver = NbedDriver(
+        NbedDriver(
             geometry=args["geometry"],
             n_active_atoms=args["n_active_atoms"],
             basis=args["basis"],
@@ -158,6 +158,7 @@ def test_n_active_atoms_valid() -> None:
             run_ccsd_emb=args["run_ccsd_emb"],
             run_fci_emb=args["run_fci_emb"],
         )
+
 
 if __name__ == "__main__":
     pass

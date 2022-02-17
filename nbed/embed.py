@@ -48,9 +48,10 @@ def nbed(
         geometry (str): Path to .xyz file containing molecular geometry or raw xyz string.
         n_active_atoms (int): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
-        xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
+        xc_functional (str): The name of an Exchange-Correlation functional to be used for DFT.
         projector (str): Type of projector to use in embedding. One of "mu" or "huzinaga".
         output (str): The name of the quantum backend to output a qubit hamiltonian object for.
+        transform (str): Qubit transform to be applied to the Hamiltonian.
         localization (str): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
         convergence (float): The convergence tolerance for energy calculations.
         charge (int): Charge of molecular species
@@ -59,8 +60,11 @@ def nbed(
         run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
+        savefile (str): Path to file to save output Hamiltonain to.
         qubits (int): The number of qubits available for the output hamiltonian.
         unit (str): molecular geometry unit 'angstrom' or 'bohr'
+        occupied_threshold (float): The occupancy threshold for localizing occupied orbitals.
+        virtual_threshold (float): The occupancy threshold for localizing virtual orbitals.
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
         max_dft_cycles (int): max number of DFT iterations allowed in scf calc
     Returns:
@@ -113,7 +117,7 @@ def nbed(
         converter = HamiltonianConverter(qham)
         hamiltonians = getattr(converter, output.lower())
 
-    print_summary(hamiltonians, driver, transform, full_system=False)
+    print_summary(driver, transform, fci=False)
     return qham
 
 

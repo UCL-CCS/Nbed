@@ -4,12 +4,12 @@ import logging
 import os
 from copy import copy
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Callable
+from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
-from pyscf import cc, fci, gto, scf, dft
+from pyscf import cc, dft, fci, gto, scf
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
@@ -399,7 +399,7 @@ class NbedDriver:
             #     energy_elec_pyscf = self._global_rks.energy_elec(dm=dm_matrix)[0]
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
-            logger.debug(f"Subsystem RKS components found.")
+            logger.debug("Subsystem RKS components found.")
             return energy_elec, e_xc, j_mat
 
         (self.e_act, e_xc_act, j_act) = _rks_components(
@@ -782,7 +782,7 @@ class NbedDriver:
         logger.info("Embedding complete.")
 
     def embed_dft_in_dft(self, xc_func: str, embedding_method: Callable):
-        """Return energy of DFT in DFT embedding
+        """Return energy of DFT in DFT embedding.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.

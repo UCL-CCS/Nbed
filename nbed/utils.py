@@ -5,16 +5,15 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Optional, Union, Tuple
+from typing import Optional
 
 import yaml
-from openfermion import count_qubits, transforms
+from openfermion import count_qubits
 from openfermion.chem.pubchem import geometry_from_pubchem
 
 from nbed.ham_builder import HamiltonianBuilder
 
 from .driver import NbedDriver
-from .ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 
@@ -253,13 +252,6 @@ def parse():
     logger.debug(f"Arguments: {args}")
     return args
 
-def load_hamiltonian(filepath: Path, output: str) -> object:
-    """Create a Hamiltonian from a file.
-
-    Reads the input file and converts to the desired output format.
-    """
-    return HamiltonianConverter(filepath).convert(output)
-
 def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None:
     """Print a summary of the package results.
 
@@ -272,11 +264,11 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
     # for get statements
     default = "Not calculated."
 
-    if not isinstance(qham, tuple) and driver.projector == "both":
-        logger.error(
-            "Only one Qubit Hamiltonian provided to summary, cannot print 'both'."
-        )
-        return
+    qham = HamiltonianBuilder(
+        driver.embedded_scf,
+        constant_e_shift=driver.classical_energy,
+        transform=transform,
+    ).build()
 
     # Would be a great place for a switch statemet when
     # dependencies catch up with python 3.10
@@ -326,7 +318,6 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         print(
             f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
         )
-        
         logger.info(
             f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
         )
@@ -377,7 +368,7 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
     print("".center(80, "*"))
     logger.info("".center(80, "*"))
 
-    if full_system:
+    if fci:
         print("Running Full system FCI and preparing Hamiltonian.")
         logger.info("Running Full system FCI and preparing Hamiltonian.")
         print(f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}")
@@ -440,6 +431,7 @@ def build_ordered_xyz_string(struct_dict: dict, active_atom_inds: list) -> str:
         struct_dict (dict): Dictionary of indexed atoms and Cartesian coordinates (x,y,z)
         active_atom_inds (list): list of indices to be considered active. This will put these atoms to the top of the xyz file.
                                  Note indices are chosen from the struct_dict.
+
     Returns:
         xyz_string (str): raw xyz string of molecular geometry (atoms ordered by atom_ordering_by_inds list)
 
@@ -518,7 +510,7 @@ def save_ordered_xyz_file(
         xyz_string = infile.read()
     print(xyz_string)
 
-        > 3
+        >> 3
 
         H	0.2774	0.8929	0.2544
         O	0	0	0
