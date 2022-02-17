@@ -29,19 +29,16 @@ def huzinaga_RHF(
     Args:
         scf_method (StreamObjecty):PySCF RHF object (containing info about max cycles and convergence tolerence)
         dft_potential (np.ndarray): DFT active and environment two body terms - DFT active environemnt two body term
-        enviro_proj_ortho_basis (np.ndarray): Projector onto environment space (defined in orthogonal basis)
-        s_neg_half (np.ndarray): AO overlap matrix to the power of -1/2
-        s_half (np.ndarray): AO overlap matrix to the power of 1/2
-        dm_conv_tol (float): density matrix convergence tolerance
-        dm_initial_guess (np.ndarray): Optional initial guess density matrix
+        dm_enviroment (np.ndarray): Density matrix of the environment.
+        dm_conv_tol (float): density matrix convergence tolerance.
+        dm_initial_guess (np.ndarray): Optional initial guess density matrix.
         use_DIIS (bool): whether to use  Direct Inversion in the Iterative Subspace (DIIS) method
     Returns:
-        conv_flag (bool): Flag to indicate whether SCF has converged or not
-        e_total (float): RHF energy (includes nuclear energy)
         mo_coeff_std (np.ndarray): Optimized C_matrix (columns are optimized moelcular orbtials)
         mo_energy (np.ndarray): 1D array of molecular orbital energies
         dm_mat (np.ndarray): Converged density matrix
         huzinaga_op_std (np.ndarray): Huzinaga operator in standard basis (same basis as Fock operator).
+        conv_flag (bool): Flag to indicate whether SCF has converged or not
     """
     s_mat = scf_method.get_ovlp()
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)

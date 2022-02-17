@@ -744,7 +744,7 @@ class NbedDriver:
         logger.info("Embedding complete.")
 
     def embed_dft_in_dft(self, xc_func: str, embedding_method: Callable):
-        """Return energy of DFT in DFT embedding
+        """Return energy of DFT in DFT embedding.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
