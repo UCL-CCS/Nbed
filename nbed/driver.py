@@ -4,12 +4,12 @@ import logging
 import os
 from copy import copy
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Callable
+from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
-from pyscf import cc, fci, gto, scf, dft
+from pyscf import cc, dft, fci, gto, scf
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError

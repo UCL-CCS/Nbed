@@ -159,5 +159,6 @@ def test_n_active_atoms_valid() -> None:
             run_fci_emb=args["run_fci_emb"],
         )
 
+
 if __name__ == "__main__":
     pass

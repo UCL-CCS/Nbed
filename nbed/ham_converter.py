@@ -2,10 +2,10 @@
 
 import json
 import logging
+import re
 from numbers import Number
 from pathlib import Path
 from typing import Dict, Optional, Union
-import re
 
 import pennylane as qml
 from cached_property import cached_property
@@ -118,12 +118,7 @@ class HamiltonianConverter:
         elif not all(len(key) == len(keys[0]) for key in keys):
             error_string += "All operator keys must be of equal length.\n"
 
-        elif not all(
-            [
-                isinstance(value, Number)
-                for value in dict_input.values()
-            ]
-        ):
+        elif not all([isinstance(value, Number) for value in dict_input.values()]):
             error_string += "All operator weights must be numbers.\n"
 
         if error_string:
@@ -229,7 +224,9 @@ class HamiltonianConverter:
         return PauliSumOp.from_list(input_list)
 
 
-def load_hamiltonian(filepath: Path, output: str) -> Union[QubitOperator, qml.Hamiltonian, PauliSumOp]:
+def load_hamiltonian(
+    filepath: Path, output: str
+) -> Union[QubitOperator, qml.Hamiltonian, PauliSumOp]:
     """Create a Hamiltonian from a file.
 
     Reads the input file and converts to the desired output format.

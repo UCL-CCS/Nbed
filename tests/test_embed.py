@@ -5,7 +5,7 @@ from pathlib import Path
 
 from openfermion import QubitOperator, count_qubits
 
-from nbed.embed import nbed, cli
+from nbed.embed import cli, nbed
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
@@ -106,6 +106,7 @@ def test_nbed_6_qubits() -> None:
 
     assert count_qubits(qham) == 6
     return None
+
 
 if __name__ == "__main__":
     pass

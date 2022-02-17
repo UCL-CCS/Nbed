@@ -5,7 +5,7 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Optional, Union, Tuple
+from typing import Optional, Tuple, Union
 
 import yaml
 from openfermion import count_qubits, transforms
@@ -270,14 +270,10 @@ def print_summary(
     # for get statements
     default = "Not calculated."
 
-    if not isinstance(qham, tuple) and driver.projector == "both":
-        logger.error(
-            "Only one Qubit Hamiltonian provided to summary, cannot print 'both'."
-        )
-        return
-
     qham = HamiltonianBuilder(
-        driver.embedded_scf, constant_e_shift=driver.classical_energy, transform=transform
+        driver.embedded_scf,
+        constant_e_shift=driver.classical_energy,
+        transform=transform,
     ).build()
 
     # Would be a great place for a switch statemet when
