@@ -10,7 +10,8 @@ Welcome to Nbed's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   notebooks/1. Orbital Plotting and Localization Functions
+   ..Uncomment notebook names as they need to be added
+   ..notebooks/A Scalable Approach to Quantum Simulation via Projection-based Embedding
 
 
 Indices and tables

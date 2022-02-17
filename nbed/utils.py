@@ -5,16 +5,15 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Optional
 
 import yaml
-from openfermion import count_qubits, transforms
+from openfermion import count_qubits
 from openfermion.chem.pubchem import geometry_from_pubchem
 
 from nbed.ham_builder import HamiltonianBuilder
 
 from .driver import NbedDriver
-from .ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 
@@ -433,7 +432,7 @@ def build_ordered_xyz_string(struct_dict: dict, active_atom_inds: list) -> str:
         struct_dict (dict): Dictionary of indexed atoms and Cartesian coordinates (x,y,z)
         active_atom_inds (list): list of indices to be considered active. This will put these atoms to the top of the xyz file.
                                  Note indices are chosen from the struct_dict.
-                                 
+
     Returns:
         xyz_string (str): raw xyz string of molecular geometry (atoms ordered by atom_ordering_by_inds list)
 
