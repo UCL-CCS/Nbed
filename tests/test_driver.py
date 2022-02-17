@@ -12,41 +12,41 @@ from nbed.exceptions import NbedConfigError
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
-# def test_incorrect_geometry_path() -> None:
-#     """test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
-#
-#     molecule = 'THIS IS NOT A PATH TO AN XYZ FILE'
-#
-#     args ={
-#         'geometry': molecule,
-#         "n_active_atoms": 1,
-#         "basis": 'STO-3G',
-#         "xc_functional": 'b3lyp',
-#         "projector": 'mu',
-#         "localization": 'spade',
-#         "convergence": 1e-6,
-#         "savefile": None,
-#         "run_ccsd_emb": True,
-#         "run_fci_emb":True
-#     }
-#
-#     regex_match_any_string = r"[\s\S]*"
-#     with pytest.raises(FileNotFoundError, match=regex_match_any_string):
-#         # match will match with any printed error message
-#         driver = NbedDriver(
-#             geometry=args["geometry"],
-#             n_active_atoms=args["n_active_atoms"],
-#             basis=args["basis"],
-#             xc_functional=args["xc_functional"],
-#             projector=args["projector"],
-#             localization=args["localization"],
-#             convergence=args["convergence"],
-#             savefile=args["savefile"],
-#             run_ccsd_emb=args["run_ccsd_emb"],
-#             run_fci_emb=args["run_fci_emb"],
-#         )
-#
-#     return None
+
+def test_incorrect_geometry_path() -> None:
+    """test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
+
+    molecule = "THIS/IS/NOT/AN/XYZ/FILE"
+
+    args = {
+        "geometry": molecule,
+        "n_active_atoms": 1,
+        "basis": "STO-3G",
+        "xc_functional": "b3lyp",
+        "projector": "mu",
+        "localization": "spade",
+        "convergence": 1e-6,
+        "savefile": None,
+        "run_ccsd_emb": True,
+        "run_fci_emb": True,
+    }
+
+    with pytest.raises(RuntimeError, match="Unsupported atom symbol .*"):
+        # match will match with any printed error message
+        driver = NbedDriver(
+            geometry=args["geometry"],
+            n_active_atoms=args["n_active_atoms"],
+            basis=args["basis"],
+            xc_functional=args["xc_functional"],
+            projector=args["projector"],
+            localization=args["localization"],
+            convergence=args["convergence"],
+            savefile=args["savefile"],
+            run_ccsd_emb=args["run_ccsd_emb"],
+            run_fci_emb=args["run_fci_emb"],
+        )
+
+    return None
 
 
 def test_driver_standard_xyz_file_input() -> None:
@@ -131,7 +131,7 @@ def test_n_active_atoms_valid() -> None:
     }
     error_msg = "Invalid number of active atoms. Choose a number between 0 and 3."
 
-    with pytest.raises(NbedConfigError) as e:
+    with pytest.raises(NbedConfigError, match=error_msg):
         NbedDriver(
             geometry=args["geometry"],
             n_active_atoms=0,
@@ -145,9 +145,7 @@ def test_n_active_atoms_valid() -> None:
             run_fci_emb=args["run_fci_emb"],
         )
 
-    assert error_msg == str(e.value)
-
-    with pytest.raises(NbedConfigError) as e:
+    with pytest.raises(NbedConfigError, match=error_msg):
         NbedDriver(
             geometry=args["geometry"],
             n_active_atoms=3,
@@ -160,9 +158,6 @@ def test_n_active_atoms_valid() -> None:
             run_ccsd_emb=args["run_ccsd_emb"],
             run_fci_emb=args["run_fci_emb"],
         )
-
-    assert error_msg == str(e.value)
-
 
 if __name__ == "__main__":
     pass

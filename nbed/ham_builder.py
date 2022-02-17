@@ -80,6 +80,7 @@ class HamiltonianBuilder:
             logger.error("Invalid qubit_reduction of type %s.", type(qubit_reduction))
             raise HamiltonianBuilderError("qubit_reduction must be an Intger")
         if qubit_reduction == 0:
+            logger.debug("No active space reduction required.")
             return 0, self._one_body_integrals, self._two_body_integrals
 
         # find where the last occupied level is
@@ -89,7 +90,7 @@ class HamiltonianBuilder:
 
         # +1 because each MO is 2 qubits for closed shell.
         n_orbitals = (qubit_reduction + 1) // 2
-        logger.debug(f"Reducing active space to {n_orbitals}.")
+        logger.debug(f"Reducing to {n_orbitals}.")
         # Again +1 because we want to use odd numbers to reduce
         # occupied orbitals
         occupied_reduction = (n_orbitals + 1) // 2
@@ -165,6 +166,7 @@ class HamiltonianBuilder:
         Returns:
             QubitOperator: Tapered QubitOperator.
         """
+        logger.error("Tapering not implemented.")
         raise ValueError("tapering currently NOT working properly!")
         logger.debug("Beginning qubit tapering.")
         converter = HamiltonianConverter(qham)
@@ -237,10 +239,12 @@ class HamiltonianBuilder:
                 logger.debug("Unreduced Hamiltonain found.")
                 return qham
 
-            # Wanted to do a recursive thing to get the correct number from tapering but it takes ages.
+            # Wanted to do a recursive thing to get the correct number
+            # from tapering but it takes ages.
             final_n_qubits = count_qubits(qham)
 
             if final_n_qubits <= n_qubits:
+                logger.debug("Hamiltonian reduced to %s qubits.", final_n_qubits)
                 return qham
 
             # Check that we have the right number of qubits.

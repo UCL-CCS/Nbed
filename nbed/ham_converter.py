@@ -2,8 +2,10 @@
 
 import json
 import logging
+from numbers import Number
 from pathlib import Path
 from typing import Dict, Optional, Union
+import re
 
 import pennylane as qml
 from cached_property import cached_property
@@ -11,7 +13,6 @@ from openfermion.ops.operators.qubit_operator import QubitOperator
 from openfermion.utils import count_qubits
 from pennylane import Identity, PauliX, PauliY, PauliZ
 from qiskit.opflow.primitive_ops.pauli_sum_op import PauliSumOp
-from qiskit_nature.operators.second_quantization import SpinOp
 
 from .exceptions import HamiltonianConverterError
 
@@ -32,21 +33,29 @@ class HamiltonianConverter:
             transform (str): Transform used to convert to qubit hamiltonian.
             output_format (str): The name of the desired output format.
         """
+        logger.debug("Initialising HamiltonianConverter.")
         self._input = None
 
         if type(input_hamiltonian) is QubitOperator:
+            logger.debug("Openfermion Hamiltonian input")
             self._input = input_hamiltonian
             self.n_qubits = count_qubits(input_hamiltonian)
             self._intermediate = self._of_to_int()
         elif type(input_hamiltonian) is dict:
+            logger.debug("Dictionary input.")
             # Turn keys into an iterator and get the length of the first item.
+            self._validate(input_hamiltonian)
             self.n_qubits = len(next(iter(input_hamiltonian.keys())))
             self._intermediate = input_hamiltonian
         elif type(input_hamiltonian) in [Path, str]:
+            logger.debug("Filepath input")
             self._intermediate = self._read_file(input_hamiltonian)
         else:
+            logger.error(
+                "Input Hamiltonian must be an openfermion.QubitOperator, dict or filepath."
+            )
             raise TypeError(
-                "Input Hamiltonian must be an openfermion.QubitOperator or path."
+                "Input Hamiltonian must be an openfermion.QubitOperator, dict or filepath."
             )
 
     def convert(self, output_format: str) -> object:
@@ -58,6 +67,7 @@ class HamiltonianConverter:
         output = getattr(self, output_format, None)
 
         if output is None:
+            logger.debug(f"Output format {output_format} not supported.")
             raise NotImplementedError(
                 f"{output_format} is not a valid hamiltonian output format."
             )
@@ -71,11 +81,13 @@ class HamiltonianConverter:
         Args:
             filepath (Path): Path to the save file location.
         """
+        logger.info(f"Saving Hamiltonian to {filepath}.")
         data_to_save = {"qubits": self.n_qubits, "hamiltonian": self._intermediate}
         json_ir = json.dumps(data_to_save)
 
         with open(filepath, "w") as file:
             file.write(json_ir)
+        logger.debug("File saved.")
 
     def _read_file(self, filepath) -> Dict[str, float]:
         """Read the Intermediate Representation from a file.
@@ -83,33 +95,41 @@ class HamiltonianConverter:
         Args:
             filepath (Path): Path to a .json file containing the IR.
         """
+        logger.debug("Reading IR from file.")
         with open(filepath, "r") as file:
             file_data = json.load(file)
 
         self.n_qubits = file_data["qubits"]
         intermediate = file_data["hamiltonian"]
 
+        self._validate(intermediate)
+
+        return intermediate
+
+    def _validate(self, dict_input: Dict[str, Number]) -> None:
         # Validate input
+        logger.debug("Validating input file.")
         error_string = ""
-        keys = [key for key in intermediate.keys()]
-        if not all([type(key) is str for key in keys]):
-            error_string += "JSON file must use strings as operator keys.\n"
+        keys = [key for key in dict_input]
+
+        if not all([re.match("[IXYZixyz]+", key) for key in keys]):
+            error_string += "Input dict keys must only contain I,X,Y,Z\n"
 
         elif not all(len(key) == len(keys[0]) for key in keys):
             error_string += "All operator keys must be of equal length.\n"
 
         elif not all(
             [
-                type(value) is int or type(value) is float
-                for value in intermediate.values()
+                isinstance(value, Number)
+                for value in dict_input.values()
             ]
         ):
-            error_string += "All operator weights must be ints or floats.\n"
+            error_string += "All operator weights must be numbers.\n"
 
         if error_string:
+            logger.error(f"{error_string}")
             raise HamiltonianConverterError(error_string)
-
-        return intermediate
+        logger.debug("Input dict valid.")
 
     def _of_to_int(self) -> Dict[str, float]:
         """Construct intermediate representation of qubit hamiltonian from openfermion representation.
@@ -117,6 +137,7 @@ class HamiltonianConverter:
         Returns:
             Dict[str, float]: Generic representation of a qubit hamiltonian.
         """
+        logger.debug("Creating IR from openfermion representation.")
         intermediate: Dict[str, float] = {}
         for term, value in self.openfermion.terms.items():
             # Assume I for each qubit unless explicity stated
@@ -140,6 +161,7 @@ class HamiltonianConverter:
         Returns:
             openfermion.QubitOperator: Qubit Hamiltonian in openfermion form.
         """
+        logger.debug("Converting to openfermion QubitOperator.")
         if self._input is not None:
             return self._input
 
@@ -155,6 +177,7 @@ class HamiltonianConverter:
                     term += op + str(pos) + " "
             operator += value * QubitOperator(term)
 
+        logger.debug("Openfermion QubitOperator created.")
         return operator
 
     @cached_property
@@ -164,6 +187,7 @@ class HamiltonianConverter:
         Returns:
             qml.Hamiltonian: Hamiltonian pennylane object.
         """
+        logger.debug("Converting to pennylane Hamiltonian.")
         opdict = {"I": Identity, "X": PauliX, "Y": PauliY, "Z": PauliZ}
 
         # Initialise the operator with the identity contribution
@@ -183,6 +207,7 @@ class HamiltonianConverter:
 
         hamiltonian = qml.Hamiltonian(values, operators)
 
+        logger.debug("Pennylane Hamiltonian created.")
         return hamiltonian
 
     @cached_property
@@ -195,8 +220,25 @@ class HamiltonianConverter:
         Returns:
             qiskit_nature.opflow.PauliSumOp
         """
+        logger.debug("Converting to qiskit PauliSumOp.")
         from qiskit.opflow.primitive_ops import PauliSumOp
 
         input_list = [(key, value) for key, value in self._intermediate.items()]
 
+        logger.debug("Qiskit PauliSumOp created.")
         return PauliSumOp.from_list(input_list)
+
+
+def load_hamiltonian(filepath: Path, output: str) -> Union[QubitOperator, qml.Hamiltonian, PauliSumOp]:
+    """Create a Hamiltonian from a file.
+
+    Reads the input file and converts to the desired output format.
+
+    Args:
+        filepath (Path): Path to a saved Qubit Hamiltonian file.
+        output (str): One of 'openfermion', 'pennylane', 'qiskit'
+
+    Returns:
+        object: A qubit Hamiltonian.
+    """
+    return HamiltonianConverter(filepath).convert(output)
