@@ -117,7 +117,7 @@ def nbed(
         converter = HamiltonianConverter(qham)
         hamiltonians = getattr(converter, output.lower())
 
-    print_summary(hamiltonians, driver, transform, full_system=False)
+    print_summary(driver, transform, fci=False)
     return qham
 
 
