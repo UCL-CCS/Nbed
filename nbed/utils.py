@@ -251,13 +251,7 @@ def parse():
 
     logger.debug(f"Arguments: {args}")
     return args
-
-def load_hamiltonian(filepath: Path, output: str) -> object:
-    """Create a Hamiltonian from a file.
-    Reads the input file and converts to the desired output format.
-    """
-    return HamiltonianConverter(filepath).convert(output)
-
+r
 def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None:
     """Print a summary of the package results.
 
