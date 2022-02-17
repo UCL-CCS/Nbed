@@ -361,7 +361,7 @@ class NbedDriver:
             #     energy_elec_pyscf = self._global_rks.energy_elec(dm=dm_matrix)[0]
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
-            logger.debug(f"Subsystem RKS components found.")
+            logger.debug("Subsystem RKS components found.")
             return energy_elec, e_xc, j_mat
 
         (self.e_act, e_xc_act, j_act) = _rks_components(
