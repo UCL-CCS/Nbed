@@ -162,7 +162,7 @@ class NbedDriver:
         self.two_e_cross = None
         self._dft_potential = None
 
-        if self.charge % 2 == 1:
+        if self.charge % 2 == 0:
             logger.debug("Closed shells, using restricted SCF.")
             self._restricted_scf = True
         else:
@@ -209,7 +209,7 @@ class NbedDriver:
         logger.debug("Running full system HF.")
         mol_full = self._build_mol()
         # run Hartree-Fock
-        global_hf = scf.RHF(mol_full) if self._restricted_scf else scf.UHF(mol_full)
+        global_hf = scf.UHF(mol_full) #if not self._restricted_scf else scf.RHF(mol_full) 
         global_hf.conv_tol = self.convergence
         global_hf.max_memory = self.max_ram_memory
         global_hf.verbose = self.pyscf_print_level
@@ -245,8 +245,7 @@ class NbedDriver:
         logger.debug("Running full system RKS DFT.")
         mol_full = self._build_mol()
 
-        # global_ks = scf.RKS(mol_full) if self._restricted_scf else scf.UKS(mol_full)
-        global_ks = scf.UKS(mol_full)
+        global_ks = scf.UKS(mol_full) #if not self._restricted_scf else scf.RKS(mol_full)
         global_ks.conv_tol = self.convergence
         global_ks.xc = self.xc_functional
         global_ks.max_memory = self.max_ram_memory
