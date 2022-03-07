@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 ### Fixed
 - Typo with the license file, which was called 'LISENCE' instead of 'LICENSE'.
+- Updates to dependencies; pillow, ipython
 
 ## [0.0.1] - 2022-03-07
 ### Fixed 
