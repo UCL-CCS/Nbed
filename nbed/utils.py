@@ -5,16 +5,15 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Optional
 
 import yaml
-from openfermion import count_qubits, transforms
+from openfermion import count_qubits
 from openfermion.chem.pubchem import geometry_from_pubchem
 
 from nbed.ham_builder import HamiltonianBuilder
 
 from .driver import NbedDriver
-from .ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 
@@ -253,27 +252,21 @@ def parse():
     logger.debug(f"Arguments: {args}")
     return args
 
-
-def load_hamiltonian(filepath: Path, output: str) -> object:
-    """Create a Hamiltonian from a file.
-
-    Reads the input file and converts to the desired output format.
-    """
-    return HamiltonianConverter(filepath).convert(output)
-
-
-def print_summary(driver: NbedDriver, transform: str, fci: bool = False):
+def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None:
     """Print a summary of the package results.
     Args:
         driver (NbedDriver): An NbedDriver to summarise.
         fci (bool): Whether to run full system fci.
     """
-    if driver.molecular_ham is None:
-        logger.error(
-            "Driver does not have molecular hamiltonian. Cannot print summary."
-        )
-        logger.info("Driver does not have molecular hamiltonian. Cannot print summary.")
-        return
+    logger.debug("Printing summary of results.")
+    # for get statements
+    default = "Not calculated."
+
+    qham = HamiltonianBuilder(
+        driver.embedded_scf,
+        constant_e_shift=driver.classical_energy,
+        transform=transform,
+    ).build()
 
     logger.info("".center(80, "*"))
     logger.info("  Summary of Embedded Calculation".center(80))
@@ -302,11 +295,19 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False):
         logger.info(
             f"number of qubits required: {count_qubits(driver._huzinaga['hamiltonian'])}"
         )
+        print(f"number of qubits required: {count_qubits(huz_qham)}")
+        logger.info(f"number of qubits required: {count_qubits(huz_qham)}")
 
     if driver.projector in ["mu", "both"]:
         logger.info("".center(80, "*"))
+        print("  Mu shift calculation".center(20))
         logger.info("  Mu shift calculation".center(20))
-        logger.info(f"Total energy - active system at RHF level: {driver._mu['e_rhf']}")
+        print(
+            f"Total energy - active system at RHF level: {driver._mu.get('e_rhf', default)}"
+        )
+        logger.info(
+            f"Total energy - active system at RHF level: {driver._mu.get('e_rhf', default)}"
+        )
         if driver.run_ccsd_emb is True:
             logger.info(
                 f"Total energy - active system at CCSD level: {driver._mu['e_ccsd']}"
@@ -316,23 +317,34 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False):
                 f"Total energy - active system at FCI level: {driver._mu['e_fci']}"
             )
 
+        print(f"length of mu embedded fermionic Hamiltonian: {len(mu_qham.terms)}")
         logger.info(
             f"length of mu embedded fermionic Hamiltonian: {len(list(driver._mu['hamiltonian']))}"
         )
         logger.info(
             f"number of qubits required: {count_qubits(driver._mu['hamiltonian'])}"
         )
+        print(f"number of qubits required: {count_qubits(mu_qham)}")
+        logger.info(f"number of qubits required: {count_qubits(mu_qham)}")
+
+    full_system_hamiltonian = HamiltonianBuilder(
+        driver._global_hf, constant_e_shift=0, transform=transform
+    ).build()
 
     logger.info("".center(80, "*"))
     logger.info("  Summary of reference Calculation".center(80))
     logger.info("".center(80, "*"))
 
     if fci:
+        print("Running Full system FCI and preparing Hamiltonian.")
+        logger.info("Running Full system FCI and preparing Hamiltonian.")
+        print(f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}")
         logger.info(
             f"global (expensive) full FCI calculation {driver._global_fci.e_tot}"
         )
-    full_system_hamiltonian = HamiltonianBuilder(
-        driver._global_hf, constant_e_shift=0, transform=transform
+
+    print(
+        f"length of full system fermionic Hamiltonian: {len(full_system_hamiltonian.terms)}"
     )
     logger.info(
         f"length of full system fermionic Hamiltonian: {len(list(full_system_hamiltonian))}"
@@ -384,6 +396,7 @@ def build_ordered_xyz_string(struct_dict: dict, active_atom_inds: list) -> str:
         struct_dict (dict): Dictionary of indexed atoms and Cartesian coordinates (x,y,z)
         active_atom_inds (list): list of indices to be considered active. This will put these atoms to the top of the xyz file.
                                  Note indices are chosen from the struct_dict.
+
     Returns:
         xyz_string (str): raw xyz string of molecular geometry (atoms ordered by atom_ordering_by_inds list)
 

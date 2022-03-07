@@ -305,44 +305,6 @@ class NbedDriver:
         local_rhf.max_memory = self.max_ram_memory
         local_rhf.conv_tol = self.convergence
         local_rhf.verbose = self.pyscf_print_level
-
-        logger.debug("Define Hartree-Fock object in localized basis")
-        # TODO: need to check if change of basis here is necessary (START)
-        h_core = local_rhf.get_hcore()
-
-        local_rhf.get_hcore = (
-            lambda *args: self.localized_system._local_basis_transform.conj().T
-            @ h_core
-            @ self.localized_system._local_basis_transform
-        )
-
-        def new_rhf_veff(rhf: scf.RHF, dm: np.ndarray = None, hermi: int = 1):
-            if dm is None:
-                if rhf.mo_coeff is not None:
-                    dm = rhf.make_rdm1(rhf.mo_coeff, rhf.mo_occ)
-                else:
-                    dm = rhf.init_guess_by_1e()
-
-            # if pyscf_RHF._eri is None:
-            #     pyscf_RHF._eri = pyscf_RHF.mol.intor('int2e', aosym='s8')
-
-            vj, vk = rhf.get_jk(mol=rhf.mol, dm=dm, hermi=hermi)
-            v_eff = vj - vk * 0.5
-
-            # v_eff = pyscf_obj.get_veff(dm=dm)
-            new_veff = (
-                self.localized_system._local_basis_transform.conj().T
-                @ v_eff
-                @ self.localized_system._local_basis_transform
-            )
-
-            return new_veff
-
-        local_rhf.get_veff = (
-            lambda mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1: new_rhf_veff(
-                local_rhf, dm=dm, hermi=hermi
-            )
-        )
         local_rhf.max_cycle = self.max_hf_cycles
 
         return local_rhf
@@ -412,7 +374,7 @@ class NbedDriver:
             #     energy_elec_pyscf = self._global_ks.energy_elec(dm=dm_matrix)[0]
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
-            logger.debug(f"Subsystem RKS components found.")
+            logger.debug("Subsystem RKS components found.")
             return energy_elec, e_xc, j_mat
 
         (self.e_act, e_xc_act, j_act) = _ks_components(
@@ -793,3 +755,40 @@ class NbedDriver:
             self.classical_energy = self._huzinaga["classical_energy"]
 
         logger.info("Embedding complete.")
+
+    def embed_dft_in_dft(self, xc_func: str, embedding_method: Callable):
+        """Return energy of DFT in DFT embedding.
+
+        Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
+        This is done when object is initialized.
+
+        Args:
+            xc_func (str): XC functional to use in active region.
+            embedding_method (callable): Embedding method to use (mu or huzinaga).
+
+        Returns:
+            float: Energy of DFT in embedding.
+        """
+        result = {}
+        e_nuc = self._global_rks.energy_nuc()
+
+        local_rks_same_functional = self._init_local_rks(xc_func)
+        hcore_std = local_rks_same_functional.get_hcore()
+        result["v_emb_dft"], result["scf_dft"] = embedding_method(
+            local_rks_same_functional
+        )
+        y_emb = result["scf_dft"].make_rdm1()
+        # calculate correction
+        result["correction"] = np.einsum(
+            "ij,ij",
+            result["v_emb_dft"],
+            (y_emb - self.localized_system.dm_active),
+        )
+        veff = result["scf_dft"].get_veff(dm=y_emb)
+        rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
+
+        result["e_rks"] = (
+            rks_e_elec + self.e_env + self.two_e_cross + result["correction"] + e_nuc
+        )
+
+        return result
