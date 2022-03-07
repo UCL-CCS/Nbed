@@ -1,4 +1,6 @@
-[![CICD Status](https://github.com/UCL-CCS/Nbed/actions/workflows/release.yaml/badge.svg?branch=master)](https://github.com/UCL-CCS/Nbed/actions/workflows/release.yaml)[![Documentation Status](https://readthedocs.org/projects/nbed/badge/?version=latest)](https://nbed.readthedocs.io/en/latest/?badge=latest)
+[![CICD Status](https://github.com/UCL-CCS/Nbed/actions/workflows/release.yaml/badge.svg?branch=master)](https://github.com/UCL-CCS/Nbed/actions/workflows/release.yaml) [![Documentation Status](https://readthedocs.org/projects/nbed/badge/?version=latest)](https://nbed.readthedocs.io/en/latest/?badge=latest) [![DOI](https://zenodo.org/badge/341631818.svg)](https://zenodo.org/badge/latestdoi/341631818)
+
+
 
 # Nbed
 

@@ -1,4 +1,4 @@
-cff-version: 1.0
+cff-version: 1.2.0
 message: "Nbed enables the application of quauntum simulation algorithms to molecules of arbitrary size. If you use Nbed in your research please cite it."
 authors:
   - family-names: Williams
@@ -10,3 +10,4 @@ authors:
 title: "Nbed"
 version: 0.0.1
 date-released: 2022-02-03
+doi: 10.5281/zenodo.6323338
