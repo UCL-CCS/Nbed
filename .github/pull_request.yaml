@@ -1,5 +1,11 @@
 name: PR CICD
-on: [pull_request]
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - edited
 jobs:
   build:
     runs-on: ubuntu-latest
