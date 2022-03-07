@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed 
 - `NbedDriver._init_local_rhf` reversion which used the old `local_basis_transform`
 ### Added
+- Basic functionality for initial release
+- Sphinx documentation on readthedocs
 - Changelog!
 - DOI button from zenodo in readme
 - DOI added to citation file
