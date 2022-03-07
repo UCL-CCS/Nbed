@@ -10,3 +10,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `NbedDriver._init_local_rhf` reversion which used the old `local_basis_transform`
 ### Added
 - Changelog!
+### Changed
+- LISCENCE.txt changed to LICENSE.md
