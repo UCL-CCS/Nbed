@@ -174,7 +174,7 @@ class Localizer(ABC):
         # active AOs coeffs for a given MO j
         numerator_all = np.einsum("ij->j", (c_virtual_loc[ao_active_inds, :]) ** 2)
         # all AOs coeffs for a given MO j
-        denominator_all = np.einsum("ij->j", c_virtual_loc**2)
+        denominator_all = np.einsum("ij->j", c_virtual_loc ** 2)
 
         active_percentage_MO = numerator_all / denominator_all
 

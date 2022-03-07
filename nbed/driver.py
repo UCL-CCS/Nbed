@@ -4,16 +4,15 @@ import logging
 import os
 from copy import copy
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Callable
+from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
-from pyscf import cc, fci, gto, scf, dft
+from pyscf import cc, dft, fci, gto, scf
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
-
 from nbed.localizers import (
     BOYSLocalizer,
     IBOLocalizer,
@@ -21,6 +20,7 @@ from nbed.localizers import (
     PMLocalizer,
     SPADELocalizer,
 )
+
 from .scf import huzinaga_RHF, huzinaga_RKS
 
 # from .log_conf import setup_logs
@@ -169,7 +169,7 @@ class NbedDriver:
             logger.debug("Open shells, using unrestricted SCF.")
             self._restricted_scf = False
 
-        # self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
+        # self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu) # TODO uncomment.
         logger.debug("Driver initialisation complete.")
 
     def _build_mol(self) -> gto.mole:
@@ -209,7 +209,7 @@ class NbedDriver:
         logger.debug("Running full system HF.")
         mol_full = self._build_mol()
         # run Hartree-Fock
-        global_hf = scf.UHF(mol_full) #if not self._restricted_scf else scf.RHF(mol_full) 
+        global_hf = scf.UHF(mol_full) if not self._restricted_scf else scf.RHF(mol_full)
         global_hf.conv_tol = self.convergence
         global_hf.max_memory = self.max_ram_memory
         global_hf.verbose = self.pyscf_print_level
@@ -245,7 +245,7 @@ class NbedDriver:
         logger.debug("Running full system RKS DFT.")
         mol_full = self._build_mol()
 
-        global_ks = scf.UKS(mol_full) #if not self._restricted_scf else scf.RKS(mol_full)
+        global_ks = scf.UKS(mol_full) if not self._restricted_scf else scf.RKS(mol_full)
         global_ks.conv_tol = self.convergence
         global_ks.xc = self.xc_functional
         global_ks.max_memory = self.max_ram_memory

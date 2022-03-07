@@ -2,10 +2,10 @@
 
 import json
 import logging
+import re
 from numbers import Number
 from pathlib import Path
 from typing import Dict, Optional, Union
-import re
 
 import pennylane as qml
 from cached_property import cached_property

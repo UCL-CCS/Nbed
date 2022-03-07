@@ -5,7 +5,7 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Optional, Union, Tuple
+from typing import Optional, Tuple, Union
 
 import yaml
 from openfermion import count_qubits, transforms

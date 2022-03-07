@@ -4,7 +4,7 @@ import logging
 from typing import Optional, Tuple
 
 import numpy as np
-from pyscf import gto, dft
+from pyscf import dft, gto
 from scipy import linalg
 
 from .base import Localizer
@@ -71,10 +71,12 @@ class SPADELocalizer(Localizer):
         """
         logger.debug("Localising with SPADE.")
 
+        # We want the same partition for each spin.
+        # It wouldn't make sense to have different spin states be localized differently.
         occupancy = (
-            np.sum(self._global_ks.mo_occ, 0)
-            if not self._restricted_scf
-            else self._global_ks.mo_occ
+            self._global_ks.mo_occ
+            if self._restricted_scf
+            else np.sum(self._global_ks.mo_occ, 0)
         )
 
         print(f"{occupancy=}")

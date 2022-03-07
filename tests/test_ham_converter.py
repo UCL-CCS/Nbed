@@ -2,15 +2,15 @@
 
 from nis import match
 from pathlib import Path
-from pytest import raises
 
 import numpy as np
 import pennylane as qml
 from openfermion import QubitOperator
+from pytest import raises
 from qiskit.opflow.primitive_ops.pauli_sum_op import PauliSumOp
 
-from nbed.ham_converter import HamiltonianConverter
 from nbed.exceptions import HamiltonianConverterError
+from nbed.ham_converter import HamiltonianConverter
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
