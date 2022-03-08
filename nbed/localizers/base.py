@@ -216,22 +216,20 @@ class Localizer(ABC):
             self._c_loc_occ,
         ) = alpha
 
-        self.dm_active = 2.0 * self.c_active @ self.c_active.T
-        self.dm_enviro = 2.0 * self.c_enviro @ self.c_enviro.T
+        self.dm_active = self.c_active @ self.c_active.T
+        self.dm_enviro = self.c_enviro @ self.c_enviro.T
 
-        self.beta_active_MO_inds = None
-        self.beta_enviro_MO_inds = None
-        self.beta_c_active = None
-        self.beta_c_enviro = None
-        self._beta_c_loc_occ = None
-        self.beta_dm_active = None
-        self.beta_dm_enviro = None
-
-        if beta is not None:
-            # Weight the DMs by 1 for unrestricted to combine them.
-            self.dm_active *= 0.5
-            self.dm_enviro *= 0.5
-
+        if beta is None:
+            self.dm_active *= 2.
+            self.dm_enviro *= 2.
+            self.beta_active_MO_inds = None
+            self.beta_enviro_MO_inds = None
+            self.beta_c_active = None
+            self.beta_c_enviro = None
+            self._beta_c_loc_occ = None
+            self.beta_dm_active = np.zeros(self.dm_active.shape)
+            self.beta_dm_enviro = np.zeros(self.dm_enviro.shape)
+        else:
             (
                 self.beta_active_MO_inds,
                 self.beta_enviro_MO_inds,
