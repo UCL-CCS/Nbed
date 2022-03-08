@@ -131,10 +131,16 @@ class SPADELocalizer(Localizer):
             c_loc_occ (np.array): full C matrix of localized occupied MOs
         """
         if self._restricted_scf:
-            alpha = self._localize_spin(self._global_ks.mo_coeff, self._global_ks.mo_occ)
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff, self._global_ks.mo_occ
+            )
             beta = None
         else:
-            alpha = self._localize_spin(self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0])
-            beta = self._localize_spin(self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1])
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0]
+            )
+            beta = self._localize_spin(
+                self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1]
+            )
 
         return (alpha, beta)

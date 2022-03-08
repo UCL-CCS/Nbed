@@ -357,16 +357,24 @@ class NbedDriver:
             """
             logger.debug("Finding subsystem RKS componenets.")
             # It seems that PySCF lumps J and K in the J array
+            # need to access the potential for the right subsystem for unrestricted
+            logger.debug(subsystem_dm.shape)
             two_e_term = ks_system.get_veff(dm=subsystem_dm)
-            j_mat = two_e_term.vj
-            # k_mat = np.zeros_like(j_mat)
+            j_mat = ks_system.get_j(dm=subsystem_dm)
+            # k_mat = np.zeros_like(j_mat) not needed for PySCF.
 
-            e_xc = two_e_term.exc
             # v_xc = two_e_term - j_mat
 
-            energy_elec = (
-                np.einsum("ij,ji->", ks_system.get_hcore(), subsystem_dm)
-                + two_e_term.ecoul
+            if not self._restricted_scf:
+                j_tot = j_mat[0] + j_mat[1]
+                dm_tot = subsystem_dm[0] + subsystem_dm[1]
+            else:
+                j_tot = j_mat
+                dm_tot = subsystem_dm
+
+            e_act = (
+                np.einsum("ij,ji->", ks_system.get_hcore(), dm_tot)
+                + 0.5 * (np.einsum("ij,ji->", j_tot, dm_tot))
                 + two_e_term.exc
             )
 
@@ -374,31 +382,61 @@ class NbedDriver:
             #     energy_elec_pyscf = self._global_ks.energy_elec(dm=dm_matrix)[0]
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
-            logger.debug("Subsystem RKS components found.")
-            return energy_elec, e_xc, j_mat
+            logger.debug(f"Subsystem RKS components found.")
+            return e_act, two_e_term, j_mat
 
-        (self.e_act, e_xc_act, j_act) = _ks_components(
-            self._global_ks, self.localized_system.dm_active
-        )
-        (self.e_env, e_xc_env, j_env) = _ks_components(
-            self._global_ks, self.localized_system.dm_enviro
-        )
+        if not self._restricted_scf:
+            dm_act = np.array(
+                [self.localized_system.dm_active, self.localized_system.beta_dm_active]
+            )
+            dm_env = np.array(
+                [self.localized_system.dm_enviro, self.localized_system.beta_dm_enviro]
+            )
+        else:
+            dm_act = self.localized_system.dm_active
+            dm_env = self.localized_system.dm_enviro
+
+        (e_act, two_e_act, j_act) = _ks_components(self._global_ks, dm_act)
+        # logger.debug(e_act, alpha_e_xc_act)
+        (e_env, two_e_env, j_env) = _ks_components(self._global_ks, dm_env)
+        # logger.debug(alpha_e_env, alpha_e_xc_env, alpha_ecoul_env)
+        self.e_act = e_act
+        self.e_env = e_env
+
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
+        total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
 
-        two_e_term_total = self._global_ks.get_veff(
-            dm=self.localized_system.dm_active + self.localized_system.dm_enviro
-        )
+        if not self._restricted_scf:
+            total_dm += (
+                self.localized_system.beta_dm_active
+                + self.localized_system.beta_dm_enviro
+            )
+
+        two_e_term_total = self._global_ks.get_veff(dm=total_dm)
         e_xc_total = two_e_term_total.exc
 
-        j_cross = 0.5 * (
-            np.einsum("ij,ij", self.localized_system.dm_active, j_env)
-            + np.einsum("ij,ij", self.localized_system.dm_enviro, j_act)
-        )
-        # Because of projection
+        if self._restricted_scf:
+            j_cross = 0.5 * (
+                np.einsum("ij,ij", self.localized_system.dm_active, j_env)
+                + np.einsum("ij,ij", self.localized_system.dm_enviro, j_act)
+            )
+        else:
+            j_cross = 0.5 * (
+                np.einsum("ij,ij", self.localized_system.dm_active, j_env[0])
+                + np.einsum("ij,ij", self.localized_system.dm_enviro, j_act[0])
+                + np.einsum("ij,ij", self.localized_system.dm_active, j_env[1])
+                + np.einsum("ij,ij", self.localized_system.dm_enviro, j_act[1])
+                + np.einsum("ij,ij", self.localized_system.beta_dm_active, j_env[1])
+                + np.einsum("ij,ij", self.localized_system.beta_dm_enviro, j_act[1])
+                + np.einsum("ij,ij", self.localized_system.beta_dm_active, j_env[0])
+                + np.einsum("ij,ij", self.localized_system.beta_dm_enviro, j_act[0])
+            )
+
+        # Because of projection we expect kinetic term to be zero
         k_cross = 0.0
 
-        xc_cross = e_xc_total - e_xc_act - e_xc_env
+        xc_cross = e_xc_total - two_e_act.exc - two_e_env.exc
 
         # overall two_electron cross energy
         self.two_e_cross = j_cross + k_cross + xc_cross
@@ -406,20 +444,17 @@ class NbedDriver:
         energy_DFT_components = (
             self.e_act + self.e_env + self.two_e_cross + self._global_ks.energy_nuc()
         )
-        logger.info("RKS components")
-        logger.info(self.e_act)
-        logger.info(self.e_env)
-        logger.info(self.two_e_cross)
-        logger.info(self._global_ks.energy_nuc())
+        logger.debug("RKS components")
         if not np.isclose(energy_DFT_components, self._global_ks.e_tot):
             logger.error(
                 "DFT energy of localized components not matching supersystem DFT."
             )
+            logger.debug(f"{self._global_ks.scf_summary}")
+            logger.debug(f"{energy_DFT_components}")
+            logger.debug(self._global_ks.e_tot)
             raise ValueError(
                 "DFT energy of localized components not matching supersystem DFT."
             )
-
-        return None
 
     @cached_property
     def _env_projector(self) -> np.ndarray:

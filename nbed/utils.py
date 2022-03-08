@@ -252,6 +252,7 @@ def parse():
     logger.debug(f"Arguments: {args}")
     return args
 
+
 def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None:
     """Print a summary of the package results.
     Args:

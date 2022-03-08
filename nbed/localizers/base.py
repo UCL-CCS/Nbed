@@ -220,8 +220,8 @@ class Localizer(ABC):
         self.dm_enviro = self.c_enviro @ self.c_enviro.T
 
         if beta is None:
-            self.dm_active *= 2.
-            self.dm_enviro *= 2.
+            self.dm_active *= 2.0
+            self.dm_enviro *= 2.0
             self.beta_active_MO_inds = None
             self.beta_enviro_MO_inds = None
             self.beta_c_active = None
