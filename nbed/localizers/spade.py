@@ -59,7 +59,7 @@ class SPADELocalizer(Localizer):
             run_virtual_localization=run_virtual_localization,
         )
 
-    def _localize_spin(self, c_matrix: np.ndarray, alpha: bool = True) -> np.ndarray:
+    def _localize_spin(self, c_matrix: np.ndarray, occupancy: np.ndarray) -> np.ndarray:
         """Localize orbitals using SPADE.
 
         Args:
@@ -71,14 +71,9 @@ class SPADELocalizer(Localizer):
         """
         logger.debug("Localising with SPADE.")
 
-        index = 0 if alpha else 1
-        c_matrix = c_matrix[index]
-        occupancy = self._global_ks.mo_occ[index]
-
         # We want the same partition for each spin.
         # It wouldn't make sense to have different spin states be localized differently.
 
-        print(f"{occupancy=}")
         n_occupied_orbitals = np.count_nonzero(occupancy)
         occupied_orbitals = c_matrix[:, :n_occupied_orbitals]
 
@@ -136,10 +131,10 @@ class SPADELocalizer(Localizer):
             c_loc_occ (np.array): full C matrix of localized occupied MOs
         """
         if self._restricted_scf:
-            alpha = self._localize_spin(self._global_ks.mo_coeff, alpha=True)
+            alpha = self._localize_spin(self._global_ks.mo_coeff, self._global_ks.mo_occ)
             beta = None
         else:
-            alpha = self._localize_spin(self._global_ks.mo_coeff, alpha=True)
-            beta = self._localize_spin(self._global_ks.mo_coeff, alpha=False)
+            alpha = self._localize_spin(self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0])
+            beta = self._localize_spin(self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1])
 
         return (alpha, beta)
