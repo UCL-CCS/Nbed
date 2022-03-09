@@ -2,16 +2,12 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy as np
-import scipy as sp
-from cached_property import cached_property
-from pyscf import dft, gto, lo
-from pyscf.lib import StreamObject, tag_array
+from pyscf import scf
+from pyscf.lib import StreamObject
 from pyscf.lo import vvo
-from scipy import linalg
-from sympy import beta
 
 # from ..utils import restricted_float_percentage
 
@@ -73,7 +69,7 @@ class Localizer(ABC):
         self._occ_cutoff = self._valid_threshold(occ_cutoff)
         self._virt_cutoff = self._valid_threshold(virt_cutoff)
         self._run_virtual_localization = run_virtual_localization
-        self._restricted_scf = not isinstance(self._global_ks, dft.uks.UKS)
+        self._restricted_scf = isinstance(self._global_ks, scf.RHF)
 
         # Run the localization procedure
         self.run()
