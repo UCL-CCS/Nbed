@@ -296,7 +296,6 @@ class NbedDriver:
 
         Returns:
             local_hf (scf.uhf.UHF or scf.rhf.RHF): embedded Hartree-Fock object.
-            dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
         """            
 
         logger.debug("Constructing localised RHF object.")
@@ -529,7 +528,7 @@ class NbedDriver:
 
         Args:
             localized_scf (StreamObject): A PySCF scf method in the localized basis.
-            dft_potnetial (np.ndarray): Potential calculated from two electron terms in dft.
+            dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
 
         Returns:
             np.ndarray: Matrix form of the embedding potential.
@@ -560,7 +559,7 @@ class NbedDriver:
 
         Args:
             localized_scf (StreamObject): A PySCF scf method in the localized basis.
-            dft_potnetial (np.ndarray): Potential calculated from two electron terms in dft.
+            dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
 
         Returns:
             np.ndarray: Matrix form of the embedding potential.
