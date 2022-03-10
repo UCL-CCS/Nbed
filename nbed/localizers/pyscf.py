@@ -2,7 +2,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
 from pyscf import lo
@@ -76,15 +76,36 @@ class PySCFLocalizer(Localizer, ABC):
 
     def _localize(
         self,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[Tuple, Union[Tuple, None]]:
         """Localise orbitals using PySCF localization schemes.
 
-        Args:
-            method (str): String of orbital localization method: 'pipekmezey', 'boys' or 'ibo'
+        Returns: 
+            Tuple[Tuple, Union[Tuple, None]]: The alpha and beta localized systems. 
+                Note beta is None for restricted SCF.
         """
         logger.debug("Starting PySCF localization.")
-        n_occupied_orbitals = np.count_nonzero(self._global_ks.mo_occ == 2)
-        c_std_occ = self._global_ks.mo_coeff[:, :n_occupied_orbitals]
+
+        if self._restricted_scf:
+            alpha = self._localize_spin(self._global_ks.mo_coeff, self._global_ks.mo_occ)
+            beta = None
+        else:
+            alpha = self._localize_spin(self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0])
+            beta = self._localize_spin(self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1])
+            
+        return alpha, beta
+
+    def _localize_spin(self, c_matrix: np.ndarray, occupancy: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Localize orbitals of one spin using SPADE.
+
+        Args:
+            c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
+            occupancy (np.ndarray): Occupancy of orbitals.
+
+        Returns:
+            np.ndarray: Localized C matrix of occupied orbitals.
+        """
+        n_occupied_orbitals = np.count_nonzero(occupancy)
+        c_std_occ = c_matrix[:, :n_occupied_orbitals]
 
         c_loc_occ = self._pyscf_method(c_std_occ)
 

@@ -69,7 +69,7 @@ class Localizer(ABC):
         self._occ_cutoff = self._valid_threshold(occ_cutoff)
         self._virt_cutoff = self._valid_threshold(virt_cutoff)
         self._run_virtual_localization = run_virtual_localization
-        self._restricted_scf = isinstance(self._global_ks, scf.RHF)
+        self._restricted_scf = isinstance(self._global_ks, scf.hf.RHF)
 
         # Run the localization procedure
         self.run()

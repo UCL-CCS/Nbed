@@ -59,12 +59,39 @@ class SPADELocalizer(Localizer):
             run_virtual_localization=run_virtual_localization,
         )
 
+    def _localize(
+        self,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Localise orbitals using SPADE.
+
+        Returns:
+            active_MO_inds (np.array): 1D array of active occupied MO indices
+            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
+            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
+            c_enviro (np.array): C matrix of localized occupied ennironment MOs
+            c_loc_occ (np.array): full C matrix of localized occupied MOs
+        """
+        if self._restricted_scf:
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff, self._global_ks.mo_occ
+            )
+            beta = None
+        else:
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0]
+            )
+            beta = self._localize_spin(
+                self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1]
+            )
+
+        return (alpha, beta)
+        
     def _localize_spin(self, c_matrix: np.ndarray, occupancy: np.ndarray) -> np.ndarray:
-        """Localize orbitals using SPADE.
+        """Localize orbitals of one spin using SPADE.
 
         Args:
-            occupancy (np.ndarray): Occupancy of orbitals.
             c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
+            occupancy (np.ndarray): Occupancy of orbitals.
 
         Returns:
             np.ndarray: Localized C matrix of occupied orbitals.
@@ -118,29 +145,3 @@ class SPADELocalizer(Localizer):
 
         return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
 
-    def _localize(
-        self,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Localise orbitals using SPADE.
-
-        Returns:
-            active_MO_inds (np.array): 1D array of active occupied MO indices
-            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
-            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
-            c_enviro (np.array): C matrix of localized occupied ennironment MOs
-            c_loc_occ (np.array): full C matrix of localized occupied MOs
-        """
-        if self._restricted_scf:
-            alpha = self._localize_spin(
-                self._global_ks.mo_coeff, self._global_ks.mo_occ
-            )
-            beta = None
-        else:
-            alpha = self._localize_spin(
-                self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0]
-            )
-            beta = self._localize_spin(
-                self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1]
-            )
-
-        return (alpha, beta)

@@ -61,7 +61,7 @@ def test_PMLocalizer_local_basis_transform() -> None:
     assert np.isclose(n_all_electrons, n_active_electrons + n_enviro_electrons)
 
 
-def test_unrestricted_localization() -> None:
+def test_spin_localizations_match() -> None:
     """Check that localization of restricted and unrestricted match."""
     # define RKS DFT object
     full_mol = gto.Mole(
