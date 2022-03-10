@@ -442,8 +442,8 @@ class NbedDriver:
         self.two_e_cross = j_cross + k_cross + xc_cross
 
         logger.debug("RKS components")
-        logger.debug(f"e_act: {e_act}")
-        logger.debug(f"e_env: {e_env}")
+        logger.debug(f"e_act: {self.e_act}")
+        logger.debug(f"e_env: {self.e_env}")
         logger.debug(f"two_e_cross: {self.two_e_cross}")
         logger.debug(f"e_nuc: {self._global_ks.energy_nuc()}")
 
