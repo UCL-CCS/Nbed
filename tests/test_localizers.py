@@ -99,10 +99,11 @@ def test_spin_localizations_match() -> None:
         run_virtual_localization=run_virtual_localization,
     )
 
-    #assert loc_system.active_MO_inds 
+    # assert loc_system.active_MO_inds
     assert restricted.beta_active_MO_inds is None
     assert np.all(unrestricted.active_MO_inds == unrestricted.beta_active_MO_inds)
     assert np.all(restricted.active_MO_inds == unrestricted.active_MO_inds)
+
 
 if __name__ == "__main__":
     pass

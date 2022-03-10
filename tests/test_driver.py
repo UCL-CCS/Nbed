@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 import pytest
-from numpy import number
-from numpy import isclose
+from numpy import isclose, number
 from pyscf.lib.misc import StreamObject
 
 from nbed.driver import NbedDriver
@@ -18,8 +17,10 @@ logger = logging.getLogger(__name__)
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
+
 class UnrestrictedDriver(NbedDriver):
     """Force use of unrestricted SCF for driver."""
+
     def __init__(
         self,
         geometry: str,
@@ -97,8 +98,11 @@ class UnrestrictedDriver(NbedDriver):
 
         self._restricted_scf = False
 
-        self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu) # TODO uncomment.
+        self.embed(
+            init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu
+        )  # TODO uncomment.
         logger.debug("Driver initialisation complete.")
+
 
 def test_incorrect_geometry_path() -> None:
     """test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
@@ -244,6 +248,7 @@ def test_n_active_atoms_valid() -> None:
             run_fci_emb=args["run_fci_emb"],
         )
 
+
 def test_subsystem_dft() -> None:
     """Check thatcmponenets match total dft energy."""
     args = {
@@ -273,10 +278,14 @@ def test_subsystem_dft() -> None:
     )
 
     energy_DFT_components = (
-        driver.e_act + driver.e_env + driver.two_e_cross + driver._global_ks.energy_nuc()
+        driver.e_act
+        + driver.e_env
+        + driver.two_e_cross
+        + driver._global_ks.energy_nuc()
     )
 
     assert isclose(energy_DFT_components, driver._global_ks.e_tot)
+
 
 # def test_subsystem_dft_spin_consistency() -> None:
 #     """Check restricted & unrestricted components match."""
@@ -303,7 +312,7 @@ def test_subsystem_dft() -> None:
 #         convergence=args["convergence"],
 #         savefile=args["savefile"],
 #         run_ccsd_emb=args["run_ccsd_emb"],
-#         run_fci_emb=args["run_fci_emb"],      
+#         run_fci_emb=args["run_fci_emb"],
 #     )
 
 #     unrestricted_driver = NbedDriver(
@@ -316,7 +325,7 @@ def test_subsystem_dft() -> None:
 #         convergence=args["convergence"],
 #         savefile=args["savefile"],
 #         run_ccsd_emb=args["run_ccsd_emb"],
-#         run_fci_emb=args["run_fci_emb"],      
+#         run_fci_emb=args["run_fci_emb"],
 #     )
 #     # Could be problems with caching here
 #     unrestricted_driver._restricted_scf = False
@@ -324,9 +333,9 @@ def test_subsystem_dft() -> None:
 
 #     restricted_driver.e_act
 #     restricted_driver.e_env
-#     restricted_driver.two_e_cross 
+#     restricted_driver.two_e_cross
 #     restricted_driver._global_ks.energy_nuc()
-  
+
 
 if __name__ == "__main__":
     pass

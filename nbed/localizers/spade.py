@@ -85,7 +85,7 @@ class SPADELocalizer(Localizer):
             )
 
         return (alpha, beta)
-        
+
     def _localize_spin(self, c_matrix: np.ndarray, occupancy: np.ndarray) -> np.ndarray:
         """Localize orbitals of one spin using SPADE.
 
@@ -144,4 +144,3 @@ class SPADELocalizer(Localizer):
         self.enviro_selection_condition = sigma
 
         return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
-

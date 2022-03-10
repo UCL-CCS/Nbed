@@ -79,22 +79,30 @@ class PySCFLocalizer(Localizer, ABC):
     ) -> Tuple[Tuple, Union[Tuple, None]]:
         """Localise orbitals using PySCF localization schemes.
 
-        Returns: 
-            Tuple[Tuple, Union[Tuple, None]]: The alpha and beta localized systems. 
+        Returns:
+            Tuple[Tuple, Union[Tuple, None]]: The alpha and beta localized systems.
                 Note beta is None for restricted SCF.
         """
         logger.debug("Starting PySCF localization.")
 
         if self._restricted_scf:
-            alpha = self._localize_spin(self._global_ks.mo_coeff, self._global_ks.mo_occ)
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff, self._global_ks.mo_occ
+            )
             beta = None
         else:
-            alpha = self._localize_spin(self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0])
-            beta = self._localize_spin(self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1])
-            
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0]
+            )
+            beta = self._localize_spin(
+                self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1]
+            )
+
         return alpha, beta
 
-    def _localize_spin(self, c_matrix: np.ndarray, occupancy: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _localize_spin(
+        self, c_matrix: np.ndarray, occupancy: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Localize orbitals of one spin using SPADE.
 
         Args:

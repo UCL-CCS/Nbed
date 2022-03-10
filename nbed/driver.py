@@ -4,7 +4,7 @@ import logging
 import os
 from copy import copy
 from pathlib import Path
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
 import scipy as sp
@@ -169,7 +169,7 @@ class NbedDriver:
             logger.debug("Open shells, using unrestricted SCF.")
             self._restricted_scf = False
 
-        #self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu) # TODO uncomment.
+        # self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu) # TODO uncomment.
         logger.debug("Driver initialisation complete.")
 
     def _build_mol(self) -> gto.mole:
@@ -302,10 +302,12 @@ class NbedDriver:
         if self._restricted_scf:
             embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
             local_hf: StreamObject = scf.RHF(embedded_mol)
-        else: 
-            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(self.localized_system.beta_active_MO_inds)
+        else:
+            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
+                self.localized_system.beta_active_MO_inds
+            )
             local_hf: StreamObject = scf.UHF(embedded_mol)
-            
+
         local_hf.max_memory = self.max_ram_memory
         local_hf.conv_tol = self.convergence
         local_hf.verbose = self.pyscf_print_level
@@ -313,8 +315,8 @@ class NbedDriver:
 
         return local_hf
 
-    def _init_local_rks(self, xc_functional: str) -> scf.RKS:
-        """Function to build embedded restricted Hartree Fock object for active subsystem.
+    def _init_local_ks(self, xc_functional: str) -> Union[dft.UKS, dft.RKS]:
+        """Function to build embedded Hartree Fock object for active subsystem.
 
         Note this function overwrites the total number of electrons to only include active number.
 
@@ -322,21 +324,27 @@ class NbedDriver:
             xc_functonal (str): XC functional to use in embedded calculation.
 
         Returns:
-            local_rks (scf.RKS): embedded restricted Kohn-Sham DFT object.
+            pyscf.dft.RKS | pyscf.dft.UKS: embedded Kohn-Sham DFT object.
         """
         logger.debug("Initialising localised RKS object.")
         embedded_mol: gto.Mole = self._build_mol()
 
-        # overwrite total number of electrons to only include active system
-        embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
+        if self._restricted_scf:
+            # overwrite total number of electrons to only include active system
+            embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
+            local_ks: StreamObject = scf.RKS(embedded_mol)
+        else:
+            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
+                self.localized_system.beta_active_MO_inds
+            )
+            local_ks: StreamObject = scf.UKS(embedded_mol)
 
-        local_rks: StreamObject = scf.RKS(embedded_mol)
-        local_rks.max_memory = self.max_ram_memory
-        local_rks.conv_tol = self.convergence
-        local_rks.verbose = self.pyscf_print_level
-        local_rks.xc = xc_functional
+        local_ks.max_memory = self.max_ram_memory
+        local_ks.conv_tol = self.convergence
+        local_ks.verbose = self.pyscf_print_level
+        local_ks.xc = xc_functional
 
-        return local_rks
+        return local_ks
 
     def _subsystem_dft(self) -> None:
         """Function to perform subsystem RKS DFT calculation."""
