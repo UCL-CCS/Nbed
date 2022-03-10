@@ -447,9 +447,7 @@ class NbedDriver:
         logger.debug(f"two_e_cross: {self.two_e_cross}")
         logger.debug(f"e_nuc: {self._global_ks.energy_nuc()}")
 
-        energy_DFT_components = (
-            self.e_act + self.e_env + self.two_e_cross + self._global_ks.energy_nuc()
-        )
+        self.e_act + self.e_env + self.two_e_cross + self._global_ks.energy_nuc()
 
     @cached_property
     def _env_projector(self) -> np.ndarray:
