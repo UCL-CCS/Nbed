@@ -290,7 +290,7 @@ class NbedDriver:
         )
         return localized_system
 
-    def _init_local_rhf(self) -> scf.RHF:
+    def _init_local_hf(self) -> scf.RHF:
         """Function to build embedded RHF object for active subsystem.
 
         Note this function overwrites the total number of electrons to only include active number.
@@ -299,15 +299,19 @@ class NbedDriver:
         embedded_mol: gto.Mole = self._build_mol()
 
         # overwrite total number of electrons to only include active system
-        embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
+        if self._restricted_scf:
+            embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
+            local_hf: StreamObject = scf.RHF(embedded_mol)
+        else: 
+            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(self.localized_system.beta_active_MO_inds)
+            local_hf: StreamObject = scf.UHF(embedded_mol)
+            
+        local_hf.max_memory = self.max_ram_memory
+        local_hf.conv_tol = self.convergence
+        local_hf.verbose = self.pyscf_print_level
+        local_hf.max_cycle = self.max_hf_cycles
 
-        local_rhf: StreamObject = scf.RHF(embedded_mol)
-        local_rhf.max_memory = self.max_ram_memory
-        local_rhf.conv_tol = self.convergence
-        local_rhf.verbose = self.pyscf_print_level
-        local_rhf.max_cycle = self.max_hf_cycles
-
-        return local_rhf
+        return local_hf
 
     def _init_local_rks(self, xc_functional: str) -> scf.RKS:
         """Function to build embedded restricted Hartree Fock object for active subsystem.
