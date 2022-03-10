@@ -169,7 +169,7 @@ class NbedDriver:
             logger.debug("Open shells, using unrestricted SCF.")
             self._restricted_scf = False
 
-        # self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu) # TODO uncomment.
+        self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu) # TODO uncomment.
         logger.debug("Driver initialisation complete.")
 
     def _build_mol(self) -> gto.mole:
@@ -441,20 +441,15 @@ class NbedDriver:
         # overall two_electron cross energy
         self.two_e_cross = j_cross + k_cross + xc_cross
 
+        logger.debug("RKS components")
+        logger.debug(f"e_act: {e_act}")
+        logger.debug(f"e_env: {e_env}")
+        logger.debug(f"two_e_cross: {self.two_e_cross}")
+        logger.debug(f"e_nuc: {self._global_ks.energy_nuc()}")
+
         energy_DFT_components = (
             self.e_act + self.e_env + self.two_e_cross + self._global_ks.energy_nuc()
         )
-        logger.debug("RKS components")
-        if not np.isclose(energy_DFT_components, self._global_ks.e_tot):
-            logger.error(
-                "DFT energy of localized components not matching supersystem DFT."
-            )
-            logger.debug(f"{self._global_ks.scf_summary}")
-            logger.debug(f"{energy_DFT_components}")
-            logger.debug(self._global_ks.e_tot)
-            raise ValueError(
-                "DFT energy of localized components not matching supersystem DFT."
-            )
 
     @cached_property
     def _env_projector(self) -> np.ndarray:
