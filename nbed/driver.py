@@ -290,13 +290,13 @@ class NbedDriver:
         )
         return localized_system
 
-    def _init_local_hf(self) -> Union[scf.hf.UHF, scf.hf.RHF]:
+    def _init_local_hf(self) -> Union[scf.uhf.UHF, scf.rhf.RHF]:
         """Function to build embedded HF object for active subsystem.
 
         Note this function overwrites the total number of electrons to only include active number.
 
         Returns:
-            local_hf (scf.hf.UHF or scf.hf.RHF): embedded Hartree-Fock object.
+            local_hf (scf.uhf.UHF or scf.rhf.RHF): embedded Hartree-Fock object.
         """
         logger.debug("Constructing localised RHF object.")
         embedded_mol: gto.Mole = self._build_mol()
@@ -318,7 +318,7 @@ class NbedDriver:
 
         return local_hf
 
-    def _init_local_ks(self, xc_functional: str) -> Union[dft.UKS, dft.RKS]:
+    def _init_local_ks(self, xc_functional: str) -> Union[dft.uks.UKS, dft.rks.RKS]:
         """Function to build embedded Hartree Fock object for active subsystem.
 
         Note this function overwrites the total number of electrons to only include active number.
@@ -327,7 +327,7 @@ class NbedDriver:
             xc_functonal (str): XC functional to use in embedded calculation.
 
         Returns:
-            local_ks (pyscf.dft.RKS or pyscf.dft.UKS): embedded Kohn-Sham DFT object.
+            local_ks (pyscf.dft.rks.RKS or pyscf.dft.uks.UKS): embedded Kohn-Sham DFT object.
         """
         logger.debug("Initialising localised RKS object.")
         embedded_mol: gto.Mole = self._build_mol()
