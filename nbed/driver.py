@@ -160,7 +160,6 @@ class NbedDriver:
         self._check_active_atoms()
         self.localized_system = None
         self.two_e_cross = None
-        self._dft_potential = None
 
         if self.charge % 2 == 0:
             logger.debug("Closed shells, using restricted SCF.")
@@ -297,19 +296,20 @@ class NbedDriver:
 
         Returns:
             local_hf (scf.uhf.UHF or scf.rhf.RHF): embedded Hartree-Fock object.
-        """
+        """            dft_potnetial (np.ndarray): Potential calculated from two electron terms in dft.
+
         logger.debug("Constructing localised RHF object.")
         embedded_mol: gto.Mole = self._build_mol()
 
         # overwrite total number of electrons to only include active system
         if self._restricted_scf:
             embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
-            local_hf: StreamObject = scf.RHF(embedded_mol)
+            local_hf: scf.rhf.RHF = scf.RHF(embedded_mol)
         else:
             embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
                 self.localized_system.beta_active_MO_inds
             )
-            local_hf: StreamObject = scf.UHF(embedded_mol)
+            local_hf: scf.uhf.UHF = scf.UHF(embedded_mol)
 
         local_hf.max_memory = self.max_ram_memory
         local_hf.conv_tol = self.convergence
@@ -335,12 +335,12 @@ class NbedDriver:
         if self._restricted_scf:
             # overwrite total number of electrons to only include active system
             embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
-            local_ks: StreamObject = scf.RKS(embedded_mol)
+            local_ks: dft.rks.RKS = scf.RKS(embedded_mol)
         else:
             embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
                 self.localized_system.beta_active_MO_inds
             )
-            local_ks: StreamObject = scf.UKS(embedded_mol)
+            local_ks: dft.uks.UKS = scf.UKS(embedded_mol)
 
         local_ks.max_memory = self.max_ram_memory
         local_ks.conv_tol = self.convergence
@@ -523,11 +523,12 @@ class NbedDriver:
         logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
         return fci_scf
 
-    def _mu_embed(self, localized_scf: StreamObject) -> np.ndarray:
+    def _mu_embed(self, localized_scf: StreamObject, dft_potential: np.ndarray) -> np.ndarray:
         """Embed using the Mu-shift projector.
 
         Args:
             localized_scf (StreamObject): A PySCF scf method in the localized basis.
+            dft_potnetial (np.ndarray): Potential calculated from two electron terms in dft.
 
         Returns:
             np.ndarray: Matrix form of the embedding potential.
@@ -535,7 +536,7 @@ class NbedDriver:
         """
         logger.debug("Running embedded scf calculation.")
         # modify hcore to embedded version
-        v_emb = (self.mu_level_shift * self._env_projector) + self._dft_potential
+        v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
         hcore_std = localized_scf.get_hcore()
         localized_scf.get_hcore = lambda *args: hcore_std + v_emb
 
@@ -552,12 +553,13 @@ class NbedDriver:
         return v_emb, localized_scf
 
     def _huzinaga_embed(
-        self, localized_scf: StreamObject, dmat_initial_guess=None
+        self, localized_scf: StreamObject, dft_potential: np.ndarray, dmat_initial_guess=None
     ) -> np.ndarray:
         """Embed using Huzinaga projector.
 
         Args:
             localized_scf (StreamObject): A PySCF scf method in the localized basis.
+            dft_potnetial (np.ndarray): Potential calculated from two electron terms in dft.
 
         Returns:
             np.ndarray: Matrix form of the embedding potential.
@@ -579,7 +581,7 @@ class NbedDriver:
             huz_scf_conv_flag,
         ) = huz_method(
             localized_scf,
-            self._dft_potential,
+            dft_potential,
             self.localized_system.dm_enviro,
             dm_conv_tol=1e-6,
             dm_initial_guess=None,
@@ -588,7 +590,7 @@ class NbedDriver:
         # write results to pyscf object
         logger.debug("Writing results to PySCF object.")
         hcore_std = localized_scf.get_hcore()
-        v_emb = huzinaga_op_std + self._dft_potential
+        v_emb = huzinaga_op_std + dft_potential
         localized_scf.get_hcore = lambda *args: hcore_std + v_emb
         localized_scf.mo_coeff = c_active_embedded
         localized_scf.mo_occ = localized_scf.get_occ(
@@ -693,8 +695,8 @@ class NbedDriver:
             dm=(self.localized_system.dm_active + self.localized_system.dm_enviro)
         )
         g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
-        self._dft_potential = g_act_and_env - g_act
-        logger.info(f"DFT potential average {np.mean(self._dft_potential)}.")
+        dft_potential = g_act_and_env - g_act
+        logger.info(f"DFT potential average {np.mean(dft_potential)}.")
 
         # To add a projector, put it in this dict with a function
         # if we want any more it's also time to turn them into a class
@@ -718,10 +720,10 @@ class NbedDriver:
                 logger.debug("Initializing huzinaga with mu-shift.")
                 # seed huzinaga calc with mu result!
                 result["v_emb"], result["scf"] = embedding_method(
-                    local_rhf, dmat_initial_guess=self._mu["scf"].make_rdm1()
+                    local_rhf, dft_potential, dmat_initial_guess=self._mu["scf"].make_rdm1()
                 )
             else:
-                result["v_emb"], result["scf"] = embedding_method(local_rhf)
+                result["v_emb"], result["scf"] = embedding_method(local_rhf, dft_potential)
 
             result["mo_energies_emb_pre_del"] = local_rhf.mo_energy
             result["scf"] = self._delete_environment(result["scf"], name)
