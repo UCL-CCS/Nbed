@@ -296,7 +296,8 @@ class NbedDriver:
 
         Returns:
             local_hf (scf.uhf.UHF or scf.rhf.RHF): embedded Hartree-Fock object.
-        """            dft_potnetial (np.ndarray): Potential calculated from two electron terms in dft.
+            dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
+        """            
 
         logger.debug("Constructing localised RHF object.")
         embedded_mol: gto.Mole = self._build_mol()
