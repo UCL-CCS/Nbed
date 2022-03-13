@@ -171,8 +171,10 @@ class NbedDriver:
             self._restricted_scf = False
 
         if run_embed:
-            self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu) # TODO uncomment.
-            
+            self.embed(
+                init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu
+            )  # TODO uncomment.
+
         logger.debug("Driver initialisation complete.")
 
     def _build_mol(self) -> gto.mole:
@@ -300,7 +302,7 @@ class NbedDriver:
 
         Returns:
             local_hf (scf.uhf.UHF or scf.rhf.RHF): embedded Hartree-Fock object.
-        """            
+        """
 
         logger.debug("Constructing localised RHF object.")
         embedded_mol: gto.Mole = self._build_mol()
@@ -527,7 +529,9 @@ class NbedDriver:
         logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
         return fci_scf
 
-    def _mu_embed(self, localized_scf: StreamObject, dft_potential: np.ndarray) -> np.ndarray:
+    def _mu_embed(
+        self, localized_scf: StreamObject, dft_potential: np.ndarray
+    ) -> Tuple[np.ndarray, StreamObject]:
         """Embed using the Mu-shift projector.
 
         Args:
@@ -545,32 +549,34 @@ class NbedDriver:
         if not self._restricted_scf:
 
             def energy_elec(mf, dm=None, h1e=None, vhf=None) -> Tuple[float, float]:
-                '''Electronic energy of Unrestricted Hartree-Fock
+                """Electronic energy of Unrestricted Hartree-Fock
 
                 Note this function has side effects which cause mf.scf_summary updated.
-                This version is 
+                This version is
 
                 Returns:
                     e_elec (np.ndarray): Hartree-Fock electronic energy
                     e_coul (np.ndarray): 2-electron contribution to electronic energy
-                '''
-                if dm is None: dm = mf.make_rdm1()
+                """
+                if dm is None:
+                    dm = mf.make_rdm1()
                 if h1e is None:
                     h1e = mf.get_hcore()
                 if isinstance(dm, np.ndarray) and dm.ndim == 2:
-                    dm = np.array((dm*.5, dm*.5))
+                    dm = np.array((dm * 0.5, dm * 0.5))
                 if vhf is None:
                     vhf = mf.get_veff(mf.mol, dm)
-                e1 = np.einsum('ij,ji->', h1e[0], dm[0])
-                e1+= np.einsum('ij,ji->', h1e[1], dm[1])
-                e_coul =(np.einsum('ij,ji->', vhf[0], dm[0]) +
-                        np.einsum('ij,ji->', vhf[1], dm[1])) * .5
+                e1 = np.einsum("ij,ji->", h1e[0], dm[0])
+                e1 += np.einsum("ij,ji->", h1e[1], dm[1])
+                e_coul = (
+                    np.einsum("ij,ji->", vhf[0], dm[0])
+                    + np.einsum("ij,ji->", vhf[1], dm[1])
+                ) * 0.5
                 e_elec = (e1 + e_coul).real
-                mf.scf_summary['e1'] = e1.real
-                mf.scf_summary['e2'] = e_coul.real
-                logger.debug(mf, 'E1 = %s  Ecoul = %s', e1, e_coul.real)
+                mf.scf_summary["e1"] = e1.real
+                mf.scf_summary["e2"] = e_coul.real
+                logger.debug(mf, "E1 = %s  Ecoul = %s", e1, e_coul.real)
                 return e_elec, e_coul
-
 
             logger.debug("Running embedded scf calculation.")
 
@@ -578,7 +584,9 @@ class NbedDriver:
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
             v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
             hcore_std = localized_scf.get_hcore()
-            localized_scf.get_hcore = lambda *args: np.array([hcore_std, hcore_std]) + v_emb
+            localized_scf.get_hcore = (
+                lambda *args: np.array([hcore_std, hcore_std]) + v_emb
+            )
 
         else:
             # modify hcore to embedded version
@@ -599,39 +607,54 @@ class NbedDriver:
         return v_emb, localized_scf
 
     def _huzinaga_embed(
-        self, localized_scf: StreamObject, dft_potential: np.ndarray, dmat_initial_guess=None
-    ) -> np.ndarray:
+        self,
+        localized_scf: StreamObject,
+        dft_potential: np.ndarray,
+        dmat_initial_guess: bool = None,
+    ) -> Tuple[np.ndarray, StreamObject]:
         """Embed using Huzinaga projector.
 
         Args:
             localized_scf (StreamObject): A PySCF scf method in the localized basis.
             dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
+            dmat_initial_guess (bool): If True, use the initial guess for the density matrix.
 
         Returns:
             np.ndarray: Matrix form of the embedding potential.
             StreamObject: The embedded scf object.
         """
         logger.debug("Starting Huzinaga embedding method.")
+        # We need to run our own SCF method here to update the potential.
         if isinstance(localized_scf, dft.rks.RKS):
-            huz_method: Callable = huzinaga_RKS
-        elif isinstance(localized_scf, scf.hf.RHF):
-            huz_method: Callable = huzinaga_RHF
+            (
+                c_active_embedded,
+                mo_embedded_energy,
+                dm_active_embedded,
+                huzinaga_op_std,
+                huz_scf_conv_flag,
+            ) = huzinaga_RKS(
+                localized_scf,
+                dft_potential,
+                self.localized_system.dm_enviro,
+                dm_conv_tol=1e-6,
+                dm_initial_guess=dmat_initial_guess,
+            )
 
-        # We need to run manual HF to update
-        # Fock matrix with each cycle
-        (
-            c_active_embedded,
-            mo_embedded_energy,
-            dm_active_embedded,
-            huzinaga_op_std,
-            huz_scf_conv_flag,
-        ) = huz_method(
-            localized_scf,
-            dft_potential,
-            self.localized_system.dm_enviro,
-            dm_conv_tol=1e-6,
-            dm_initial_guess=None,
-        )  # TODO: use dm_active_embedded (use mu answer to initialize!)
+        elif isinstance(localized_scf, scf.hf.RHF):
+            (
+                c_active_embedded,
+                mo_embedded_energy,
+                dm_active_embedded,
+                huzinaga_op_std,
+                huz_scf_conv_flag,
+            ) = huzinaga_RHF(
+                localized_scf,
+                dft_potential,
+                self.localized_system.dm_enviro,
+                dm_conv_tol=1e-6,
+                dm_initial_guess=dmat_initial_guess,
+            )
+        logger.debug(f"{c_active_embedded=}")
 
         # write results to pyscf object
         logger.debug("Writing results to PySCF object.")
@@ -650,14 +673,19 @@ class NbedDriver:
         logger.info(f"Huzinaga scf energy: {localized_scf.e_tot}")
         return v_emb, localized_scf
 
-    def _delete_environment(self, embedded_rhf, method: str) -> np.ndarray:
+    def _delete_spin_environment(
+        self, method: str, mo_coeff: np.ndarray, mo_energy: np.ndarray, mo_occ: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Remove enironment orbit from embedded rhf object.
 
-        This function removes (in fact deletes completely) the
-        molecular orbitals defined by the environment (defined by the environment of the localized system)
+        This function removes (in fact deletes completely) the molecular orbitals 
+        defined by the environment of the localized system
 
         Args:
-            embedded_rhf (StreamObject): A PySCF RHF method in the localized basis.
+            method (str): The localization method used to embed the system. 'huzinaga' or 'mu'.
+            mo_coeff (np.ndarray): The molecular orbitals.
+            mo_energy (np.ndarray): The molecular orbital energies.
+            mo_occ (np.ndarray): The molecular orbital occupation numbers.
 
         Returns:
             embedded_rhf (StreamObject): Returns input, but with environment orbitals deleted
@@ -666,36 +694,23 @@ class NbedDriver:
         n_env_mo = len(self.localized_system.enviro_MO_inds)
 
         if method == "huzinaga":
-            # find <psi  | Proj| psi > =  <psi  |  psi_proj >
-            # delete orbs with most overlap (as has large overlap with env)
             overlap = np.einsum(
                 "ij, ki -> i",
-                embedded_rhf.mo_coeff.T,
-                self._env_projector @ embedded_rhf.mo_coeff,
+                mo_coeff.T,
+                self._env_projector @ mo_coeff,
             )
             overlap_by_size = overlap.argsort()[::-1]
             frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]
 
-            active_MOs_occ_and_virt_embedded = [
-                mo_i
-                for mo_i in range(embedded_rhf.mo_coeff.shape[1])
-                if mo_i not in frozen_enviro_orb_inds
-            ]
-
         elif method == "mu":
-            shift = embedded_rhf.mol.nao - n_env_mo
-            frozen_enviro_orb_inds = [
-                mo_i for mo_i in range(shift, embedded_rhf.mol.nao)
-            ]
-            active_MOs_occ_and_virt_embedded = [
-                mo_i
-                for mo_i in range(embedded_rhf.mo_coeff.shape[1])
-                if mo_i not in frozen_enviro_orb_inds
-            ]
+            shift = scf.mol.nao - n_env_mo
+            frozen_enviro_orb_inds = [mo_i for mo_i in range(shift, scf.mol.nao)]
 
-        else:
-            logger.error("Delete environment method not recognized.")
-            raise ValueError("Must use mu or huzinaga flag.")
+        active_MOs_occ_and_virt_embedded = [
+            mo_i
+            for mo_i in range(mo_coeff.shape[1])
+            if mo_i not in frozen_enviro_orb_inds
+        ]
 
         logger.info(
             f"Orbital indices for embedded system: {active_MOs_occ_and_virt_embedded}"
@@ -706,16 +721,43 @@ class NbedDriver:
 
         # delete enviroment orbitals and associated energies
         # overwrites varibles keeping only active part (both occupied and virtual)
-        embedded_rhf.mo_coeff = embedded_rhf.mo_coeff[
+        active_mo_coeff = mo_coeff[
             :, active_MOs_occ_and_virt_embedded
         ]
-        embedded_rhf.mo_energy = embedded_rhf.mo_energy[
+        active_mo_energy = mo_energy[
             active_MOs_occ_and_virt_embedded
         ]
-        embedded_rhf.mo_occ = embedded_rhf.mo_occ[active_MOs_occ_and_virt_embedded]
+        active_mo_occ = mo_occ[active_MOs_occ_and_virt_embedded]
 
         logger.debug("Environment deleted.")
-        return embedded_rhf
+        return active_mo_coeff, active_mo_energy, active_mo_occ
+
+    def _delete_environment(self, method: str, scf: StreamObject) -> StreamObject:
+        """Remove enironment orbit from embedded rhf object.
+
+        This function removes (in fact deletes completely) the molecular orbitals 
+        defined by the environment of the localized system
+
+        Args:
+            method (str): The localization method used to embed the system. 'huzinaga' or 'mu'.
+            scf (StreamObject): The embedded SCF object.
+
+        Returns:
+            StreamObject: Returns input, but with environment orbitals deleted.
+        """
+        if self._restricted_scf:
+            scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
+                method, scf.mo_coeff, scf.mo_energy, scf.mo_occ
+            )
+        else:
+            scf.mo_coeff[0], scf.mo_energy[0], scf.mo_occ[0] = self._delete_spin_environment(
+                method, scf.mo_coeff[0], scf.mo_energy[0], scf.mo_occ[0]
+            )
+            scf.mo_coeff[1], scf.mo_energy[1], scf.mo_occ[1] = self._delete_spin_environment(
+                method, scf.mo_coeff[1], scf.mo_energy[1], scf.mo_occ[1]
+            )
+
+        return scf
 
     def embed(self, init_huzinaga_rhf_with_mu=False):
         """Generate embedded Hamiltonian.
@@ -766,13 +808,18 @@ class NbedDriver:
                 logger.debug("Initializing huzinaga with mu-shift.")
                 # seed huzinaga calc with mu result!
                 result["v_emb"], result["scf"] = embedding_method(
-                    local_rhf, dft_potential, dmat_initial_guess=self._mu["scf"].make_rdm1()
+                    local_rhf,
+                    dft_potential,
+                    dmat_initial_guess=self._mu["scf"].make_rdm1(),
                 )
             else:
-                result["v_emb"], result["scf"] = embedding_method(local_rhf, dft_potential)
+                result["v_emb"], result["scf"] = embedding_method(
+                    local_rhf, dft_potential
+                )
 
             result["mo_energies_emb_pre_del"] = local_rhf.mo_energy
             result["scf"] = self._delete_environment(result["scf"], name)
+
             result["mo_energies_emb_post_del"] = local_rhf.mo_energy
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
