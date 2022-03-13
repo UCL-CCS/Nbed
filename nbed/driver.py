@@ -74,6 +74,7 @@ class NbedDriver:
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
         max_dft_cycles (int): max number of DFT iterations allowed in scf calc
         init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
+        run_embed (bool): Whether or not to run the embedding calculation.
 
     Attributes:
         _global_fci (StreamObject): A Qubit Hamiltonian of some kind
@@ -112,6 +113,7 @@ class NbedDriver:
         init_huzinaga_rhf_with_mu: bool = False,
         max_hf_cycles: int = 50,
         max_dft_cycles: int = 50,
+        run_embed: bool = True,
     ):
         """Initialise class."""
         logger.debug("Initialising driver.")
@@ -168,7 +170,9 @@ class NbedDriver:
             logger.debug("Open shells, using unrestricted SCF.")
             self._restricted_scf = False
 
-        # self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu) # TODO uncomment.
+        if run_embed:
+            self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu) # TODO uncomment.
+            
         logger.debug("Driver initialisation complete.")
 
     def _build_mol(self) -> gto.mole:
@@ -572,7 +576,7 @@ class NbedDriver:
 
             localized_scf = self._init_local_hf()
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
-            v_emb = (self.mu_level_shift * self._env_projector) + self._dft_potential
+            v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
             hcore_std = localized_scf.get_hcore()
             localized_scf.get_hcore = lambda *args: np.array([hcore_std, hcore_std]) + v_emb
 
