@@ -535,10 +535,52 @@ class NbedDriver:
             StreamObject: The embedded scf object.
         """
         logger.debug("Running embedded scf calculation.")
-        # modify hcore to embedded version
-        v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
-        hcore_std = localized_scf.get_hcore()
-        localized_scf.get_hcore = lambda *args: hcore_std + v_emb
+
+        # Modify the energy_elec function to handle different h_cores
+        # which we need for different embedding potentials
+        if not self._restricted_scf:
+
+            def energy_elec(mf, dm=None, h1e=None, vhf=None) -> Tuple[float, float]:
+                '''Electronic energy of Unrestricted Hartree-Fock
+
+                Note this function has side effects which cause mf.scf_summary updated.
+                This version is 
+
+                Returns:
+                    e_elec (np.ndarray): Hartree-Fock electronic energy
+                    e_coul (np.ndarray): 2-electron contribution to electronic energy
+                '''
+                if dm is None: dm = mf.make_rdm1()
+                if h1e is None:
+                    h1e = mf.get_hcore()
+                if isinstance(dm, np.ndarray) and dm.ndim == 2:
+                    dm = np.array((dm*.5, dm*.5))
+                if vhf is None:
+                    vhf = mf.get_veff(mf.mol, dm)
+                e1 = np.einsum('ij,ji->', h1e[0], dm[0])
+                e1+= np.einsum('ij,ji->', h1e[1], dm[1])
+                e_coul =(np.einsum('ij,ji->', vhf[0], dm[0]) +
+                        np.einsum('ij,ji->', vhf[1], dm[1])) * .5
+                e_elec = (e1 + e_coul).real
+                mf.scf_summary['e1'] = e1.real
+                mf.scf_summary['e2'] = e_coul.real
+                logger.debug(mf, 'E1 = %s  Ecoul = %s', e1, e_coul.real)
+                return e_elec, e_coul
+
+
+            logger.debug("Running embedded scf calculation.")
+
+            localized_scf = self._init_local_hf()
+            localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
+            v_emb = (self.mu_level_shift * self._env_projector) + self._dft_potential
+            hcore_std = localized_scf.get_hcore()
+            localized_scf.get_hcore = lambda *args: np.array([hcore_std, hcore_std]) + v_emb
+
+        else:
+            # modify hcore to embedded version
+            v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
+            hcore_std = localized_scf.get_hcore()
+            localized_scf.get_hcore = lambda *args: hcore_std + v_emb
 
         localized_scf.kernel()
         logger.info(
