@@ -708,8 +708,8 @@ class NbedDriver:
             frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]
 
         elif method == "mu":
-            shift = scf.mol.nao - n_env_mo
-            frozen_enviro_orb_inds = [mo_i for mo_i in range(shift, scf.mol.nao)]
+            shift = mo_coeff.shape[1] - n_env_mo
+            frozen_enviro_orb_inds = [mo_i for mo_i in range(shift, mo_coeff.shape[1])]
 
         active_MOs_occ_and_virt_embedded = [
             mo_i
