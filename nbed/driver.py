@@ -674,15 +674,21 @@ class NbedDriver:
         return v_emb, localized_scf
 
     def _delete_spin_environment(
-        self, method: str, mo_coeff: np.ndarray, mo_energy: np.ndarray, mo_occ: np.ndarray
+        self,
+        method: str,
+        n_env_mo: int,
+        mo_coeff: np.ndarray,
+        mo_energy: np.ndarray,
+        mo_occ: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Remove enironment orbit from embedded rhf object.
 
-        This function removes (in fact deletes completely) the molecular orbitals 
+        This function removes (in fact deletes completely) the molecular orbitals
         defined by the environment of the localized system
 
         Args:
             method (str): The localization method used to embed the system. 'huzinaga' or 'mu'.
+            n_env_mo (int): The number of molecular orbitals in the environment.
             mo_coeff (np.ndarray): The molecular orbitals.
             mo_energy (np.ndarray): The molecular orbital energies.
             mo_occ (np.ndarray): The molecular orbital occupation numbers.
@@ -690,8 +696,7 @@ class NbedDriver:
         Returns:
             embedded_rhf (StreamObject): Returns input, but with environment orbitals deleted
         """
-        logger.debug("Deleting environment from C matrix.")
-        n_env_mo = len(self.localized_system.enviro_MO_inds)
+        logger.debug("Deleting environment for spin.")
 
         if method == "huzinaga":
             overlap = np.einsum(
@@ -721,21 +726,17 @@ class NbedDriver:
 
         # delete enviroment orbitals and associated energies
         # overwrites varibles keeping only active part (both occupied and virtual)
-        active_mo_coeff = mo_coeff[
-            :, active_MOs_occ_and_virt_embedded
-        ]
-        active_mo_energy = mo_energy[
-            active_MOs_occ_and_virt_embedded
-        ]
+        active_mo_coeff = mo_coeff[:, active_MOs_occ_and_virt_embedded]
+        active_mo_energy = mo_energy[active_MOs_occ_and_virt_embedded]
         active_mo_occ = mo_occ[active_MOs_occ_and_virt_embedded]
 
-        logger.debug("Environment deleted.")
+        logger.debug("Spin environment deleted.")
         return active_mo_coeff, active_mo_energy, active_mo_occ
 
     def _delete_environment(self, method: str, scf: StreamObject) -> StreamObject:
         """Remove enironment orbit from embedded rhf object.
 
-        This function removes (in fact deletes completely) the molecular orbitals 
+        This function removes (in fact deletes completely) the molecular orbitals
         defined by the environment of the localized system
 
         Args:
@@ -745,18 +746,40 @@ class NbedDriver:
         Returns:
             StreamObject: Returns input, but with environment orbitals deleted.
         """
+        logger.debug("Deleting environment from SCF object.")
+
         if self._restricted_scf:
+            n_env_mos = len(self.localized_system.enviro_MO_inds)
             scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
-                method, scf.mo_coeff, scf.mo_energy, scf.mo_occ
+                method, n_env_mos, scf.mo_coeff, scf.mo_energy, scf.mo_occ
             )
         else:
-            scf.mo_coeff[0], scf.mo_energy[0], scf.mo_occ[0] = self._delete_spin_environment(
-                method, scf.mo_coeff[0], scf.mo_energy[0], scf.mo_occ[0]
-            )
-            scf.mo_coeff[1], scf.mo_energy[1], scf.mo_occ[1] = self._delete_spin_environment(
-                method, scf.mo_coeff[1], scf.mo_energy[1], scf.mo_occ[1]
-            )
+            alpha_n_env_mos = len(self.localized_system.enviro_MO_inds)
+            beta_n_env_mos = len(self.localized_system.beta_enviro_MO_inds)
 
+            (
+                scf.mo_coeff[0],
+                scf.mo_energy[0],
+                scf.mo_occ[0],
+            ) = self._delete_spin_environment(
+                method,
+                alpha_n_env_mos,
+                scf.mo_coeff[0],
+                scf.mo_energy[0],
+                scf.mo_occ[0],
+            )
+            (
+                scf.mo_coeff[1],
+                scf.mo_energy[1],
+                scf.mo_occ[1],
+            ) = self._delete_spin_environment(
+                method, 
+                beta_n_env_mos, 
+                scf.mo_coeff[1], 
+                scf.mo_energy[1], 
+                scf.mo_occ[1]
+            )
+        logger.debug("Environment deleted.")
         return scf
 
     def embed(self, init_huzinaga_rhf_with_mu=False):
@@ -768,7 +791,7 @@ class NbedDriver:
         logger.debug("Embedding molecule.")
         self.localized_system = self._localize()
         logger.info(
-            f"Number of embedded electrons: {2 * len(self.localized_system.active_MO_inds)}"
+            f"Number of embedded electrons: {np.sum(self.localized_system.mo_occ)}"
         )
         logger.info(self.localized_system.active_MO_inds)
         logger.info(self.localized_system.enviro_MO_inds)
@@ -817,10 +840,9 @@ class NbedDriver:
                     local_rhf, dft_potential
                 )
 
-            result["mo_energies_emb_pre_del"] = local_rhf.mo_energy
+            result["full_mo_energies"] = local_rhf.mo_energy
             result["scf"] = self._delete_environment(result["scf"], name)
-
-            result["mo_energies_emb_post_del"] = local_rhf.mo_energy
+            result["active_mo_energies"] = local_rhf.mo_energy
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
 
