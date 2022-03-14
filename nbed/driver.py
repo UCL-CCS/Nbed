@@ -600,7 +600,7 @@ class NbedDriver:
             f"Embedded scf energy MU_SHIFT: {localized_scf.e_tot}, converged: {localized_scf.converged}"
         )
 
-        return v_emb, localized_scf
+        return localized_scf, v_emb
 
     def _huzinaga_embed(
         self,
@@ -667,7 +667,7 @@ class NbedDriver:
         localized_scf.converged = huz_scf_conv_flag
 
         logger.info(f"Huzinaga scf energy: {localized_scf.e_tot}")
-        return v_emb, localized_scf
+        return localized_scf, v_emb
 
     def _delete_spin_environment(
         self,
@@ -844,11 +844,11 @@ class NbedDriver:
             if init_huzinaga_rhf_with_mu and (name == "huzinaga"):
                 logger.debug("Initializing huzinaga with mu-shift.")
                 # seed huzinaga calc with mu result!
-                result["v_emb"], result["scf"] = embedding_method(
+                result["scf"], result["v_emb"] = embedding_method(
                     local_rhf, dft_potential, dmat_initial_guess=self._mu["scf"].make_rdm1()
                 )
             else:
-                result["v_emb"], result["scf"] = embedding_method(local_rhf, dft_potential)
+                result["scf"], result["v_emb"]= embedding_method(local_rhf, dft_potential)
 
 
             result["mo_energies_emb_pre_del"] = local_rhf.mo_energy
