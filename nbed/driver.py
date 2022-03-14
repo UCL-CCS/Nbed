@@ -756,36 +756,36 @@ class NbedDriver:
         else:
             alpha_n_env_mos = len(self.localized_system.enviro_MO_inds)
             beta_n_env_mos = len(self.localized_system.beta_enviro_MO_inds)
-            mo_coeff = np.array()
-            mo_energy = np.array()
-            mo_occ = np.array()
+            mo_coeff = np.array([None, None])
+            mo_energy = np.array([None, None])
+            mo_occ = np.array([None, None])
             (
-                scf.mo_coeff[0],
-                scf.mo_energy[0],
-                scf.mo_occ[0],
-            ) = self._delete_spin_environment(
-                method,
-                alpha_n_env_mos,
                 mo_coeff[0],
                 mo_energy[0],
                 mo_occ[0],
+            ) = self._delete_spin_environment(
+                method,
+                alpha_n_env_mos,
+                scf.mo_coeff[0],
+                scf.mo_energy[0],
+                scf.mo_occ[0],
             )
             (
-                scf.mo_coeff[1],
-                scf.mo_energy[1],
-                scf.mo_occ[1],
-            ) = self._delete_spin_environment(
-                method, 
-                beta_n_env_mos, 
                 mo_coeff[1], 
                 mo_energy[1], 
                 mo_occ[1]
+            ) = self._delete_spin_environment(
+                method, 
+                beta_n_env_mos, 
+                scf.mo_coeff[1],
+                scf.mo_energy[1],
+                scf.mo_occ[1],
             )
 
             # Need to do it this way or there are broadcasting issues
-            scf.mo_coeff = np.array([mo_coeff[0], mo_coeff[1]])
-            scf.mo_energy = np.array([mo_energy[0], mo_energy[1]])
-            scf.mo_occ = np.array([mo_occ[0], mo_occ[1]])
+            scf.mo_coeff = mo_coeff#np.array([mo_coeff[0], mo_coeff[1]])
+            scf.mo_energy = mo_energy#np.array([mo_energy[0], mo_energy[1]])
+            scf.mo_occ = mo_occ#np.array([mo_occ[0], mo_occ[1]])
 
         logger.debug("Environment deleted.")
         return scf
