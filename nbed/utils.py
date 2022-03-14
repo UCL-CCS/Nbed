@@ -257,6 +257,7 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
     """Print a summary of the package results.
     Args:
         driver (NbedDriver): An NbedDriver to summarise.
+        transform (str): The transform used to generate a qubit Hamiltonian.
         fci (bool): Whether to run full system fci.
     """
     logger.debug("Printing summary of results.")
@@ -269,37 +270,62 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         transform=transform,
     ).build()
 
+    # Would be a great place for a switch statemet when
+    # dependencies catch up with python 3.10
+    if driver.projector == "both":
+        mu_qham, huz_qham = qham
+    elif driver.projector == "huzinaga":
+        mu_qham, huz_qham = None, qham
+    elif driver.projector == "mu":
+        mu_qham, huz_qham = qham, None
+
+    print("".center(80, "*"))
     logger.info("".center(80, "*"))
+    print("  Summary of Embedded Calculation".center(80))
     logger.info("  Summary of Embedded Calculation".center(80))
+    print("".center(80, "*"))
     logger.info("".center(80, "*"))
 
+    print(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
     logger.info(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
 
     if driver.projector in ["huzinaga", "both"]:
+        print("".center(80, "*"))
         logger.info("".center(80, "*"))
+        print("  Huzinaga calculation".center(20))
         logger.info("  Huzinaga calculation".center(20))
+        print(
+            f"Total energy - active system at RHF level: {driver._huzinaga.get('e_rhf', default)}"
+        )
         logger.info(
-            f"Total energy - active system at RHF level: {driver._huzinaga['e_rhf']}"
+            f"Total energy - active system at RHF level: {driver._huzinaga.get('e_rhf', default)}"
         )
         if driver.run_ccsd_emb is True:
+            print(
+                f"Total energy - active system at CCSD level: {driver._huzinaga.get('e_ccsd', default)}"
+            )
             logger.info(
-                f"Total energy - active system at CCSD level: {driver._huzinaga['e_ccsd']}"
+                f"Total energy - active system at CCSD level: {driver._huzinaga.get('e_ccsd', default)}"
             )
         if driver.run_fci_emb is True:
+            print(
+                f"Total energy - active system at FCI level: {driver._huzinaga.get('e_fci', default)}"
+            )
             logger.info(
-                f"Total energy - active system at FCI level: {driver._huzinaga['e_fci']}"
+                f"Total energy - active system at FCI level: {driver._huzinaga.get('e_fci', default)}"
             )
 
-        logger.info(
-            f"length of huzinaga embedded fermionic Hamiltonian: {len(list(driver._huzinaga['hamiltonian']))}"
+        print(
+            f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
         )
         logger.info(
-            f"number of qubits required: {count_qubits(driver._huzinaga['hamiltonian'])}"
+            f"length of huzinaga embedded fermionic Hamiltonian: {len(huz_qham.terms)}"
         )
         print(f"number of qubits required: {count_qubits(huz_qham)}")
         logger.info(f"number of qubits required: {count_qubits(huz_qham)}")
 
     if driver.projector in ["mu", "both"]:
+        print("".center(80, "*"))
         logger.info("".center(80, "*"))
         print("  Mu shift calculation".center(20))
         logger.info("  Mu shift calculation".center(20))
@@ -310,20 +336,23 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
             f"Total energy - active system at RHF level: {driver._mu.get('e_rhf', default)}"
         )
         if driver.run_ccsd_emb is True:
+            print(
+                f"Total energy - active system at CCSD level: {driver._mu.get('e_ccsd', default)}"
+            )
             logger.info(
-                f"Total energy - active system at CCSD level: {driver._mu['e_ccsd']}"
+                f"Total energy - active system at CCSD level: {driver._mu.get('e_ccsd', default)}"
             )
         if driver.run_fci_emb is True:
+            print(
+                f"Total energy - active system at FCI level: {driver._mu.get('e_fci', default)}"
+            )
             logger.info(
-                f"Total energy - active system at FCI level: {driver._mu['e_fci']}"
+                f"Total energy - active system at FCI level: {driver._mu.get('e_fci', default)}"
             )
 
         print(f"length of mu embedded fermionic Hamiltonian: {len(mu_qham.terms)}")
         logger.info(
-            f"length of mu embedded fermionic Hamiltonian: {len(list(driver._mu['hamiltonian']))}"
-        )
-        logger.info(
-            f"number of qubits required: {count_qubits(driver._mu['hamiltonian'])}"
+            f"length of mu embedded fermionic Hamiltonian: {len(mu_qham.terms)}"
         )
         print(f"number of qubits required: {count_qubits(mu_qham)}")
         logger.info(f"number of qubits required: {count_qubits(mu_qham)}")
@@ -332,8 +361,11 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         driver._global_hf, constant_e_shift=0, transform=transform
     ).build()
 
+    print("".center(80, "*"))
     logger.info("".center(80, "*"))
+    print("  Summary of reference Calculation".center(80))
     logger.info("  Summary of reference Calculation".center(80))
+    print("".center(80, "*"))
     logger.info("".center(80, "*"))
 
     if fci:
@@ -341,17 +373,18 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         logger.info("Running Full system FCI and preparing Hamiltonian.")
         print(f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}")
         logger.info(
-            f"global (expensive) full FCI calculation {driver._global_fci.e_tot}"
+            f"Global (expensive) full FCI calculation {driver._global_fci.e_tot}"
         )
 
     print(
         f"length of full system fermionic Hamiltonian: {len(full_system_hamiltonian.terms)}"
     )
-    logger.info(
-        f"length of full system fermionic Hamiltonian: {len(list(full_system_hamiltonian))}"
-    )
-    logger.info(f"number of qubits required: {count_qubits(full_system_hamiltonian)}")
 
+    logger.info(
+        f"length of full system fermionic Hamiltonian: {len(full_system_hamiltonian.terms)}"
+    )
+    print(f"number of qubits required: {count_qubits(full_system_hamiltonian)}")
+    logger.info(f"number of qubits required: {count_qubits(full_system_hamiltonian)}")
 
 def pubchem_mol_geometry(molecule_name) -> dict:
     """Wrapper of Openfermion function to extract geometry using the molecule's name from the PubChem.
