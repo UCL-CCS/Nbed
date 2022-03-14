@@ -580,7 +580,6 @@ class NbedDriver:
 
             logger.debug("Running embedded scf calculation.")
 
-            localized_scf = self._init_local_hf()
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
             v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
             hcore_std = localized_scf.get_hcore()
@@ -620,7 +619,12 @@ class NbedDriver:
         """
         logger.debug("Starting Huzinaga embedding method.")
         # We need to run our own SCF method here to update the potential.
-        if isinstance(localized_scf, dft.rks.RKS):
+        if self._restricted_scf:
+            total_enviro_dm = self.localized_system.dm_enviro
+        else:
+            total_enviro_dm = np.array([self.localized_system.dm_enviro, self.localized_system.beta_dm_enviro])
+
+        if isinstance(localized_scf, (dft.rks.RKS, dft.uks.UKS)):
             (
                 c_active_embedded,
                 mo_embedded_energy,
@@ -630,12 +634,12 @@ class NbedDriver:
             ) = huzinaga_RKS(
                 localized_scf,
                 dft_potential,
-                self.localized_system.dm_enviro,
+                total_enviro_dm,
                 dm_conv_tol=1e-6,
                 dm_initial_guess=dmat_initial_guess,
             )
 
-        elif isinstance(localized_scf, scf.rhf.RHF):
+        elif isinstance(localized_scf, (scf.rhf.RHF, scf.uhf.UHF)):
             (
                 c_active_embedded,
                 mo_embedded_energy,
@@ -645,10 +649,11 @@ class NbedDriver:
             ) = huzinaga_RHF(
                 localized_scf,
                 dft_potential,
-                self.localized_system.dm_enviro,
+                total_enviro_dm,
                 dm_conv_tol=1e-6,
                 dm_initial_guess=dmat_initial_guess,
             )
+
         logger.debug(f"{c_active_embedded=}")
 
         # write results to pyscf object
