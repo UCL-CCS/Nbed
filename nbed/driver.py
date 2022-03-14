@@ -22,7 +22,7 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .scf import huzinaga_RHF, huzinaga_RKS, energy_elec
+from .scf import energy_elec, huzinaga_RHF, huzinaga_RKS
 
 # from .log_conf import setup_logs
 
@@ -633,6 +633,10 @@ class NbedDriver:
         hcore_std = localized_scf.get_hcore()
         v_emb = huzinaga_op_std + dft_potential
         localized_scf.get_hcore = lambda *args: hcore_std + v_emb
+        
+        if not self._restricted_scf:
+            localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
+
         localized_scf.mo_coeff = c_active_embedded
         localized_scf.mo_occ = localized_scf.get_occ(
             mo_embedded_energy, c_active_embedded
@@ -642,9 +646,7 @@ class NbedDriver:
         # localized_scf.conv_check = huz_scf_conv_flag
         localized_scf.converged = huz_scf_conv_flag
 
-        if not self._restricted_scf:
-            localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
-            
+
         logger.info(f"Huzinaga scf energy: {localized_scf.e_tot}")
         return localized_scf, v_emb
 
