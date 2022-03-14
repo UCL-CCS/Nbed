@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 import numpy as np
 import scipy as sp
 from pyscf.lib import StreamObject, diis
+from pyscf import dft, scf
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +72,10 @@ def huzinaga_RHF(
         fock = scf_method.get_hcore() + dft_potential + vhf
 
         fds = fock @ dm_env_S
-        huzinaga_op_std = -0.5 * (fds + fds.T)
-
+        if isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS)):
+            huzinaga_op_std = -0.5 * (fds + fds.T)
+        else:
+            huzinaga_op_std = np.array([-0.5 * (fds[0] + fds[0].T), -0.5 * (fds[1] + fds[1].T)])
         fock += huzinaga_op_std
 
         if use_DIIS and (i > 1):
@@ -88,17 +91,20 @@ def huzinaga_RHF(
         # Create initial values for i+1 run.
         dm_mat_old = dm_mat
         dm_mat = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
+
         # Find RHF energy
         e_core_dft = np.einsum(
-            "ij,ji->", scf_method.get_hcore() + dft_potential, dm_mat
+            "...ij,...ji->...", scf_method.get_hcore() + dft_potential, dm_mat
         )
-        e_coul = 0.5 * np.einsum("ij,ji->", vhf, dm_mat)
-        e_huz = np.einsum("ij,ji->", huzinaga_op_std, dm_mat)
+
+        e_coul = 0.5 * np.einsum("...ij,...ji->...", vhf, dm_mat)
+        e_huz = np.einsum("...ij,...ji->...", huzinaga_op_std, dm_mat)
         rhf_energy = e_core_dft + e_coul + e_huz
 
         # check convergence
-        run_diff = np.abs(rhf_energy - rhf_energy_prev)
-        norm_dm_diff = np.linalg.norm(dm_mat - dm_mat_old)
+        # use max difference so that this works for unrestricted
+        run_diff = np.max(np.abs(rhf_energy - rhf_energy_prev))
+        norm_dm_diff = np.max(np.linalg.norm(dm_mat - dm_mat_old, axis=(-2,-1)))
 
         if (run_diff < scf_method.conv_tol) and (norm_dm_diff < dm_conv_tol):
             conv_flag = True
