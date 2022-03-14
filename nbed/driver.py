@@ -547,7 +547,7 @@ class NbedDriver:
 
         # Modify the energy_elec function to handle different h_cores
         # which we need for different embedding potentials
-        if not self._restricted_scf:
+        if isinstance(localized_scf, (scf.uhf.UHF, dft.uks.UKS)):
 
             def energy_elec(mf, dm=None, h1e=None, vhf=None) -> Tuple[float, float]:
                 """Electronic energy of Unrestricted Hartree-Fock
@@ -589,7 +589,7 @@ class NbedDriver:
                 lambda *args: np.array([hcore_std, hcore_std]) + v_emb
             )
 
-        else:
+        elif isinstance(localized_scf, (scf.rhf.RHF, dft.rks.RKS)):
             # modify hcore to embedded version
             v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
             hcore_std = localized_scf.get_hcore()
@@ -599,11 +599,6 @@ class NbedDriver:
         logger.info(
             f"Embedded scf energy MU_SHIFT: {localized_scf.e_tot}, converged: {localized_scf.converged}"
         )
-
-        # TODO Can be used for checks
-        # dm_active_embedded = localized_scf.make_rdm1(
-        #     mo_coeff=localized_scf.mo_coeff, mo_occ=localized_scf.mo_occ
-        # )
 
         return v_emb, localized_scf
 
@@ -641,7 +636,7 @@ class NbedDriver:
                 dm_initial_guess=dmat_initial_guess,
             )
 
-        elif isinstance(localized_scf, scf.hf.RHF):
+        elif isinstance(localized_scf, scf.rhf.RHF):
             (
                 c_active_embedded,
                 mo_embedded_energy,
