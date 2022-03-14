@@ -941,11 +941,11 @@ class NbedDriver:
         """
         if self._restricted_scf:
             raise NotImplementedError("DFT-in-DFT Embedding with unrestricted SCF not implemented.")
-            
-        result = {}
-        e_nuc = self._global_rks.energy_nuc()
 
-        local_rks_same_functional = self._init_local_rks(xc_func)
+        result = {}
+        e_nuc = self._global_ks.energy_nuc()
+
+        local_rks_same_functional = self._init_local_ks(xc_func)
         hcore_std = local_rks_same_functional.get_hcore()
         result["v_emb_dft"], result["scf_dft"] = embedding_method(
             local_rks_same_functional
