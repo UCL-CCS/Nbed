@@ -5,13 +5,13 @@ import os
 from copy import copy
 from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple, Union
-from typing_extensions import Self
 
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
 from pyscf import cc, dft, fci, gto, scf
 from pyscf.lib import StreamObject
+from typing_extensions import Self
 
 from nbed.exceptions import NbedConfigError
 from nbed.localizers import (
@@ -22,7 +22,7 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .scf import huzinaga_RHF, huzinaga_RKS
+from .scf import huzinaga_RHF, huzinaga_RKS, energy_elec
 
 # from .log_conf import setup_logs
 
@@ -548,36 +548,6 @@ class NbedDriver:
         # Modify the energy_elec function to handle different h_cores
         # which we need for different embedding potentials
         if isinstance(localized_scf, (scf.uhf.UHF, dft.uks.UKS)):
-
-            def energy_elec(mf, dm=None, h1e=None, vhf=None) -> Tuple[float, float]:
-                """Electronic energy of Unrestricted Hartree-Fock
-
-                Note this function has side effects which cause mf.scf_summary updated.
-                This version is
-
-                Returns:
-                    e_elec (np.ndarray): Hartree-Fock electronic energy
-                    e_coul (np.ndarray): 2-electron contribution to electronic energy
-                """
-                if dm is None:
-                    dm = mf.make_rdm1()
-                if h1e is None:
-                    h1e = mf.get_hcore()
-                if isinstance(dm, np.ndarray) and dm.ndim == 2:
-                    dm = np.array((dm * 0.5, dm * 0.5))
-                if vhf is None:
-                    vhf = mf.get_veff(mf.mol, dm)
-                e1 = np.einsum("ij,ji->", h1e[0], dm[0])
-                e1 += np.einsum("ij,ji->", h1e[1], dm[1])
-                e_coul = (
-                    np.einsum("ij,ji->", vhf[0], dm[0])
-                    + np.einsum("ij,ji->", vhf[1], dm[1])
-                ) * 0.5
-                e_elec = (e1 + e_coul).real
-                mf.scf_summary["e1"] = e1.real
-                mf.scf_summary["e2"] = e_coul.real
-                return e_elec, e_coul
-
             logger.debug("Running embedded scf calculation.")
 
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
@@ -622,7 +592,9 @@ class NbedDriver:
         if self._restricted_scf:
             total_enviro_dm = self.localized_system.dm_enviro
         else:
-            total_enviro_dm = np.array([self.localized_system.dm_enviro, self.localized_system.beta_dm_enviro])
+            total_enviro_dm = np.array(
+                [self.localized_system.dm_enviro, self.localized_system.beta_dm_enviro]
+            )
 
         if isinstance(localized_scf, (dft.rks.RKS, dft.uks.UKS)):
             (
@@ -670,6 +642,9 @@ class NbedDriver:
         # localized_scf.conv_check = huz_scf_conv_flag
         localized_scf.converged = huz_scf_conv_flag
 
+        if not self._restricted_scf:
+            localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
+            
         logger.info(f"Huzinaga scf energy: {localized_scf.e_tot}")
         return localized_scf, v_emb
 
@@ -759,33 +734,25 @@ class NbedDriver:
             mo_coeff = np.array([None, None])
             mo_energy = np.array([None, None])
             mo_occ = np.array([None, None])
-            (
-                mo_coeff[0],
-                mo_energy[0],
-                mo_occ[0],
-            ) = self._delete_spin_environment(
+            (mo_coeff[0], mo_energy[0], mo_occ[0],) = self._delete_spin_environment(
                 method,
                 alpha_n_env_mos,
                 scf.mo_coeff[0],
                 scf.mo_energy[0],
                 scf.mo_occ[0],
             )
-            (
-                mo_coeff[1], 
-                mo_energy[1], 
-                mo_occ[1]
-            ) = self._delete_spin_environment(
-                method, 
-                beta_n_env_mos, 
+            (mo_coeff[1], mo_energy[1], mo_occ[1]) = self._delete_spin_environment(
+                method,
+                beta_n_env_mos,
                 scf.mo_coeff[1],
                 scf.mo_energy[1],
                 scf.mo_occ[1],
             )
 
             # Need to do it this way or there are broadcasting issues
-            scf.mo_coeff = mo_coeff#np.array([mo_coeff[0], mo_coeff[1]])
-            scf.mo_energy = mo_energy#np.array([mo_energy[0], mo_energy[1]])
-            scf.mo_occ = mo_occ#np.array([mo_occ[0], mo_occ[1]])
+            scf.mo_coeff = mo_coeff  # np.array([mo_coeff[0], mo_coeff[1]])
+            scf.mo_energy = mo_energy  # np.array([mo_energy[0], mo_energy[1]])
+            scf.mo_occ = mo_occ  # np.array([mo_occ[0], mo_occ[1]])
 
         logger.debug("Environment deleted.")
         return scf
@@ -812,7 +779,10 @@ class NbedDriver:
 
         total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
         if self._restricted_scf:
-            total_dm += self.localized_system.beta_dm_active + self.localized_system.beta_dm_enviro
+            total_dm += (
+                self.localized_system.beta_dm_active
+                + self.localized_system.beta_dm_enviro
+            )
 
         g_act_and_env = self._global_ks.get_veff(
             dm=total_dm,
@@ -821,7 +791,12 @@ class NbedDriver:
         if self._restricted_scf:
             g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
         else:
-            g_act = self._global_ks.get_veff(dm=[self.localized_system.dm_active, self.localized_system.beta_dm_active])
+            g_act = self._global_ks.get_veff(
+                dm=[
+                    self.localized_system.dm_active,
+                    self.localized_system.beta_dm_active,
+                ]
+            )
 
         dft_potential = g_act_and_env - g_act
         logger.info(f"DFT potential average {np.mean(dft_potential)}.")
@@ -849,11 +824,14 @@ class NbedDriver:
                 logger.debug("Initializing huzinaga with mu-shift.")
                 # seed huzinaga calc with mu result!
                 result["scf"], result["v_emb"] = embedding_method(
-                    local_rhf, dft_potential, dmat_initial_guess=self._mu["scf"].make_rdm1()
+                    local_rhf,
+                    dft_potential,
+                    dmat_initial_guess=self._mu["scf"].make_rdm1(),
                 )
             else:
-                result["scf"], result["v_emb"]= embedding_method(local_rhf, dft_potential)
-
+                result["scf"], result["v_emb"] = embedding_method(
+                    local_rhf, dft_potential
+                )
 
             result["mo_energies_emb_pre_del"] = local_rhf.mo_energy
             result["scf"] = self._delete_environment(name, result["scf"])
@@ -886,7 +864,11 @@ class NbedDriver:
 
             # classical energy
             result["classical_energy"] = (
-                self.e_env + self.two_e_cross + e_nuc - result["correction"] - result["beta_correction"]
+                self.e_env
+                + self.two_e_cross
+                + e_nuc
+                - result["correction"]
+                - result["beta_correction"]
             )
 
             # Calculate ccsd or fci energy

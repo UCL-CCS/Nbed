@@ -5,8 +5,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 import scipy as sp
-from pyscf.lib import StreamObject, diis
 from pyscf import dft, scf
+from pyscf.lib import StreamObject, diis
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +53,10 @@ def huzinaga_RHF(
         if isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS)):
             huzinaga_op_std = -0.5 * (fds + fds.T)
         else:
-            huzinaga_op_std = np.array([-0.5 * (fds[0] + fds[0].T), -0.5 * (fds[1] + fds[1].T)])
-            
+            huzinaga_op_std = np.array(
+                [-0.5 * (fds[0] + fds[0].T), -0.5 * (fds[1] + fds[1].T)]
+            )
+
         fock += huzinaga_op_std
         # Create the orthogonal fock operator
         fock_ortho = s_neg_half @ fock @ s_neg_half
@@ -78,7 +80,9 @@ def huzinaga_RHF(
         if isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS)):
             huzinaga_op_std = -0.5 * (fds + fds.T)
         else:
-            huzinaga_op_std = np.array([-0.5 * (fds[0] + fds[0].T), -0.5 * (fds[1] + fds[1].T)])
+            huzinaga_op_std = np.array(
+                [-0.5 * (fds[0] + fds[0].T), -0.5 * (fds[1] + fds[1].T)]
+            )
         fock += huzinaga_op_std
 
         if use_DIIS and (i > 1):
@@ -107,7 +111,7 @@ def huzinaga_RHF(
         # check convergence
         # use max difference so that this works for unrestricted
         run_diff = np.max(np.abs(rhf_energy - rhf_energy_prev))
-        norm_dm_diff = np.max(np.linalg.norm(dm_mat - dm_mat_old, axis=(-2,-1)))
+        norm_dm_diff = np.max(np.linalg.norm(dm_mat - dm_mat_old, axis=(-2, -1)))
 
         if (run_diff < scf_method.conv_tol) and (norm_dm_diff < dm_conv_tol):
             conv_flag = True
