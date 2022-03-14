@@ -576,7 +576,6 @@ class NbedDriver:
                 e_elec = (e1 + e_coul).real
                 mf.scf_summary["e1"] = e1.real
                 mf.scf_summary["e2"] = e_coul.real
-                logger.debug(mf, "E1 = %s  Ecoul = %s", e1, e_coul.real)
                 return e_elec, e_coul
 
             logger.debug("Running embedded scf calculation.")
