@@ -646,7 +646,6 @@ class NbedDriver:
         # localized_scf.conv_check = huz_scf_conv_flag
         localized_scf.converged = huz_scf_conv_flag
 
-
         logger.info(f"Huzinaga scf energy: {localized_scf.e_tot}")
         return localized_scf, v_emb
 
@@ -767,9 +766,7 @@ class NbedDriver:
         """
         logger.debug("Embedding molecule.")
         self.localized_system = self._localize()
-        logger.info(
-            f"Indices of embedded electrons:"
-        )
+        logger.info(f"Indices of embedded electrons:")
         logger.info(self.localized_system.active_MO_inds)
         logger.info(self.localized_system.enviro_MO_inds)
 
@@ -940,7 +937,9 @@ class NbedDriver:
             float: Energy of DFT in embedding.
         """
         if self._restricted_scf:
-            raise NotImplementedError("DFT-in-DFT Embedding with unrestricted SCF not implemented.")
+            raise NotImplementedError(
+                "DFT-in-DFT Embedding with unrestricted SCF not implemented."
+            )
 
         result = {}
         e_nuc = self._global_ks.energy_nuc()
