@@ -50,8 +50,11 @@ def huzinaga_RHF(
         fock = scf_method.get_hcore() + dft_potential
 
         fds = fock @ dm_env_S
-        huzinaga_op_std = -0.5 * (fds + fds.T)
-
+        if isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS)):
+            huzinaga_op_std = -0.5 * (fds + fds.T)
+        else:
+            huzinaga_op_std = np.array([-0.5 * (fds[0] + fds[0].T), -0.5 * (fds[1] + fds[1].T)])
+            
         fock += huzinaga_op_std
         # Create the orthogonal fock operator
         fock_ortho = s_neg_half @ fock @ s_neg_half

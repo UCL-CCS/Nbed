@@ -920,7 +920,6 @@ class NbedDriver:
             if self.run_dft_in_dft is True:
                 did = self.embed_dft_in_dft(self._global_ks.xc, embedding_method)
                 result["e_dft_in_dft"] = did["e_rks"]
-            break
 
         if self.projector == "both":
             logger.warning(
