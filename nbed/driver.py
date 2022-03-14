@@ -5,6 +5,7 @@ import os
 from copy import copy
 from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple, Union
+from typing_extensions import Self
 
 import numpy as np
 import scipy as sp
@@ -808,12 +809,21 @@ class NbedDriver:
 
         # Run subsystem DFT (calls localized rks)
         self._subsystem_dft()
-
         logger.debug("Getting global DFT potential to optimize embedded calc in.")
+
+        total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
+        if self._restricted_scf:
+            total_dm += self.localized_system.beta_dm_active + self.localized_system.beta_dm_enviro
+
         g_act_and_env = self._global_ks.get_veff(
-            dm=(self.localized_system.dm_active + self.localized_system.dm_enviro)
+            dm=total_dm,
         )
-        g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
+
+        if self._restricted_scf:
+            g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
+        else:
+            g_act = self._global_ks.get_veff(dm=[self.localized_system.dm_active, self.localized_system.beta_dm_active])
+
         dft_potential = g_act_and_env - g_act
         logger.info(f"DFT potential average {np.mean(dft_potential)}.")
 
@@ -832,43 +842,52 @@ class NbedDriver:
             setattr(self, "_" + name, {})
             result = getattr(self, "_" + name)
 
-            embedding_method = embeddings[name]
-            local_rhf = self._init_local_rhf()
+            embedding_method: callable = embeddings[name]
+
+            local_rhf = self._init_local_hf()
 
             if init_huzinaga_rhf_with_mu and (name == "huzinaga"):
                 logger.debug("Initializing huzinaga with mu-shift.")
                 # seed huzinaga calc with mu result!
                 result["v_emb"], result["scf"] = embedding_method(
-                    local_rhf,
-                    dft_potential,
-                    dmat_initial_guess=self._mu["scf"].make_rdm1(),
+                    local_rhf, dft_potential, dmat_initial_guess=self._mu["scf"].make_rdm1()
                 )
             else:
-                result["v_emb"], result["scf"] = embedding_method(
-                    local_rhf, dft_potential
-                )
+                result["v_emb"], result["scf"] = embedding_method(local_rhf, dft_potential)
 
-            result["full_mo_energies"] = local_rhf.mo_energy
-            result["scf"] = self._delete_environment(result["scf"], name)
-            result["active_mo_energies"] = local_rhf.mo_energy
+
+            result["mo_energies_emb_pre_del"] = local_rhf.mo_energy
+            result["scf"] = self._delete_environment(name, result["scf"])
+            result["mo_energies_emb_post_del"] = local_rhf.mo_energy
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
 
             # calculate correction
-            result["correction"] = np.einsum(
-                "ij,ij", result["v_emb"], self.localized_system.dm_active
-            )
+            if self._restricted_scf:
+                result["correction"] = np.einsum(
+                    "ij,ij", result["v_emb"], self.localized_system.dm_active
+                )
+                result["beta_correction"] = 0
+            else:
+                result["correction"] = np.einsum(
+                    "ij,ij", result["v_emb"][0], self.localized_system.dm_active
+                )
+                result["beta_correction"] = np.einsum(
+                    "ij,ij", result["v_emb"][1], self.localized_system.beta_dm_active
+                )
+
             result["e_rhf"] = (
                 result["scf"].e_tot
                 + self.e_env
                 + self.two_e_cross
                 - result["correction"]
+                - result["beta_correction"]
             )
             logger.info(f"RHF energy: {result['e_rhf']}")
 
             # classical energy
             result["classical_energy"] = (
-                self.e_env + self.two_e_cross + e_nuc - result["correction"]
+                self.e_env + self.two_e_cross + e_nuc - result["correction"] - result["beta_correction"]
             )
 
             # Calculate ccsd or fci energy
@@ -883,6 +902,7 @@ class NbedDriver:
                     + self.e_env
                     + self.two_e_cross
                     - result["correction"]
+                    - result["beta_correction"]
                 )
                 logger.info(f"CCSD Energy {name}:\t{result['e_ccsd']}")
 
@@ -894,12 +914,14 @@ class NbedDriver:
                     + self.e_env
                     + self.two_e_cross
                     - result["correction"]
+                    - result["beta_correction"]
                 )
                 logger.info(f"FCI Energy {name}:\t{result['e_fci']}")
 
             if self.run_dft_in_dft is True:
                 did = self.embed_dft_in_dft(self._global_ks.xc, embedding_method)
                 result["e_dft_in_dft"] = did["e_rks"]
+            break
 
         if self.projector == "both":
             logger.warning(
