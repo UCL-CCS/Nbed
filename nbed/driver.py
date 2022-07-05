@@ -81,8 +81,8 @@ class NbedDriver:
         _global_fci (StreamObject): A Qubit Hamiltonian of some kind
         e_act (float): Active energy from subsystem DFT calculation
         e_env (float): Environment energy from subsystem DFT calculation
-        two_e_cross (flaot): two electron energy from cross terms (includes exchange correlation
-                             and Coloumb contribution) of subsystem DFT calculation
+        two_e_cross (float): two electron energy from cross terms (includes exchange correlation
+                             and Couloumb contribution) of subsystem DFT calculation
         molecular_ham (InteractionOperator): molecular Hamiltonian for active subsystem (projection using mu shift operator)
         classical_energy (float): environment correction energy to obtain total energy (for mu shift method)
         molecular_ham (InteractionOperator): molecular Hamiltonian for active subsystem (projection using huzianga operator)
@@ -163,6 +163,7 @@ class NbedDriver:
         self._check_active_atoms()
         self.localized_system = None
         self.two_e_cross = None
+        self.dft_potential = None
 
         if self.charge % 2 == 0:
             logger.debug("Closed shells, using restricted SCF.")
@@ -373,7 +374,7 @@ class NbedDriver:
                 dm_matrix (np.ndarray): density matrix (to calculate all matrices from)
 
             Returns:
-                Energy_elec (float): DFT energy defubed by input density matrix
+                Energy_elec (float): DFT energy defined by input density matrix
                 e_xc (float): exchange correlation energy defined by input density matrix
                 J_mat (np.ndarray): J_matrix defined by input density matrix
             """
@@ -486,7 +487,7 @@ class NbedDriver:
 
         Args:
             emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
-            frozen_orb_list (List): A path to an .xyz file describing moleclar geometry.
+            frozen_orb_list (List): A path to an .xyz file describing molecular geometry.
 
         Returns:
             ccsd (cc.CCSD): PySCF CCSD object
@@ -532,7 +533,7 @@ class NbedDriver:
 
     def _mu_embed(
         self, localized_scf: StreamObject, dft_potential: np.ndarray
-    ) -> Tuple[np.ndarray, StreamObject]:
+    ) -> Tuple[StreamObject, np.ndarray]:
         """Embed using the Mu-shift projector.
 
         Args:
@@ -575,7 +576,7 @@ class NbedDriver:
         localized_scf: StreamObject,
         dft_potential: np.ndarray,
         dmat_initial_guess: bool = None,
-    ) -> Tuple[np.ndarray, StreamObject]:
+    ) -> Tuple[StreamObject, np.ndarray]:
         """Embed using Huzinaga projector.
 
         Args:
@@ -798,6 +799,7 @@ class NbedDriver:
             )
 
         dft_potential = g_act_and_env - g_act
+        self.dft_potential = dft_potential
         logger.info(f"DFT potential average {np.mean(dft_potential)}.")
 
         # To add a projector, put it in this dict with a function
@@ -936,31 +938,62 @@ class NbedDriver:
         Returns:
             float: Energy of DFT in embedding.
         """
-        if self._restricted_scf:
-            raise NotImplementedError(
-                "DFT-in-DFT Embedding with unrestricted SCF not implemented."
-            )
-
+            
         result = {}
         e_nuc = self._global_ks.energy_nuc()
 
         local_rks_same_functional = self._init_local_ks(xc_func)
         hcore_std = local_rks_same_functional.get_hcore()
-        result["v_emb_dft"], result["scf_dft"] = embedding_method(
-            local_rks_same_functional
+        result["scf_dft"], result["v_emb_dft"] = embedding_method(
+            local_rks_same_functional, self.dft_potential
         )
-        y_emb = result["scf_dft"].make_rdm1()
-        # calculate correction
-        result["correction"] = np.einsum(
-            "ij,ij",
-            result["v_emb_dft"],
-            (y_emb - self.localized_system.dm_active),
-        )
-        veff = result["scf_dft"].get_veff(dm=y_emb)
-        rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
 
-        result["e_rks"] = (
-            rks_e_elec + self.e_env + self.two_e_cross + result["correction"] + e_nuc
-        )
+        if not self._restricted_scf:
+            print(result["v_emb_dft"][0].shape)
+            y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
+            print(y_emb_alpha.shape)
+            print(self.localized_system.dm_active.shape)
+            x = y_emb_alpha - self.localized_system.dm_active
+            print(x.shape)
+            # calculate correction
+            result["correction"] = np.einsum(
+                "ij,ij",
+                result["v_emb_dft"][0],
+                y_emb_alpha - self.localized_system.dm_active
+            )
+
+            result["correction_beta"] = np.einsum(
+                "ij,ij",
+                result["v_emb_dft"][1],
+                y_emb_beta - self.localized_system.beta_dm_active
+            )
+            veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
+            rks_e_elec_alpha = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std[0], y_emb_alpha)
+            rks_e_elec_beta = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std[1], y_emb_beta)
+
+            result["e_rks"] = (
+                rks_e_elec_alpha + rks_e_elec_beta + self.e_env + self.two_e_cross + result["correction"] +  result["correction_beta"] + e_nuc
+            )
+        
+        else:
+            y_emb = result["scf_dft"].make_rdm1()
+            c = y_emb - self.localized_system.dm_active
+            # calculate correction
+            print(c.shape)
+            print(result["v_emb_dft"].shape)
+            result["correction"] = np.einsum(
+                "ij,ij",
+                result["v_emb_dft"],
+                (y_emb - self.localized_system.dm_active),
+            )
+            print(result["correction"])
+            veff = result["scf_dft"].get_veff(dm=y_emb)
+
+
+            rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
+
+            result["e_rks"] = (
+                rks_e_elec + self.e_env + self.two_e_cross + result["correction"] + e_nuc
+            )
 
         return result
