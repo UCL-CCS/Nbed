@@ -1,8 +1,11 @@
 """Main embedding functionality."""
 
 import logging
+import openfermion
 from pathlib import Path
 from typing import Optional
+
+from numpy import save
 
 from nbed.exceptions import NbedConfigError
 from nbed.ham_builder import HamiltonianBuilder
@@ -32,6 +35,7 @@ def nbed(
     max_ram_memory: Optional[int] = 4000,
     pyscf_print_level: int = 1,
     savefile: Optional[Path] = None,
+    file_name: Optional[str] = None,
     unit: Optional[str] = "angstrom",
     occupied_threshold: Optional[float] = 0.95,
     virtual_threshold: Optional[float] = 0.95,
@@ -61,6 +65,7 @@ def nbed(
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         savefile (str): Path to file to save output Hamiltonain to.
+        file_name (str): name of the exported hamiltonian
         qubits (int): The number of qubits available for the output hamiltonian.
         unit (str): molecular geometry unit 'angstrom' or 'bohr'
         occupied_threshold (float): The occupancy threshold for localizing occupied orbitals.
@@ -116,6 +121,15 @@ def nbed(
 
         converter = HamiltonianConverter(qham)
         hamiltonians = getattr(converter, output.lower())
+
+    if savefile != None:
+        openfermion.utils.save_operator(
+            qham,
+            file_name= file_name,
+            data_directory=savefile,
+            allow_overwrite=False,
+            plain_text=False
+        )  
 
     print_summary(driver, transform, fci=False)
     return qham
