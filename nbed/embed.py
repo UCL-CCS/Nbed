@@ -108,14 +108,14 @@ def nbed(
 
             hamiltonians += (qham,)
     else:
-        qham = HamiltonianBuilder(
+        qham_openF = HamiltonianBuilder(
             scf_method=driver.embedded_scf,
             constant_e_shift=driver.classical_energy,
             transform=transform,
         ).build(n_qubits=qubits)
 
-        converter = HamiltonianConverter(qham)
-        hamiltonians = getattr(converter, output.lower())
+        converter = HamiltonianConverter(qham_openF)
+        qham = getattr(converter, output.lower())
 
     print_summary(driver, transform, fci=False)
     return qham

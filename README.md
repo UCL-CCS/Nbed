@@ -144,7 +144,8 @@ Main functionality of the package.
 - `utils.py` - log settings and cli parsing.
 
 ### Notebooks
-This folder contains jupyter notebooks which explain the embedding procedure in detail, including relevant theory. Notebooks to replicate results presented in publications can also be found here.
+This [folder](https://github.com/UCL-CCS/Nbed/tree/master/docs/source/notebooks) contains jupyter notebooks which explain the embedding procedure in detail, including relevant theory. Notebooks to replicate results presented in publications can also be found here.
+
 
 ### Tests
 
