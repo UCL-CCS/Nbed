@@ -18,6 +18,7 @@ py3Dmol = "^1.7.0"
 jupyter = "^1.0.0"
 nbsphinx = "^0.8.8"
 pandoc = "^2.1"
+h5py = "3.1"
 
 [tool.poetry.dev-dependencies]
 black = "^21.6b0"

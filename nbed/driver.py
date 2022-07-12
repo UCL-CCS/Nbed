@@ -616,7 +616,7 @@ class NbedDriver:
         return embedded_rhf
 
     def embed(self, init_huzinaga_rhf_with_mu=False):
-        """Generate embedded Hamiltonian.
+        """Run embedded scf calculation.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
