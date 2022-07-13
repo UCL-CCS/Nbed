@@ -10,7 +10,7 @@ from pyscf.lib import StreamObject, diis
 logger = logging.getLogger(__name__)
 
 
-def huzinaga_RKS(
+def huzinaga_KS(
     scf_method: StreamObject,
     dft_potential: np.ndarray,
     dm_enviroment: np.ndarray,
@@ -18,7 +18,7 @@ def huzinaga_RKS(
     dm_initial_guess: Optional[np.ndarray] = None,
     use_DIIS: Optional[np.ndarray] = True,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
-    """Manual RHF calculation that is implemented using the huzinaga operator.
+    """Manual RHF/UHF calculation that is implemented using the huzinaga operator.
 
     Note this function uses lowdin (symmetric) orthogonalization only! (PySCF sometimes uses meta-lowdin and NAO). Also
     the intial density matrix guess is based on the modified core Hamilotnian (containing projector and DFT potential)
@@ -27,7 +27,7 @@ def huzinaga_RKS(
     can occur due to DIIS and other clever PySCF methods not being available.
 
     Args:
-        scf_method (StreamObjecty):PySCF RHF object (containing info about max cycles and convergence tolerence)
+        scf_method (StreamObjecty):PySCF RHF/UHF object (containing info about max cycles and convergence tolerence)
         dft_potential (np.ndarray): DFT active and environment two body terms - DFT active environemnt two body term
         dm_enviroment (np.ndarray): Density matrix of the environment.
         dm_conv_tol (float): density matrix convergence tolerance

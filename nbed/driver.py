@@ -22,7 +22,7 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .scf import energy_elec, huzinaga_RHF, huzinaga_RKS
+from .scf import energy_elec, huzinaga_RHF, huzinaga_KS
 
 # from .log_conf import setup_logs
 
@@ -639,7 +639,7 @@ class NbedDriver:
                 dm_active_embedded,
                 huzinaga_op_std,
                 huz_scf_conv_flag,
-            ) = huzinaga_RKS(
+            ) = huzinaga_KS(
                 localized_scf,
                 dft_potential,
                 total_enviro_dm,
