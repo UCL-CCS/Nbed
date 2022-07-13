@@ -42,6 +42,10 @@ def huzinaga_RKS(
     """
     s_mat = scf_method.get_ovlp()
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
+    unrestricted_case = False
+
+    if str(type(scf_method)) == "<class 'pyscf.dft.uks.UKS'>":
+        unrestricted_case = True
 
     dm_env_S = dm_enviroment @ s_mat
     # Create an initial dm if needed.
@@ -49,7 +53,11 @@ def huzinaga_RKS(
         fock = scf_method.get_hcore() + dft_potential
 
         fds = fock @ dm_env_S
-        huzinaga_op_std = -0.5 * (fds + fds.T)
+
+        if unrestricted_case:
+            huzinaga_op_std = -0.5 * ((fds[0] + fds[0].T) + (fds[1] + fds[1].T))
+        else:
+            huzinaga_op_std = -0.5 * (fds + fds.T)
 
         fock += huzinaga_op_std
         # Create the orthogonal fock operator
@@ -75,7 +83,11 @@ def huzinaga_RKS(
 
         # projector
         fds = fock @ dm_env_S
-        huzinaga_op_std = -0.5 * (fds + fds.T)
+
+        if unrestricted_case:
+            huzinaga_op_std = -0.5 * ((fds[0] + fds[0].T) + (fds[1] + fds[1].T))
+        else:
+            huzinaga_op_std = -0.5 * (fds + fds.T)
 
         fock += huzinaga_op_std
 
@@ -95,15 +107,31 @@ def huzinaga_RKS(
         # Find RKS energy
         #     rks_energy = scf_method.energy_elec(dm=dm_mat)[0]
         vhf_updated = scf_method.get_veff(dm=dm_mat)
-        rks_energy = (
-            vhf_updated.ecoul
-            + vhf_updated.exc
-            + np.einsum(
-                "ij, ji->",
-                dm_mat,
-                (scf_method.get_hcore() + huzinaga_op_std + dft_potential),
+        if unrestricted_case:
+            rks_energy = (
+                vhf_updated.ecoul
+                + vhf_updated.exc
+                + np.einsum(
+                    "ij, ji->",
+                    dm_mat[0],
+                    (scf_method.get_hcore()[0] + huzinaga_op_std[0] + dft_potential[0]),
+                )
+                + np.einsum(
+                    "ij, ji->",
+                    dm_mat[1],
+                    (scf_method.get_hcore()[1] + huzinaga_op_std[1] + dft_potential[1]),
+                )
             )
-        )
+        else:
+            rks_energy = (
+                vhf_updated.ecoul
+                + vhf_updated.exc
+                + np.einsum(
+                    "ij, ji->",
+                    dm_mat,
+                    (scf_method.get_hcore() + huzinaga_op_std + dft_potential),
+                )
+            )
 
         # check convergence
         run_diff = np.abs(rks_energy - rks_energy_prev)
