@@ -76,6 +76,7 @@ class NbedDriver:
         max_dft_cycles (int): max number of DFT iterations allowed in scf calc
         init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
         run_embed (bool): Whether or not to run the embedding calculation.
+        return_dict (boolean): returns a dictionary containing geometry, hamiltonian and energies (FCI, CCSD, DFT)
 
     Attributes:
         _global_fci (StreamObject): A Qubit Hamiltonian of some kind
@@ -115,7 +116,7 @@ class NbedDriver:
         max_hf_cycles: int = 50,
         max_dft_cycles: int = 50,
         run_embed: bool = True,
-
+        return_dict: Optional[bool] = False,
     ):
         """Initialise class."""
         logger.debug("Initialising driver.")
@@ -181,6 +182,9 @@ class NbedDriver:
 
         logger.debug("Driver initialisation complete.")
 
+        if return_dict:
+            self.return_dictionary()
+
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
@@ -230,6 +234,39 @@ class NbedDriver:
         return global_hf
 
     @cached_property
+    def _global_ccsd(self) -> StreamObject:
+        """Function to run full molecule CCSD calculation.
+
+        """
+        logger.debug("Running full system CC.")
+        # run CCSD after HF
+        global_cc = cc.CCSD(self._global_hf)
+        global_cc.conv_tol = self.convergence
+        global_cc.verbose = self.pyscf_print_level
+        global_cc.max_memory = self.max_ram_memory
+        global_cc.run()
+        logger.info(f"Global FCI: {global_cc.e_tot}")
+
+        return global_cc
+
+    @cached_property
+    def _global_fci(self) -> StreamObject:
+        """Function to run full molecule FCI calculation.
+
+        WARNING: FACTORIAL SCALING IN BASIS STATES!
+        """
+        logger.debug("Running full system FCI.")
+        # run FCI after HF
+        global_fci = fci.FCI(self._global_hf)
+        global_fci.conv_tol = self.convergence
+        global_fci.verbose = self.pyscf_print_level
+        global_fci.max_memory = self.max_ram_memory
+        global_fci.run()
+        logger.info(f"Global FCI: {global_fci.e_tot}")
+
+        return global_fci
+
+    @cached_property
     def _global_ks(self):
         """Method to run full cheap molecule RKS DFT calculation.
 
@@ -252,6 +289,17 @@ class NbedDriver:
 
         return global_ks
 
+    def return_dictionary(self) -> dict:
+        """Method that ouputs the geometry and energies of the molecule as a dictionary
+
+        """ 
+        self.molecule_info['geometry'] = self.geometry
+        self.molecule_info['projector'] = self.projector
+        self.molecule_info['n_act_atoms'] = self.n_active_atoms
+        self.molecule_info['HF energy'] = self._global_hf().e_tot
+        self.molecule_info['FCI energy'] = self._global_fci().e_tot
+        self.molecule_info['CCSD energy'] = self._global_ccsd().e_tot
+        self.molecule_info['DFT energy'] = self._global_ks().e_tot
 
     def _check_active_atoms(self) -> None:
         """Check that the number of active atoms is valid."""
@@ -910,6 +958,7 @@ class NbedDriver:
             self.embedded_scf = self._huzinaga["scf"]
             self.classical_energy = self._huzinaga["classical_energy"]
 
+        self.molecule_info.update(result)
 
         logger.info("Embedding complete.")
 
