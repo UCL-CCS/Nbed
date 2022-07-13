@@ -115,6 +115,7 @@ class NbedDriver:
         max_hf_cycles: int = 50,
         max_dft_cycles: int = 50,
         run_embed: bool = True,
+
     ):
         """Initialise class."""
         logger.debug("Initialising driver.")
@@ -164,6 +165,7 @@ class NbedDriver:
         self.localized_system = None
         self.two_e_cross = None
         self.dft_potential = None
+        self.molecule_info = {} 
 
         if self.charge % 2 == 0:
             logger.debug("Closed shells, using restricted SCF.")
@@ -178,6 +180,7 @@ class NbedDriver:
             )  # TODO uncomment.
 
         logger.debug("Driver initialisation complete.")
+
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
@@ -227,23 +230,6 @@ class NbedDriver:
         return global_hf
 
     @cached_property
-    def _global_fci(self) -> StreamObject:
-        """Function to run full molecule FCI calculation.
-
-        WARNING: FACTORIAL SCALING IN BASIS STATES!
-        """
-        logger.debug("Running full system FCI.")
-        # run FCI after HF
-        global_fci = fci.FCI(self._global_hf)
-        global_fci.conv_tol = self.convergence
-        global_fci.verbose = self.pyscf_print_level
-        global_fci.max_memory = self.max_ram_memory
-        global_fci.run()
-        logger.info(f"Global FCI: {global_fci.e_tot}")
-
-        return global_fci
-
-    @cached_property
     def _global_ks(self):
         """Method to run full cheap molecule RKS DFT calculation.
 
@@ -265,6 +251,7 @@ class NbedDriver:
             logger.warning("(cheap) global DFT calculation has NOT converged!")
 
         return global_ks
+
 
     def _check_active_atoms(self) -> None:
         """Check that the number of active atoms is valid."""
@@ -923,6 +910,7 @@ class NbedDriver:
             self.embedded_scf = self._huzinaga["scf"]
             self.classical_energy = self._huzinaga["classical_energy"]
 
+
         logger.info("Embedding complete.")
 
     def embed_dft_in_dft(self, xc_func: str, embedding_method: Callable):
@@ -949,27 +937,25 @@ class NbedDriver:
         )
 
         if not self._restricted_scf:
-            print(result["v_emb_dft"][0].shape)
             y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
-            print(y_emb_alpha.shape)
-            print(self.localized_system.dm_active.shape)
-            x = y_emb_alpha - self.localized_system.dm_active
-            print(x.shape)
+
             # calculate correction
             result["correction"] = np.einsum(
                 "ij,ij",
                 result["v_emb_dft"][0],
-                y_emb_alpha - self.localized_system.dm_active
+                (y_emb_alpha - self.localized_system.dm_active),
             )
 
             result["correction_beta"] = np.einsum(
                 "ij,ij",
                 result["v_emb_dft"][1],
-                y_emb_beta - self.localized_system.beta_dm_active
+                (y_emb_beta - self.localized_system.dm_active),
             )
+
             veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
-            rks_e_elec_alpha = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std[0], y_emb_alpha)
-            rks_e_elec_beta = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std[1], y_emb_beta)
+
+            rks_e_elec_alpha = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb_alpha,)
+            rks_e_elec_beta = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb_beta,)
 
             result["e_rks"] = (
                 rks_e_elec_alpha + rks_e_elec_beta + self.e_env + self.two_e_cross + result["correction"] +  result["correction_beta"] + e_nuc
@@ -979,14 +965,11 @@ class NbedDriver:
             y_emb = result["scf_dft"].make_rdm1()
             c = y_emb - self.localized_system.dm_active
             # calculate correction
-            print(c.shape)
-            print(result["v_emb_dft"].shape)
             result["correction"] = np.einsum(
                 "ij,ij",
                 result["v_emb_dft"],
                 (y_emb - self.localized_system.dm_active),
             )
-            print(result["correction"])
             veff = result["scf_dft"].get_veff(dm=y_emb)
 
 
