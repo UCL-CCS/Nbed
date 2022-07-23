@@ -7,6 +7,7 @@ from typing import Optional
 
 from numpy import save
 
+
 from nbed.exceptions import NbedConfigError
 from nbed.ham_builder import HamiltonianBuilder
 
@@ -29,6 +30,7 @@ def nbed(
     localization: Optional[str] = "spade",
     convergence: Optional[float] = 1e-6,
     charge: Optional[int] = 0,
+    spin: Optional[int] = 0,
     mu_level_shift: Optional[float] = 1e6,
     run_ccsd_emb: Optional[bool] = False,
     run_fci_emb: Optional[bool] = False,
@@ -88,6 +90,7 @@ def nbed(
         convergence=convergence,
         savefile=savefile,
         charge=charge,
+        spin=spin, 
         mu_level_shift=mu_level_shift,
         run_ccsd_emb=run_ccsd_emb,
         run_fci_emb=run_fci_emb,
@@ -99,6 +102,7 @@ def nbed(
         max_hf_cycles=max_hf_cycles,
         max_dft_cycles=max_dft_cycles,
     )
+
     # Needed for 'both' projector
     if isinstance(driver.embedded_scf, tuple):
         hamiltonians = ()
@@ -108,6 +112,7 @@ def nbed(
                 constant_e_shift=e_classical,
                 transform=transform,
             ).build(n_qubits=qubits)
+            
             converter = HamiltonianConverter(qham)
             qham = getattr(converter, output.lower())
 
