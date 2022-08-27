@@ -54,7 +54,7 @@ def huzinaga_RHF(
             huzinaga_op_std = -0.5 * (fds + fds.T)
         else:
             huzinaga_op_std = np.array(
-                [-0.5 * (fds[0] + fds[0].T), -0.5 * (fds[1] + fds[1].T)]
+                [-(fds[0] + fds[0].T), -(fds[1] + fds[1].T)]
             )
 
         fock += huzinaga_op_std
@@ -81,7 +81,7 @@ def huzinaga_RHF(
             huzinaga_op_std = -0.5 * (fds + fds.T)
         else:
             huzinaga_op_std = np.array(
-                [-0.5 * (fds[0] + fds[0].T), -0.5 * (fds[1] + fds[1].T)]
+                [-(fds[0] + fds[0].T), -(fds[1] + fds[1].T)]
             )
         fock += huzinaga_op_std
 
