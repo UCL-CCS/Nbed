@@ -55,7 +55,7 @@ def huzinaga_KS(
         fds = fock @ dm_env_S
 
         if unrestricted_case:
-            huzinaga_op_std = -0.5 * ((fds[0] + fds[0].T) + (fds[1] + fds[1].T))
+            huzinaga_op_std = - ((fds[0] + fds[0].T) + (fds[1] + fds[1].T))
         else:
             huzinaga_op_std = -0.5 * (fds + fds.T)
 
@@ -85,7 +85,7 @@ def huzinaga_KS(
         fds = fock @ dm_env_S
 
         if unrestricted_case:
-            huzinaga_op_std = -0.5 * ((fds[0] + fds[0].T) + (fds[1] + fds[1].T))
+            huzinaga_op_std = -0.25 * ((fds[0] + fds[0].T) + (fds[1] + fds[1].T))
         else:
             huzinaga_op_std = -0.5 * (fds + fds.T)
 
