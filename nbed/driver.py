@@ -117,6 +117,7 @@ class NbedDriver:
         max_dft_cycles: int = 50,
         run_embed: bool = True,
         return_dict: Optional[bool] = False,
+        unrestricted: Optional[bool] = False,
     ):
         """Initialise class."""
         logger.debug("Initialising driver.")
@@ -168,12 +169,16 @@ class NbedDriver:
         self.dft_potential = None
         self.molecule_info = {} 
         self.electron = None
+        self.v_emb = None
 
-        if self.charge % 2 == 0:
-            logger.debug("Closed shells, using restricted SCF.")
-            self._restricted_scf = True
-        else:
-            logger.debug("Open shells, using unrestricted SCF.")
+        #if self.charge % 2 == 0:
+            #logger.debug("Closed shells, using restricted SCF.")
+            #self._restricted_scf = False
+        #:
+            #logger.debug("Open shells, using unrestricted SCF.")
+            #self._restricted_scf = False
+        self._restricted_scf = True
+        if unrestricted:
             self._restricted_scf = False
 
         if run_embed:
@@ -300,8 +305,8 @@ class NbedDriver:
         self.molecule_info['n_act_atoms'] = self.n_active_atoms
         self.molecule_info['e_env'] = self.e_env
         self.molecule_info['two_e_cross'] = self.two_e_cross
-        #self.molecule_info['HF energy'] = self._global_hf().e_tot
-        #self.molecule_info['FCI energy'] = self._global_fci().e_tot
+        self.molecule_info['HF energy'] = self._global_hf().e_tot
+        self.molecule_info['FCI energy'] = self._global_fci().e_tot
         self.molecule_info['CCSD energy'] = self._global_ccsd().e_tot
         self.molecule_info['DFT energy'] = self._global_ks().e_tot
 
@@ -622,6 +627,7 @@ class NbedDriver:
         logger.info(
             f"Embedded scf energy MU_SHIFT: {localized_scf.e_tot}, converged: {localized_scf.converged}"
         )
+        self.v_emb = v_emb
 
         return localized_scf, v_emb
 
@@ -691,10 +697,7 @@ class NbedDriver:
 
         if not self._restricted_scf:
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
-        else:
-            localized_scf.get_hcore = lambda *args: hcore_std + v_emb
 
-        print('c', c_active_embedded.shape)
         localized_scf.mo_coeff = c_active_embedded
         localized_scf.mo_occ = localized_scf.get_occ(
             mo_embedded_energy, c_active_embedded
@@ -838,15 +841,18 @@ class NbedDriver:
         logger.debug("Getting global DFT potential to optimize embedded calc in.")
 
         total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
-        if self._restricted_scf:
+        if not self._restricted_scf:
             total_dm += (
                 self.localized_system.beta_dm_active
                 + self.localized_system.beta_dm_enviro
             )
 
         g_act_and_env = self._global_ks.get_veff(
-            dm=total_dm,
+            dm=total_dm
         )
+
+        self.total_dm = total_dm
+        self.g_act_and_env = g_act_and_env
 
         if self._restricted_scf:
             g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
@@ -857,6 +863,7 @@ class NbedDriver:
                     self.localized_system.beta_dm_active,
                 ]
             )
+        self.g_act = g_act
 
         dft_potential = g_act_and_env - g_act
         self.dft_potential = dft_potential
@@ -946,6 +953,8 @@ class NbedDriver:
                     - result["correction"]
                     - result["beta_correction"]
                 )
+                result["ccsd_emb"] = ccsd_emb.e_hf + e_ccsd_corr - e_nuc
+
                 logger.info(f"CCSD Energy {name}:\t{result['e_ccsd']}")
 
             if self.run_fci_emb is True:
@@ -959,6 +968,10 @@ class NbedDriver:
                     - result["beta_correction"]
                 )
                 logger.info(f"FCI Energy {name}:\t{result['e_fci']}")
+
+                result["fci_emb"] = fci_emb.e_tot - e_nuc
+            result["hf_emb"] = result["scf"].e_tot - e_nuc
+            result["nuc"] = e_nuc
 
             if self.run_dft_in_dft is True:
                 did = self.embed_dft_in_dft(self._global_ks.xc, embedding_method)
@@ -1023,7 +1036,7 @@ class NbedDriver:
             result["dft_correction_beta"] = np.einsum(
                 "ij,ij",
                 result["v_emb_dft"][1],
-                (y_emb_beta - self.localized_system.dm_active),
+                (y_emb_beta - self.localized_system.beta_dm_active),
             )
 
             veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
