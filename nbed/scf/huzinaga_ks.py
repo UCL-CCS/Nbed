@@ -42,21 +42,29 @@ def huzinaga_KS(
     """
     s_mat = scf_method.get_ovlp()
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
-    unrestricted_case = False
 
+
+    unrestricted = False
     if str(type(scf_method)) == "<class 'pyscf.dft.uks.UKS'>":
-        unrestricted_case = True
+        unrestricted = True
+    if unrestricted:
+        dm_env_S = np.array([dm_enviroment[0] @ s_mat, dm_enviroment[1] @ s_mat])
+    else:
+        dm_env_S = dm_enviroment @ s_mat
 
     dm_env_S = dm_enviroment @ s_mat
     # Create an initial dm if needed.
     if dm_initial_guess is None:
         fock = scf_method.get_hcore() + dft_potential
 
-        fds = fock @ dm_env_S
-
-        if unrestricted_case:
-            huzinaga_op_std = - ((fds[0] + fds[0].T) + (fds[1] + fds[1].T))
+        if unrestricted:
+            fds_alpha = fock[0] @ dm_env_S[0]
+            fds_beta = fock[1] @ dm_env_S[1]
+            huzinaga_op_std = np.array(
+                [-(fds_alpha + fds_alpha.T), -(fds_beta + fds_beta.T)]
+            )
         else:
+            fds = fock @ dm_env_S
             huzinaga_op_std = -0.5 * (fds + fds.T)
 
         fock += huzinaga_op_std
@@ -81,12 +89,14 @@ def huzinaga_KS(
         vhf = scf_method.get_veff(dm=dm_mat)
         fock = scf_method.get_hcore() + vhf + dft_potential
 
-        # projector
-        fds = fock @ dm_env_S
-
-        if unrestricted_case:
-            huzinaga_op_std = -0.25 * ((fds[0] + fds[0].T) + (fds[1] + fds[1].T))
+        if unrestricted:
+            fds_alpha = fock[0] @ dm_env_S[0]
+            fds_beta = fock[1] @ dm_env_S[1]
+            huzinaga_op_std = np.array(
+                [-(fds_alpha + fds_alpha.T), -(fds_beta + fds_beta.T)]
+            )
         else:
+            fds = fock @ dm_env_S
             huzinaga_op_std = -0.5 * (fds + fds.T)
 
         fock += huzinaga_op_std
@@ -107,7 +117,7 @@ def huzinaga_KS(
         # Find RKS energy
         #     rks_energy = scf_method.energy_elec(dm=dm_mat)[0]
         vhf_updated = scf_method.get_veff(dm=dm_mat)
-        if unrestricted_case:
+        if unrestricted:
             rks_energy = (
                 vhf_updated.ecoul
                 + vhf_updated.exc
