@@ -1,0 +1,44 @@
+{
+    "tapering": {
+        "symmetry_generators": [
+            "ZIZIIZIZZI",
+            "IZIZIZIZIZ",
+            "IIIIZZZZII"
+        ],
+        "symmetry_sector": [
+            -1,
+            -1,
+            1
+        ]
+    },
+    "cs_vqe": {
+        "symmetry_generators": [
+            "IZZIZZI",
+            "IZZZIIZ",
+            "ZIZZIIZ",
+            "ZIZIZIZ",
+            "ZZZZZII"
+        ],
+        "symmetry sector": [
+            1,
+            1,
+            1,
+            1,
+            -1
+        ],
+        "reduced_hamiltonian": {
+            "II": -59.396177085501584,
+            "IZ": -1.65468949141328,
+            "ZI": -1.2112697481613999,
+            "ZZ": 0.31313434134045226,
+            "IX": -0.035774438052261444,
+            "ZX": -0.035774438052261444,
+            "XI": 0.04303020137570181,
+            "XZ": 0.04303020137570181,
+            "XX": -0.019406306033497293,
+            "YY": -0.019406306033497293
+        },
+        "true_gs_energy": -61.9561580611193,
+        "proj_gs_energy": -61.9549186127544
+    }
+}
