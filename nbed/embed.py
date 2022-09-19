@@ -43,6 +43,7 @@ def nbed(
     virtual_threshold: Optional[float] = 0.95,
     max_hf_cycles: int = 50,
     max_dft_cycles: int = 50,
+    unrestricted: Optional[bool] = False,
 ):
     """Import interface for the nbed package.
 
@@ -101,6 +102,7 @@ def nbed(
         virtual_threshold=virtual_threshold,
         max_hf_cycles=max_hf_cycles,
         max_dft_cycles=max_dft_cycles,
+        unrestricted= unrestricted,
     )
 
     # Needed for 'both' projector
@@ -108,8 +110,8 @@ def nbed(
         hamiltonians = ()
         for scf, e_classical in zip(driver.embedded_scf, driver.e_classical):
             qham = HamiltonianBuilder(
-                scf_method=scf,
-                constant_e_shift=e_classical,
+                scf_method=driver.embedded_scf,
+                constant_e_shift=0,
                 transform=transform,
             ).build(n_qubits=qubits)
             
@@ -120,7 +122,7 @@ def nbed(
     else:
         qham = HamiltonianBuilder(
             scf_method=driver.embedded_scf,
-            constant_e_shift=driver.classical_energy,
+            constant_e_shift=0,
             transform=transform,
         ).build(n_qubits=qubits)
 
