@@ -947,13 +947,13 @@ class NbedDriver:
                 )
                 result["e_ccsd"] = (
                     ccsd_emb.e_hf
-                    + e_ccsd_corr
+                    - ccsd_emb.e_corr
                     + self.e_env
                     + self.two_e_cross
                     - result["correction"]
                     - result["beta_correction"]
                 )
-                result["ccsd_emb"] = ccsd_emb.e_hf + e_ccsd_corr - e_nuc
+                result["ccsd_emb"] = ccsd_emb.e_hf - e_ccsd_corr - e_nuc
 
                 logger.info(f"CCSD Energy {name}:\t{result['e_ccsd']}")
 
@@ -976,6 +976,7 @@ class NbedDriver:
             if self.run_dft_in_dft is True:
                 did = self.embed_dft_in_dft(self._global_ks.xc, embedding_method)
                 result["e_dft_in_dft"] = did["e_rks"]
+                result["emb_dft"] = did["rks_e_elec"]
 
         if self.projector == "both":
             logger.warning(
@@ -1060,5 +1061,6 @@ class NbedDriver:
         result["e_rks"] = (
             rks_e_elec + self.e_env + self.two_e_cross + result["dft_correction"] + result["dft_correction_beta"] + e_nuc
         )
+        result['rks_e_elec'] = rks_e_elec
 
         return result
