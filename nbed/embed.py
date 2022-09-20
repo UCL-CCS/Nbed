@@ -1,12 +1,11 @@
 """Main embedding functionality."""
 
 import logging
-import openfermion
 from pathlib import Path
 from typing import Optional
 
+import openfermion
 from numpy import save
-
 
 from nbed.exceptions import NbedConfigError
 from nbed.ham_builder import HamiltonianBuilder
@@ -91,7 +90,7 @@ def nbed(
         convergence=convergence,
         savefile=savefile,
         charge=charge,
-        spin=spin, 
+        spin=spin,
         mu_level_shift=mu_level_shift,
         run_ccsd_emb=run_ccsd_emb,
         run_fci_emb=run_fci_emb,
@@ -102,7 +101,7 @@ def nbed(
         virtual_threshold=virtual_threshold,
         max_hf_cycles=max_hf_cycles,
         max_dft_cycles=max_dft_cycles,
-        unrestricted= unrestricted,
+        unrestricted=unrestricted,
     )
 
     # Needed for 'both' projector
@@ -110,33 +109,29 @@ def nbed(
         hamiltonians = ()
         for scf, e_classical in zip(driver.embedded_scf, driver.e_classical):
             qham = HamiltonianBuilder(
-                scf_method=driver.embedded_scf,
-                constant_e_shift=0,
-                transform=transform,
+                scf_method=driver.embedded_scf, constant_e_shift=0, transform=transform,
             ).build(n_qubits=qubits)
-            
+
             converter = HamiltonianConverter(qham)
             qham = getattr(converter, output.lower())
 
             hamiltonians += (qham,)
     else:
         qham = HamiltonianBuilder(
-            scf_method=driver.embedded_scf,
-            constant_e_shift=0,
-            transform=transform,
+            scf_method=driver.embedded_scf, constant_e_shift=0, transform=transform,
         ).build(n_qubits=qubits)
 
         converter = HamiltonianConverter(qham)
         hamiltonians = getattr(converter, output.lower())
 
-    if savefile != None:
+    if savefile is not None:
         openfermion.utils.save_operator(
             qham,
-            file_name= file_name,
+            file_name=file_name,
             data_directory=savefile,
             allow_overwrite=False,
-            plain_text=False
-        )  
+            plain_text=False,
+        )
 
     print_summary(driver, transform, fci=False)
     return qham

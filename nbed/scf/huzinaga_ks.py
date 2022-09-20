@@ -43,7 +43,6 @@ def huzinaga_KS(
     s_mat = scf_method.get_ovlp()
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
-
     unrestricted = False
     if str(type(scf_method)) == "<class 'pyscf.dft.uks.UKS'>":
         unrestricted = True

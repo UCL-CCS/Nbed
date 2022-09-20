@@ -26,11 +26,7 @@ def test_PMLocalizer_local_basis_transform() -> None:
     """Check change of basis operator (from canonical to localized) is correct"""
 
     # define RKS DFT object
-    full_mol = gto.Mole(
-        atom=str(water_filepath),
-        basis=basis,
-        charge=charge,
-    ).build()
+    full_mol = gto.Mole(atom=str(water_filepath), basis=basis, charge=charge,).build()
     global_ks = scf.RKS(full_mol)
     global_ks.conv_tol = convergence
     global_ks.xc = xc_functional
@@ -64,11 +60,7 @@ def test_PMLocalizer_local_basis_transform() -> None:
 def test_spin_localizations_match() -> None:
     """Check that localization of restricted and unrestricted match."""
     # define RKS DFT object
-    full_mol = gto.Mole(
-        atom=str(water_filepath),
-        basis=basis,
-        charge=charge,
-    ).build()
+    full_mol = gto.Mole(atom=str(water_filepath), basis=basis, charge=charge,).build()
     global_rks = scf.RKS(full_mol)
     global_rks.conv_tol = convergence
     global_rks.xc = xc_functional

@@ -34,36 +34,39 @@ def energy_elec(mf, dm=None, h1e=None, vhf=None) -> Tuple[float, float]:
     mf.scf_summary["e2"] = e_coul.real
     return e_elec, e_coul
 
+
 def _absorb_h1e(h1e, eri, norb, nelec, fac=1):
     if not isinstance(nelec, (int, np.number)):
         nelec = sum(nelec)
     h1e_a, h1e_b = h1e
-    print('h1e_a',h1e_a.shape)
-    print('h1e_b',h1e_b.shape)
-    h1e_a = np.einsum('jik->jk', h1e_a)
-    h1e_b = np.einsum('jik->jk', h1e_b)
-    print('h1e_a',h1e_a.shape)
-    print('h1e_b',h1e_b.shape)
+    print("h1e_a", h1e_a.shape)
+    print("h1e_b", h1e_b.shape)
+    h1e_a = np.einsum("jik->jk", h1e_a)
+    h1e_b = np.einsum("jik->jk", h1e_b)
+    print("h1e_a", h1e_a.shape)
+    print("h1e_b", h1e_b.shape)
     h2e_aa = ao2mo.restore(1, eri[0], norb).copy()
     h2e_ab = ao2mo.restore(1, eri[1], norb).copy()
     h2e_bb = ao2mo.restore(1, eri[2], norb).copy()
-    print('x1', h2e_aa.shape)
-    print('y2', h2e_bb.shape)
-    x = np.einsum('jiik->jk', h2e_aa) * .5
-    y = np.einsum('jiik->jk', h2e_bb) * .5
-    print('x', x.shape)
-    print('y', y.shape)
-    f1e_a = h1e_a - np.einsum('jiik->jk', h2e_aa) * .5
-    f1e_b = h1e_b - np.einsum('jiik->jk', h2e_bb) * .5
-    f1e_a *= 1./(nelec+1e-100)
-    f1e_b *= 1./(nelec+1e-100)
+    print("x1", h2e_aa.shape)
+    print("y2", h2e_bb.shape)
+    x = np.einsum("jiik->jk", h2e_aa) * 0.5
+    y = np.einsum("jiik->jk", h2e_bb) * 0.5
+    print("x", x.shape)
+    print("y", y.shape)
+    f1e_a = h1e_a - np.einsum("jiik->jk", h2e_aa) * 0.5
+    f1e_b = h1e_b - np.einsum("jiik->jk", h2e_bb) * 0.5
+    f1e_a *= 1.0 / (nelec + 1e-100)
+    f1e_b *= 1.0 / (nelec + 1e-100)
     for k in range(norb):
-        h2e_aa[:,:,k,k] += f1e_a
-        h2e_aa[k,k,:,:] += f1e_a
-        h2e_ab[:,:,k,k] += f1e_a
-        h2e_ab[k,k,:,:] += f1e_b
-        h2e_bb[:,:,k,k] += f1e_b
-        h2e_bb[k,k,:,:] += f1e_b
-    return (ao2mo.restore(4, h2e_aa, norb) * fac,
-            ao2mo.restore(4, h2e_ab, norb) * fac,
-            ao2mo.restore(4, h2e_bb, norb) * fac)
+        h2e_aa[:, :, k, k] += f1e_a
+        h2e_aa[k, k, :, :] += f1e_a
+        h2e_ab[:, :, k, k] += f1e_a
+        h2e_ab[k, k, :, :] += f1e_b
+        h2e_bb[:, :, k, k] += f1e_b
+        h2e_bb[k, k, :, :] += f1e_b
+    return (
+        ao2mo.restore(4, h2e_aa, norb) * fac,
+        ao2mo.restore(4, h2e_ab, norb) * fac,
+        ao2mo.restore(4, h2e_bb, norb) * fac,
+    )

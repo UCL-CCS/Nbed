@@ -22,7 +22,7 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .scf import energy_elec, huzinaga_RHF, huzinaga_KS, _absorb_h1e
+from .scf import _absorb_h1e, energy_elec, huzinaga_KS, huzinaga_RHF
 
 # from .log_conf import setup_logs
 
@@ -167,16 +167,16 @@ class NbedDriver:
         self.localized_system = None
         self.two_e_cross = None
         self.dft_potential = None
-        self.molecule_info = {} 
+        self.molecule_info = {}
         self.electron = None
         self.v_emb = None
 
-        #if self.charge % 2 == 0:
-            #logger.debug("Closed shells, using restricted SCF.")
-            #self._restricted_scf = False
+        # if self.charge % 2 == 0:
+        # logger.debug("Closed shells, using restricted SCF.")
+        # self._restricted_scf = False
         #:
-            #logger.debug("Open shells, using unrestricted SCF.")
-            #self._restricted_scf = False
+        # logger.debug("Open shells, using unrestricted SCF.")
+        # self._restricted_scf = False
         self._restricted_scf = True
         if unrestricted:
             self._restricted_scf = False
@@ -190,7 +190,6 @@ class NbedDriver:
 
         if return_dict:
             self.return_dictionary()
-
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
@@ -299,16 +298,16 @@ class NbedDriver:
     def return_dictionary(self) -> None:
         """Method that ouputs the geometry and energies of the molecule as a dictionary
 
-        """ 
-        self.molecule_info['geometry'] = self.geometry
-        self.molecule_info['projector'] = self.projector
-        self.molecule_info['n_act_atoms'] = self.n_active_atoms
-        self.molecule_info['e_env'] = self.e_env
-        self.molecule_info['two_e_cross'] = self.two_e_cross
-        self.molecule_info['HF energy'] = self._global_hf().e_tot
-        self.molecule_info['FCI energy'] = self._global_fci().e_tot
-        self.molecule_info['CCSD energy'] = self._global_ccsd().e_tot
-        self.molecule_info['DFT energy'] = self._global_ks().e_tot
+        """
+        self.molecule_info["geometry"] = self.geometry
+        self.molecule_info["projector"] = self.projector
+        self.molecule_info["n_act_atoms"] = self.n_active_atoms
+        self.molecule_info["e_env"] = self.e_env
+        self.molecule_info["two_e_cross"] = self.two_e_cross
+        self.molecule_info["HF energy"] = self._global_hf().e_tot
+        self.molecule_info["FCI energy"] = self._global_fci().e_tot
+        self.molecule_info["CCSD energy"] = self._global_ccsd().e_tot
+        self.molecule_info["DFT energy"] = self._global_ks().e_tot
 
     def _check_active_atoms(self) -> None:
         """Check that the number of active atoms is valid."""
@@ -410,8 +409,7 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _ks_components(
-            ks_system: Localizer,
-            subsystem_dm: np.ndarray,
+            ks_system: Localizer, subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -453,7 +451,7 @@ class NbedDriver:
             #     energy_elec_pyscf = self._global_ks.energy_elec(dm=dm_matrix)[0]
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
-            logger.debug(f"Subsystem RKS components found.")
+            logger.debug("Subsystem RKS components found.")
             return e_act, two_e_term, j_mat
 
         if not self._restricted_scf:
@@ -534,7 +532,9 @@ class NbedDriver:
         return env_projector
 
     def _run_emb_CCSD(
-        self, emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF], frozen_orb_list: Optional[list] = None
+        self,
+        emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
+        frozen_orb_list: Optional[list] = None,
     ) -> Tuple[cc.CCSD, float]:
         """Function run CCSD on embedded restricted Hartree Fock object.
 
@@ -562,7 +562,9 @@ class NbedDriver:
         return ccsd, e_ccsd_corr
 
     def _run_emb_FCI(
-        self, emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF], frozen_orb_list: Optional[list] = None
+        self,
+        emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
+        frozen_orb_list: Optional[list] = None,
     ) -> fci.FCI:
         """Function run FCI on embedded restricted Hartree Fock object.
 
@@ -608,8 +610,12 @@ class NbedDriver:
             logger.debug("Running embedded scf calculation.")
 
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
-            v_emb_alpha = (self.mu_level_shift * self._env_projector[0]) + dft_potential[0]
-            v_emb_beta = (self.mu_level_shift * self._env_projector[1]) + dft_potential[1]
+            v_emb_alpha = (
+                self.mu_level_shift * self._env_projector[0]
+            ) + dft_potential[0]
+            v_emb_beta = (self.mu_level_shift * self._env_projector[1]) + dft_potential[
+                1
+            ]
             v_emb = np.array([v_emb_alpha, v_emb_beta])
 
             hcore_std = localized_scf.get_hcore()
@@ -717,7 +723,7 @@ class NbedDriver:
         mo_coeff: np.ndarray,
         mo_energy: np.ndarray,
         mo_occ: np.ndarray,
-        projector
+        projector,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Remove enironment orbit from embedded rhf object.
 
@@ -737,11 +743,7 @@ class NbedDriver:
         logger.debug("Deleting environment for spin.")
 
         if method == "huzinaga":
-            overlap = np.einsum(
-                "ij, ki -> i",
-                mo_coeff.T,
-                projector @ mo_coeff,
-            )
+            overlap = np.einsum("ij, ki -> i", mo_coeff.T, projector @ mo_coeff,)
             overlap_by_size = overlap.argsort()[::-1]
             frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]
 
@@ -789,7 +791,12 @@ class NbedDriver:
         if self._restricted_scf:
             n_env_mos = len(self.localized_system.enviro_MO_inds)
             scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
-                method, n_env_mos, scf.mo_coeff, scf.mo_energy, scf.mo_occ, self._env_projector
+                method,
+                n_env_mos,
+                scf.mo_coeff,
+                scf.mo_energy,
+                scf.mo_occ,
+                self._env_projector,
             )
         else:
             alpha_n_env_mos = len(self.localized_system.enviro_MO_inds)
@@ -803,7 +810,7 @@ class NbedDriver:
                 scf.mo_coeff[0],
                 scf.mo_energy[0],
                 scf.mo_occ[0],
-                self._env_projector[0]
+                self._env_projector[0],
             )
             (mo_coeff[1], mo_energy[1], mo_occ[1]) = self._delete_spin_environment(
                 method,
@@ -811,7 +818,7 @@ class NbedDriver:
                 scf.mo_coeff[1],
                 scf.mo_energy[1],
                 scf.mo_occ[1],
-                self._env_projector[1]
+                self._env_projector[1],
             )
 
             # Need to do it this way or there are broadcasting issues
@@ -830,7 +837,7 @@ class NbedDriver:
         """
         logger.debug("Embedding molecule.")
         self.localized_system = self._localize()
-        logger.info(f"Indices of embedded electrons:")
+        logger.info("Indices of embedded electrons:")
         logger.info(self.localized_system.active_MO_inds)
         logger.info(self.localized_system.enviro_MO_inds)
 
@@ -847,9 +854,7 @@ class NbedDriver:
                 + self.localized_system.beta_dm_enviro
             )
 
-        g_act_and_env = self._global_ks.get_veff(
-            dm=total_dm
-        )
+        g_act_and_env = self._global_ks.get_veff(dm=total_dm)
 
         self.total_dm = total_dm
         self.g_act_and_env = g_act_and_env
@@ -900,7 +905,7 @@ class NbedDriver:
                 result["scf"], result["v_emb"] = embedding_method(
                     local_rhf, dft_potential
                 )
-            
+
             result["mo_energies_emb_pre_del"] = local_rhf.mo_energy
             result["scf"] = self._delete_environment(name, result["scf"])
             result["mo_energies_emb_post_del"] = local_rhf.mo_energy
@@ -1014,7 +1019,7 @@ class NbedDriver:
         Returns:
             float: Energy of DFT in embedding.
         """
-            
+
         result = {}
         e_nuc = self._global_ks.energy_nuc()
 
@@ -1042,25 +1047,32 @@ class NbedDriver:
 
             veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
 
-            rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb_alpha,) + np.einsum("ij,ij", hcore_std, y_emb_beta,)
-        
+            rks_e_elec = (
+                veff.exc
+                + veff.ecoul
+                + np.einsum("ij,ij", hcore_std, y_emb_alpha,)
+                + np.einsum("ij,ij", hcore_std, y_emb_beta,)
+            )
+
         else:
             y_emb = result["scf_dft"].make_rdm1()
 
             # calculate correction
             result["dft_correction"] = np.einsum(
-                "ij,ij",
-                result["v_emb_dft"],
-                (y_emb - self.localized_system.dm_active),
+                "ij,ij", result["v_emb_dft"], (y_emb - self.localized_system.dm_active),
             )
             veff = result["scf_dft"].get_veff(dm=y_emb)
             result["dft_correction_beta"] = 0
             rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
 
-        
         result["e_rks"] = (
-            rks_e_elec + self.e_env + self.two_e_cross + result["dft_correction"] + result["dft_correction_beta"] + e_nuc
+            rks_e_elec
+            + self.e_env
+            + self.two_e_cross
+            + result["dft_correction"]
+            + result["dft_correction_beta"]
+            + e_nuc
         )
-        result['rks_e_elec'] = rks_e_elec
+        result["rks_e_elec"] = rks_e_elec
 
         return result
