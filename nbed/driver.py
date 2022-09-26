@@ -987,8 +987,6 @@ class NbedDriver:
             self.embedded_scf = self._huzinaga["scf"]
             self.classical_energy = self._huzinaga["classical_energy"]
 
-        self.molecule_info.update(result)
-
         logger.info("Embedding complete.")
 
     def embed_dft_in_dft(self, xc_func: str, embedding_method: Callable):
