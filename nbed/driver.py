@@ -117,7 +117,7 @@ class NbedDriver:
         max_dft_cycles: int = 50,
         run_embed: bool = True,
         return_dict: Optional[bool] = False,
-        unrestricted: Optional[bool] = False,
+        force_unrestricted: Optional[bool] = False,
     ):
         """Initialise class."""
         logger.debug("Initialising driver.")
@@ -171,14 +171,14 @@ class NbedDriver:
         self.electron = None
         self.v_emb = None
 
-        # if self.charge % 2 == 0:
-        # logger.debug("Closed shells, using restricted SCF.")
-        # self._restricted_scf = False
-        #:
-        # logger.debug("Open shells, using unrestricted SCF.")
-        # self._restricted_scf = False
-        self._restricted_scf = True
-        if unrestricted:
+        if self.charge % 2 == 0:
+            logger.debug("Closed shells, using restricted SCF.")
+            self._restricted_scf = True
+        else:
+            logger.debug("Open shells, using unrestricted SCF.")
+            self._restricted_scf = False
+
+        if force_unrestricted:
             self._restricted_scf = False
 
         if run_embed:
