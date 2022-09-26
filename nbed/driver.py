@@ -167,7 +167,6 @@ class NbedDriver:
         self.localized_system = None
         self.two_e_cross = None
         self.dft_potential = None
-        self.molecule_info = {}
         self.electron = None
         self.v_emb = None
 
@@ -294,20 +293,6 @@ class NbedDriver:
             logger.warning("(cheap) global DFT calculation has NOT converged!")
 
         return global_ks
-
-    def return_dictionary(self) -> None:
-        """Method that ouputs the geometry and energies of the molecule as a dictionary
-
-        """
-        self.molecule_info["geometry"] = self.geometry
-        self.molecule_info["projector"] = self.projector
-        self.molecule_info["n_act_atoms"] = self.n_active_atoms
-        self.molecule_info["e_env"] = self.e_env
-        self.molecule_info["two_e_cross"] = self.two_e_cross
-        self.molecule_info["HF energy"] = self._global_hf().e_tot
-        self.molecule_info["FCI energy"] = self._global_fci().e_tot
-        self.molecule_info["CCSD energy"] = self._global_ccsd().e_tot
-        self.molecule_info["DFT energy"] = self._global_ks().e_tot
 
     def _check_active_atoms(self) -> None:
         """Check that the number of active atoms is valid."""
