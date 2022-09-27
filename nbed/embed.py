@@ -109,7 +109,9 @@ def nbed(
         hamiltonians = ()
         for scf, e_classical in zip(driver.embedded_scf, driver.e_classical):
             qham = HamiltonianBuilder(
-                scf_method=driver.embedded_scf, constant_e_shift=0, transform=transform,
+                scf_method=driver.embedded_scf,
+                constant_e_shift=0,
+                transform=transform,
             ).build(n_qubits=qubits)
 
             converter = HamiltonianConverter(qham)
@@ -118,7 +120,9 @@ def nbed(
             hamiltonians += (qham,)
     else:
         qham = HamiltonianBuilder(
-            scf_method=driver.embedded_scf, constant_e_shift=0, transform=transform,
+            scf_method=driver.embedded_scf,
+            constant_e_shift=0,
+            transform=transform,
         ).build(n_qubits=qubits)
 
         converter = HamiltonianConverter(qham)

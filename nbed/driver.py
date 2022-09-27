@@ -239,9 +239,7 @@ class NbedDriver:
 
     @cached_property
     def _global_ccsd(self) -> StreamObject:
-        """Function to run full molecule CCSD calculation.
-
-        """
+        """Function to run full molecule CCSD calculation."""
         logger.debug("Running full system CC.")
         # run CCSD after HF
 
@@ -394,7 +392,8 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _ks_components(
-            ks_system: Localizer, subsystem_dm: np.ndarray,
+            ks_system: Localizer,
+            subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -728,7 +727,11 @@ class NbedDriver:
         logger.debug("Deleting environment for spin.")
 
         if method == "huzinaga":
-            overlap = np.einsum("ij, ki -> i", mo_coeff.T, projector @ mo_coeff,)
+            overlap = np.einsum(
+                "ij, ki -> i",
+                mo_coeff.T,
+                projector @ mo_coeff,
+            )
             overlap_by_size = overlap.argsort()[::-1]
             frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]
 
@@ -1033,8 +1036,16 @@ class NbedDriver:
             rks_e_elec = (
                 veff.exc
                 + veff.ecoul
-                + np.einsum("ij,ij", hcore_std, y_emb_alpha,)
-                + np.einsum("ij,ij", hcore_std, y_emb_beta,)
+                + np.einsum(
+                    "ij,ij",
+                    hcore_std,
+                    y_emb_alpha,
+                )
+                + np.einsum(
+                    "ij,ij",
+                    hcore_std,
+                    y_emb_beta,
+                )
             )
 
         else:
@@ -1042,7 +1053,9 @@ class NbedDriver:
 
             # calculate correction
             result["dft_correction"] = np.einsum(
-                "ij,ij", result["v_emb_dft"], (y_emb - self.localized_system.dm_active),
+                "ij,ij",
+                result["v_emb_dft"],
+                (y_emb - self.localized_system.dm_active),
             )
             veff = result["scf_dft"].get_veff(dm=y_emb)
             result["dft_correction_beta"] = 0

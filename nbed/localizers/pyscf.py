@@ -74,7 +74,9 @@ class PySCFLocalizer(Localizer, ABC):
         """
         pass
 
-    def _localize(self,) -> Tuple[Tuple, Union[Tuple, None]]:
+    def _localize(
+        self,
+    ) -> Tuple[Tuple, Union[Tuple, None]]:
         """Localise orbitals using PySCF localization schemes.
 
         Returns:
