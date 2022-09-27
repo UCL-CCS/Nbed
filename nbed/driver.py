@@ -879,24 +879,24 @@ class NbedDriver:
 
             embedding_method: callable = embeddings[name]
 
-            local_rhf = self._init_local_hf()
+            local_hf = self._init_local_hf()
 
             if init_huzinaga_rhf_with_mu and (name == "huzinaga"):
                 logger.debug("Initializing huzinaga with mu-shift.")
                 # seed huzinaga calc with mu result!
                 result["scf"], result["v_emb"] = embedding_method(
-                    local_rhf,
+                    local_hf,
                     dft_potential,
                     dmat_initial_guess=self._mu["scf"].make_rdm1(),
                 )
             else:
                 result["scf"], result["v_emb"] = embedding_method(
-                    local_rhf, dft_potential
+                    local_hf, dft_potential
                 )
 
-            result["mo_energies_emb_pre_del"] = local_rhf.mo_energy
+            result["mo_energies_emb_pre_del"] = local_hf.mo_energy
             result["scf"] = self._delete_environment(name, result["scf"])
-            result["mo_energies_emb_post_del"] = local_rhf.mo_energy
+            result["mo_energies_emb_post_del"] = local_hf.mo_energy
 
             logger.info(f"V emb mean {name}: {np.mean(result['v_emb'])}")
 
