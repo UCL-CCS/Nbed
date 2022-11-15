@@ -51,6 +51,7 @@ class HamiltonianBuilder:
 
         # one body terms
         if isinstance(self.scf_method, (scf.uhf.UHF, dft.uks.UKS)):
+            logger.info("Calculating unrestricted one body intergrals.")
             one_body_integrals_alpha = (
                 c_matrix_active[0].T
                 @ self.scf_method.get_hcore()[0]
@@ -67,6 +68,7 @@ class HamiltonianBuilder:
             )
 
         else:
+            logger.info("Calculating restricted one body integrals.")
             one_body_integrals = (
                 c_matrix_active.T @ self.scf_method.get_hcore() @ c_matrix_active
             )
@@ -272,7 +274,7 @@ class HamiltonianBuilder:
             ) = self._reduce_active_space(qubit_reduction)
 
             if isinstance(self.scf_method, (scf.uhf.UHF, dft.uks.UKS)):
-                one_body_coefficients, two_body_coefficients = _spinorb_from_spatial(
+                one_body_coefficients, two_body_coefficients = _unrestricted_spinorb_from_spatial(
                     self._one_body_integrals, self._two_body_integrals
                 )
             else:
@@ -308,8 +310,8 @@ class HamiltonianBuilder:
             qubit_reduction += final_n_qubits - n_qubits
 
 
-def _spinorb_from_spatial(one_body_integrals, two_body_integrals):
-    n_qubits = one_body_integrals[0].shape[0] + one_body_integrals[1].shape[1]
+def _unrestricted_spinorb_from_spatial(one_body_integrals, two_body_integrals):
+    n_qubits = one_body_integrals[0].shape[0] + one_body_integrals[1].shape[0]
 
     # Initialize Hamiltonian coefficients.
     one_body_coefficients = np.zeros((n_qubits, n_qubits))

@@ -1,9 +1,11 @@
 """Module containg the NbedDriver Class."""
 
+from locale import locale_alias
 import logging
 import os
 from copy import copy
 from pathlib import Path
+from threading import local
 from typing import Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
@@ -574,12 +576,12 @@ class NbedDriver:
         return fci_scf
 
     def _mu_embed(
-        self, localized_scf: StreamObject, dft_potential: np.ndarray
+        self, active_scf: StreamObject, dft_potential: np.ndarray
     ) -> Tuple[StreamObject, np.ndarray]:
         """Embed using the Mu-shift projector.
 
         Args:
-            localized_scf (StreamObject): A PySCF scf method in the localized basis.
+            active_scf (StreamObject): A PySCF scf method with the correct number of electrons for the active region.
             dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
 
         Returns:
@@ -590,6 +592,7 @@ class NbedDriver:
 
         # Modify the energy_elec function to handle different h_cores
         # which we need for different embedding potentials
+        localized_scf = active_scf
         if isinstance(localized_scf, (scf.uhf.UHF, dft.uks.UKS)):
             logger.debug("Running embedded scf calculation.")
 
@@ -623,14 +626,14 @@ class NbedDriver:
 
     def _huzinaga_embed(
         self,
-        localized_scf: StreamObject,
+        active_scf: StreamObject,
         dft_potential: np.ndarray,
         dmat_initial_guess: bool = None,
     ) -> Tuple[StreamObject, np.ndarray]:
         """Embed using Huzinaga projector.
 
         Args:
-            localized_scf (StreamObject): A PySCF scf method in the localized basis.
+            active_scf (StreamObject): A PySCF scf method with the correct number of electrons for the active region.
             dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
             dmat_initial_guess (bool): If True, use the initial guess for the density matrix.
 
@@ -647,6 +650,7 @@ class NbedDriver:
                 [self.localized_system.dm_enviro, self.localized_system.beta_dm_enviro]
             )
 
+        localized_scf = active_scf
         if isinstance(localized_scf, (dft.rks.RKS, dft.uks.UKS)):
             (
                 c_active_embedded,
