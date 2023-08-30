@@ -88,7 +88,7 @@ def test_driver_standard_xyz_string_input() -> None:
     )
     args = {
         "geometry": water_xyz_raw,
-        "n_active_atoms": 2,
+        "n_active_atoms": 1,
         "basis": "STO-3G",
         "xc_functional": "b3lyp",
         "projector": "mu",

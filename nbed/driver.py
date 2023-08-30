@@ -179,6 +179,7 @@ class NbedDriver:
             logger.info(
                 "Input geometry is not an existing file. Assumng raw xyz input."
             )
+            logger.info("Input geometry: %s", self.geometry)
             # geometry is raw xyz string
             full_mol = gto.Mole(
                 atom=self.geometry[3:],
