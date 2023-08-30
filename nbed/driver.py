@@ -179,6 +179,7 @@ class NbedDriver:
             logger.info(
                 "Input geometry is not an existing file. Assumng raw xyz input."
             )
+            logger.info("Input geometry: %s", self.geometry)
             # geometry is raw xyz string
             full_mol = gto.Mole(
                 atom=self.geometry[3:],
@@ -251,7 +252,7 @@ class NbedDriver:
         if self.n_active_atoms not in range(1, all_atoms):
             logger.error("Invalid number of active atoms.")
             raise NbedConfigError(
-                f"Invalid number of active atoms. Choose a number between 0 and {all_atoms}."
+                f"Invalid number of active atoms. Choose a number from 1 to {all_atoms-1}."
             )
         logger.debug("Number of active atoms valid.")
 
@@ -325,8 +326,7 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _rks_components(
-            rks_system: Localizer,
-            subsystem_dm: np.ndarray,
+            rks_system: Localizer, subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
@@ -767,9 +767,7 @@ class NbedDriver:
         y_emb = result["scf_dft"].make_rdm1()
         # calculate correction
         result["correction"] = np.einsum(
-            "ij,ij",
-            result["v_emb_dft"],
-            (y_emb - self.localized_system.dm_active),
+            "ij,ij", result["v_emb_dft"], (y_emb - self.localized_system.dm_active),
         )
         veff = result["scf_dft"].get_veff(dm=y_emb)
         rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)

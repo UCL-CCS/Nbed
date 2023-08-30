@@ -88,7 +88,7 @@ def test_driver_standard_xyz_string_input() -> None:
     )
     args = {
         "geometry": water_xyz_raw,
-        "n_active_atoms": 2,
+        "n_active_atoms": 1,
         "basis": "STO-3G",
         "xc_functional": "b3lyp",
         "projector": "mu",
@@ -129,7 +129,7 @@ def test_n_active_atoms_valid() -> None:
         "run_ccsd_emb": True,
         "run_fci_emb": True,
     }
-    error_msg = "Invalid number of active atoms. Choose a number between 0 and 3."
+    error_msg = "Invalid number of active atoms. Choose a number from 1 to 2."
 
     with pytest.raises(NbedConfigError, match=error_msg):
         NbedDriver(
