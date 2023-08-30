@@ -251,7 +251,7 @@ class NbedDriver:
         if self.n_active_atoms not in range(1, all_atoms):
             logger.error("Invalid number of active atoms.")
             raise NbedConfigError(
-                f"Invalid number of active atoms. Choose a number between 0 and {all_atoms}."
+                f"Invalid number of active atoms. Choose a number from 1 to {all_atoms-1}."
             )
         logger.debug("Number of active atoms valid.")
 

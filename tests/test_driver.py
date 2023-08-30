@@ -129,7 +129,7 @@ def test_n_active_atoms_valid() -> None:
         "run_ccsd_emb": True,
         "run_fci_emb": True,
     }
-    error_msg = "Invalid number of active atoms. Choose a number between 0 and 3."
+    error_msg = "Invalid number of active atoms. Choose a number from 1 to 2."
 
     with pytest.raises(NbedConfigError, match=error_msg):
         NbedDriver(
