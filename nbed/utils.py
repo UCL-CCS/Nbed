@@ -230,7 +230,6 @@ def parse():
 
 def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None:
     """Print a summary of the package results.
-
     Args:
         driver (NbedDriver): An NbedDriver to summarise.
         transform (str): The transform used to generate a qubit Hamiltonian.
@@ -262,8 +261,8 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
     print("".center(80, "*"))
     logger.info("".center(80, "*"))
 
-    print(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
-    logger.info(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
+    print(f"global (cheap) DFT calculation {driver._global_ks.e_tot}")
+    logger.info(f"global (cheap) DFT calculation {driver._global_ks.e_tot}")
 
     if driver.projector in ["huzinaga", "both"]:
         print("".center(80, "*"))
