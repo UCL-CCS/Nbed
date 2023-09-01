@@ -7,9 +7,10 @@ import openfermion.transforms as of_transforms
 from cached_property import cached_property
 from openfermion import InteractionOperator, QubitOperator, count_qubits
 from openfermion.chem.molecular_data import spinorb_from_spatial
+from openfermion.config import EQ_TOLERANCE
 from openfermion.ops.representations import get_active_space_integrals
 from openfermion.transforms import taper_off_qubits
-from pyscf import ao2mo
+from pyscf import ao2mo, dft, scf
 from pyscf.lib import StreamObject
 from pyscf.lib.numpy_helper import SYMMETRIC
 from qiskit.opflow import Z2Symmetries
@@ -49,10 +50,30 @@ class HamiltonianBuilder:
         c_matrix_active = self.scf_method.mo_coeff
 
         # one body terms
-        one_body_integrals = (
-            c_matrix_active.T @ self.scf_method.get_hcore() @ c_matrix_active
-        )
+        if isinstance(self.scf_method, (scf.uhf.UHF, dft.uks.UKS)):
+            logger.info("Calculating unrestricted one body intergrals.")
+            one_body_integrals_alpha = (
+                c_matrix_active[0].T
+                @ self.scf_method.get_hcore()[0]
+                @ c_matrix_active[0]
+            )
+            one_body_integrals_beta = (
+                c_matrix_active[1].T
+                @ self.scf_method.get_hcore()[1]
+                @ c_matrix_active[1]
+            )
+
+            one_body_integrals = np.array(
+                [one_body_integrals_alpha, one_body_integrals_beta]
+            )
+
+        else:
+            logger.info("Calculating restricted one body integrals.")
+            one_body_integrals = (
+                c_matrix_active.T @ self.scf_method.get_hcore() @ c_matrix_active
+            )
         logger.debug("One body integrals found.")
+
         return one_body_integrals
 
     @property
@@ -60,16 +81,51 @@ class HamiltonianBuilder:
         """Get the two electron integrals."""
         logger.debug("Calculating two body integrals.")
         c_matrix_active = self.scf_method.mo_coeff
-        n_orbs = c_matrix_active.shape[1]
 
-        two_body_compressed = ao2mo.kernel(self.scf_method.mol, c_matrix_active)
+        if isinstance(self.scf_method, (scf.uhf.UHF, dft.uks.UKS)):
+            n_orbs_alpha = c_matrix_active[0].shape[1]
+            n_orbs_beta = c_matrix_active[1].shape[1]
 
-        # get electron repulsion integrals
-        eri = ao2mo.restore(1, two_body_compressed, n_orbs)  # no permutation symmetry
+            two_body_compressed_alpha = ao2mo.kernel(
+                self.scf_method.mol, c_matrix_active[0]
+            )
+            two_body_compressed_beta = ao2mo.kernel(
+                self.scf_method.mol, c_matrix_active[1]
+            )
 
-        # Openfermion uses physicist notation whereas pyscf uses chemists
-        two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
+            # get electron repulsion integrals
+            eri_alpha = ao2mo.restore(
+                1, two_body_compressed_alpha, n_orbs_alpha
+            )  # no permutation symmetry
+            eri_beta = ao2mo.restore(1, two_body_compressed_beta, n_orbs_beta)
+
+            # Openfermion uses physicist notation whereas pyscf uses chemists
+            two_body_integrals_alpha = np.asarray(
+                eri_alpha.transpose(0, 2, 3, 1), order="C"
+            )
+            two_body_integrals_beta = np.asarray(
+                eri_beta.transpose(0, 2, 3, 1), order="C"
+            )
+
+            two_body_integrals = np.array(
+                [two_body_integrals_alpha, two_body_integrals_beta]
+            )
+
+        else:
+            n_orbs = c_matrix_active.shape[1]
+
+            two_body_compressed = ao2mo.kernel(self.scf_method.mol, c_matrix_active)
+
+            # get electron repulsion integrals
+            eri = ao2mo.restore(
+                1, two_body_compressed, n_orbs
+            )  # no permutation symmetry
+
+            # Openfermion uses physicist notation whereas pyscf uses chemists
+            two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
+
         logger.debug("Two body integrals found.")
+
         return two_body_integrals
 
     def _reduce_active_space(self, qubit_reduction: int) -> None:
@@ -104,7 +160,6 @@ class HamiltonianBuilder:
 
         occupied_indices = np.where(self.scf_method.mo_occ > 0)[0]
         logger.debug(f"Active indices {self._active_space_indices}.")
-
         (
             core_constant,
             one_body_integrals,
@@ -218,9 +273,14 @@ class HamiltonianBuilder:
                 two_body_integrals,
             ) = self._reduce_active_space(qubit_reduction)
 
-            one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
-                one_body_integrals, two_body_integrals
-            )
+            if isinstance(self.scf_method, (scf.uhf.UHF, dft.uks.UKS)):
+                one_body_coefficients, two_body_coefficients = _unrestricted_spinorb_from_spatial(
+                    self._one_body_integrals, self._two_body_integrals
+                )
+            else:
+                one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
+                    one_body_integrals, two_body_integrals
+                )
 
             molecular_hamiltonian = InteractionOperator(
                 (self.constant_e_shift + core_constant),
@@ -242,10 +302,54 @@ class HamiltonianBuilder:
             # Wanted to do a recursive thing to get the correct number
             # from tapering but it takes ages.
             final_n_qubits = count_qubits(qham)
-
             if final_n_qubits <= n_qubits:
                 logger.debug("Hamiltonian reduced to %s qubits.", final_n_qubits)
                 return qham
 
             # Check that we have the right number of qubits.
             qubit_reduction += final_n_qubits - n_qubits
+
+
+def _unrestricted_spinorb_from_spatial(one_body_integrals, two_body_integrals):
+    n_qubits = one_body_integrals[0].shape[0] + one_body_integrals[1].shape[0]
+
+    # Initialize Hamiltonian coefficients.
+    one_body_coefficients = np.zeros((n_qubits, n_qubits))
+    two_body_coefficients = np.zeros((n_qubits, n_qubits, n_qubits, n_qubits))
+
+    # Loop through integrals.
+    for p in range(n_qubits // 2):
+        for q in range(n_qubits // 2):
+
+            # Populate 1-body coefficients. Require p and q have same spin.
+            one_body_coefficients[2 * p, 2 * q] = one_body_integrals[0, p, q]
+            # one_body_coefficients[2 * p, 2 * q] = one_body_integrals[1, p, q]
+
+            # one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[0, p, q]
+            one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[1, p, q]
+
+            # Continue looping to prepare 2-body coefficients.
+            for r in range(n_qubits // 2):
+                for s in range(n_qubits // 2):
+
+                    # Mixed spin
+                    two_body_coefficients[
+                        2 * p, 2 * q + 1, 2 * r + 1, 2 * s
+                    ] = two_body_integrals[0][p, q, r, s]
+                    two_body_coefficients[
+                        2 * p + 1, 2 * q, 2 * r, 2 * s + 1
+                    ] = two_body_integrals[1][p, q, r, s]
+
+                    # Same spin
+                    two_body_coefficients[
+                        2 * p, 2 * q, 2 * r, 2 * s
+                    ] = two_body_integrals[0][p, q, r, s]
+                    two_body_coefficients[
+                        2 * p + 1, 2 * q + 1, 2 * r + 1, 2 * s + 1
+                    ] = two_body_integrals[1][p, q, r, s]
+
+    # Truncate.
+    one_body_coefficients[np.absolute(one_body_coefficients) < EQ_TOLERANCE] = 0.0
+    two_body_coefficients[np.absolute(two_body_coefficients) < EQ_TOLERANCE] = 0.0
+
+    return one_body_coefficients, two_body_coefficients

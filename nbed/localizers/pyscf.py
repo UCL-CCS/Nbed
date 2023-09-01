@@ -2,7 +2,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
 from pyscf import lo
@@ -50,7 +50,7 @@ class PySCFLocalizer(Localizer, ABC):
 
     def __init__(
         self,
-        pyscf_rks: StreamObject,
+        global_ks: StreamObject,
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
@@ -58,7 +58,7 @@ class PySCFLocalizer(Localizer, ABC):
     ):
         """Initialize PySCF Localizer."""
         super().__init__(
-            pyscf_rks,
+            global_ks,
             n_active_atoms,
             occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,
@@ -76,19 +76,48 @@ class PySCFLocalizer(Localizer, ABC):
 
     def _localize(
         self,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[Tuple, Union[Tuple, None]]:
         """Localise orbitals using PySCF localization schemes.
 
-        Args:
-            method (str): String of orbital localization method: 'pipekmezey', 'boys' or 'ibo'
+        Returns:
+            Tuple[Tuple, Union[Tuple, None]]: The alpha and beta localized systems.
+                Note beta is None for restricted SCF.
         """
         logger.debug("Starting PySCF localization.")
-        n_occupied_orbitals = np.count_nonzero(self._global_rks.mo_occ == 2)
-        c_std_occ = self._global_rks.mo_coeff[:, :n_occupied_orbitals]
+
+        if self._restricted_scf:
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff, self._global_ks.mo_occ
+            )
+            beta = None
+        else:
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0]
+            )
+            beta = self._localize_spin(
+                self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1]
+            )
+
+        return alpha, beta
+
+    def _localize_spin(
+        self, c_matrix: np.ndarray, occupancy: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Localize orbitals of one spin using SPADE.
+
+        Args:
+            c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
+            occupancy (np.ndarray): Occupancy of orbitals.
+
+        Returns:
+            np.ndarray: Localized C matrix of occupied orbitals.
+        """
+        n_occupied_orbitals = np.count_nonzero(occupancy)
+        c_std_occ = c_matrix[:, :n_occupied_orbitals]
 
         c_loc_occ = self._pyscf_method(c_std_occ)
 
-        ao_slice_matrix = self._global_rks.mol.aoslice_by_atom()
+        ao_slice_matrix = self._global_ks.mol.aoslice_by_atom()
 
         # TODO: Check the following:
         # S_ovlp = pyscf_scf.get_ovlp()
@@ -215,7 +244,7 @@ class PMLocalizer(PySCFLocalizer):
         # Localise orbitals using Pipek-Mezey localization scheme.
         # This maximizes the sum of orbital-dependent partial charges on the nuclei.
 
-        pipmez = lo.PipekMezey(self._global_rks.mol, c_std_occ)
+        pipmez = lo.PipekMezey(self._global_ks.mol, c_std_occ)
 
         # The atomic population projection scheme.
         # 'mulliken', 'meta-lowdin', 'iao', 'becke'
@@ -280,7 +309,7 @@ class BOYSLocalizer(PySCFLocalizer):
         """
         logger.debug("Using BOYS method.")
         #  Minimizes the spatial extent of the orbitals by minimizing a certain function.
-        boys_SCF = lo.boys.Boys(self._global_rks.mol, c_std_occ)
+        boys_SCF = lo.boys.Boys(self._global_ks.mol, c_std_occ)
         return boys_SCF.kernel()
 
 
@@ -339,10 +368,10 @@ class IBOLocalizer(PySCFLocalizer):
         """
         logger.debug("Using IBO method.")
         # Intrinsic bonding orbitals.
-        iaos = lo.iao.iao(self._global_rks.mol, c_std_occ)
+        iaos = lo.iao.iao(self._global_ks.mol, c_std_occ)
         # Orthogonalize IAO
-        iaos = lo.vec_lowdin(iaos, self._global_rks.get_ovlp())
+        iaos = lo.vec_lowdin(iaos, self._global_ks.get_ovlp())
         c_loc_occ = lo.ibo.ibo(
-            self._global_rks.mol, c_std_occ, locmethod="IBO", iaos=iaos
+            self._global_ks.mol, c_std_occ, locmethod="IBO", iaos=iaos
         )
         return c_loc_occ
