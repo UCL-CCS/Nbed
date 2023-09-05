@@ -103,7 +103,7 @@ class PySCFLocalizer(Localizer, ABC):
     def _localize_spin(
         self, c_matrix: np.ndarray, occupancy: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Localize orbitals of one spin using SPADE.
+        """Localize orbitals of one spin using PySCF.
 
         Args:
             c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
