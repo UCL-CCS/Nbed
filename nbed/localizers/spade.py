@@ -1,7 +1,7 @@
 """SPADE Localizer Class."""
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
 from pyscf import dft, gto
@@ -61,7 +61,7 @@ class SPADELocalizer(Localizer):
 
     def _localize(
         self,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[Tuple, Union[Tuple, None]]:
         """Localise orbitals using SPADE.
 
         Returns:
