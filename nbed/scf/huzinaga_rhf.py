@@ -11,7 +11,7 @@ from pyscf.lib import StreamObject, diis
 logger = logging.getLogger(__name__)
 
 
-def huzinaga_RHF(
+def huzinaga_HF(
     scf_method: StreamObject,
     dft_potential: np.ndarray,
     dm_enviroment: np.ndarray,
