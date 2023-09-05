@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-import openfermion
+from openfermion.utils import save_operator
 from numpy import save
 
 from nbed.exceptions import NbedConfigError
@@ -127,7 +127,7 @@ def nbed(
         qham = getattr(converter, output.lower())
 
     if savefile is not None:
-        openfermion.utils.save_operator(
+        save_operator(
             qham,
             file_name=file_name,
             data_directory=savefile,
