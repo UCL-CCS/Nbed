@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 import numpy as np
 import scipy as sp
 from pyscf.lib import StreamObject, diis
+from pyscf.dft import uks, rks
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +44,14 @@ def huzinaga_KS(
     s_mat = scf_method.get_ovlp()
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
-    unrestricted = False
-    if str(type(scf_method)) == "<class 'pyscf.dft.uks.UKS'>":
+    if type(scf_method) is uks.UKS:
         unrestricted = True
+    elif type(scf_method) is rks.RKS:
+        unrestricted = False
+    else:
+        logger.error("SCF method is not RKS or UKS")
+        raise TypeError("SCF method is not RKS or UKS")
+    
     if unrestricted:
         dm_env_S = np.array([dm_enviroment[0] @ s_mat, dm_enviroment[1] @ s_mat])
     else:
