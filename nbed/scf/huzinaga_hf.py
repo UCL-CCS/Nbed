@@ -44,9 +44,10 @@ def huzinaga_HF(
     s_mat = scf_method.get_ovlp()
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
-    unrestricted = True
     if isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS)):
         unrestricted = False
+    else:
+        unrestricted = True
 
     if unrestricted:
         dm_env_S = np.array([dm_enviroment[0] @ s_mat, dm_enviroment[1] @ s_mat])
@@ -61,7 +62,7 @@ def huzinaga_HF(
             fds_alpha = fock[0] @ dm_env_S[0]
             fds_beta = fock[1] @ dm_env_S[1]
             huzinaga_op_std = np.array(
-                [-(fds_alpha + fds_alpha.T), -(fds_beta + fds_beta.T)]
+                [-(fds_alpha + fds_alpha.T), -(fds_beta + fds_beta.T)] # TODO why no 0.5?
             )
         else:
             fds = fock @ dm_env_S

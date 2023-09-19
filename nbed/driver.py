@@ -591,8 +591,6 @@ class NbedDriver:
         # which we need for different embedding potentials
         localized_scf = active_scf
         if isinstance(localized_scf, (scf.uhf.UHF, dft.uks.UKS)):
-            logger.debug("Running embedded scf calculation.")
-
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
             v_emb_alpha = (
                 self.mu_level_shift * self._env_projector[0]
@@ -606,12 +604,15 @@ class NbedDriver:
             localized_scf.get_hcore = (
                 lambda *args: np.array([hcore_std, hcore_std]) + v_emb
             )
-
         elif isinstance(localized_scf, (scf.rhf.RHF, dft.rks.RKS)):
             # modify hcore to embedded version
             v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
+            
             hcore_std = localized_scf.get_hcore()
             localized_scf.get_hcore = lambda *args: hcore_std + v_emb
+        else:
+            logger.error(f"Invalid scf object of type {type(localized_scf)}.")
+            raise NbedConfigError("Invalid scf object.")
 
         localized_scf.kernel()
         logger.info(
