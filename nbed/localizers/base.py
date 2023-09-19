@@ -122,6 +122,11 @@ class Localizer(ABC):
         s_ovlp = self._global_ks.get_ovlp()
         n_active_electrons = np.trace(self.dm_active @ s_ovlp)
         n_enviro_electrons = np.trace(self.dm_enviro @ s_ovlp)
+
+        if self._restricted_scf is False:
+            n_active_electrons += np.trace(self.beta_dm_active @ s_ovlp)
+            n_enviro_electrons += np.trace(self.beta_dm_enviro @ s_ovlp)
+
         n_all_electrons = self._global_ks.mol.nelectron
         electron_number_match = np.isclose(
             (n_active_electrons + n_enviro_electrons), n_all_electrons
