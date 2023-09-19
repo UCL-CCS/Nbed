@@ -1,11 +1,9 @@
 """Module containg the NbedDriver Class."""
 
-from locale import locale_alias
 import logging
 import os
 from copy import copy
 from pathlib import Path
-from threading import local
 from typing import Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
@@ -13,7 +11,6 @@ import scipy as sp
 from cached_property import cached_property
 from pyscf import cc, dft, fci, gto, scf
 from pyscf.lib import StreamObject
-from typing_extensions import Self
 
 from nbed.exceptions import NbedConfigError
 from nbed.localizers import (
@@ -172,20 +169,19 @@ class NbedDriver:
         self.electron = None
         self.v_emb = None
 
-        if self.charge % 2 == 0:
+        if force_unrestricted:
+            self._restricted_scf = False
+        elif self.charge % 2 == 0:
             logger.debug("Closed shells, using restricted SCF.")
             self._restricted_scf = True
         else:
             logger.debug("Open shells, using unrestricted SCF.")
             self._restricted_scf = False
 
-        if force_unrestricted:
-            self._restricted_scf = False
-
         if run_embed:
             self.embed(
                 init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu
-            )  # TODO uncomment.
+            ) 
 
         logger.debug("Driver initialisation complete.")
 

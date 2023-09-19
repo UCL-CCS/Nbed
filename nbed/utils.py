@@ -139,6 +139,9 @@ def parse():
         "--charge", type=int, help="Charge of molecular system.",
     )
     parser.add_argument(
+        "--spin", type=int, help="Spin of molecular system.",
+    )
+    parser.add_argument(
         "--savefile", "-s", type=str, help="Path to save file.",
     )
     parser.add_argument(
@@ -199,6 +202,7 @@ def parse():
         # Optional argument defaults
         args["unit"] = args.get("unit", "angstrom")
         args["charge"] = args.get("charge", 0)
+        args["spin"] = args.get("spin", 0)
         args["convergence"] = args.get("convergence", 1e-6)
         args["run_ccsd_emb"] = args.get("run_ccsd_emb", False)
         args["run_fci_emb"] = args.get("run_fci_emb", False)
