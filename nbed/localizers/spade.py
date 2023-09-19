@@ -59,34 +59,7 @@ class SPADELocalizer(Localizer):
             run_virtual_localization=run_virtual_localization,
         )
 
-    def _localize(
-        self,
-    ) -> Tuple[Tuple, Union[Tuple, None]]:
-        """Localise orbitals using SPADE.
-
-        Returns:
-            active_MO_inds (np.array): 1D array of active occupied MO indices
-            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
-            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
-            c_enviro (np.array): C matrix of localized occupied ennironment MOs
-            c_loc_occ (np.array): full C matrix of localized occupied MOs
-        """
-        if self._restricted_scf:
-            alpha = self._localize_spin(
-                self._global_ks.mo_coeff, self._global_ks.mo_occ
-            )
-            beta = None
-        else:
-            alpha = self._localize_spin(
-                self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0]
-            )
-            beta = self._localize_spin(
-                self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1]
-            )
-
-        return (alpha, beta)
-
-    def _localize_spin(self, c_matrix: np.ndarray, occupancy: np.ndarray) -> np.ndarray:
+    def _localize_spin(self, c_matrix: np.ndarray, occupancy: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Localize orbitals of one spin using SPADE.
 
         Args:

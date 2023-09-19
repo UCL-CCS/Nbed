@@ -90,11 +90,10 @@ class Localizer(ABC):
             logger.error("Localizer threshold not valid.")
             raise ValueError(f"threshold: {threshold} is not in range [0,1] inclusive")
 
-    @abstractmethod
     def _localize(
         self,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Abstract method which should handle localization.
+    ) -> Tuple[Tuple, Union[Tuple, None]]:
+        """Localise orbitals using SPADE.
 
         Returns:
             active_MO_inds (np.array): 1D array of active occupied MO indices
@@ -102,6 +101,32 @@ class Localizer(ABC):
             c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
             c_enviro (np.array): C matrix of localized occupied ennironment MOs
             c_loc_occ (np.array): full C matrix of localized occupied MOs
+        """
+        if self._restricted_scf:
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff, self._global_ks.mo_occ
+            )
+            beta = None
+        else:
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0]
+            )
+            beta = self._localize_spin(
+                self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1]
+            )
+
+        return (alpha, beta)
+
+    @abstractmethod
+    def _localize_spin(self, c_matrix: np.ndarray, occupancy: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Localize orbitals of one spin.
+
+        Args:
+            c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
+            occupancy (np.ndarray): Occupancy of orbitals.
+
+        Returns:
+            np.ndarray: Localized C matrix of occupied orbitals.
         """
         pass
 
