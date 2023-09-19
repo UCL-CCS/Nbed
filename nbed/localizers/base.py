@@ -105,7 +105,7 @@ class Localizer(ABC):
         """
         pass
 
-    def _check_values(self) -> None:
+    def _check_values(self) -> None: # Needs clarification
         """Check that output values make sense."""
         logger.debug("Checking density matrix partition.")
         # checking denisty matrix parition makes sense:
@@ -114,6 +114,7 @@ class Localizer(ABC):
             dm_localised_full_system, self.dm_active + self.dm_enviro
         )
         logger.debug(f"y_active + y_enviro = y_total is: {bool_density_flag}")
+
         if not bool_density_flag:
             raise ValueError("gamma_full != gamma_active + gamma_enviro")
 
@@ -122,15 +123,17 @@ class Localizer(ABC):
         n_active_electrons = np.trace(self.dm_active @ s_ovlp)
         n_enviro_electrons = np.trace(self.dm_enviro @ s_ovlp)
         n_all_electrons = self._global_ks.mol.nelectron
-        bool_flag_electron_number = np.isclose(
+        electron_number_match = np.isclose(
             (n_active_electrons + n_enviro_electrons), n_all_electrons
         )
+        logger.debug(f"N total electrons: {n_all_electrons}")
         logger.debug(
-            f"N_active_elec + N_environment_elec = N_total_elec is: {bool_flag_electron_number}"
+            f"N active electrons + N env electrons = {electron_number_match}"
         )
-        if not bool_flag_electron_number:
-            logger.error
-            raise ValueError("number of electrons in localized orbitals is incorrect")
+        if not electron_number_match:
+            message = "Number of electrons in localized orbitals is not consistent."
+            logger.error(message)
+            raise ValueError(message)
 
     def _localize_virtual_orbs(self) -> None:
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
@@ -215,6 +218,7 @@ class Localizer(ABC):
         self.dm_active = self.c_active @ self.c_active.T
         self.dm_enviro = self.c_enviro @ self.c_enviro.T
 
+        # For resticted methods
         if beta is None:
             self.dm_active *= 2.0
             self.dm_enviro *= 2.0
