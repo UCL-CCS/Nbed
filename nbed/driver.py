@@ -818,6 +818,87 @@ class NbedDriver:
         logger.debug("Environment deleted.")
         return scf
 
+    def _dft_in_dft(self, xc_func: str, embedding_method: Callable):
+        """Return energy of DFT in DFT embedding.
+
+        Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
+        This is done when object is initialized.
+
+        Args:
+            xc_func (str): XC functional to use in active region.
+            embedding_method (callable): Embedding method to use (mu or huzinaga).
+
+        Returns:
+            float: Energy of DFT in embedding.
+        """
+
+        result = {}
+        e_nuc = self._global_ks.energy_nuc()
+
+        local_rks_same_functional = self._init_local_ks(xc_func)
+        hcore_std = local_rks_same_functional.get_hcore()
+        result["scf_dft"], result["v_emb_dft"] = embedding_method(
+            local_rks_same_functional, self.dft_potential
+        )
+
+        if not self._restricted_scf:
+            y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
+
+            # calculate correction
+            result["dft_correction"] = np.einsum(
+                "ij,ij",
+                result["v_emb_dft"][0],
+                (y_emb_alpha - self.localized_system.dm_active),
+            )
+
+            result["dft_correction_beta"] = np.einsum(
+                "ij,ij",
+                result["v_emb_dft"][1],
+                (y_emb_beta - self.localized_system.beta_dm_active),
+            )
+
+            veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
+
+            rks_e_elec = (
+                veff.exc
+                + veff.ecoul
+                + np.einsum(
+                    "ij,ij",
+                    hcore_std,
+                    y_emb_alpha,
+                )
+                + np.einsum(
+                    "ij,ij",
+                    hcore_std,
+                    y_emb_beta,
+                )
+            )
+
+        else:
+            y_emb = result["scf_dft"].make_rdm1()
+
+            # calculate correction
+            result["dft_correction"] = np.einsum(
+                "ij,ij",
+                result["v_emb_dft"],
+                (y_emb - self.localized_system.dm_active),
+            )
+            veff = result["scf_dft"].get_veff(dm=y_emb)
+            result["dft_correction_beta"] = 0
+            rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
+
+        result["e_rks"] = (
+            rks_e_elec
+            + self.e_env
+            + self.two_e_cross
+            + result["dft_correction"]
+            + result["dft_correction_beta"]
+            + e_nuc
+        )
+        result["rks_e_elec"] = rks_e_elec
+
+        return result
+
     def embed(self, init_huzinaga_rhf_with_mu=False):
         """Run embedded scf calculation.
 
@@ -968,7 +1049,7 @@ class NbedDriver:
             result["nuc"] = e_nuc
 
             if self.run_dft_in_dft is True:
-                did = self.embed_dft_in_dft(self._global_ks.xc, embedding_method)
+                did = self._dft_in_dft(self._global_ks.xc, embedding_method)
                 result["e_dft_in_dft"] = did["e_rks"]
                 result["emb_dft"] = did["rks_e_elec"]
 
@@ -993,83 +1074,3 @@ class NbedDriver:
 
         logger.info("Embedding complete.")
 
-    def embed_dft_in_dft(self, xc_func: str, embedding_method: Callable):
-        """Return energy of DFT in DFT embedding.
-
-        Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
-        This is done when object is initialized.
-
-        Args:
-            xc_func (str): XC functional to use in active region.
-            embedding_method (callable): Embedding method to use (mu or huzinaga).
-
-        Returns:
-            float: Energy of DFT in embedding.
-        """
-
-        result = {}
-        e_nuc = self._global_ks.energy_nuc()
-
-        local_rks_same_functional = self._init_local_ks(xc_func)
-        hcore_std = local_rks_same_functional.get_hcore()
-        result["scf_dft"], result["v_emb_dft"] = embedding_method(
-            local_rks_same_functional, self.dft_potential
-        )
-
-        if not self._restricted_scf:
-            y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
-
-            # calculate correction
-            result["dft_correction"] = np.einsum(
-                "ij,ij",
-                result["v_emb_dft"][0],
-                (y_emb_alpha - self.localized_system.dm_active),
-            )
-
-            result["dft_correction_beta"] = np.einsum(
-                "ij,ij",
-                result["v_emb_dft"][1],
-                (y_emb_beta - self.localized_system.beta_dm_active),
-            )
-
-            veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
-
-            rks_e_elec = (
-                veff.exc
-                + veff.ecoul
-                + np.einsum(
-                    "ij,ij",
-                    hcore_std,
-                    y_emb_alpha,
-                )
-                + np.einsum(
-                    "ij,ij",
-                    hcore_std,
-                    y_emb_beta,
-                )
-            )
-
-        else:
-            y_emb = result["scf_dft"].make_rdm1()
-
-            # calculate correction
-            result["dft_correction"] = np.einsum(
-                "ij,ij",
-                result["v_emb_dft"],
-                (y_emb - self.localized_system.dm_active),
-            )
-            veff = result["scf_dft"].get_veff(dm=y_emb)
-            result["dft_correction_beta"] = 0
-            rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
-
-        result["e_rks"] = (
-            rks_e_elec
-            + self.e_env
-            + self.two_e_cross
-            + result["dft_correction"]
-            + result["dft_correction_beta"]
-            + e_nuc
-        )
-        result["rks_e_elec"] = rks_e_elec
-
-        return result
