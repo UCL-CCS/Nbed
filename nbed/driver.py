@@ -21,7 +21,7 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .scf import _absorb_h1e, energy_elec, huzinaga_KS, huzinaga_RHF
+from .scf import _absorb_h1e, energy_elec, huzinaga_KS, huzinaga_HF
 
 # from .log_conf import setup_logs
 
