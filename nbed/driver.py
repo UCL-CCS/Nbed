@@ -607,7 +607,7 @@ class NbedDriver:
         elif isinstance(localized_scf, (scf.rhf.RHF, dft.rks.RKS)):
             # modify hcore to embedded version
             v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
-            
+
             hcore_std = localized_scf.get_hcore()
             localized_scf.get_hcore = lambda *args: hcore_std + v_emb
         else:
@@ -671,7 +671,7 @@ class NbedDriver:
                 dm_active_embedded,
                 huzinaga_op_std,
                 huz_scf_conv_flag,
-            ) = huzinaga_RHF(
+            ) = huzinaga_HF(
                 localized_scf,
                 dft_potential,
                 total_enviro_dm,
