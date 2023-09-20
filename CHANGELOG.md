@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 ### Fixed
 - Typo with the license file, which was called 'LISENCE' instead of 'LICENSE'.
+### Added
+- Support for unrestricted calculations
+### Changed
+- Location of explainer notebooks moved up a level to `docs/notebooks`
 
 ## [0.0.1] - 2022-03-07
 ### Fixed 
