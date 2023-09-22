@@ -1,6 +1,6 @@
 # Data directory
 data/
-
+.problem_solving.ipynb_checkpoints
 # ignore locally defined structures
 molecular_structures/
 
