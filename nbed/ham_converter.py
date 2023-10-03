@@ -22,7 +22,10 @@ logger = logging.getLogger(__name__)
 class HamiltonianConverter:
     """Class to create and output qubit hamiltonians."""
 
-    def __init__(self, input_hamiltonian: Union[QubitOperator, str, Path],) -> None:
+    def __init__(
+        self,
+        input_hamiltonian: Union[QubitOperator, str, Path],
+    ) -> None:
         """Initialise class and return output.
 
         Args:
