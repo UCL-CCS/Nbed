@@ -19,9 +19,9 @@ nbsphinx = "^0.8.8"
 pandoc = "^2.1"
 h5py = "3.1"
 pyscf = "^2.3.0"
+black = "^22.3.0"
 
 [tool.poetry.dev-dependencies]
-black = "^21.6b0"
 flake8 = "^3.9.2"
 pydocstyle = "^6.1.1"
 pytest = "^6.2.4"
