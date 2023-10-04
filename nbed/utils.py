@@ -75,7 +75,9 @@ def parse():
     logger.debug("Adding CLI arguments.")
     parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
     parser.add_argument(
-        "--config", type=str, help="Path to a config file. Overwrites other arguments.",
+        "--config",
+        type=str,
+        help="Path to a config file. Overwrites other arguments.",
     )
     parser.add_argument(
         "--geometry",
@@ -90,7 +92,10 @@ def parse():
         help="Number of atoms to include in active region.",
     )
     parser.add_argument(
-        "--basis", "-b", type=str, help="Basis set to use.",
+        "--basis",
+        "-b",
+        type=str,
+        help="Basis set to use.",
     )
     parser.add_argument(
         "--xc_functional",
@@ -136,13 +141,20 @@ def parse():
         help="Convergence tolerance for calculations.",
     )
     parser.add_argument(
-        "--charge", type=int, help="Charge of molecular system.",
+        "--charge",
+        type=int,
+        help="Charge of molecular system.",
     )
     parser.add_argument(
-        "--spin", type=int, help="Spin of molecular system.",
+        "--spin",
+        type=int,
+        help="Spin of molecular system.",
     )
     parser.add_argument(
-        "--savefile", "-s", type=str, help="Path to save file.",
+        "--savefile",
+        "-s",
+        type=str,
+        help="Path to save file.",
     )
     parser.add_argument(
         "--run_ccsd_emb",
@@ -155,10 +167,14 @@ def parse():
         help="Include if you want to run a fci calculation of the active embedded system.",
     )
     parser.add_argument(
-        "--ram", type=str, help="amount of ram in MB that PySCF can use",
+        "--ram",
+        type=str,
+        help="amount of ram in MB that PySCF can use",
     )
     parser.add_argument(
-        "--mu_shift", type=int, help="mu energy shift value",
+        "--mu_shift",
+        type=int,
+        help="mu energy shift value",
     )
     parser.add_argument(
         "--virtual_localization",

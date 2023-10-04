@@ -51,7 +51,7 @@ def huzinaga_KS(
     else:
         logger.error("SCF method is not RKS or UKS")
         raise TypeError("SCF method is not RKS or UKS")
-    
+
     if unrestricted:
         dm_env_S = np.array([dm_enviroment[0] @ s_mat, dm_enviroment[1] @ s_mat])
     else:

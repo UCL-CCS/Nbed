@@ -59,7 +59,9 @@ class SPADELocalizer(Localizer):
             run_virtual_localization=run_virtual_localization,
         )
 
-    def _localize_spin(self, c_matrix: np.ndarray, occupancy: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _localize_spin(
+        self, c_matrix: np.ndarray, occupancy: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Localize orbitals of one spin using SPADE.
 
         Args:

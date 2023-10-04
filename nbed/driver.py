@@ -180,9 +180,7 @@ class NbedDriver:
             self._restricted_scf = True
 
         if run_embed:
-            self.embed(
-                init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu
-            ) 
+            self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
 
         logger.debug("Driver initialisation complete.")
 
@@ -1075,4 +1073,3 @@ class NbedDriver:
             self.classical_energy = self._huzinaga["classical_energy"]
 
         logger.info("Embedding complete.")
-

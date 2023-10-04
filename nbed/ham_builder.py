@@ -16,8 +16,8 @@ from pyscf.lib.numpy_helper import SYMMETRIC
 from qiskit.opflow import Z2Symmetries
 from typing_extensions import final
 
-from .exceptions import HamiltonianBuilderError
-from .ham_converter import HamiltonianConverter
+from nbed.exceptions import HamiltonianBuilderError
+from nbed.ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +69,10 @@ class HamiltonianBuilder:
 
         else:
             logger.info("Calculating restricted one body integrals.")
-            one_body_integrals = (
-                c_matrix_active.T @ self.scf_method.get_hcore() @ c_matrix_active
+            # We double these up so that we have the same number as
+            # the unrestricted case.
+            one_body_integrals = np.array(
+                [c_matrix_active.T @ self.scf_method.get_hcore() @ c_matrix_active] * 2
             )
         logger.debug("One body integrals found.")
 
@@ -86,30 +88,33 @@ class HamiltonianBuilder:
             n_orbs_alpha = c_matrix_active[0].shape[1]
             n_orbs_beta = c_matrix_active[1].shape[1]
 
-            two_body_compressed_alpha = ao2mo.kernel(
-                self.scf_method.mol, c_matrix_active[0]
-            )
-            two_body_compressed_beta = ao2mo.kernel(
-                self.scf_method.mol, c_matrix_active[1]
-            )
+            # Could make this more flexible later.
+            if n_orbs_alpha != n_orbs_beta:
+                raise HamiltonianBuilderError(
+                    "Must localize the same number of alpha and beta orbitals."
+                )
 
-            # get electron repulsion integrals
-            eri_alpha = ao2mo.restore(
-                1, two_body_compressed_alpha, n_orbs_alpha
-            )  # no permutation symmetry
-            eri_beta = ao2mo.restore(1, two_body_compressed_beta, n_orbs_beta)
+            c_alpha = c_matrix_active[0]
+            c_beta = c_matrix_active[1]
 
-            # Openfermion uses physicist notation whereas pyscf uses chemists
-            two_body_integrals_alpha = np.asarray(
-                eri_alpha.transpose(0, 2, 3, 1), order="C"
-            )
-            two_body_integrals_beta = np.asarray(
-                eri_beta.transpose(0, 2, 3, 1), order="C"
-            )
+            # Pyscf is in chemist notation
+            # later we transpose to physicist notation for openfermion
+            spin_options = {
+                "aaaa": (c_alpha, c_alpha, c_alpha, c_alpha),
+                "bbbb": (c_beta, c_beta, c_beta, c_beta),
+                "aabb": (c_alpha, c_alpha, c_beta, c_beta),
+                "bbaa": (c_beta, c_beta, c_alpha, c_alpha),
+            }
 
-            two_body_integrals = np.array(
-                [two_body_integrals_alpha, two_body_integrals_beta]
-            )
+            two_body_integrals = []
+            for spin in spin_options:
+                two_body_compressed = ao2mo.kernel(
+                    self.scf_method.mol, spin_options[spin]
+                )
+                eri = ao2mo.restore(1, two_body_compressed, n_orbs_alpha)
+                two_body_integrals.append(
+                    np.asarray(eri.transpose(0, 2, 3, 1), order="C")
+                )
 
         else:
             n_orbs = c_matrix_active.shape[1]
@@ -121,8 +126,10 @@ class HamiltonianBuilder:
                 1, two_body_compressed, n_orbs
             )  # no permutation symmetry
 
+            # Copy this 4 times so that we have the same number as
+            # the unrestricted case
             # Openfermion uses physicist notation whereas pyscf uses chemists
-            two_body_integrals = np.asarray(eri.transpose(0, 2, 3, 1), order="C")
+            two_body_integrals = [np.asarray(eri.transpose(0, 2, 3, 1), order="C")] * 4
 
         logger.debug("Two body integrals found.")
 
@@ -174,9 +181,8 @@ class HamiltonianBuilder:
         logger.debug("Active space reduced.")
         return core_constant, one_body_integrals, two_body_integrals
 
-    def _qubit_transform(
-        self, transform: str, intop: InteractionOperator
-    ) -> QubitOperator:
+    @staticmethod
+    def _qubit_transform(transform: str, intop: InteractionOperator) -> QubitOperator:
         """Transform second quantised hamiltonain to qubit Hamiltonian.
 
         Args:
@@ -273,14 +279,9 @@ class HamiltonianBuilder:
                 two_body_integrals,
             ) = self._reduce_active_space(qubit_reduction)
 
-            if isinstance(self.scf_method, (scf.uhf.UHF, dft.uks.UKS)):
-                one_body_coefficients, two_body_coefficients = _unrestricted_spinorb_from_spatial(
-                    self._one_body_integrals, self._two_body_integrals
-                )
-            else:
-                one_body_coefficients, two_body_coefficients = spinorb_from_spatial(
-                    one_body_integrals, two_body_integrals
-                )
+            one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
+                one_body_integrals, two_body_integrals
+            )
 
             molecular_hamiltonian = InteractionOperator(
                 (self.constant_e_shift + core_constant),
@@ -309,47 +310,61 @@ class HamiltonianBuilder:
             # Check that we have the right number of qubits.
             qubit_reduction += final_n_qubits - n_qubits
 
+    def _spinorb_from_spatial(
+        self, one_body_integrals, two_body_integrals
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Convert spatial integrals to spin-orbital integrals.
+        Args:
+            one_body_integrals (np.ndarray): One-electron integrals in physicist notation.
+            two_body_integrals (np.ndarray): Two-electron integrals in physicist notation.
 
-def _unrestricted_spinorb_from_spatial(one_body_integrals, two_body_integrals):
-    n_qubits = one_body_integrals[0].shape[0] + one_body_integrals[1].shape[0]
+        Returns:
+            one_body_coefficients (np.ndarray): One-electron coefficients in spinorb form.
+            two_body_coefficients (np.ndarray): Two-electron coefficients in spinorb form.
 
-    # Initialize Hamiltonian coefficients.
-    one_body_coefficients = np.zeros((n_qubits, n_qubits))
-    two_body_coefficients = np.zeros((n_qubits, n_qubits, n_qubits, n_qubits))
+        """
 
-    # Loop through integrals.
-    for p in range(n_qubits // 2):
-        for q in range(n_qubits // 2):
+        n_qubits = one_body_integrals[0].shape[0] + one_body_integrals[1].shape[0]
 
-            # Populate 1-body coefficients. Require p and q have same spin.
-            one_body_coefficients[2 * p, 2 * q] = one_body_integrals[0, p, q]
-            # one_body_coefficients[2 * p, 2 * q] = one_body_integrals[1, p, q]
+        # Initialize Hamiltonian coefficients.
+        one_body_coefficients = np.zeros((n_qubits, n_qubits))
+        two_body_coefficients = np.zeros((n_qubits, n_qubits, n_qubits, n_qubits))
 
-            # one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[0, p, q]
-            one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[1, p, q]
+        # Loop through integrals.
+        for p in range(n_qubits // 2):
+            for q in range(n_qubits // 2):
 
-            # Continue looping to prepare 2-body coefficients.
-            for r in range(n_qubits // 2):
-                for s in range(n_qubits // 2):
+                # Populate 1-body coefficients. Require p and q have same spin.
+                one_body_coefficients[2 * p, 2 * q] = one_body_integrals[0, p, q]
+                # one_body_coefficients[2 * p, 2 * q] = one_body_integrals[1, p, q]
 
-                    # Mixed spin
-                    two_body_coefficients[
-                        2 * p, 2 * q, 2 * r + 1, 2 * s + 1
-                    ] = two_body_integrals[0][p, q, r, s]
-                    two_body_coefficients[
-                        2 * p + 1, 2 * q + 1, 2 * r, 2 * s
-                    ] = two_body_integrals[1][p, q, r, s]
+                # one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[0, p, q]
+                one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[
+                    1, p, q
+                ]
 
-                    # Same spin
-                    two_body_coefficients[
-                        2 * p, 2 * q, 2 * r, 2 * s
-                    ] = two_body_integrals[0][p, q, r, s]
-                    two_body_coefficients[
-                        2 * p + 1, 2 * q + 1, 2 * r + 1, 2 * s + 1
-                    ] = two_body_integrals[1][p, q, r, s]
+                # Continue looping to prepare 2-body coefficients.
+                for r in range(n_qubits // 2):
+                    for s in range(n_qubits // 2):
 
-    # Truncate.
-    one_body_coefficients[np.absolute(one_body_coefficients) < EQ_TOLERANCE] = 0.0
-    two_body_coefficients[np.absolute(two_body_coefficients) < EQ_TOLERANCE] = 0.0
+                        # Same spin
+                        two_body_coefficients[
+                            2 * p, 2 * q, 2 * r, 2 * s
+                        ] = two_body_integrals[0][p, q, r, s]
+                        two_body_coefficients[
+                            2 * p + 1, 2 * q + 1, 2 * r + 1, 2 * s + 1
+                        ] = two_body_integrals[1][p, q, r, s]
 
-    return one_body_coefficients, two_body_coefficients
+                        # Mixed spin in physicist
+                        two_body_coefficients[
+                            2 * p, 2 * q + 1, 2 * r + 1, 2 * s
+                        ] = two_body_integrals[2][p, q, r, s]
+                        two_body_coefficients[
+                            2 * p + 1, 2 * q, 2 * r, 2 * s + 1
+                        ] = two_body_integrals[3][p, q, r, s]
+
+        # Truncate.
+        one_body_coefficients[np.absolute(one_body_coefficients) < EQ_TOLERANCE] = 0.0
+        two_body_coefficients[np.absolute(two_body_coefficients) < EQ_TOLERANCE] = 0.0
+
+        return one_body_coefficients, two_body_coefficients

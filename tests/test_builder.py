@@ -28,6 +28,7 @@ args = {
     "run_fci_emb": False,
 }
 
+
 def test_restricted_result() -> None:
     """
     Use the full system to check that output hamiltonian diagonalises to fci value for a restricted calculation.
@@ -53,7 +54,8 @@ def test_restricted_result() -> None:
     ham = builder.build()
     diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=1, which="SA")
     logger.info(f"Ground state via diagonalisation: {diag}")
-    assert(np.isclose(fci, diag))
+    assert np.isclose(fci, diag)
+
 
 def test_unrestricted_result() -> None:
     """
@@ -80,10 +82,12 @@ def test_unrestricted_result() -> None:
 
     # We need to double up the size of the hcore
     old_hcore = unrestric_driver._global_ks.get_hcore()
-    unrestric_driver._global_ks.get_hcore = lambda *args: np.array([old_hcore, old_hcore])
+    unrestric_driver._global_ks.get_hcore = lambda *args: np.array(
+        [old_hcore, old_hcore]
+    )
 
     builder = HamiltonianBuilder(unrestric_driver._global_ks, 0, "jordan_wigner")
     ham = builder.build()
     diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=1, which="SA")
     logger.info(f"Ground state via diagonalisation: {diag}")
-    assert(np.isclose(fci, diag))
+    assert np.isclose(fci, diag)

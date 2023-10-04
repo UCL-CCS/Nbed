@@ -118,7 +118,9 @@ class Localizer(ABC):
         return (alpha, beta)
 
     @abstractmethod
-    def _localize_spin(self, c_matrix: np.ndarray, occupancy: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _localize_spin(
+        self, c_matrix: np.ndarray, occupancy: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Localize orbitals of one spin.
 
         Args:
@@ -130,7 +132,7 @@ class Localizer(ABC):
         """
         pass
 
-    def _check_values(self) -> None: # Needs clarification
+    def _check_values(self) -> None:  # Needs clarification
         """Check that output values make sense."""
         logger.debug("Checking density matrix partition.")
         # checking denisty matrix parition makes sense:
@@ -157,9 +159,7 @@ class Localizer(ABC):
             (n_active_electrons + n_enviro_electrons), n_all_electrons
         )
         logger.debug(f"N total electrons: {n_all_electrons}")
-        logger.debug(
-            f"N active electrons + N env electrons = {electron_number_match}"
-        )
+        logger.debug(f"N active electrons + N env electrons = {electron_number_match}")
         if not electron_number_match:
             message = "Number of electrons in localized orbitals is not consistent."
             logger.error(message)
@@ -203,7 +203,7 @@ class Localizer(ABC):
         # active AOs coeffs for a given MO j
         numerator_all = np.einsum("ij->j", (c_virtual_loc[ao_active_inds, :]) ** 2)
         # all AOs coeffs for a given MO j
-        denominator_all = np.einsum("ij->j", c_virtual_loc ** 2)
+        denominator_all = np.einsum("ij->j", c_virtual_loc**2)
 
         active_percentage_MO = numerator_all / denominator_all
 
@@ -293,4 +293,3 @@ class Localizer(ABC):
         logger.debug(f"beta_active_MO_inds: {self.beta_active_MO_inds}")
         logger.debug(f"enviro_MO_inds: {self.enviro_MO_inds}")
         logger.debug(f"beta_enviro_MO_inds: {self.beta_enviro_MO_inds}")
-
