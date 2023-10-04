@@ -334,10 +334,10 @@ def _unrestricted_spinorb_from_spatial(one_body_integrals, two_body_integrals):
 
                     # Mixed spin
                     two_body_coefficients[
-                        2 * p, 2 * q + 1, 2 * r + 1, 2 * s
+                        2 * p, 2 * q, 2 * r + 1, 2 * s + 1
                     ] = two_body_integrals[0][p, q, r, s]
                     two_body_coefficients[
-                        2 * p + 1, 2 * q, 2 * r, 2 * s + 1
+                        2 * p + 1, 2 * q + 1, 2 * r, 2 * s
                     ] = two_body_integrals[1][p, q, r, s]
 
                     # Same spin
