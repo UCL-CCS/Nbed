@@ -170,13 +170,14 @@ class NbedDriver:
         self.v_emb = None
 
         if force_unrestricted:
+            logger.debug("Forcing unrestricted SCF")
             self._restricted_scf = False
-        elif self.charge % 2 == 0:
-            logger.debug("Closed shells, using restricted SCF.")
-            self._restricted_scf = True
-        else:
+        elif self.charge % 2 == 1:
             logger.debug("Open shells, using unrestricted SCF.")
             self._restricted_scf = False
+        else:
+            logger.debug("Closed shells, using restricted SCF.")
+            self._restricted_scf = True
 
         if run_embed:
             self.embed(
@@ -277,7 +278,7 @@ class NbedDriver:
         logger.debug("Running full system RKS DFT.")
         mol_full = self._build_mol()
 
-        global_ks = scf.UKS(mol_full) if not self._restricted_scf else scf.RKS(mol_full)
+        global_ks = scf.RKS(mol_full) if self._restricted_scf else scf.UKS(mol_full)
         global_ks.conv_tol = self.convergence
         global_ks.xc = self.xc_functional
         global_ks.max_memory = self.max_ram_memory
@@ -941,9 +942,8 @@ class NbedDriver:
             )
         self.g_act = g_act
 
-        dft_potential = g_act_and_env - g_act
-        self.dft_potential = dft_potential
-        logger.info(f"DFT potential average {np.mean(dft_potential)}.")
+        self.dft_potential = g_act_and_env - g_act
+        logger.info(f"DFT potential average {np.mean(self.dft_potential)}.")
 
         # To add a projector, put it in this dict with a function
         # if we want any more it's also time to turn them into a class
@@ -951,6 +951,7 @@ class NbedDriver:
             "huzinaga": self._huzinaga_embed,
             "mu": self._mu_embed,
         }
+        # If only one projector is specified, remove the others.
         if self.projector in embeddings:
             embeddings = {self.projector: embeddings[self.projector]}
 

@@ -288,3 +288,9 @@ class Localizer(ABC):
         # self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
 
         logger.debug("Localization complete.")
+        logger.debug("Localized orbitals:")
+        logger.debug(f"active_MO_inds: {self.active_MO_inds}")
+        logger.debug(f"beta_active_MO_inds: {self.beta_active_MO_inds}")
+        logger.debug(f"enviro_MO_inds: {self.enviro_MO_inds}")
+        logger.debug(f"beta_enviro_MO_inds: {self.beta_enviro_MO_inds}")
+

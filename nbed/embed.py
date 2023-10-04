@@ -101,12 +101,12 @@ def nbed(
         virtual_threshold=virtual_threshold,
         max_hf_cycles=max_hf_cycles,
         max_dft_cycles=max_dft_cycles,
-        unrestricted=unrestricted,
+        force_unrestricted=unrestricted,
     )
 
     # Needed for 'both' projector
+    hamiltonians = ()
     if isinstance(driver.embedded_scf, tuple):
-        hamiltonians = ()
         for scf, e_classical in zip(driver.embedded_scf, driver.e_classical):
             qham = HamiltonianBuilder(
                 scf_method=scf, constant_e_shift=e_classical, transform=transform,
@@ -125,6 +125,7 @@ def nbed(
 
         converter = HamiltonianConverter(qham_openF)
         qham = getattr(converter, output.lower())
+        hamiltonians += (qham,)
 
     if savefile is not None:
         save_operator(
@@ -136,7 +137,7 @@ def nbed(
         )
 
     print_summary(driver, transform, fci=False)
-    return qham
+    return hamiltonians
 
 
 def cli() -> None:
