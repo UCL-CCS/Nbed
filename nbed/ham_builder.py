@@ -6,7 +6,6 @@ import numpy as np
 import openfermion.transforms as of_transforms
 from cached_property import cached_property
 from openfermion import InteractionOperator, QubitOperator, count_qubits
-from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.config import EQ_TOLERANCE
 from openfermion.ops.representations import get_active_space_integrals
 from openfermion.transforms import taper_off_qubits
