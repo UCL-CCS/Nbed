@@ -82,7 +82,7 @@ class NbedDriver:
         e_act (float): Active energy from subsystem DFT calculation
         e_env (float): Environment energy from subsystem DFT calculation
         two_e_cross (float): two electron energy from cross terms (includes exchange correlation
-                             and Couloumb contribution) of subsystem DFT calculation
+                             and Coulomb contribution) of subsystem DFT calculation
         molecular_ham (InteractionOperator): molecular Hamiltonian for active subsystem (projection using mu shift operator)
         classical_energy (float): environment correction energy to obtain total energy (for mu shift method)
         molecular_ham (InteractionOperator): molecular Hamiltonian for active subsystem (projection using huzianga operator)
