@@ -1,7 +1,8 @@
 # Data directory
 data/
 
-.problem_solving.ipynb
+# Notebook for development
+problem_solving.ipynb
 
 # ignore locally defined structures
 molecular_structures/

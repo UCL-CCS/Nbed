@@ -968,12 +968,12 @@ class NbedDriver:
                 # seed huzinaga calc with mu result!
                 result["scf"], result["v_emb"] = embedding_method(
                     local_hf,
-                    dft_potential,
+                    self.dft_potential,
                     dmat_initial_guess=self._mu["scf"].make_rdm1(),
                 )
             else:
                 result["scf"], result["v_emb"] = embedding_method(
-                    local_hf, dft_potential
+                    local_hf, self.dft_potential
                 )
 
             result["mo_energies_emb_pre_del"] = local_hf.mo_energy
