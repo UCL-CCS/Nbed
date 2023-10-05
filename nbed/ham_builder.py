@@ -332,7 +332,6 @@ class HamiltonianBuilder:
         # Loop through integrals.
         for p in range(n_qubits // 2):
             for q in range(n_qubits // 2):
-
                 # Populate 1-body coefficients. Require p and q have same spin.
                 one_body_coefficients[2 * p, 2 * q] = one_body_integrals[0, p, q]
                 # one_body_coefficients[2 * p, 2 * q] = one_body_integrals[1, p, q]
@@ -345,7 +344,6 @@ class HamiltonianBuilder:
                 # Continue looping to prepare 2-body coefficients.
                 for r in range(n_qubits // 2):
                     for s in range(n_qubits // 2):
-
                         # Same spin
                         two_body_coefficients[
                             2 * p, 2 * q, 2 * r, 2 * s

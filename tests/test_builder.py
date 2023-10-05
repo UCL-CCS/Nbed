@@ -93,7 +93,6 @@ def test_force_unrestricted() -> None:
     assert np.isclose(fci, diag)
 
 
-
 def test_unrestricted() -> None:
     """
     Check the output hamiltonian diagonalises to fci value for an unrestricted calculation with spin and charge.

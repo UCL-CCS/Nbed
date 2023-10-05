@@ -89,7 +89,6 @@ def huzinaga_KS(
         adiis = diis.DIIS()
 
     for i in range(scf_method.max_cycle):
-
         # build fock matrix
         vhf = scf_method.get_veff(dm=dm_mat)
         fock = scf_method.get_hcore() + vhf + dft_potential

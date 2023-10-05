@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Typo with the license file, which was called 'LISENCE' instead of 'LICENSE'.
 ### Added
 - Support for unrestricted SCF methods
+    - spin argument for Driver
+    - force_unrestricted argument for Driver
 - Tests for unrestricted SCF methods
 ### Changed
 - pyscf version updated to `2.3.0` to correct installation issues with `1.7.6.post1`
