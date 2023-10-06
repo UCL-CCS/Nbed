@@ -205,9 +205,7 @@ class HamiltonianBuilder:
             core_constant,
             one_body_integrals_new[np.ix_(active_indices, active_indices)],
             two_body_integrals[
-                np.ix_(
-                    active_indices, active_indices, active_indices, active_indices
-                )
+                np.ix_(active_indices, active_indices, active_indices, active_indices)
             ],
         )
 
