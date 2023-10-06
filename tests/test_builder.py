@@ -124,13 +124,12 @@ def test_unrestricted() -> None:
 
     builder = HamiltonianBuilder(unrestric_driver._global_ks, 0, "jordan_wigner")
     ham = builder.build()
-    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=2, which="SA")
-
+    # diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=2, which="SA")
+    # Ground state for this charge is 2nd eigenstate
+    # diag = diag[1]
 
     from symmer.utils import exact_gs_energy
-    exact_gs_energy(get_sparse_operator(ham), n_particles=driver._build_mol().nelectron, n_spin_orbitals=builder.)
-    # Ground state for this charge is 2nd eigenstate
-    diag = diag[1]
+    exact_gs_energy(get_sparse_operator(ham), n_particles=driver._build_mol().nelectron, n_spin_orbitals=count_qubits(ham))
 
     logger.info(f"Ground state via diagonalisation: {diag}")
     assert np.isclose(fci, diag)

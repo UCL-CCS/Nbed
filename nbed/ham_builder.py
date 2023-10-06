@@ -135,7 +135,7 @@ class HamiltonianBuilder:
 
         return two_body_integrals
 
-    def _reduce_active_space(self, qubit_reduction: int) -> None:
+    def _reduce_active_space(self, qubit_reduction: int) -> Tuple[float, np.ndarray, np.ndarray]:
         """Reduce the active space to accommodate a certain number of qubits."""
         logger.debug("Reducing the active space.")
 
@@ -147,9 +147,8 @@ class HamiltonianBuilder:
             return 0, self._one_body_integrals, self._two_body_integrals
 
         # find where the last occupied level is
-        scf = self.scf_method
-        occupied = np.where(scf.mo_occ > 0)[0]
-        unoccupied = np.where(scf.mo_occ == 0)[0]
+        occupied = np.where(self.scf_method.mo_occ > 0)[0]
+        unoccupied = np.where(self.scf_method.mo_occ == 0)[0]
 
         # +1 because each MO is 2 qubits for closed shell.
         n_orbitals = (qubit_reduction + 1) // 2
@@ -211,7 +210,7 @@ class HamiltonianBuilder:
         )
 
     def _spinorb_from_spatial(
-        self, one_body_integrals, two_body_integrals
+        self, one_body_integrals: np.ndarray, two_body_integrals: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Convert spatial integrals to spin-orbital integrals.
         Args:
