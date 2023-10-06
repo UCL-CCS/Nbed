@@ -9,6 +9,8 @@ from pyscf import scf
 from pyscf.lib import StreamObject
 from pyscf.lo import vvo
 
+from ..exceptions import NbedLocalizerError
+
 # from ..utils import restricted_float_percentage
 
 logger = logging.getLogger(__name__)
@@ -133,19 +135,46 @@ class Localizer(ABC):
         pass
 
     def _check_values(self) -> None:  # Needs clarification
-        """Check that output values make sense."""
-        logger.debug("Checking density matrix partition.")
-        # checking denisty matrix parition makes sense:
-        dm_localised_full_system = 2 * self._c_loc_occ @ self._c_loc_occ.conj().T
-        bool_density_flag = np.allclose(
-            dm_localised_full_system, self.dm_active + self.dm_enviro
-        )
-        logger.debug(f"y_active + y_enviro = y_total is: {bool_density_flag}")
+        """Check that output values make sense.
+        - Total number of electrons conserved
 
-        if not bool_density_flag:
-            raise ValueError("gamma_full != gamma_active + gamma_enviro")
+        """
+        logger.debug("Running localizer sense check.")
+        warn_flag = False
+        if self._restricted_scf is False:
+            logger.debug("Checking spin does not affect localization.")
+            active_number_match = self.active_MO_inds.shape == self.beta_active_MO_inds.shape
+            enviro_number_match = self.enviro_MO_inds.shape == self.beta_enviro_MO_inds.shape
+            if not active_number_match or not enviro_number_match:
+                logger.error("Number of alpha and beta orbitals do not match.")
+                logger.debug(f"alpha: {self.active_MO_inds.shape} active, {self.enviro_MO_inds.shape} enviro")
+                logger.debug(f"beta: {self.beta_active_MO_inds.shape} active, {self.beta_enviro_MO_inds.shape} enviro")
+                warn_flag = True
+
+        # checking denisty matrix parition sums to total
+        logger.debug("Checking density matrix partition.")
+        dm_localised_full_system = self._c_loc_occ @ self._c_loc_occ.conj().T
+        dm_sum = self.dm_active + self.dm_enviro
+
+        density_match = np.allclose(
+            dm_localised_full_system, dm_sum
+        )
+
+        if self._restricted_scf is False:
+            beta_dm_localised_full_system = self._beta_c_loc_occ @ self._beta_c_loc_occ.conj().T
+            beta_dm_sum = self.beta_dm_active + self.beta_dm_enviro
+
+            # both need to be correct
+            density_match = density_match and np.allclose(
+                beta_dm_localised_full_system, beta_dm_sum
+            )
+
+        if not density_match:
+            logger.error("Density matrix partition does not sum to total.")
+            warn_flag = True
 
         # check number of electrons is still the same after orbitals have been localized (change of basis)
+        logger.debug("Checking electron number conserverd.")
         s_ovlp = self._global_ks.get_ovlp()
         n_active_electrons = np.trace(self.dm_active @ s_ovlp)
         n_enviro_electrons = np.trace(self.dm_enviro @ s_ovlp)
@@ -158,12 +187,13 @@ class Localizer(ABC):
         electron_number_match = np.isclose(
             (n_active_electrons + n_enviro_electrons), n_all_electrons
         )
-        logger.debug(f"N total electrons: {n_all_electrons}")
-        logger.debug(f"N active electrons + N env electrons = {electron_number_match}")
         if not electron_number_match:
-            message = "Number of electrons in localized orbitals is not consistent."
-            logger.error(message)
-            raise ValueError(message)
+            logger.error("Number of electrons in localized orbitals is not consistent.")
+            logger.debug(f"N total electrons: {n_all_electrons}")
+            warn_flag = True
+
+        if warn_flag:
+            raise NbedLocalizerError(f"Sense check failed.\n {active_number_match=},\n {enviro_number_match=},\n {density_match=},\n {electron_number_match=}")
 
     def _localize_virtual_orbs(self) -> None:
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
@@ -227,8 +257,8 @@ class Localizer(ABC):
         # )
 
         return c_virtual_loc
-
-    def run(self, sanity_check: bool = False) -> None:
+ 
+    def run(self, sanity_check: bool = True) -> None:
         """Function that runs localization.
 
         Args:
