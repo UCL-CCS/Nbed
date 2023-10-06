@@ -569,7 +569,7 @@ class NbedDriver:
         return fci_scf
 
     def _mu_embed(
-        self, active_scf: StreamObject, dft_potential: np.ndarray
+        self, localized_scf: StreamObject, dft_potential: np.ndarray
     ) -> Tuple[StreamObject, np.ndarray]:
         """Embed using the Mu-shift projector.
 
@@ -585,7 +585,6 @@ class NbedDriver:
 
         # Modify the energy_elec function to handle different h_cores
         # which we need for different embedding potentials
-        localized_scf = active_scf
         if isinstance(localized_scf, (scf.uhf.UHF, dft.uks.UKS)):
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
             v_emb_alpha = (
@@ -649,7 +648,7 @@ class NbedDriver:
             huz_method = huzinaga_KS
         elif isinstance(localized_scf, (scf.rhf.RHF, scf.uhf.UHF)):
             huz_method = huzinaga_HF
-            
+
         (
             c_active_embedded,
             mo_embedded_energy,
