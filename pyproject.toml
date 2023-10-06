@@ -9,8 +9,8 @@ line-length = 88
 target-version = ["py38", "py39", "py310", "py311"]
 
 [tool.poetry.dependencies]
-python = ">=3.8, <4"
-openfermion = "<1.1.0"
+python = ">=3.8, <3.11"
+openfermion = "^1.1.0"
 PennyLane = "^0.17.0"
 PennyLane-Qchem = "^0.17.0"
 PyYAML = "^5.4.1"
@@ -21,19 +21,20 @@ cached-property = "^1.5.2"
 py3Dmol = "^1.7.0"
 jupyter = "^1.0.0"
 h5py = "3.1"
+symmer = "0.0.4"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
-flake8 = "^3.9.2"
+flake8 = ">=4.0.0, <5"
 pydocstyle = "^6.1.1"
-pytest = "^6.2.4"
+pytest = "^7.2.2"
 mypy = "^0.902"
 bpython = "^0.21"
 isort = "^5.9.3"
 coverage = "^6.3.1"
 nbsphinx = "^0.8.8"
 pandoc = "^2.1"
-Sphinx = "^4.4.0"
+Sphinx = "^5"
 sphinx-rtd-theme = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -42,6 +43,7 @@ pandoc = "^2.3"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
 
 
 [tool.poetry.scripts]

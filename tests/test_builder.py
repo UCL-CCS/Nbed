@@ -126,6 +126,9 @@ def test_unrestricted() -> None:
     ham = builder.build()
     diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=2, which="SA")
 
+
+    from symmer.utils import exact_gs_energy
+    exact_gs_energy(get_sparse_operator(ham), n_particles=driver._build_mol().nelectron, n_spin_orbitals=builder.)
     # Ground state for this charge is 2nd eigenstate
     diag = diag[1]
 

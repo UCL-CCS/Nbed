@@ -6,6 +6,7 @@ import numpy as np
 import openfermion.transforms as of_transforms
 from cached_property import cached_property
 from openfermion import InteractionOperator, QubitOperator, count_qubits
+from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.config import EQ_TOLERANCE
 from openfermion.ops.representations import get_active_space_integrals
 from openfermion.transforms import taper_off_qubits
@@ -166,19 +167,107 @@ class HamiltonianBuilder:
 
         occupied_indices = np.where(self.scf_method.mo_occ > 0)[0]
         logger.debug(f"Active indices {self._active_space_indices}.")
-        (
+
+        # Determine core constant
+        core_constant = 0.0
+        for i in occupied_indices:
+            core_constant += one_body_integrals[0, i, i]
+            core_constant += one_body_integrals[1, i, i]
+
+            for j in occupied_indices:
+                core_constant += (
+                    two_body_integrals[0][i, j, j, i]
+                    - two_body_integrals[0][i, j, i, j]
+                )
+                core_constant += (
+                    two_body_integrals[1][i, j, j, i]
+                    - two_body_integrals[1][i, j, i, j]
+                )
+
+        # Modified one electron integrals
+        one_body_integrals_new = numpy.copy(one_body_integrals)
+        for u in active_indices:
+            for v in active_indices:
+                for i in occupied_indices:
+                    one_body_integrals_new[0, u, v] += (
+                        two_body_integrals[0][i, u, v, i]
+                        - two_body_integrals[0][i, u, i, v]
+                    )
+                    one_body_integrals_new[1, u, v] += (
+                        two_body_integrals[1][i, u, v, i]
+                        - two_body_integrals[1][i, u, i, v]
+                    )
+
+        # Restrict integral ranges and change M appropriately
+        logger.debug("Active space reduced.")
+        return (
             core_constant,
-            one_body_integrals,
-            two_body_integrals,
-        ) = get_active_space_integrals(
-            self._one_body_integrals,
-            self._two_body_integrals,
-            occupied_indices=occupied_indices,
-            active_indices=self._active_space_indices,
+            one_body_integrals_new[numpy.ix_(active_indices, active_indices)],
+            two_body_integrals[
+                numpy.ix_(
+                    active_indices, active_indices, active_indices, active_indices
+                )
+            ],
         )
 
-        logger.debug("Active space reduced.")
-        return core_constant, one_body_integrals, two_body_integrals
+    def _spinorb_from_spatial(
+        self, one_body_integrals, two_body_integrals
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Convert spatial integrals to spin-orbital integrals.
+        Args:
+            one_body_integrals (np.ndarray): One-electron integrals in physicist notation.
+            two_body_integrals (np.ndarray): Two-electron integrals in physicist notation.
+
+        Returns:
+            one_body_coefficients (np.ndarray): One-electron coefficients in spinorb form.
+            two_body_coefficients (np.ndarray): Two-electron coefficients in spinorb form.
+
+        """
+
+        n_qubits = one_body_integrals[0].shape[0] + one_body_integrals[1].shape[0]
+
+        # Initialize Hamiltonian coefficients.
+        one_body_coefficients = np.zeros((n_qubits, n_qubits))
+        two_body_coefficients = np.zeros((n_qubits, n_qubits, n_qubits, n_qubits))
+
+        # Loop through integrals.
+        for p in range(n_qubits // 2):
+            for q in range(n_qubits // 2):
+
+                # Populate 1-body coefficients. Require p and q have same spin.
+                one_body_coefficients[2 * p, 2 * q] = one_body_integrals[0, p, q]
+                # one_body_coefficients[2 * p, 2 * q] = one_body_integrals[1, p, q]
+
+                # one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[0, p, q]
+                one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[
+                    1, p, q
+                ]
+
+                # Continue looping to prepare 2-body coefficients.
+                for r in range(n_qubits // 2):
+                    for s in range(n_qubits // 2):
+
+                        # Same spin
+                        two_body_coefficients[
+                            2 * p, 2 * q, 2 * r, 2 * s
+                        ] = two_body_integrals[0][p, q, r, s]
+                        two_body_coefficients[
+                            2 * p + 1, 2 * q + 1, 2 * r + 1, 2 * s + 1
+                        ] = two_body_integrals[1][p, q, r, s]
+
+                        # Mixed spin in physicist
+                        two_body_coefficients[
+                            2 * p, 2 * q + 1, 2 * r + 1, 2 * s
+                        ] = two_body_integrals[2][p, q, r, s]
+                        two_body_coefficients[
+                            2 * p + 1, 2 * q, 2 * r, 2 * s + 1
+                        ] = two_body_integrals[3][p, q, r, s]
+
+        # Truncate.
+        one_body_coefficients[np.absolute(one_body_coefficients) < EQ_TOLERANCE] = 0.0
+        two_body_coefficients[np.absolute(two_body_coefficients) < EQ_TOLERANCE] = 0.0
+
+        return one_body_coefficients, two_body_coefficients
 
     @staticmethod
     def _qubit_transform(transform: str, intop: InteractionOperator) -> QubitOperator:
@@ -308,60 +397,3 @@ class HamiltonianBuilder:
 
             # Check that we have the right number of qubits.
             qubit_reduction += final_n_qubits - n_qubits
-
-    def _spinorb_from_spatial(
-        self, one_body_integrals, two_body_integrals
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Convert spatial integrals to spin-orbital integrals.
-        Args:
-            one_body_integrals (np.ndarray): One-electron integrals in physicist notation.
-            two_body_integrals (np.ndarray): Two-electron integrals in physicist notation.
-
-        Returns:
-            one_body_coefficients (np.ndarray): One-electron coefficients in spinorb form.
-            two_body_coefficients (np.ndarray): Two-electron coefficients in spinorb form.
-
-        """
-
-        n_qubits = one_body_integrals[0].shape[0] + one_body_integrals[1].shape[0]
-
-        # Initialize Hamiltonian coefficients.
-        one_body_coefficients = np.zeros((n_qubits, n_qubits))
-        two_body_coefficients = np.zeros((n_qubits, n_qubits, n_qubits, n_qubits))
-
-        # Loop through integrals.
-        for p in range(n_qubits // 2):
-            for q in range(n_qubits // 2):
-                # Populate 1-body coefficients. Require p and q have same spin.
-                one_body_coefficients[2 * p, 2 * q] = one_body_integrals[0, p, q]
-                # one_body_coefficients[2 * p, 2 * q] = one_body_integrals[1, p, q]
-
-                # one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[0, p, q]
-                one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[
-                    1, p, q
-                ]
-
-                # Continue looping to prepare 2-body coefficients.
-                for r in range(n_qubits // 2):
-                    for s in range(n_qubits // 2):
-                        # Same spin
-                        two_body_coefficients[
-                            2 * p, 2 * q, 2 * r, 2 * s
-                        ] = two_body_integrals[0][p, q, r, s]
-                        two_body_coefficients[
-                            2 * p + 1, 2 * q + 1, 2 * r + 1, 2 * s + 1
-                        ] = two_body_integrals[1][p, q, r, s]
-
-                        # Mixed spin in physicist
-                        two_body_coefficients[
-                            2 * p, 2 * q + 1, 2 * r + 1, 2 * s
-                        ] = two_body_integrals[2][p, q, r, s]
-                        two_body_coefficients[
-                            2 * p + 1, 2 * q, 2 * r, 2 * s + 1
-                        ] = two_body_integrals[3][p, q, r, s]
-
-        # Truncate.
-        one_body_coefficients[np.absolute(one_body_coefficients) < EQ_TOLERANCE] = 0.0
-        two_body_coefficients[np.absolute(two_body_coefficients) < EQ_TOLERANCE] = 0.0
-
-        return one_body_coefficients, two_body_coefficients
