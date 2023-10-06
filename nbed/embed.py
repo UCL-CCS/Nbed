@@ -4,8 +4,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from openfermion.utils import save_operator
 from numpy import save
+from openfermion.utils import save_operator
 
 from nbed.exceptions import NbedConfigError
 from nbed.ham_builder import HamiltonianBuilder

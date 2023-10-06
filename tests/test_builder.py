@@ -3,13 +3,15 @@ Tests for the HamiltonianBuilder class.
 """
 
 from asyncio.log import logger
+from logging import getLogger
+from pathlib import Path
+
+import numpy as np
+import scipy as sp
+from openfermion import QubitOperator, count_qubits, get_sparse_operator
+
 from nbed.driver import NbedDriver
 from nbed.ham_builder import HamiltonianBuilder
-from openfermion import QubitOperator, get_sparse_operator, count_qubits
-import scipy as sp
-from pathlib import Path
-from logging import getLogger
-import numpy as np
 
 logger = getLogger(__name__)
 

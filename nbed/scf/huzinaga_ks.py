@@ -5,8 +5,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 import scipy as sp
+from pyscf.dft import rks, uks
 from pyscf.lib import StreamObject, diis
-from pyscf.dft import uks, rks
 
 logger = logging.getLogger(__name__)
 
