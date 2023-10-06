@@ -15,14 +15,14 @@ Full documentation is available at [https://nbed.readthedocs.io](https://nbed.re
 ## Installation
 ### Pip
 
-The package is installable from the top level directory using
+The package is available on [PyPI](https://pypi.org/project/nbed/) and can be installed with pip:
 
 ```
-pip install .
+pip install nbed
 ```
 ### Poetry
 
-Poetry is a packaging and dependency manager, to install it from the command line run::
+Development of Nbed uses the packaging and dependency manager Poetry, to install it from the command line run::
 
     pip install poetry
 
