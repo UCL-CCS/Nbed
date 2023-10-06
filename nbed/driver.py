@@ -646,34 +646,23 @@ class NbedDriver:
 
         localized_scf = active_scf
         if isinstance(localized_scf, (dft.rks.RKS, dft.uks.UKS)):
-            (
-                c_active_embedded,
-                mo_embedded_energy,
-                dm_active_embedded,
-                huzinaga_op_std,
-                huz_scf_conv_flag,
-            ) = huzinaga_KS(
-                localized_scf,
-                dft_potential,
-                total_enviro_dm,
-                dm_conv_tol=1e-6,
-                dm_initial_guess=dmat_initial_guess,
-            )
-
+            huz_method = huzinaga_KS
         elif isinstance(localized_scf, (scf.rhf.RHF, scf.uhf.UHF)):
-            (
-                c_active_embedded,
-                mo_embedded_energy,
-                dm_active_embedded,
-                huzinaga_op_std,
-                huz_scf_conv_flag,
-            ) = huzinaga_HF(
-                localized_scf,
-                dft_potential,
-                total_enviro_dm,
-                dm_conv_tol=1e-6,
-                dm_initial_guess=dmat_initial_guess,
-            )
+            huz_method = huzinaga_HF
+            
+        (
+            c_active_embedded,
+            mo_embedded_energy,
+            dm_active_embedded,
+            huzinaga_op_std,
+            huz_scf_conv_flag,
+        ) = huz_method(
+            localized_scf,
+            dft_potential,
+            total_enviro_dm,
+            dm_conv_tol=1e-6,
+            dm_initial_guess=dmat_initial_guess,
+        )
 
         logger.debug(f"{c_active_embedded=}")
 
