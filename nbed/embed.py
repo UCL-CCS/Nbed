@@ -76,7 +76,7 @@ def nbed(
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
         max_dft_cycles (int): max number of DFT iterations allowed in scf calc
         unrestricted (bool): Whether to force unrestricted calculation.
-        
+
     Returns:
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
