@@ -132,7 +132,10 @@ class HamiltonianBuilder:
         return two_body_integrals
 
     def _reduce_active_space(
-        self, qubit_reduction: int
+        self,
+        qubit_reduction: int,
+        one_body_integrals: np.ndarray,
+        two_body_integrals: np.ndarray,
     ) -> Tuple[float, np.ndarray, np.ndarray]:
         """Reduce the active space to accommodate a certain number of qubits."""
         logger.debug("Reducing the active space.")
@@ -356,11 +359,16 @@ class HamiltonianBuilder:
         logger.debug("Building for %s qubits.", n_qubits)
         qubit_reduction = 0
         while True:
+            one_body_integrals = self._one_body_integrals
+            two_body_integrals = self._two_body_integrals
+
             (
                 core_constant,
                 one_body_integrals,
                 two_body_integrals,
-            ) = self._reduce_active_space(qubit_reduction)
+            ) = self._reduce_active_space(
+                qubit_reduction, one_body_integrals, two_body_integrals
+            )
 
             one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
                 one_body_integrals, two_body_integrals
