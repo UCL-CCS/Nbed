@@ -143,12 +143,20 @@ class Localizer(ABC):
         warn_flag = False
         if self._restricted_scf is False:
             logger.debug("Checking spin does not affect localization.")
-            active_number_match = self.active_MO_inds.shape == self.beta_active_MO_inds.shape
-            enviro_number_match = self.enviro_MO_inds.shape == self.beta_enviro_MO_inds.shape
+            active_number_match = (
+                self.active_MO_inds.shape == self.beta_active_MO_inds.shape
+            )
+            enviro_number_match = (
+                self.enviro_MO_inds.shape == self.beta_enviro_MO_inds.shape
+            )
             if not active_number_match or not enviro_number_match:
                 logger.error("Number of alpha and beta orbitals do not match.")
-                logger.debug(f"alpha: {self.active_MO_inds.shape} active, {self.enviro_MO_inds.shape} enviro")
-                logger.debug(f"beta: {self.beta_active_MO_inds.shape} active, {self.beta_enviro_MO_inds.shape} enviro")
+                logger.debug(
+                    f"alpha: {self.active_MO_inds.shape} active, {self.enviro_MO_inds.shape} enviro"
+                )
+                logger.debug(
+                    f"beta: {self.beta_active_MO_inds.shape} active, {self.beta_enviro_MO_inds.shape} enviro"
+                )
                 warn_flag = True
 
         # checking denisty matrix parition sums to total
@@ -156,12 +164,12 @@ class Localizer(ABC):
         dm_localised_full_system = self._c_loc_occ @ self._c_loc_occ.conj().T
         dm_sum = self.dm_active + self.dm_enviro
 
-        density_match = np.allclose(
-            dm_localised_full_system, dm_sum
-        )
+        density_match = np.allclose(dm_localised_full_system, dm_sum)
 
         if self._restricted_scf is False:
-            beta_dm_localised_full_system = self._beta_c_loc_occ @ self._beta_c_loc_occ.conj().T
+            beta_dm_localised_full_system = (
+                self._beta_c_loc_occ @ self._beta_c_loc_occ.conj().T
+            )
             beta_dm_sum = self.beta_dm_active + self.beta_dm_enviro
 
             # both need to be correct
@@ -193,7 +201,9 @@ class Localizer(ABC):
             warn_flag = True
 
         if warn_flag:
-            raise NbedLocalizerError(f"Sense check failed.\n {active_number_match=},\n {enviro_number_match=},\n {density_match=},\n {electron_number_match=}")
+            raise NbedLocalizerError(
+                f"Sense check failed.\n {active_number_match=},\n {enviro_number_match=},\n {density_match=},\n {electron_number_match=}"
+            )
 
     def _localize_virtual_orbs(self) -> None:
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
@@ -257,12 +267,12 @@ class Localizer(ABC):
         # )
 
         return c_virtual_loc
- 
-    def run(self, sanity_check: bool = True) -> None:
+
+    def run(self, check_values: bool = False) -> None:
         """Function that runs localization.
 
         Args:
-            sanity_check (bool): optional flag to check denisty matrices and electron number after orbital localization
+            check_values (bool): optional flag to check denisty matrices and electron number after orbital localization
                                  makes sense
         """
         alpha, beta = self._localize()
@@ -301,7 +311,7 @@ class Localizer(ABC):
             self.beta_dm_active = self.beta_c_active @ self.beta_c_active.T
             self.beta_dm_enviro = self.beta_c_enviro @ self.beta_c_enviro.T
 
-        if sanity_check is True:
+        if check_values is True:
             self._check_values()
 
         if self._run_virtual_localization is True:

@@ -53,14 +53,10 @@ class HamiltonianBuilder:
         if isinstance(self.scf_method, (scf.uhf.UHF, dft.uks.UKS)):
             logger.info("Calculating unrestricted one body intergrals.")
             one_body_integrals_alpha = (
-                c_matrix_active[0].T
-                @ self.scf_method.get_hcore()
-                @ c_matrix_active[0]
+                c_matrix_active[0].T @ self.scf_method.get_hcore() @ c_matrix_active[0]
             )
             one_body_integrals_beta = (
-                c_matrix_active[1].T
-                @ self.scf_method.get_hcore()
-                @ c_matrix_active[1]
+                c_matrix_active[1].T @ self.scf_method.get_hcore() @ c_matrix_active[1]
             )
 
             one_body_integrals = np.array(
@@ -135,7 +131,9 @@ class HamiltonianBuilder:
 
         return two_body_integrals
 
-    def _reduce_active_space(self, qubit_reduction: int) -> Tuple[float, np.ndarray, np.ndarray]:
+    def _reduce_active_space(
+        self, qubit_reduction: int
+    ) -> Tuple[float, np.ndarray, np.ndarray]:
         """Reduce the active space to accommodate a certain number of qubits."""
         logger.debug("Reducing the active space.")
 
