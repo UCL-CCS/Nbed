@@ -32,11 +32,17 @@ mypy = "^0.902"
 bpython = "^0.21"
 isort = "^5.9.3"
 coverage = "^6.3.1"
+pandoc = "^2.3"
+poetry = "^1.5.0"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
 nbsphinx = "^0.8.8"
 Sphinx = "^5"
 sphinx-rtd-theme = "^1.0.0"
-pandoc = "^2.3"
-poetry = "^1.5.0"
+
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
