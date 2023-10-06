@@ -54,12 +54,12 @@ class HamiltonianBuilder:
             logger.info("Calculating unrestricted one body intergrals.")
             one_body_integrals_alpha = (
                 c_matrix_active[0].T
-                @ self.scf_method.get_hcore()[0]
+                @ self.scf_method.get_hcore()
                 @ c_matrix_active[0]
             )
             one_body_integrals_beta = (
                 c_matrix_active[1].T
-                @ self.scf_method.get_hcore()[1]
+                @ self.scf_method.get_hcore()
                 @ c_matrix_active[1]
             )
 
@@ -235,14 +235,12 @@ class HamiltonianBuilder:
 
                 # Populate 1-body coefficients. Require p and q have same spin.
                 one_body_coefficients[2 * p, 2 * q] = one_body_integrals[0, p, q]
-                # one_body_coefficients[2 * p, 2 * q] = one_body_integrals[1, p, q]
-
-                # one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[0, p, q]
                 one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[
                     1, p, q
                 ]
 
                 # Continue looping to prepare 2-body coefficients.
+                # Assumes 2e ints are ordered as aaaa,bbbb,aabb,bbaa.
                 for r in range(n_qubits // 2):
                     for s in range(n_qubits // 2):
 

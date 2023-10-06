@@ -80,12 +80,6 @@ def test_force_unrestricted() -> None:
     fci = unrestric_driver._global_fci.e_tot - unrestric_driver._global_ks.energy_nuc()
     logger.info(f"FCI energy of unrestricted driver test: {fci}")
 
-    # We need to double up the size of the hcore
-    old_hcore = unrestric_driver._global_ks.get_hcore()
-    unrestric_driver._global_ks.get_hcore = lambda *args: np.array(
-        [old_hcore, old_hcore]
-    )
-
     builder = HamiltonianBuilder(unrestric_driver._global_ks, 0, "jordan_wigner")
     ham = builder.build()
     diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=1, which="SA")
@@ -116,20 +110,12 @@ def test_unrestricted() -> None:
     fci = unrestric_driver._global_fci.e_tot - unrestric_driver._global_ks.energy_nuc()
     logger.info(f"FCI energy of unrestricted driver test: {fci}")
 
-    # We need to double up the size of the hcore
-    old_hcore = unrestric_driver._global_ks.get_hcore()
-    unrestric_driver._global_ks.get_hcore = lambda *args: np.array(
-        [old_hcore, old_hcore]
-    )
-
     builder = HamiltonianBuilder(unrestric_driver._global_ks, 0, "jordan_wigner")
     ham = builder.build()
-    # diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=2, which="SA")
-    # Ground state for this charge is 2nd eigenstate
-    # diag = diag[1]
+    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=2, which="SA")
 
-    from symmer.utils import exact_gs_energy
-    exact_gs_energy(get_sparse_operator(ham), n_particles=driver._build_mol().nelectron, n_spin_orbitals=count_qubits(ham))
+    # Ground state for this charge is 2nd eigenstate
+    diag = diag[1]
 
     logger.info(f"Ground state via diagonalisation: {diag}")
     assert np.isclose(fci, diag)
