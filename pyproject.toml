@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nbed"
-version = "0.0.1"
+version = "0.0.2"
 description = ""
 authors = ["Michael Williams <michael.williams.20@ucl.ac.uk>"]
 
@@ -21,6 +21,7 @@ py3Dmol = "^1.7.0"
 jupyter = "^1.0.0"
 h5py = "3.1"
 symmer = "0.0.4"
+pyscf = "^2.3.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.3.0"
@@ -40,6 +41,7 @@ poetry = "^1.5.0"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
 
 [tool.poetry.scripts]
 nbed = "nbed.embed:cli"
