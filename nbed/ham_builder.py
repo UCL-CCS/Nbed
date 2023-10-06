@@ -213,6 +213,7 @@ class HamiltonianBuilder:
         self, one_body_integrals: np.ndarray, two_body_integrals: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Convert spatial integrals to spin-orbital integrals.
+
         Args:
             one_body_integrals (np.ndarray): One-electron integrals in physicist notation.
             two_body_integrals (np.ndarray): Two-electron integrals in physicist notation.
@@ -222,7 +223,6 @@ class HamiltonianBuilder:
             two_body_coefficients (np.ndarray): Two-electron coefficients in spinorb form.
 
         """
-
         n_qubits = one_body_integrals[0].shape[0] + one_body_integrals[1].shape[0]
 
         # Initialize Hamiltonian coefficients.

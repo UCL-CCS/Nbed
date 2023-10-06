@@ -7,10 +7,16 @@ from pyscf import ao2mo
 
 
 def energy_elec(mf, dm=None, h1e=None, vhf=None) -> Tuple[float, float]:
-    """Electronic energy of Unrestricted Hartree-Fock
+    """Electronic energy of Unrestricted Hartree-Fock.
 
     Note this function has side effects which cause mf.scf_summary updated.
     This version is
+
+    Args:
+        mf (pyscf.scf.hf.HF): Hartree-Fock object
+        dm (np.ndarray): Density matrix
+        h1e (np.ndarray): Core Hamiltonian
+        vhf (np.ndarray): 2-electron contribution to effective potential
 
     Returns:
         e_elec (np.ndarray): Hartree-Fock electronic energy

@@ -60,7 +60,8 @@ def nbed(
         transform (str): Qubit transform to be applied to the Hamiltonian.
         localization (str): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
         convergence (float): The convergence tolerance for energy calculations.
-        charge (int): Charge of molecular species
+        charge (int): Charge of molecule
+        spin (int): Spin of the molecule
         mu_level_shift (float): Level shift parameter to use for mu-projector.
         run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
         run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
@@ -74,6 +75,8 @@ def nbed(
         virtual_threshold (float): The occupancy threshold for localizing virtual orbitals.
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
         max_dft_cycles (int): max number of DFT iterations allowed in scf calc
+        unrestricted (bool): Whether to force unrestricted calculation.
+        
     Returns:
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """

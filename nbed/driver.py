@@ -326,7 +326,6 @@ class NbedDriver:
         Returns:
             local_hf (scf.uhf.UHF or scf.rhf.RHF): embedded Hartree-Fock object.
         """
-
         logger.debug("Constructing localised RHF object.")
         embedded_mol: gto.Mole = self._build_mol()
 
@@ -816,7 +815,6 @@ class NbedDriver:
         Returns:
             float: Energy of DFT in embedding.
         """
-
         result = {}
         e_nuc = self._global_ks.energy_nuc()
 

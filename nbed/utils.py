@@ -250,6 +250,7 @@ def parse():
 
 def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None:
     """Print a summary of the package results.
+
     Args:
         driver (NbedDriver): An NbedDriver to summarise.
         transform (str): The transform used to generate a qubit Hamiltonian.

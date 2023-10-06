@@ -136,6 +136,9 @@ class Localizer(ABC):
 
     def _check_values(self) -> None:  # Needs clarification
         """Check that output values make sense.
+
+        - Same number of active and environment orbitals in alpha and beta
+        - Total DM is sum of active and environment DM
         - Total number of electrons conserved
 
         """
