@@ -12,6 +12,9 @@ class NbedDriverError(Exception):
 
     pass
 
+class NbedLocalizerError(Exception):
+    """Raise when Localizer sense check fails."""
+    pass
 
 class HamiltonianConverterError(Exception):
     """Base Exception class."""
