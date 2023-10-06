@@ -161,12 +161,13 @@ class HamiltonianBuilder:
 
         # We want the MOs nearest the fermi level
         # unoccupied orbitals go from 0->N and occupied from N->M
-        self._active_space_indices = np.append(
+        active_indices = np.append(
             occupied[occupied_reduction:], unoccupied[:unoccupied_reduction]
         )
+        logger.debug(f"Active indices {self._active_space_indices}.")
+        self._active_space_indices = active_indices 
 
         occupied_indices = np.where(self.scf_method.mo_occ > 0)[0]
-        logger.debug(f"Active indices {self._active_space_indices}.")
 
         # Determine core constant
         core_constant = 0.0
@@ -185,7 +186,7 @@ class HamiltonianBuilder:
                 )
 
         # Modified one electron integrals
-        one_body_integrals_new = numpy.copy(one_body_integrals)
+        one_body_integrals_new = np.copy(one_body_integrals)
         for u in active_indices:
             for v in active_indices:
                 for i in occupied_indices:
@@ -202,9 +203,9 @@ class HamiltonianBuilder:
         logger.debug("Active space reduced.")
         return (
             core_constant,
-            one_body_integrals_new[numpy.ix_(active_indices, active_indices)],
+            one_body_integrals_new[np.ix_(active_indices, active_indices)],
             two_body_integrals[
-                numpy.ix_(
+                np.ix_(
                     active_indices, active_indices, active_indices, active_indices
                 )
             ],
