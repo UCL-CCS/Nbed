@@ -200,13 +200,21 @@ class HamiltonianBuilder:
                         - two_body_integrals[1, i, u, i, v]
                     )
 
+        one_body_integrals_new
+
         # Restrict integral ranges and change M appropriately
         logger.debug("Active space reduced.")
         return (
             core_constant,
-            one_body_integrals_new[:, np.ix_(active_indices, active_indices)],
-            two_body_integrals[0,
-                np.ix_(active_indices, active_indices, active_indices, active_indices)
+            one_body_integrals_new[np.ix_([0, 1], active_indices, active_indices)],
+            two_body_integrals[
+                np.ix_(
+                    [0, 1, 2, 3],
+                    active_indices,
+                    active_indices,
+                    active_indices,
+                    active_indices,
+                )
             ],
         )
 

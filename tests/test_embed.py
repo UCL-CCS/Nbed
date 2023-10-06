@@ -28,7 +28,7 @@ def test_nbed_openfermion() -> None:
         "qubits": None,
     }
 
-    hamiltonians = nbed(
+    qham = nbed(
         geometry=args["geometry"],
         n_active_atoms=args["n_active_atoms"],
         basis=args["basis"],
@@ -88,7 +88,7 @@ def test_nbed_6_qubits() -> None:
         "qubits": 6,
     }
 
-    hamiltonians = nbed(
+    qham = nbed(
         geometry=args["geometry"],
         n_active_atoms=args["n_active_atoms"],
         basis=args["basis"],
