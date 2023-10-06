@@ -129,6 +129,7 @@ class HamiltonianBuilder:
 
         logger.debug("Two body integrals found.")
 
+        two_body_integrals = np.array(two_body_integrals)
         return two_body_integrals
 
     def _reduce_active_space(
@@ -164,8 +165,8 @@ class HamiltonianBuilder:
         active_indices = np.append(
             occupied[occupied_reduction:], unoccupied[:unoccupied_reduction]
         )
-        logger.debug(f"Active indices {self._active_space_indices}.")
         self._active_space_indices = active_indices
+        logger.debug(f"Active indices {self._active_space_indices}.")
 
         occupied_indices = np.where(self.scf_method.mo_occ > 0)[0]
 
@@ -177,12 +178,12 @@ class HamiltonianBuilder:
 
             for j in occupied_indices:
                 core_constant += (
-                    two_body_integrals[0][i, j, j, i]
-                    - two_body_integrals[0][i, j, i, j]
+                    two_body_integrals[0, i, j, j, i]
+                    - two_body_integrals[0, i, j, i, j]
                 )
                 core_constant += (
-                    two_body_integrals[1][i, j, j, i]
-                    - two_body_integrals[1][i, j, i, j]
+                    two_body_integrals[1, i, j, j, i]
+                    - two_body_integrals[1, i, j, i, j]
                 )
 
         # Modified one electron integrals
@@ -191,20 +192,20 @@ class HamiltonianBuilder:
             for v in active_indices:
                 for i in occupied_indices:
                     one_body_integrals_new[0, u, v] += (
-                        two_body_integrals[0][i, u, v, i]
-                        - two_body_integrals[0][i, u, i, v]
+                        two_body_integrals[0, i, u, v, i]
+                        - two_body_integrals[0, i, u, i, v]
                     )
                     one_body_integrals_new[1, u, v] += (
-                        two_body_integrals[1][i, u, v, i]
-                        - two_body_integrals[1][i, u, i, v]
+                        two_body_integrals[1, i, u, v, i]
+                        - two_body_integrals[1, i, u, i, v]
                     )
 
         # Restrict integral ranges and change M appropriately
         logger.debug("Active space reduced.")
         return (
             core_constant,
-            one_body_integrals_new[np.ix_(active_indices, active_indices)],
-            two_body_integrals[
+            one_body_integrals_new[:, np.ix_(active_indices, active_indices)],
+            two_body_integrals[0,
                 np.ix_(active_indices, active_indices, active_indices, active_indices)
             ],
         )
@@ -247,18 +248,18 @@ class HamiltonianBuilder:
                         # Same spin
                         two_body_coefficients[
                             2 * p, 2 * q, 2 * r, 2 * s
-                        ] = two_body_integrals[0][p, q, r, s]
+                        ] = two_body_integrals[0, p, q, r, s]
                         two_body_coefficients[
                             2 * p + 1, 2 * q + 1, 2 * r + 1, 2 * s + 1
-                        ] = two_body_integrals[1][p, q, r, s]
+                        ] = two_body_integrals[1, p, q, r, s]
 
                         # Mixed spin in physicist
                         two_body_coefficients[
                             2 * p, 2 * q + 1, 2 * r + 1, 2 * s
-                        ] = two_body_integrals[2][p, q, r, s]
+                        ] = two_body_integrals[2, p, q, r, s]
                         two_body_coefficients[
                             2 * p + 1, 2 * q, 2 * r, 2 * s + 1
-                        ] = two_body_integrals[3][p, q, r, s]
+                        ] = two_body_integrals[3, p, q, r, s]
 
         # Truncate.
         one_body_coefficients[np.absolute(one_body_coefficients) < EQ_TOLERANCE] = 0.0

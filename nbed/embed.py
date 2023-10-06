@@ -108,8 +108,8 @@ def nbed(
     )
 
     # Needed for 'both' projector
-    hamiltonians = ()
     if isinstance(driver.embedded_scf, tuple):
+        hamiltonians = ()
         for scf, e_classical in zip(driver.embedded_scf, driver.e_classical):
             qham = HamiltonianBuilder(
                 scf_method=scf,
@@ -130,7 +130,7 @@ def nbed(
 
         converter = HamiltonianConverter(qham_openF)
         qham = getattr(converter, output.lower())
-        hamiltonians += (qham,)
+        hamiltonians = qham
 
     if savefile is not None:
         save_operator(
