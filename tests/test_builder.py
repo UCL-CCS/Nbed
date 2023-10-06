@@ -2,7 +2,6 @@
 Tests for the HamiltonianBuilder class.
 """
 
-from asyncio.log import logger
 from logging import getLogger
 from pathlib import Path
 
