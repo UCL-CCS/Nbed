@@ -74,7 +74,6 @@ class NbedDriver:
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
         max_dft_cycles (int): max number of DFT iterations allowed in scf calc
         init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
-        run_embed (bool): Whether or not to run the embedding calculation.
         return_dict (boolean): returns a dictionary containing geometry, hamiltonian and energies (FCI, CCSD, DFT)
 
     Attributes:
@@ -114,7 +113,6 @@ class NbedDriver:
         init_huzinaga_rhf_with_mu: bool = False,
         max_hf_cycles: int = 50,
         max_dft_cycles: int = 50,
-        run_embed: bool = True,
         return_dict: Optional[bool] = False,
         force_unrestricted: Optional[bool] = False,
     ):
@@ -179,8 +177,7 @@ class NbedDriver:
             logger.debug("Closed shells, using restricted SCF.")
             self._restricted_scf = True
 
-        if run_embed:
-            self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
+        self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
 
         logger.debug("Driver initialisation complete.")
 
