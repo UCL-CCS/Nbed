@@ -165,7 +165,7 @@ class HamiltonianBuilder:
             occupied[occupied_reduction:], unoccupied[:unoccupied_reduction]
         )
         logger.debug(f"Active indices {self._active_space_indices}.")
-        self._active_space_indices = active_indices 
+        self._active_space_indices = active_indices
 
         occupied_indices = np.where(self.scf_method.mo_occ > 0)[0]
 
