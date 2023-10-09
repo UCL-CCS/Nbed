@@ -63,19 +63,14 @@ class HamiltonianBuilder:
             # Driver has been used.
             hcore = self.scf_method.get_hcore()
 
-
         # one body terms
         if isinstance(self.scf_method, (scf.uhf.UHF, dft.uks.UKS)):
             logger.info("Calculating unrestricted one body intergrals.")
             one_body_integrals_alpha = (
-                c_matrix_active[0].T
-                @ hcore[0]
-                @ c_matrix_active[0]
+                c_matrix_active[0].T @ hcore[0] @ c_matrix_active[0]
             )
             one_body_integrals_beta = (
-                c_matrix_active[1].T
-                @ hcore[0]
-                @ c_matrix_active[1]
+                c_matrix_active[1].T @ hcore[0] @ c_matrix_active[1]
             )
 
             one_body_integrals = np.array(
