@@ -190,7 +190,6 @@ class HamiltonianConverter:
         operators = []
 
         for op in self._intermediate.keys():
-
             # Construct a list like [PauliX(0), PauliY(1), Identity(3)]
             paulis = [opdict[pauli](pos) for pos, pauli in enumerate(op)]
 

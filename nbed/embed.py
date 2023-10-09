@@ -4,6 +4,9 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from numpy import save
+from openfermion.utils import save_operator
+
 from nbed.exceptions import NbedConfigError
 from nbed.ham_builder import HamiltonianBuilder
 
@@ -26,17 +29,20 @@ def nbed(
     localization: Optional[str] = "spade",
     convergence: Optional[float] = 1e-6,
     charge: Optional[int] = 0,
+    spin: Optional[int] = 0,
     mu_level_shift: Optional[float] = 1e6,
     run_ccsd_emb: Optional[bool] = False,
     run_fci_emb: Optional[bool] = False,
     max_ram_memory: Optional[int] = 4000,
     pyscf_print_level: int = 1,
     savefile: Optional[Path] = None,
+    file_name: Optional[str] = None,
     unit: Optional[str] = "angstrom",
     occupied_threshold: Optional[float] = 0.95,
     virtual_threshold: Optional[float] = 0.95,
     max_hf_cycles: int = 50,
     max_dft_cycles: int = 50,
+    unrestricted: Optional[bool] = False,
 ):
     """Import interface for the nbed package.
 
@@ -54,19 +60,23 @@ def nbed(
         transform (str): Qubit transform to be applied to the Hamiltonian.
         localization (str): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
         convergence (float): The convergence tolerance for energy calculations.
-        charge (int): Charge of molecular species
+        charge (int): Charge of molecule
+        spin (int): Spin of the molecule
         mu_level_shift (float): Level shift parameter to use for mu-projector.
         run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
         run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         savefile (str): Path to file to save output Hamiltonain to.
+        file_name (str): name of the exported hamiltonian
         qubits (int): The number of qubits available for the output hamiltonian.
         unit (str): molecular geometry unit 'angstrom' or 'bohr'
         occupied_threshold (float): The occupancy threshold for localizing occupied orbitals.
         virtual_threshold (float): The occupancy threshold for localizing virtual orbitals.
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
         max_dft_cycles (int): max number of DFT iterations allowed in scf calc
+        unrestricted (bool): Whether to force unrestricted calculation.
+
     Returns:
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
@@ -83,6 +93,7 @@ def nbed(
         convergence=convergence,
         savefile=savefile,
         charge=charge,
+        spin=spin,
         mu_level_shift=mu_level_shift,
         run_ccsd_emb=run_ccsd_emb,
         run_fci_emb=run_fci_emb,
@@ -93,7 +104,9 @@ def nbed(
         virtual_threshold=virtual_threshold,
         max_hf_cycles=max_hf_cycles,
         max_dft_cycles=max_dft_cycles,
+        force_unrestricted=unrestricted,
     )
+
     # Needed for 'both' projector
     if isinstance(driver.embedded_scf, tuple):
         hamiltonians = ()
@@ -103,6 +116,7 @@ def nbed(
                 constant_e_shift=e_classical,
                 transform=transform,
             ).build(n_qubits=qubits)
+
             converter = HamiltonianConverter(qham)
             qham = getattr(converter, output.lower())
 
@@ -110,15 +124,25 @@ def nbed(
     else:
         qham_openF = HamiltonianBuilder(
             scf_method=driver.embedded_scf,
-            constant_e_shift=driver.classical_energy,
+            constant_e_shift=0,
             transform=transform,
         ).build(n_qubits=qubits)
 
         converter = HamiltonianConverter(qham_openF)
         qham = getattr(converter, output.lower())
+        hamiltonians = qham
+
+    if savefile is not None:
+        save_operator(
+            qham,
+            file_name=file_name,
+            data_directory=savefile,
+            allow_overwrite=False,
+            plain_text=False,
+        )
 
     print_summary(driver, transform, fci=False)
-    return qham
+    return hamiltonians
 
 
 def cli() -> None:

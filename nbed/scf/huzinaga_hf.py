@@ -5,12 +5,13 @@ from typing import Optional, Tuple
 
 import numpy as np
 import scipy as sp
+from pyscf import dft, scf
 from pyscf.lib import StreamObject, diis
 
 logger = logging.getLogger(__name__)
 
 
-def huzinaga_RHF(
+def huzinaga_HF(
     scf_method: StreamObject,
     dft_potential: np.ndarray,
     dm_enviroment: np.ndarray,
@@ -43,13 +44,32 @@ def huzinaga_RHF(
     s_mat = scf_method.get_ovlp()
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
-    dm_env_S = dm_enviroment @ s_mat
+    if isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS)):
+        unrestricted = False
+    else:
+        unrestricted = True
+
+    if unrestricted:
+        dm_env_S = np.array([dm_enviroment[0] @ s_mat, dm_enviroment[1] @ s_mat])
+    else:
+        dm_env_S = dm_enviroment @ s_mat
+
     # Create an initial dm if needed.
     if dm_initial_guess is None:
         fock = scf_method.get_hcore() + dft_potential
 
-        fds = fock @ dm_env_S
-        huzinaga_op_std = -0.5 * (fds + fds.T)
+        if unrestricted:
+            fds_alpha = fock[0] @ dm_env_S[0]
+            fds_beta = fock[1] @ dm_env_S[1]
+            huzinaga_op_std = np.array(
+                [
+                    -(fds_alpha + fds_alpha.T),
+                    -(fds_beta + fds_beta.T),
+                ]
+            )
+        else:
+            fds = fock @ dm_env_S
+            huzinaga_op_std = -0.5 * (fds + fds.T)
 
         fock += huzinaga_op_std
         # Create the orthogonal fock operator
@@ -70,9 +90,15 @@ def huzinaga_RHF(
         vhf = scf_method.get_veff(dm=dm_mat)
         fock = scf_method.get_hcore() + dft_potential + vhf
 
-        fds = fock @ dm_env_S
-        huzinaga_op_std = -0.5 * (fds + fds.T)
-
+        if unrestricted:
+            fds_alpha = fock[0] @ dm_env_S[0]
+            fds_beta = fock[1] @ dm_env_S[1]
+            huzinaga_op_std = np.array(
+                [-(fds_alpha + fds_alpha.T), -(fds_beta + fds_beta.T)]
+            )
+        else:
+            fds = fock @ dm_env_S
+            huzinaga_op_std = -0.5 * (fds + fds.T)
         fock += huzinaga_op_std
 
         if use_DIIS and (i > 1):
@@ -88,17 +114,20 @@ def huzinaga_RHF(
         # Create initial values for i+1 run.
         dm_mat_old = dm_mat
         dm_mat = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
+
         # Find RHF energy
         e_core_dft = np.einsum(
-            "ij,ji->", scf_method.get_hcore() + dft_potential, dm_mat
+            "...ij,...ji->...", scf_method.get_hcore() + dft_potential, dm_mat
         )
-        e_coul = 0.5 * np.einsum("ij,ji->", vhf, dm_mat)
-        e_huz = np.einsum("ij,ji->", huzinaga_op_std, dm_mat)
+
+        e_coul = 0.5 * np.einsum("...ij,...ji->...", vhf, dm_mat)
+        e_huz = np.einsum("...ij,...ji->...", huzinaga_op_std, dm_mat)
         rhf_energy = e_core_dft + e_coul + e_huz
 
         # check convergence
-        run_diff = np.abs(rhf_energy - rhf_energy_prev)
-        norm_dm_diff = np.linalg.norm(dm_mat - dm_mat_old)
+        # use max difference so that this works for unrestricted
+        run_diff = np.max(np.abs(rhf_energy - rhf_energy_prev))
+        norm_dm_diff = np.max(np.linalg.norm(dm_mat - dm_mat_old, axis=(-2, -1)))
 
         if (run_diff < scf_method.conv_tol) and (norm_dm_diff < dm_conv_tol):
             conv_flag = True

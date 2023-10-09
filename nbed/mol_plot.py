@@ -50,7 +50,7 @@ def Draw_molecule(
     return view
 
 
-def Draw_cube_orbital(
+def draw_cube_orbital(
     PySCF_mol_obj: gto.Mole,
     xyz_string: str,
     C_matrix: np.ndarray,

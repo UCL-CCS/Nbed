@@ -1,10 +1,10 @@
 """SPADE Localizer Class."""
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
-from pyscf import gto
+from pyscf import dft, gto
 from scipy import linalg
 
 from .base import Localizer
@@ -59,26 +59,30 @@ class SPADELocalizer(Localizer):
             run_virtual_localization=run_virtual_localization,
         )
 
-    def _localize(
-        self,
+    def _localize_spin(
+        self, c_matrix: np.ndarray, occupancy: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Localise orbitals using SPADE.
+        """Localize orbitals of one spin using SPADE.
+
+        Args:
+            c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
+            occupancy (np.ndarray): Occupancy of orbitals.
 
         Returns:
-            active_MO_inds (np.array): 1D array of active occupied MO indices
-            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
-            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
-            c_enviro (np.array): C matrix of localized occupied ennironment MOs
-            c_loc_occ (np.array): full C matrix of localized occupied MOs
+            np.ndarray: Localized C matrix of occupied orbitals.
         """
         logger.debug("Localising with SPADE.")
-        n_occupied_orbitals = np.count_nonzero(self._global_rks.mo_occ == 2)
-        occupied_orbitals = self._global_rks.mo_coeff[:, :n_occupied_orbitals]
 
-        n_act_aos = self._global_rks.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
+        # We want the same partition for each spin.
+        # It wouldn't make sense to have different spin states be localized differently.
+
+        n_occupied_orbitals = np.count_nonzero(occupancy)
+        occupied_orbitals = c_matrix[:, :n_occupied_orbitals]
+
+        n_act_aos = self._global_ks.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_aos} active AOs.")
 
-        ao_overlap = self._global_rks.get_ovlp()
+        ao_overlap = self._global_ks.get_ovlp()
 
         # Orbital rotation and partition into subsystems A and B
         # rotation_matrix, sigma = embed.orbital_rotation(occupied_orbitals,
@@ -114,4 +118,4 @@ class SPADELocalizer(Localizer):
         # storing condition used to select env system
         self.enviro_selection_condition = sigma
 
-        return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
+        return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)

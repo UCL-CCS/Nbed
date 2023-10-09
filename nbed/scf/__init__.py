@@ -1,5 +1,6 @@
 """Localized SCF Methods."""
-from .huzinaga_rhf import huzinaga_RHF
-from .huzinaga_rks import huzinaga_RKS
+from .embedded_hcore_funcs import _absorb_h1e, energy_elec
+from .huzinaga_hf import huzinaga_HF
+from .huzinaga_ks import huzinaga_KS
 
-all = ["huzinaga_RHF", "huzinaga_RKS"]
+all = ["huzinaga_HF", "huzinaga_KS", "energy_elec", "_absorb_h1e"]

@@ -2,15 +2,14 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
-import scipy as sp
-from cached_property import cached_property
-from pyscf import dft, gto, lo
-from pyscf.lib import StreamObject, tag_array
+from pyscf import scf
+from pyscf.lib import StreamObject
 from pyscf.lo import vvo
-from scipy import linalg
+
+from ..exceptions import NbedLocalizerError
 
 # from ..utils import restricted_float_percentage
 
@@ -27,7 +26,7 @@ class Localizer(ABC):
     Mulliken charges. As a result, IBOs are always well-defined.  (Ref: J. Chem. Theory Comput. 2013, 9, 4834−4843)
 
     Args:
-        pyscf_rks (gto.Mole): PySCF molecule object
+        global_ks (gto.Mole): PySCF molecule object
         n_active_atoms (int): Number of active atoms
         localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
         occ_cutoff (float): Threshold for selecting occupied active region (only requried if
@@ -53,7 +52,7 @@ class Localizer(ABC):
 
     def __init__(
         self,
-        pyscf_rks: StreamObject,
+        global_ks: StreamObject,
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
@@ -61,17 +60,18 @@ class Localizer(ABC):
     ):
         """Initialise class."""
         logger.debug("Initialising Localizer.")
-        if pyscf_rks.mo_coeff is None:
+        if global_ks.mo_coeff is None:
             logger.debug("SCF method not initialised, running now...")
-            pyscf_rks.run()
+            global_ks.run()
             logger.debug("SCF method initialised.")
 
-        self._global_rks = pyscf_rks
+        self._global_ks = global_ks
         self._n_active_atoms = n_active_atoms
 
         self._occ_cutoff = self._valid_threshold(occ_cutoff)
         self._virt_cutoff = self._valid_threshold(virt_cutoff)
         self._run_virtual_localization = run_virtual_localization
+        self._restricted_scf = isinstance(self._global_ks, scf.hf.RHF)
 
         # Run the localization procedure
         self.run()
@@ -92,11 +92,10 @@ class Localizer(ABC):
             logger.error("Localizer threshold not valid.")
             raise ValueError(f"threshold: {threshold} is not in range [0,1] inclusive")
 
-    @abstractmethod
     def _localize(
         self,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Abstract method which should handle localization.
+    ) -> Tuple[Tuple, Union[Tuple, None]]:
+        """Localise orbitals using SPADE.
 
         Returns:
             active_MO_inds (np.array): 1D array of active occupied MO indices
@@ -105,40 +104,115 @@ class Localizer(ABC):
             c_enviro (np.array): C matrix of localized occupied ennironment MOs
             c_loc_occ (np.array): full C matrix of localized occupied MOs
         """
+        if self._restricted_scf:
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff, self._global_ks.mo_occ
+            )
+            beta = None
+        else:
+            alpha = self._localize_spin(
+                self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0]
+            )
+            beta = self._localize_spin(
+                self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1]
+            )
+
+        return (alpha, beta)
+
+    @abstractmethod
+    def _localize_spin(
+        self, c_matrix: np.ndarray, occupancy: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Localize orbitals of one spin.
+
+        Args:
+            c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
+            occupancy (np.ndarray): Occupancy of orbitals.
+
+        Returns:
+            np.ndarray: Localized C matrix of occupied orbitals.
+        """
         pass
 
-    def _check_values(self) -> None:
-        """Check that output values make sense."""
+    def _check_values(self) -> None:  # Needs clarification
+        """Check that output values make sense.
+
+        - Same number of active and environment orbitals in alpha and beta
+        - Total DM is sum of active and environment DM
+        - Total number of electrons conserved
+
+        """
+        logger.debug("Running localizer sense check.")
+        warn_flag = False
+        if self._restricted_scf is False:
+            logger.debug("Checking spin does not affect localization.")
+            active_number_match = (
+                self.active_MO_inds.shape == self.beta_active_MO_inds.shape
+            )
+            enviro_number_match = (
+                self.enviro_MO_inds.shape == self.beta_enviro_MO_inds.shape
+            )
+            if not active_number_match or not enviro_number_match:
+                logger.error("Number of alpha and beta orbitals do not match.")
+                logger.debug(
+                    f"alpha: {self.active_MO_inds.shape} active, {self.enviro_MO_inds.shape} enviro"
+                )
+                logger.debug(
+                    f"beta: {self.beta_active_MO_inds.shape} active, {self.beta_enviro_MO_inds.shape} enviro"
+                )
+                warn_flag = True
+
+        # checking denisty matrix parition sums to total
         logger.debug("Checking density matrix partition.")
-        # checking denisty matrix parition makes sense:
-        dm_localised_full_system = 2 * self._c_loc_occ @ self._c_loc_occ.conj().T
-        bool_density_flag = np.allclose(
-            dm_localised_full_system, self.dm_active + self.dm_enviro
-        )
-        logger.debug(f"y_active + y_enviro = y_total is: {bool_density_flag}")
-        if not bool_density_flag:
-            raise ValueError("gamma_full != gamma_active + gamma_enviro")
+        dm_localised_full_system = self._c_loc_occ @ self._c_loc_occ.conj().T
+        dm_sum = self.dm_active + self.dm_enviro
+
+        density_match = np.allclose(dm_localised_full_system, dm_sum)
+
+        if self._restricted_scf is False:
+            beta_dm_localised_full_system = (
+                self._beta_c_loc_occ @ self._beta_c_loc_occ.conj().T
+            )
+            beta_dm_sum = self.beta_dm_active + self.beta_dm_enviro
+
+            # both need to be correct
+            density_match = density_match and np.allclose(
+                beta_dm_localised_full_system, beta_dm_sum
+            )
+
+        if not density_match:
+            logger.error("Density matrix partition does not sum to total.")
+            warn_flag = True
 
         # check number of electrons is still the same after orbitals have been localized (change of basis)
-        s_ovlp = self._global_rks.get_ovlp()
+        logger.debug("Checking electron number conserverd.")
+        s_ovlp = self._global_ks.get_ovlp()
         n_active_electrons = np.trace(self.dm_active @ s_ovlp)
         n_enviro_electrons = np.trace(self.dm_enviro @ s_ovlp)
-        n_all_electrons = self._global_rks.mol.nelectron
-        bool_flag_electron_number = np.isclose(
+
+        if self._restricted_scf is False:
+            n_active_electrons += np.trace(self.beta_dm_active @ s_ovlp)
+            n_enviro_electrons += np.trace(self.beta_dm_enviro @ s_ovlp)
+
+        n_all_electrons = self._global_ks.mol.nelectron
+        electron_number_match = np.isclose(
             (n_active_electrons + n_enviro_electrons), n_all_electrons
         )
-        logger.debug(
-            f"N_active_elec + N_environment_elec = N_total_elec is: {bool_flag_electron_number}"
-        )
-        if not bool_flag_electron_number:
-            logger.error
-            raise ValueError("number of electrons in localized orbitals is incorrect")
+        if not electron_number_match:
+            logger.error("Number of electrons in localized orbitals is not consistent.")
+            logger.debug(f"N total electrons: {n_all_electrons}")
+            warn_flag = True
+
+        if warn_flag:
+            raise NbedLocalizerError(
+                f"Sense check failed.\n {active_number_match=},\n {enviro_number_match=},\n {density_match=},\n {electron_number_match=}"
+            )
 
     def _localize_virtual_orbs(self) -> None:
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
 
         Args:
-            pyscf_rks (StreamObject): PySCF molecule object
+            global_ks (StreamObject): PySCF molecule object
             n_active_atoms (int): Number of active atoms
             virt_cutoff (float): Threshold for selecting unoccupied (virtual) active regio
 
@@ -148,18 +222,18 @@ class Localizer(ABC):
             enviro_virtual_MO_inds (np.array): 1D array of environment virtual MO indices
         """
         logger.debug("Localizing virtual orbitals.")
-        n_occupied_orbitals = np.count_nonzero(self._global_rks.mo_occ == 2)
-        c_std_occ = self._global_rks.mo_coeff[:, :n_occupied_orbitals]
-        c_std_virt = self._global_rks.mo_coeff[:, self._global_rks.mo_occ < 2]
+        n_occupied_orbitals = np.count_nonzero(self._global_ks.mo_occ == 2)
+        c_std_occ = self._global_ks.mo_coeff[:, :n_occupied_orbitals]
+        c_std_virt = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
 
         c_virtual_loc = vvo.vvo(
-            self._global_rks.mol, c_std_occ, c_std_virt, iaos=None, s=None, verbose=None
+            self._global_ks.mol, c_std_occ, c_std_virt, iaos=None, s=None, verbose=None
         )
 
-        ao_slice_matrix = self._global_rks.mol.aoslice_by_atom()
+        ao_slice_matrix = self._global_ks.mol.aoslice_by_atom()
 
         # TODO: Check the following:
-        # S_ovlp = pyscf_rks.get_ovlp()
+        # S_ovlp = global_ks.get_ovlp()
         # S_half = sp.linalg.fractional_matrix_power(S_ovlp , 0.5)
         # C_loc_occ_ORTHO = S_half@C_loc_occ_full
         # run numerator_all and denominator_all in ortho basis
@@ -197,34 +271,68 @@ class Localizer(ABC):
 
         return c_virtual_loc
 
-    def run(self, sanity_check: bool = False) -> None:
+    def run(self, check_values: bool = False) -> None:
         """Function that runs localization.
 
         Args:
-            sanity_check (bool): optional flag to check denisty matrices and electron number after orbital localization
+            check_values (bool): optional flag to check denisty matrices and electron number after orbital localization
                                  makes sense
         """
+        alpha, beta = self._localize()
+
         (
             self.active_MO_inds,
             self.enviro_MO_inds,
             self.c_active,
             self.c_enviro,
             self._c_loc_occ,
-        ) = self._localize()
+        ) = alpha
 
-        self.dm_active = 2.0 * self.c_active @ self.c_active.T
-        self.dm_enviro = 2.0 * self.c_enviro @ self.c_enviro.T
+        self.dm_active = self.c_active @ self.c_active.T
+        self.dm_enviro = self.c_enviro @ self.c_enviro.T
 
-        if sanity_check is True:
+        # For resticted methods
+        if beta is None:
+            self.dm_active *= 2.0
+            self.dm_enviro *= 2.0
+            self.beta_active_MO_inds = None
+            self.beta_enviro_MO_inds = None
+            self.beta_c_active = None
+            self.beta_c_enviro = None
+            self._beta_c_loc_occ = None
+            self.beta_dm_active = np.zeros(self.dm_active.shape)
+            self.beta_dm_enviro = np.zeros(self.dm_enviro.shape)
+        else:
+            (
+                self.beta_active_MO_inds,
+                self.beta_enviro_MO_inds,
+                self.beta_c_active,
+                self.beta_c_enviro,
+                self._beta_c_loc_occ,
+            ) = beta
+
+            self.beta_dm_active = self.beta_c_active @ self.beta_c_active.T
+            self.beta_dm_enviro = self.beta_c_enviro @ self.beta_c_enviro.T
+
+        if check_values is True:
             self._check_values()
 
         if self._run_virtual_localization is True:
-            c_virtual = self._localize_virtual_orbs()
+            logger.error("Virtual localization is not implemented.")
+            # c_virtual = self._localize_virtual_orbs()
+            # logger.error("Defualting to unlocalized virtual orbitals.")
+            # c_virtual = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
         else:
             logger.debug("Not localizing virtual orbitals.")
             # appends standard virtual orbitals from SCF calculation (NOT localized in any way)
-            c_virtual = self._global_rks.mo_coeff[:, self._global_rks.mo_occ < 2]
+            # c_virtual = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
 
-        self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
+        # Unused
+        # self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
 
         logger.debug("Localization complete.")
+        logger.debug("Localized orbitals:")
+        logger.debug(f"active_MO_inds: {self.active_MO_inds}")
+        logger.debug(f"beta_active_MO_inds: {self.beta_active_MO_inds}")
+        logger.debug(f"enviro_MO_inds: {self.enviro_MO_inds}")
+        logger.debug(f"beta_enviro_MO_inds: {self.beta_enviro_MO_inds}")

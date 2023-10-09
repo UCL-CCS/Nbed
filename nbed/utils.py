@@ -146,6 +146,11 @@ def parse():
         help="Charge of molecular system.",
     )
     parser.add_argument(
+        "--spin",
+        type=int,
+        help="Spin of molecular system.",
+    )
+    parser.add_argument(
         "--savefile",
         "-s",
         type=str,
@@ -213,6 +218,7 @@ def parse():
         # Optional argument defaults
         args["unit"] = args.get("unit", "angstrom")
         args["charge"] = args.get("charge", 0)
+        args["spin"] = args.get("spin", 0)
         args["convergence"] = args.get("convergence", 1e-6)
         args["run_ccsd_emb"] = args.get("run_ccsd_emb", False)
         args["run_fci_emb"] = args.get("run_fci_emb", False)
@@ -276,8 +282,8 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
     print("".center(80, "*"))
     logger.info("".center(80, "*"))
 
-    print(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
-    logger.info(f"global (cheap) DFT calculation {driver._global_rks.e_tot}")
+    print(f"global (cheap) DFT calculation {driver._global_ks.e_tot}")
+    logger.info(f"global (cheap) DFT calculation {driver._global_ks.e_tot}")
 
     if driver.projector in ["huzinaga", "both"]:
         print("".center(80, "*"))
@@ -347,6 +353,7 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         print(f"number of qubits required: {count_qubits(mu_qham)}")
         logger.info(f"number of qubits required: {count_qubits(mu_qham)}")
 
+    logger.debug("Building full system Hamiltonian for comparison.")
     full_system_hamiltonian = HamiltonianBuilder(
         driver._global_hf, constant_e_shift=0, transform=transform
     ).build()
