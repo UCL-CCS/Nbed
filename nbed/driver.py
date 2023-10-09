@@ -243,7 +243,7 @@ class NbedDriver:
         global_cc.verbose = self.pyscf_print_level
         global_cc.max_memory = self.max_ram_memory
         global_cc.run()
-        logger.info(f"Global FCI: {global_cc.e_tot}")
+        logger.info(f"Global CCSD: {global_cc.e_tot}")
 
         return global_cc
 
