@@ -65,7 +65,7 @@ def huzinaga_HF(
                 [
                     -(fds_alpha + fds_alpha.T),
                     -(fds_beta + fds_beta.T),
-                ]  # TODO why no 0.5?
+                ]
             )
         else:
             fds = fock @ dm_env_S
