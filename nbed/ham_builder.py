@@ -39,6 +39,7 @@ class HamiltonianBuilder:
             transform: Transformation to apply to the Hamiltonian.
         """
         logger.debug("Initialising HamiltonianBuilder.")
+        logger.debug(type(scf_method))
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
         self.transform = transform
@@ -48,15 +49,33 @@ class HamiltonianBuilder:
         """Get the one electron integrals."""
         logger.debug("Calculating one body integrals.")
         c_matrix_active = self.scf_method.mo_coeff
+        logger.debug(f"{c_matrix_active.shape=}")
+        logger.debug(f"{c_matrix_active[0].shape=}")
+
+        logger.debug(f"{self.scf_method.get_hcore().shape=}")
+
+        # Embedding procedure creates two different hcores
+        # Using different v_eff
+        if self.scf_method.get_hcore().ndim == 2:
+            # Driver has not been used.
+            hcore = [self.scf_method.get_hcore()] * 2
+        elif self.scf_method.get_hcore().ndim == 3:
+            # Driver has been used.
+            hcore = self.scf_method.get_hcore()
+
 
         # one body terms
         if isinstance(self.scf_method, (scf.uhf.UHF, dft.uks.UKS)):
             logger.info("Calculating unrestricted one body intergrals.")
             one_body_integrals_alpha = (
-                c_matrix_active[0].T @ self.scf_method.get_hcore() @ c_matrix_active[0]
+                c_matrix_active[0].T
+                @ hcore[0]
+                @ c_matrix_active[0]
             )
             one_body_integrals_beta = (
-                c_matrix_active[1].T @ self.scf_method.get_hcore() @ c_matrix_active[1]
+                c_matrix_active[1].T
+                @ hcore[0]
+                @ c_matrix_active[1]
             )
 
             one_body_integrals = np.array(
@@ -71,6 +90,7 @@ class HamiltonianBuilder:
                 [c_matrix_active.T @ self.scf_method.get_hcore() @ c_matrix_active] * 2
             )
         logger.debug("One body integrals found.")
+        logger.debug(f"{one_body_integrals.shape}")
 
         return one_body_integrals
 
@@ -127,9 +147,10 @@ class HamiltonianBuilder:
             # Openfermion uses physicist notation whereas pyscf uses chemists
             two_body_integrals = [np.asarray(eri.transpose(0, 2, 3, 1), order="C")] * 4
 
-        logger.debug("Two body integrals found.")
-
         two_body_integrals = np.array(two_body_integrals)
+
+        logger.debug("Two body integrals found.")
+        logger.debug(f"{two_body_integrals.shape}")
         return two_body_integrals
 
     def _reduce_active_space(
@@ -146,7 +167,7 @@ class HamiltonianBuilder:
             raise HamiltonianBuilderError("qubit_reduction must be an Intger")
         if qubit_reduction == 0:
             logger.debug("No active space reduction required.")
-            return 0, self._one_body_integrals, self._two_body_integrals
+            return 0, one_body_integrals, two_body_integrals
 
         # find where the last occupied level is
         occupied = np.where(self.scf_method.mo_occ > 0)[0]
@@ -200,23 +221,24 @@ class HamiltonianBuilder:
                         - two_body_integrals[1, i, u, i, v]
                     )
 
-        one_body_integrals_new
+        one_body_integrals_new = one_body_integrals_new[
+            np.ix_([0, 1], active_indices, active_indices)
+        ]
+        two_body_integrals_new = two_body_integrals[
+            np.ix_(
+                [0, 1, 2, 3],
+                active_indices,
+                active_indices,
+                active_indices,
+                active_indices,
+            )
+        ]
 
         # Restrict integral ranges and change M appropriately
         logger.debug("Active space reduced.")
-        return (
-            core_constant,
-            one_body_integrals_new[np.ix_([0, 1], active_indices, active_indices)],
-            two_body_integrals[
-                np.ix_(
-                    [0, 1, 2, 3],
-                    active_indices,
-                    active_indices,
-                    active_indices,
-                    active_indices,
-                )
-            ],
-        )
+        logger.debug(f"{one_body_integrals_new.shape}")
+        logger.debug(f"{two_body_integrals_new.shape}")
+        return core_constant, one_body_integrals_new, two_body_integrals_new
 
     def _spinorb_from_spatial(
         self, one_body_integrals: np.ndarray, two_body_integrals: np.ndarray
@@ -232,6 +254,7 @@ class HamiltonianBuilder:
             two_body_coefficients (np.ndarray): Two-electron coefficients in spinorb form.
 
         """
+        logger.debug("Converting to spin-orbital coefficients.")
         n_qubits = one_body_integrals[0].shape[0] + one_body_integrals[1].shape[0]
 
         # Initialize Hamiltonian coefficients.
@@ -366,6 +389,7 @@ class HamiltonianBuilder:
         """
         logger.debug("Building for %s qubits.", n_qubits)
         qubit_reduction = 0
+
         while True:
             one_body_integrals = self._one_body_integrals
             two_body_integrals = self._two_body_integrals

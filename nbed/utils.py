@@ -353,6 +353,7 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         print(f"number of qubits required: {count_qubits(mu_qham)}")
         logger.info(f"number of qubits required: {count_qubits(mu_qham)}")
 
+    logger.debug("Building full system Hamiltonian for comparison.")
     full_system_hamiltonian = HamiltonianBuilder(
         driver._global_hf, constant_e_shift=0, transform=transform
     ).build()
