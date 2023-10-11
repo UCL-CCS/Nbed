@@ -160,6 +160,71 @@ class PySCFLocalizer(Localizer, ABC):
         logger.debug("PySCF localization complete.")
         return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
 
+    def _localize_virtual_orbs(
+        global_scf: Union[scf.HF, scf.KS], n_active_atoms: int, virt_threshold: float
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
+
+        Args:
+            global_ks (StreamObject): PySCF molecule object
+            n_active_atoms (int): Number of active atoms
+            virt_threshold (float): Threshold for selecting unoccupied (virtual) active MOs.
+
+        Returns:
+            c_virtual_loc (np.array): C matrix of localized virtual MOs (columns define MOs)
+            active_virtual_MO_inds (np.array): 1D array of active virtual MO indices
+            enviro_virtual_MO_inds (np.array): 1D array of environment virtual MO indices
+        """
+        logger.debug("Localizing virtual orbitals.")
+        n_occupied_orbitals = np.count_nonzero(self._global_ks.mo_occ == 2)
+        c_std_occ = self._global_ks.mo_coeff[:, :n_occupied_orbitals]
+        c_std_virt = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
+
+        c_virtual_loc = vvo.vvo(
+            self._global_ks.mol, c_std_occ, c_std_virt, iaos=None, s=None, verbose=None
+        )
+
+        ao_slice_matrix = self._global_ks.mol.aoslice_by_atom()
+
+        # TODO: Check the following:
+        # S_ovlp = global_ks.get_ovlp()
+        # S_half = sp.linalg.fractional_matrix_power(S_ovlp , 0.5)
+        # C_loc_occ_ORTHO = S_half@C_loc_occ_full
+        # run numerator_all and denominator_all in ortho basis
+
+        # find indices of AO of active atoms
+        ao_active_inds = np.arange(
+            ao_slice_matrix[0, 2], ao_slice_matrix[self._n_active_atoms - 1, 3]
+        )
+
+        # active AOs coeffs for a given MO j
+        numerator_all = np.einsum("ij->j", (c_virtual_loc[ao_active_inds, :]) ** 2)
+        # all AOs coeffs for a given MO j
+        denominator_all = np.einsum("ij->j", c_virtual_loc**2)
+
+        active_percentage_MO = numerator_all / denominator_all
+
+        logger.debug("Virtual orbitals localized.")
+        logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(active_percentage_MO,4)}")
+        logger.debug(f"threshold for active part: {self._virt_cutoff}")
+
+        # NOT IN USE
+        # add constant occupied index
+        # active_virtual_MO_inds = (
+        #     np.where(active_percentage_MO > self.virt_cutoff)[0] + c_std_occ.shape[1]
+        # )
+        # enviro_virtual_MO_inds = np.array(
+        #     [
+        #         i
+        #         for i in range(
+        #             c_std_occ.shape[1], c_std_occ.shape[1] + c_virtual_loc.shape[1]
+        #         )
+        #         if i not in active_virtual_MO_inds
+        #     ]
+        # )
+
+        return c_virtual_loc
+
 
 class PMLocalizer(PySCFLocalizer):
     """Object used to localise molecular orbitals (MOs) using Pipek-Mezey localization.

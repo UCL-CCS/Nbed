@@ -119,3 +119,26 @@ class SPADELocalizer(Localizer):
         self.enviro_selection_condition = sigma
 
         return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
+
+    def _localize_virtual_orbs(
+        global_scf: Union[scf.HF, scf.KS], n_active_atoms: int, virt_threshold: float
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Localise virtual (unoccupied) obitals using concentric localization.
+
+                [1] D. Claudino and N. J. Mayhall, "Simple and Efficient Truncation of Virtual 
+                Spaces in Embedded Wave Functions via Concentric Localization", Journal of Chemical 
+                Theory and Computation, vol. 15, no. 11, pp. 6085-6096, Nov. 2019, 
+                doi: 10.1021/ACS.JCTC.9B00682.
+
+
+                Args:
+                    global_ks (StreamObject): PySCF molecule object
+                    n_active_atoms (int): Number of active atoms
+                    virt_threshold (float): Threshold for selecting unoccupied (virtual) active MOs.
+        
+                Returns:
+                    c_virtual_loc (np.array): C matrix of localized virtual MOs (columns define MOs)
+                    active_virtual_MO_inds (np.array): 1D array of active virtual MO indices
+                    enviro_virtual_MO_inds (np.array): 1D array of environment virtual MO indices
+        """
+        pass
