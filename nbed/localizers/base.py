@@ -209,8 +209,8 @@ class Localizer(ABC):
             )
 
     @abstractmethod
-    def _localize_virtual_orbs(
-        global_scf: Union[scf.HF, scf.KS], n_active_atoms: int, virt_threshold: float
+    def _localize_virtual_spin(
+        c_matrix: np.ndarray, virt_threshold: float
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Localise virtual (unoccupied) obitals.
 
