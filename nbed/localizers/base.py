@@ -7,7 +7,6 @@ from typing import Optional, Tuple, Union
 import numpy as np
 from pyscf import scf
 from pyscf.lib import StreamObject
-from pyscf.lo import vvo
 
 from ..exceptions import NbedLocalizerError
 

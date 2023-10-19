@@ -7,6 +7,8 @@ from typing import Optional, Tuple, Union
 import numpy as np
 from pyscf import lo
 from pyscf.lib import StreamObject
+from pyscf.lo import vvo
+
 
 from .base import Localizer
 
