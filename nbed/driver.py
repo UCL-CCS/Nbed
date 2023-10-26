@@ -68,6 +68,7 @@ class NbedDriver:
         mu_level_shift (float): Level shift parameter to use for mu-projector.
         run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
         run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
+        run_virtual_localization (bool): Whether or not to localize virtual orbitals.
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
