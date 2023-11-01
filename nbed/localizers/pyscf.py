@@ -9,7 +9,6 @@ from pyscf import lo
 from pyscf.lib import StreamObject
 from pyscf.lo import vvo
 
-
 from .base import Localizer
 
 logger = logging.getLogger(__name__)
@@ -62,8 +61,8 @@ class PySCFLocalizer(Localizer, ABC):
             global_ks,
             n_active_atoms,
         )
-        self.occ_cutoff = (self._valid_threshold(occ_cutoff),)
-        self.virt_cutoff = (self._valid_threshold(virt_cutoff),)
+        self.occ_cutoff = self._valid_threshold(occ_cutoff)
+        self.virt_cutoff = self._valid_threshold(virt_cutoff)
 
     def _valid_threshold(self, threshold: float):
         """Checks if threshold is within 0-1 range (percentage).
