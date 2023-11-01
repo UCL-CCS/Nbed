@@ -1,6 +1,7 @@
 """Main embedding functionality."""
 
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -36,7 +37,6 @@ def nbed(
     max_ram_memory: Optional[int] = 4000,
     pyscf_print_level: int = 1,
     savefile: Optional[Path] = None,
-    file_name: Optional[str] = None,
     unit: Optional[str] = "angstrom",
     occupied_threshold: Optional[float] = 0.95,
     virtual_threshold: Optional[float] = 0.95,
@@ -68,7 +68,6 @@ def nbed(
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         savefile (str): Path to file to save output Hamiltonain to.
-        file_name (str): name of the exported hamiltonian
         qubits (int): The number of qubits available for the output hamiltonian.
         unit (str): molecular geometry unit 'angstrom' or 'bohr'
         occupied_threshold (float): The occupancy threshold for localizing occupied orbitals.
@@ -106,6 +105,8 @@ def nbed(
         max_dft_cycles=max_dft_cycles,
         force_unrestricted=unrestricted,
     )
+    if savefile is not None:
+        data_directory = str(Path(savefile).absolute())
 
     # Needed for 'both' projector
     if isinstance(driver.embedded_scf, tuple):
@@ -118,27 +119,31 @@ def nbed(
             ).build(n_qubits=qubits)
 
             converter = HamiltonianConverter(qham)
-            qham = getattr(converter, output.lower())
+            qham = getattr(converter, output.lower(), qham)
+
+            if savefile is not None:
+                # because we'll have two in quick succession
+                file_name = f"Nbed_{datetime.now()}.qham"
+                save_operator(qham, file_name, data_directory,)
 
             hamiltonians += (qham,)
     else:
-        qham_openF = HamiltonianBuilder(
+        qham = HamiltonianBuilder(
             scf_method=driver.embedded_scf,
             constant_e_shift=0,
             transform=transform,
         ).build(n_qubits=qubits)
 
-        converter = HamiltonianConverter(qham_openF)
-        qham = getattr(converter, output.lower())
+        converter = HamiltonianConverter(qham)
+        qham = getattr(converter, output.lower(), qham)
         hamiltonians = qham
 
     if savefile is not None:
+        file_name = f"Nbed_{datetime.now()}.qham"
         save_operator(
             qham,
-            file_name=file_name,
-            data_directory=savefile,
-            allow_overwrite=False,
-            plain_text=False,
+            file_name,
+            data_directory,
         )
 
     print_summary(driver, transform, fci=False)

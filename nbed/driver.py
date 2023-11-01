@@ -106,7 +106,6 @@ class NbedDriver:
         run_dft_in_dft: Optional[bool] = False,
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
-        savefile: Optional[Path] = None,
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
@@ -153,7 +152,6 @@ class NbedDriver:
         self.run_dft_in_dft = run_dft_in_dft
         self.max_ram_memory = max_ram_memory
         self.pyscf_print_level = pyscf_print_level
-        self.savefile = savefile
         self.unit = unit
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
