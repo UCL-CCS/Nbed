@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from os import mkdir
 
 from numpy import save
 from openfermion.utils import save_operator
@@ -90,7 +91,6 @@ def nbed(
         projector=projector,
         localization=localization,
         convergence=convergence,
-        savefile=savefile,
         charge=charge,
         spin=spin,
         mu_level_shift=mu_level_shift,
@@ -106,7 +106,9 @@ def nbed(
         force_unrestricted=unrestricted,
     )
     if savefile is not None:
-        data_directory = str(Path(savefile).absolute())
+        data_directory = Path(savefile).absolute()
+        data_directory.mkdir(parents=True, exist_ok=True)
+        data_directory = str(data_directory)
 
     # Needed for 'both' projector
     if isinstance(driver.embedded_scf, tuple):
@@ -123,7 +125,7 @@ def nbed(
 
             if savefile is not None:
                 # because we'll have two in quick succession
-                file_name = f"Nbed_{datetime.now()}.qham"
+                file_name = f"Nbed_{datetime.now()}"
                 save_operator(qham, file_name, data_directory,)
 
             hamiltonians += (qham,)
@@ -139,7 +141,7 @@ def nbed(
         hamiltonians = qham
 
     if savefile is not None:
-        file_name = f"Nbed_{datetime.now()}.qham"
+        file_name = f"Nbed_{datetime.now()}"
         save_operator(
             qham,
             file_name,
