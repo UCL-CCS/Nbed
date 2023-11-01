@@ -56,16 +56,30 @@ class PySCFLocalizer(Localizer, ABC):
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
-        run_virtual_localization: Optional[bool] = False,
     ):
         """Initialize PySCF Localizer."""
         super().__init__(
             global_ks,
             n_active_atoms,
-            occ_cutoff=occ_cutoff,
-            virt_cutoff=virt_cutoff,
-            run_virtual_localization=run_virtual_localization,
         )
+        self.occ_cutoff = (self._valid_threshold(occ_cutoff),)
+        self.virt_cutoff = (self._valid_threshold(virt_cutoff),)
+
+    def _valid_threshold(self, threshold: float):
+        """Checks if threshold is within 0-1 range (percentage).
+
+        Args:
+            threshold (float): input number between 0 and 1 (inclusive)
+
+        Returns:
+            threshold (float): input percentage
+        """
+        if 0.0 <= threshold <= 1.0:
+            logger.debug("Localizer threshold valid.")
+            return threshold
+        else:
+            logger.error("Localizer threshold not valid.")
+            raise ValueError(f"threshold: {threshold} is not in range [0,1] inclusive")
 
     @abstractmethod
     def _pyscf_method(self, c_std_occ):
@@ -242,8 +256,11 @@ class PySCFLocalizer(Localizer, ABC):
         Returns:
             StreamObject: Fully Localized SCF object.
         """
-        raise NotImplementedError("Virtual orbital localization not implemented for PySCF methods.")
+        raise NotImplementedError(
+            "Virtual orbital localization not implemented for PySCF methods."
+        )
         return local_scf
+
 
 class PMLocalizer(PySCFLocalizer):
     """Object used to localise molecular orbitals (MOs) using Pipek-Mezey localization.

@@ -53,9 +53,6 @@ class Localizer(ABC):
         self,
         global_ks: StreamObject,
         n_active_atoms: int,
-        occ_cutoff: Optional[float] = 0.95,
-        virt_cutoff: Optional[float] = 0.95,
-        run_virtual_localization: Optional[bool] = False,
     ):
         """Initialise class."""
         logger.debug("Initialising Localizer.")
@@ -67,29 +64,10 @@ class Localizer(ABC):
         self._global_ks = global_ks
         self._n_active_atoms = n_active_atoms
 
-        self._occ_cutoff = self._valid_threshold(occ_cutoff)
-        self._virt_cutoff = self._valid_threshold(virt_cutoff)
-        self._run_virtual_localization = run_virtual_localization
         self._restricted_scf = isinstance(self._global_ks, scf.hf.RHF)
 
         # Run the localization procedure
         self.run()
-
-    def _valid_threshold(self, threshold: float):
-        """Checks if threshold is within 0-1 range (percentage).
-
-        Args:
-            threshold (float): input number between 0 and 1 (inclusive)
-
-        Returns:
-            threshold (float): input percentage
-        """
-        if 0.0 <= threshold <= 1.0:
-            logger.debug("Localizer threshold valid.")
-            return threshold
-        else:
-            logger.error("Localizer threshold not valid.")
-            raise ValueError(f"threshold: {threshold} is not in range [0,1] inclusive")
 
     def _localize(
         self,

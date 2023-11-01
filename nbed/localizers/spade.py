@@ -46,18 +46,14 @@ class SPADELocalizer(Localizer):
         self,
         pyscf_scf: gto.Mole,
         n_active_atoms: int,
-        occ_cutoff: Optional[float] = 0.95,
-        max_shells: Optional[int] = 3,
-        run_virtual_localization: Optional[bool] = False,
+        max_shells: int = 4,
     ):
         """Initialize SPADE Localizer object."""
         super().__init__(
             pyscf_scf,
             n_active_atoms,
-            occ_cutoff=occ_cutoff,
-            virt_cutoff=virt_cutoff,
-            run_virtual_localization=run_virtual_localization,
         )
+        self.max_shells = max_shells
 
     def _localize_spin(
         self, c_matrix: np.ndarray, occupancy: np.ndarray
@@ -120,9 +116,7 @@ class SPADELocalizer(Localizer):
 
         return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
 
-    def localize_virtual(
-        self, local_scf: StreamObject, cutoff: int
-    ) -> StreamObject:
+    def localize_virtual(self, local_scf: StreamObject) -> StreamObject:
         """Localise virtual (unoccupied) obitals using concentric localization.
 
         [1] D. Claudino and N. J. Mayhall, "Simple and Efficient Truncation of Virtual
@@ -132,7 +126,6 @@ class SPADELocalizer(Localizer):
 
         Args:
             local_scf (StreamObject): SCF object with occupied orbitals localized.
-            cutoff (int): Maximum number of CL shells.
 
         Returns:
             StreamObject: Fully Localized SCF object.
@@ -191,7 +184,7 @@ class SPADELocalizer(Localizer):
         fock_operator = local_scf.get_fock()
         # why use the overlap for the first shell and then the fock for the rest?
 
-        for ishell in range(1, cutoff + 1):
+        for ishell in range(1, self.max_shells + 1):
 
             logger.debug("Beginning Concentric Localization Iteration")
             logger.debug(f"{c_ispan.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
