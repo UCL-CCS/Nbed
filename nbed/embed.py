@@ -2,9 +2,9 @@
 
 import logging
 from datetime import datetime
+from os import mkdir
 from pathlib import Path
 from typing import Optional
-from os import mkdir
 
 from numpy import save
 from openfermion.utils import save_operator
@@ -126,7 +126,11 @@ def nbed(
             if savefile is not None:
                 # because we'll have two in quick succession
                 file_name = f"Nbed_{datetime.now()}"
-                save_operator(qham, file_name, data_directory,)
+                save_operator(
+                    qham,
+                    file_name,
+                    data_directory,
+                )
 
             hamiltonians += (qham,)
     else:

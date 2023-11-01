@@ -132,7 +132,6 @@ def test_incorrect_geometry_path() -> None:
             projector=args["projector"],
             localization=args["localization"],
             convergence=args["convergence"],
-            savefile=args["savefile"],
             run_ccsd_emb=args["run_ccsd_emb"],
             run_fci_emb=args["run_fci_emb"],
         )
@@ -162,7 +161,6 @@ def test_driver_standard_xyz_file_input() -> None:
         projector=args["projector"],
         localization=args["localization"],
         convergence=args["convergence"],
-        savefile=args["savefile"],
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
     )
@@ -196,7 +194,6 @@ def test_driver_standard_xyz_string_input() -> None:
         projector=args["projector"],
         localization=args["localization"],
         convergence=args["convergence"],
-        savefile=args["savefile"],
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
     )
@@ -229,7 +226,6 @@ def test_n_active_atoms_valid() -> None:
             projector=args["projector"],
             localization=args["localization"],
             convergence=args["convergence"],
-            savefile=args["savefile"],
             run_ccsd_emb=args["run_ccsd_emb"],
             run_fci_emb=args["run_fci_emb"],
         )
@@ -243,7 +239,6 @@ def test_n_active_atoms_valid() -> None:
             projector=args["projector"],
             localization=args["localization"],
             convergence=args["convergence"],
-            savefile=args["savefile"],
             run_ccsd_emb=args["run_ccsd_emb"],
             run_fci_emb=args["run_fci_emb"],
         )
@@ -272,7 +267,6 @@ def test_subsystem_dft() -> None:
         projector=args["projector"],
         localization=args["localization"],
         convergence=args["convergence"],
-        savefile=args["savefile"],
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
     )

@@ -42,6 +42,7 @@ qham = nbed(
     qubits=args["qubits"],
 )
 
+
 def test_nbed_openfermion() -> None:
     """test nbed"""
 
