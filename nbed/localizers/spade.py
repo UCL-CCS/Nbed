@@ -132,6 +132,7 @@ class SPADELocalizer(Localizer):
 
         Args:
             local_scf (StreamObject): SCF object with occupied orbitals localized.
+            cutoff (int): Maximum number of CL shells.
 
         Returns:
             StreamObject: Fully Localized SCF object.

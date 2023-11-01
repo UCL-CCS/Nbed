@@ -227,6 +227,23 @@ class PySCFLocalizer(Localizer, ABC):
 
         return c_virtual_loc
 
+    def localize_virtual(local_scf: StreamObject, cutoff: float = 0.95) -> StreamObject:
+        """Localise virtual (unoccupied) obitals using PySCF method.
+
+        [1] D. Claudino and N. J. Mayhall, "Simple and Efficient Truncation of Virtual
+        Spaces in Embedded Wave Functions via Concentric Localization", Journal of Chemical
+        Theory and Computation, vol. 15, no. 11, pp. 6085-6096, Nov. 2019,
+        doi: 10.1021/ACS.JCTC.9B00682.
+
+        Args:
+            local_scf (StreamObject): SCF object with occupied orbitals localized.
+            cutoff (float): Electron occupancy threshold.
+
+        Returns:
+            StreamObject: Fully Localized SCF object.
+        """
+        raise NotImplementedError("Virtual orbital localization not implemented for PySCF methods.")
+        return local_scf
 
 class PMLocalizer(PySCFLocalizer):
     """Object used to localise molecular orbitals (MOs) using Pipek-Mezey localization.
