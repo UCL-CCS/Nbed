@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Location of explainer notebooks moved up a level to `docs/notebooks`
 - Update of dependencies
 - Python dependency updated to `>=3.8, <3.11` to pull in symmer.
+### Removed
+- `savefile` argument removed from driver, as it is not used.
 
 
 ## [0.0.1] - 2022-03-07
