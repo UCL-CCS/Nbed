@@ -942,7 +942,7 @@ class NbedDriver:
             "mu": self._mu_embed,
         }
         # If only one projector is specified, remove the others.
-        if self.projector is not "both":
+        if self.projector != "both":
             embeddings = {self.projector: embeddings[self.projector]}
 
         # This is reverse so that huz can be initialised with mu

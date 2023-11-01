@@ -176,7 +176,7 @@ class PySCFLocalizer(Localizer, ABC):
         return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
 
     def _localize_virtual_spin(
-        c_matrix: np.ndarray, virt_threshold: float
+        self, c_matrix: np.ndarray, virt_threshold: float
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
 

@@ -4,7 +4,8 @@ import logging
 from typing import Optional, Tuple, Union
 
 import numpy as np
-from pyscf import dft, gto
+from pyscf import dft, gto, scf
+from pyscf.lib import StreamObject
 from scipy import linalg
 
 from .base import Localizer
@@ -131,13 +132,12 @@ class SPADELocalizer(Localizer):
             StreamObject: Fully Localized SCF object.
         """
         logger.debug("Localising virtual orbital spin with concentric localization.")
-        shells = []
 
         projected_mol = gto.mole.Mole()
         projected_mol.atom = local_scf.mol.atom
         projected_mol.basis = local_scf.mol.basis  # can be anything
         projected_mf = scf.RKS(projected_mol)
-        n_act_proj_aos = projected_mol.aoslice_by_atom()[n_active_atoms - 1][-1]
+        n_act_proj_aos = projected_mol.aoslice_by_atom()[self.n_active_atoms - 1][-1]
         logger.debug(f"{n_act_proj_aos=}")
 
         projected_overlap = projected_mf.get_ovlp(local_scf.mol)[
@@ -173,12 +173,13 @@ class SPADELocalizer(Localizer):
         v_ker = right_vectors.T[:, shell_size:]
         logger.debug(f"{v_span.shape=}")
 
-        c_span = effective_virt @ v_span
+        c_ispan = effective_virt @ v_span
         c_iker = effective_virt @ v_ker
 
-        c_total = np.hstack((c_total, c_span))
+        c_total = np.hstack((c_total, c_ispan))
 
         # keep track of the number of orbitals in each shell
+        shells = []
         shells.append(c_total.shape[1])
 
         fock_operator = local_scf.get_fock()
@@ -188,7 +189,7 @@ class SPADELocalizer(Localizer):
 
             logger.debug("Beginning Concentric Localization Iteration")
             logger.debug(f"{c_ispan.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
-            _, sigma, right_vectors = linalg.svd(c_span.T @ fock_operator @ c_iker)
+            _, sigma, right_vectors = linalg.svd(c_ispan.T @ fock_operator @ c_iker)
             logger.debug(f"Singular values: {sigma}")
             logger.debug(f"{right_vectors.shape=}")
 
@@ -200,24 +201,10 @@ class SPADELocalizer(Localizer):
 
             logger.debug(f"{v_span.shape=}")
 
-            # c_span = np.hstack((c_span, c_iker @ v_span))
             c_total = np.hstack((c_total, c_iker @ v_span))
             logger.debug("Adding shell to total C matrix.")
             shells.append(c_total.shape[1])
             logger.debug(f"{c_total.shape=}")
-
-            if c_total.shape[1] > max_orbs:
-                logger.warning(
-                    f"Exceeded max orbs,{max_orbs} by {shells[-1]-max_orbs}."
-                )
-                break
-
-            elif c_total.shape[1] == max_orbs:
-                logger.debug("Reached maximum number of MOs. Ending CL.")
-                break
-
-            elif c_total.shape[1] < max_orbs:
-                logger.debug("Not reached max orbs, continuing CL.")
 
             dim_ker = v_ker.shape[1]
             logger.debug(f"{dim_ker=}")
@@ -228,6 +215,8 @@ class SPADELocalizer(Localizer):
                 # This means that all virtual orbitals have been included.
                 logger.debug("No kernel, ending CL.")
                 break
+
+        self.shells = shells
 
         local_scf.mo_coeff = c_total
         logger.debug("Completed Concentric Localization.")
