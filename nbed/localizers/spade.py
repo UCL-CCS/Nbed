@@ -202,9 +202,10 @@ class SPADELocalizer(Localizer):
 
             # c_span = np.hstack((c_span, c_iker @ v_span))
             c_total = np.hstack((c_total, c_iker @ v_span))
+            logger.debug("Adding shell to total C matrix.")
             shells.append(c_total.shape[1])
-
             logger.debug(f"{c_total.shape=}")
+
             if c_total.shape[1] > max_orbs:
                 logger.warning(
                     f"Exceeded max orbs,{max_orbs} by {shells[-1]-max_orbs}."
@@ -229,4 +230,5 @@ class SPADELocalizer(Localizer):
                 break
 
         local_scf.mo_coeff = c_total
+        logger.debug("Completed Concentric Localization.")
         return local_scf
