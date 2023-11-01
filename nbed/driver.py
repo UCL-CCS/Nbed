@@ -111,6 +111,7 @@ class NbedDriver:
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
+        max_shells: Optional[int] = 4,
         init_huzinaga_rhf_with_mu: bool = False,
         max_hf_cycles: int = 50,
         max_dft_cycles: int = 50,
@@ -158,6 +159,7 @@ class NbedDriver:
         self.unit = unit
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
+        self.max_shells = max_shells
         self.max_hf_cycles = max_hf_cycles
         self.max_dft_cycles = max_dft_cycles
 
@@ -309,14 +311,19 @@ class NbedDriver:
             "pipek-mezey": PMLocalizer,
         }
 
-        # Should already be validated.
-        localized_system = localizers[self.localization](
-            self._global_ks,
-            self.n_active_atoms,
-            occ_cutoff=self.occupied_threshold,
-            virt_cutoff=self.virtual_threshold,
-            run_virtual_localization=self.run_virtual_localization,
-        )
+        if self.localization == "spade":
+            localized_system = localizers[self.localization](
+                self._global_ks,
+                self.n_active_atoms,
+                max_shells=self.max_shells,
+            )
+        else:
+            localized_system = localizers[self.localization](
+                self._global_ks,
+                self.n_active_atoms,
+                occ_cutoff=self.occupied_threshold,
+                virt_cutoff=self.virtual_threshold,
+            )
         return localized_system
 
     def _init_local_hf(self) -> Union[scf.uhf.UHF, scf.rhf.RHF]:
@@ -1000,7 +1007,7 @@ class NbedDriver:
             )
 
             # Virtual localization
-            if self.virtual_localization:
+            if self.run_virtual_localization is True:
                 logger.debug("Performing virtual localization.")
                 result["scf"] = self.localized_system.localize_virtual(result["scf"])
 
