@@ -928,15 +928,16 @@ class NbedDriver:
         logger.info(f"DFT potential average {np.mean(self.dft_potential)}.")
 
         # To add a projector, put it in this dict with a function
-        # if we want any more it's also time to turn them into a class
+        # if we want any more we could consider adding classes
+        # or using a match statement for >python3.10
         embeddings: Dict[str, callable] = {
             "huzinaga": self._huzinaga_embed,
             "mu": self._mu_embed,
         }
         # If only one projector is specified, remove the others.
-        if self.projector in embeddings:
+        if self.projector is not "both":
             embeddings = {self.projector: embeddings[self.projector]}
-
+        
         # This is reverse so that huz can be initialised with mu
         for name in sorted(embeddings, reverse=True):
             logger.debug(f"Runnning embedding with {name} projector.")
