@@ -1,5 +1,6 @@
 # Data directory
 data/
+*save_tests/
 
 # Notebook for development
 problem_solving.ipynb
