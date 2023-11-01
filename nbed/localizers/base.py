@@ -133,6 +133,20 @@ class Localizer(ABC):
         """
         pass
 
+    @abstractmethod
+    def localize_virtual(
+        self, local_scf: StreamObject, cutoff: Union[float, int]
+    ) -> StreamObject:
+        """Localise virtual (unoccupied) obitals.
+
+        Args:
+            local_scf (StreamObject): SCF object with occupied orbitals localized.
+
+        Returns:
+            StreamObject: Fully Localized SCF object.
+        """
+        pass
+
     def _check_values(self) -> None:  # Needs clarification
         """Check that output values make sense.
 
@@ -206,24 +220,6 @@ class Localizer(ABC):
             raise NbedLocalizerError(
                 f"Sense check failed.\n {active_number_match=},\n {enviro_number_match=},\n {density_match=},\n {electron_number_match=}"
             )
-
-    @abstractmethod
-    def _localize_virtual_spin(
-        c_matrix: np.ndarray, virt_threshold: float
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Localise virtual (unoccupied) obitals.
-
-                Args:
-                    global_ks (StreamObject): PySCF molecule object
-                    n_active_atoms (int): Number of active atoms
-                    virt_threshold (float): Threshold for selecting unoccupied (virtual) active MOs.
-
-                Returns:
-                    c_virtual_loc (np.array): C matrix of localized virtual MOs (columns define MOs)
-                    active_virtual_MO_inds (np.array): 1D array of active virtual MO indices
-                    enviro_virtual_MO_inds (np.array): 1D array of environment virtual MO indices
-        """
-        pass
 
     def run(self, check_values: bool = False) -> None:
         """Function that runs localization.

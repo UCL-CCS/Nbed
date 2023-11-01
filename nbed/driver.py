@@ -937,7 +937,7 @@ class NbedDriver:
         # If only one projector is specified, remove the others.
         if self.projector is not "both":
             embeddings = {self.projector: embeddings[self.projector]}
-        
+
         # This is reverse so that huz can be initialised with mu
         for name in sorted(embeddings, reverse=True):
             logger.debug(f"Runnning embedding with {name} projector.")
@@ -998,6 +998,11 @@ class NbedDriver:
                 - result["correction"]
                 - result["beta_correction"]
             )
+
+            # Virtual localization
+            if self.virtual_localization:
+                logger.debug("Performing virtual localization.")
+                result["scf"] = self.localized_system.localize_virtual(result["scf"])
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
