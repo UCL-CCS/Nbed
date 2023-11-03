@@ -244,14 +244,14 @@ class HamiltonianConverter:
 
 def load_hamiltonian(
     filepath: Path, output: str
-) -> Union[QubitOperator, qml.Hamiltonian, PauliSumOp]:
+) -> Union[QubitOperator, qml.Hamiltonian, PauliSumOp, PauliwordOp]:
     """Create a Hamiltonian from a file.
 
     Reads the input file and converts to the desired output format.
 
     Args:
         filepath (Path): Path to a saved Qubit Hamiltonian file.
-        output (str): One of 'openfermion', 'pennylane', 'qiskit'
+        output (str): One of 'openfermion', 'pennylane', 'qiskit', 'symmer'
 
     Returns:
         object: A qubit Hamiltonian.
