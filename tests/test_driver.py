@@ -124,18 +124,7 @@ def test_incorrect_geometry_path() -> None:
 
     with pytest.raises(RuntimeError, match="Unsupported atom symbol .*"):
         # match will match with any printed error message
-        NbedDriver(
-            geometry=args["geometry"],
-            n_active_atoms=args["n_active_atoms"],
-            basis=args["basis"],
-            xc_functional=args["xc_functional"],
-            projector=args["projector"],
-            localization=args["localization"],
-            convergence=args["convergence"],
-            savefile=args["savefile"],
-            run_ccsd_emb=args["run_ccsd_emb"],
-            run_fci_emb=args["run_fci_emb"],
-        )
+        NbedDriver(**args)
 
 
 def test_driver_standard_xyz_file_input() -> None:
@@ -150,24 +139,13 @@ def test_driver_standard_xyz_file_input() -> None:
         "localization": "spade",
         "convergence": 1e-6,
         "savefile": None,
-        "run_ccsd_emb": True,
-        "run_fci_emb": True,
+        "run_ccsd_emb": False,
+        "run_fci_emb": False,
     }
 
-    driver = NbedDriver(
-        geometry=args["geometry"],
-        n_active_atoms=args["n_active_atoms"],
-        basis=args["basis"],
-        xc_functional=args["xc_functional"],
-        projector=args["projector"],
-        localization=args["localization"],
-        convergence=args["convergence"],
-        savefile=args["savefile"],
-        run_ccsd_emb=args["run_ccsd_emb"],
-        run_fci_emb=args["run_fci_emb"],
-    )
+    driver = NbedDriver(**args)
     assert isinstance(driver.embedded_scf, StreamObject)
-    assert isinstance(driver.classical_energy, number)
+    assert np.isclose(driver.classical_energy, -14.229079481431608)
 
 
 def test_driver_standard_xyz_string_input() -> None:
@@ -177,7 +155,7 @@ def test_driver_standard_xyz_string_input() -> None:
     )
     args = {
         "geometry": water_xyz_raw,
-        "n_active_atoms": 1,
+        "n_active_atoms": 2,
         "basis": "STO-3G",
         "xc_functional": "b3lyp",
         "projector": "mu",
@@ -188,23 +166,12 @@ def test_driver_standard_xyz_string_input() -> None:
         "run_fci_emb": False,
     }
 
-    driver = NbedDriver(
-        geometry=args["geometry"],
-        n_active_atoms=args["n_active_atoms"],
-        basis=args["basis"],
-        xc_functional=args["xc_functional"],
-        projector=args["projector"],
-        localization=args["localization"],
-        convergence=args["convergence"],
-        savefile=args["savefile"],
-        run_ccsd_emb=args["run_ccsd_emb"],
-        run_fci_emb=args["run_fci_emb"],
-    )
+    driver = NbedDriver(**args)
     assert isinstance(driver.embedded_scf, StreamObject)
-    assert isinstance(driver.classical_energy, number)
+    assert np.isclose(driver.classical_energy, -3.5147791146129883)
 
 
-def test_n_active_atoms_valid() -> None:
+def test_n_active_atoms_validation() -> None:
     """test to check driver works... path to xyz file given"""
 
     args = {
@@ -221,32 +188,10 @@ def test_n_active_atoms_valid() -> None:
     error_msg = "Invalid number of active atoms. Choose a number from 1 to 2."
 
     with pytest.raises(NbedConfigError, match=error_msg):
-        NbedDriver(
-            geometry=args["geometry"],
-            n_active_atoms=0,
-            basis=args["basis"],
-            xc_functional=args["xc_functional"],
-            projector=args["projector"],
-            localization=args["localization"],
-            convergence=args["convergence"],
-            savefile=args["savefile"],
-            run_ccsd_emb=args["run_ccsd_emb"],
-            run_fci_emb=args["run_fci_emb"],
-        )
+        NbedDriver(n_active_atoms=0, **args)
 
     with pytest.raises(NbedConfigError, match=error_msg):
-        NbedDriver(
-            geometry=args["geometry"],
-            n_active_atoms=3,
-            basis=args["basis"],
-            xc_functional=args["xc_functional"],
-            projector=args["projector"],
-            localization=args["localization"],
-            convergence=args["convergence"],
-            savefile=args["savefile"],
-            run_ccsd_emb=args["run_ccsd_emb"],
-            run_fci_emb=args["run_fci_emb"],
-        )
+        NbedDriver(n_active_atoms=3, **args)
 
 
 def test_subsystem_dft() -> None:
@@ -264,18 +209,7 @@ def test_subsystem_dft() -> None:
         "run_fci_emb": False,
     }
 
-    driver = NbedDriver(
-        geometry=args["geometry"],
-        n_active_atoms=args["n_active_atoms"],
-        basis=args["basis"],
-        xc_functional=args["xc_functional"],
-        projector=args["projector"],
-        localization=args["localization"],
-        convergence=args["convergence"],
-        savefile=args["savefile"],
-        run_ccsd_emb=args["run_ccsd_emb"],
-        run_fci_emb=args["run_fci_emb"],
-    )
+    driver = NbedDriver(**args)
 
     energy_DFT_components = (
         driver.e_act
