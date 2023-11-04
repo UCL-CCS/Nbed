@@ -63,7 +63,6 @@ class Localizer(ABC):
 
         self._global_ks = global_ks
         self._n_active_atoms = n_active_atoms
-
         self._restricted_scf = isinstance(self._global_ks, scf.hf.RHF)
 
         # Run the localization procedure
@@ -244,19 +243,6 @@ class Localizer(ABC):
 
         if check_values is True:
             self._check_values()
-
-        if self._run_virtual_localization is True:
-            logger.error("Virtual localization is not implemented.")
-            # c_virtual = self._localize_virtual_orbs()
-            # logger.error("Defualting to unlocalized virtual orbitals.")
-            # c_virtual = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
-        else:
-            logger.debug("Not localizing virtual orbitals.")
-            # appends standard virtual orbitals from SCF calculation (NOT localized in any way)
-            # c_virtual = self._global_ks.mo_coeff[:, self._global_ks.mo_occ < 2]
-
-        # Unused
-        # self.c_loc_occ_and_virt = np.hstack((self._c_loc_occ, c_virtual))
 
         logger.debug("Localization complete.")
         logger.debug("Localized orbitals:")
