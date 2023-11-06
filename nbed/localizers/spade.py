@@ -174,7 +174,8 @@ class SPADELocalizer(Localizer):
         logger.debug(f"{v_span.shape=}")
 
         c_ispan = effective_virt @ v_span
-        c_iker = effective_virt @ v_ker
+        # We'll transform this in the loop
+        c_iker = effective_virt
 
 
         c_total = np.hstack((c_total, c_ispan))
