@@ -145,7 +145,7 @@ def test_driver_standard_xyz_file_input() -> None:
 
     driver = NbedDriver(**args)
     assert isinstance(driver.embedded_scf, StreamObject)
-    assert np.isclose(driver.classical_energy, -14.229079481431608)
+    assert isclose(driver.classical_energy, -14.229079481431608)
 
 
 def test_driver_standard_xyz_string_input() -> None:
@@ -168,7 +168,7 @@ def test_driver_standard_xyz_string_input() -> None:
 
     driver = NbedDriver(**args)
     assert isinstance(driver.embedded_scf, StreamObject)
-    assert np.isclose(driver.classical_energy, -3.5147791146129883)
+    assert isclose(driver.classical_energy, -3.5147791146129883)
 
 
 def test_n_active_atoms_validation() -> None:
