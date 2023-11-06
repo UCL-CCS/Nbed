@@ -163,8 +163,9 @@ class SPADELocalizer(Localizer):
 
         # We'll iteratively build up the total C matrix
         active_mos = np.where(occupancy > 0)[0]
-        c_total = local_scf.mo_coeff[:, active_mos]
         logger.debug(f"Using active MOs for CL: {active_mos}")
+        c_total = local_scf.mo_coeff[:, active_mos]
+        logger.debug(f"{c_total.shape=}")
 
         shell_size = np.sum(sigma[:n_act_proj_aos] >= 1e-15)
         logger.debug(f"{shell_size=}")
@@ -198,12 +199,15 @@ class SPADELocalizer(Localizer):
 
             logger.debug("Beginning Concentric Localization Iteration")
             logger.debug(f"{c_ispan.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
-            _, sigma, right_vectors = linalg.svd(c_ispan.T @ fock_operator @ c_iker)
+            _, sigma, right_vectors = linalg.svd(c_total.T @ fock_operator @ c_iker)
             logger.debug(f"Singular values: {sigma}")
             logger.debug(f"{right_vectors.shape=}")
 
             shell_size = np.sum(sigma[:n_act_proj_aos] >= 1e-15)
             logger.debug(f"{shell_size=}")
+            if shell_size == 0:
+                logger.debug("Empty shell, ending CL.")
+                break
 
             v_span = right_vectors.T[:, :shell_size]
             v_ker = right_vectors.T[:, shell_size:]
@@ -216,6 +220,7 @@ class SPADELocalizer(Localizer):
             logger.debug(f"{c_total.shape=}")
 
         self.shells = shells
+        logger.debug(f"Shell indices: {shells}")
 
         local_scf.mo_coeff = c_total
         logger.debug("Completed Concentric Localization.")
