@@ -154,7 +154,13 @@ class HamiltonianBuilder:
         one_body_integrals: np.ndarray,
         two_body_integrals: np.ndarray,
     ) -> Tuple[float, np.ndarray, np.ndarray]:
-        """Reduce the active space to accommodate a certain number of qubits."""
+        """Reduce the active space to accommodate a certain number of qubits.
+        
+        Args:
+            qubit_reduction (int): Number of qubits to reduce by.
+            one_body_integrals (np.ndarray): One-electron integrals in physicist notation.
+            two_body_integrals (np.ndarray): Two-electron integrals in physicist notation.
+        """
         logger.debug("Reducing the active space.")
 
         if type(qubit_reduction) is not int:
@@ -372,16 +378,15 @@ class HamiltonianBuilder:
         make this approximation.
 
         Args:
-            scf_method (StreamObject): A pyscf self-consistent method.
-            constant_e_shift (float): constant energy term to add to Hamiltonian
-            active_indices (list): A list of spatial orbital indices indicating which orbitals should be
-                                considered active.
-            occupied_indices (list):  A list of spatial orbital indices indicating which orbitals should be
-                                    considered doubly occupied.
-
+            n_qubits (int): Either total number of qubits to use (positive value) or number of qubits to reduce size by (negative value).
+            taper (bool): Whether to taper the Hamiltonian.
         Returns:
-            molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
+            molecular_hamiltonian (QubitOperator): Qubit Hamiltonian for molecular system.
         """
+        if n_qubits < 0:
+            logger.debug("Interpreting negative n_qubits as reduction.")
+            n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
+
         logger.debug("Building for %s qubits.", n_qubits)
         qubit_reduction = 0
 
