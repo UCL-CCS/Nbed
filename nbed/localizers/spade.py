@@ -137,7 +137,7 @@ class SPADELocalizer(Localizer):
         projected_mol.atom = local_scf.mol.atom
         projected_mol.basis = local_scf.mol.basis  # can be anything
         projected_mf = scf.RKS(projected_mol)
-        n_act_proj_aos = projected_mol.aoslice_by_atom()[self.n_active_atoms - 1][-1]
+        n_act_proj_aos = projected_mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_proj_aos=}")
 
         projected_overlap = projected_mf.get_ovlp(local_scf.mol)[
