@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update of dependencies
 - Python dependency updated to `>=3.8, <3.11` to pull in symmer.
 - Localization notebook updated to include concentric localization.
+- `n_qubits` input to `HamiltonianBuilder.build` now allows negative values for reduction of total size.
 
 
 ## [0.0.1] - 2022-03-07
