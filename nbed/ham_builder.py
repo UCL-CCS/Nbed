@@ -190,14 +190,16 @@ class HamiltonianBuilder:
         logger.debug(f"Reducing unoccupied by {unoccupied_reduction} orbitals.")
 
         occupied = occupied[occupied_reduction:] if occupied_reduction > 0 else occupied
-        unoccupied = unoccupied[:-unoccupied_reduction] if unoccupied_reduction > 0 else unoccupied
+        unoccupied = (
+            unoccupied[:-unoccupied_reduction]
+            if unoccupied_reduction > 0
+            else unoccupied
+        )
 
         # We want the MOs nearest the fermi level
         # unoccupied orbitals go from 0->N and occupied from N->M
         core_indices = occupied[:occupied_reduction]
-        active_indices = np.append(
-            occupied, unoccupied
-        )
+        active_indices = np.append(occupied, unoccupied)
         logger.debug(f"Core indices {core_indices}.")
         logger.debug(f"Active indices {active_indices}.")
 
@@ -409,7 +411,7 @@ class HamiltonianBuilder:
         make this approximation.
 
         Args:
-            n_qubits (int): Either total number of qubits to use (positive value) or 
+            n_qubits (int): Either total number of qubits to use (positive value) or
                 number of qubits to reduce size by (negative value).
 
             taper (bool): Whether to taper the Hamiltonian.
