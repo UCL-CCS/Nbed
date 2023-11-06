@@ -366,7 +366,7 @@ class HamiltonianBuilder:
         return taper_off_qubits(qham, stabilizers)
 
     def build(
-        self, n_qubits: Optional[int] = None, taper: Optional[bool] = False
+        self, n_qubits: Optional[int] = 0, taper: Optional[bool] = False
     ) -> QubitOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
@@ -419,7 +419,7 @@ class HamiltonianBuilder:
             # ...but it works for now.
             if taper is True:
                 qham = self._taper(qham)
-            if n_qubits is None:
+            if n_qubits == 0:
                 logger.debug("Unreduced Hamiltonain found.")
                 return qham
 
