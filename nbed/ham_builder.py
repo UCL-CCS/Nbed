@@ -148,51 +148,87 @@ class HamiltonianBuilder:
         logger.debug(f"{two_body_integrals.shape}")
         return two_body_integrals
 
-    def _reduce_active_space(
+    def _reduced_orbitals(
         self,
         qubit_reduction: int,
-        one_body_integrals: np.ndarray,
-        two_body_integrals: np.ndarray,
-    ) -> Tuple[float, np.ndarray, np.ndarray]:
-        """Reduce the active space to accommodate a certain number of qubits."""
-        logger.debug("Reducing the active space.")
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Find the orbitals which correspond to the active space and core.
+
+        Args:
+            qubit_reduction (int): Number of qubits to reduce by.
+
+        Returns:
+            active_indices (np.ndarray): Indices of active orbitals.
+            core_indices (np.ndarray): Indices of core orbitals.
+        """
+        logger.debug("Finding active space.")
+        logger.debug(f"Reducing by {qubit_reduction} qubits.")
 
         if type(qubit_reduction) is not int:
             logger.error("Invalid qubit_reduction of type %s.", type(qubit_reduction))
             raise HamiltonianBuilderError("qubit_reduction must be an Intger")
         if qubit_reduction == 0:
             logger.debug("No active space reduction required.")
-            return 0, one_body_integrals, two_body_integrals
+            return np.array([]), np.where(self.scf_method.mo_occ >= 0)[0]
 
         # find where the last occupied level is
         occupied = np.where(self.scf_method.mo_occ > 0)[0]
         unoccupied = np.where(self.scf_method.mo_occ == 0)[0]
+        logger.debug("Occupied orbitals %s.", occupied)
+        logger.debug("Unoccupied orbitals %s.", unoccupied)
 
         # +1 because each MO is 2 qubits for closed shell.
-        n_orbitals = (qubit_reduction + 1) // 2
+        orbital_reduction = (qubit_reduction + 1) // 2
+        n_orbitals = (self._one_body_integrals.shape[-1] * 2) - orbital_reduction
         logger.debug(f"Reducing to {n_orbitals}.")
         # Again +1 because we want to use odd numbers to reduce
         # occupied orbitals
-        occupied_reduction = (n_orbitals + 1) // 2
-        unoccupied_reduction = qubit_reduction - occupied_reduction
+        occupied_reduction = (orbital_reduction + 1) // 2
+        unoccupied_reduction = orbital_reduction - occupied_reduction
+        logger.debug(f"Reducing occupied by {occupied_reduction} orbitals.")
+        logger.debug(f"Reducing unoccupied by {unoccupied_reduction} orbitals.")
+
+        occupied = occupied[occupied_reduction:] if occupied_reduction > 0 else occupied
+        unoccupied = (
+            unoccupied[:-unoccupied_reduction]
+            if unoccupied_reduction > 0
+            else unoccupied
+        )
 
         # We want the MOs nearest the fermi level
         # unoccupied orbitals go from 0->N and occupied from N->M
-        active_indices = np.append(
-            occupied[occupied_reduction:], unoccupied[:unoccupied_reduction]
-        )
-        self._active_space_indices = active_indices
-        logger.debug(f"Active indices {self._active_space_indices}.")
+        core_indices = occupied[:occupied_reduction]
+        active_indices = np.append(occupied, unoccupied)
+        logger.debug(f"Core indices {core_indices}.")
+        logger.debug(f"Active indices {active_indices}.")
 
-        occupied_indices = np.where(self.scf_method.mo_occ > 0)[0]
+        return core_indices, active_indices
+
+    def _reduce_active_space(
+        self,
+        one_body_integrals: np.ndarray,
+        two_body_integrals: np.ndarray,
+        core_indices: np.ndarray,
+        active_indices: np.ndarray,
+    ) -> Tuple[float, np.ndarray, np.ndarray]:
+        """Reduce the active space to accommodate a certain number of qubits.
+
+        Args:
+            one_body_integrals (np.ndarray): One-electron integrals in physicist notation.
+            two_body_integrals (np.ndarray): Two-electron integrals in physicist notation.
+            core_indices (np.ndarray): Indices of core orbitals.
+            active_indices (np.ndarray): Indices of active orbitals.
+        """
+        logger.debug("Reducing the active space.")
 
         # Determine core constant
         core_constant = 0.0
-        for i in occupied_indices:
+        for i in core_indices:
             core_constant += one_body_integrals[0, i, i]
             core_constant += one_body_integrals[1, i, i]
 
-            for j in occupied_indices:
+            for j in core_indices:
                 core_constant += (
                     two_body_integrals[0, i, j, j, i]
                     - two_body_integrals[0, i, j, i, j]
@@ -206,7 +242,7 @@ class HamiltonianBuilder:
         one_body_integrals_new = np.copy(one_body_integrals)
         for u in active_indices:
             for v in active_indices:
-                for i in occupied_indices:
+                for i in core_indices:
                     one_body_integrals_new[0, u, v] += (
                         two_body_integrals[0, i, u, v, i]
                         - two_body_integrals[0, i, u, i, v]
@@ -229,7 +265,6 @@ class HamiltonianBuilder:
             )
         ]
 
-        # Restrict integral ranges and change M appropriately
         logger.debug("Active space reduced.")
         logger.debug(f"{one_body_integrals_new.shape}")
         logger.debug(f"{two_body_integrals_new.shape}")
@@ -360,7 +395,11 @@ class HamiltonianBuilder:
         return taper_off_qubits(qham, stabilizers)
 
     def build(
-        self, n_qubits: Optional[int] = None, taper: Optional[bool] = False
+        self,
+        n_qubits: Optional[int] = None,
+        taper: Optional[bool] = False,
+        core_indices: Optional[List[int]] = None,
+        active_indices: Optional[List[int]] = None,
     ) -> QubitOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
@@ -372,35 +411,57 @@ class HamiltonianBuilder:
         make this approximation.
 
         Args:
-            scf_method (StreamObject): A pyscf self-consistent method.
-            constant_e_shift (float): constant energy term to add to Hamiltonian
-            active_indices (list): A list of spatial orbital indices indicating which orbitals should be
-                                considered active.
-            occupied_indices (list):  A list of spatial orbital indices indicating which orbitals should be
-                                    considered doubly occupied.
+            n_qubits (int): Either total number of qubits to use (positive value) or
+                number of qubits to reduce size by (negative value).
 
+            taper (bool): Whether to taper the Hamiltonian.
+            core_indices (List[int]): Indices of core orbitals.
+            active_indices (List[int]): Indices of active orbitals.
         Returns:
-            molecular_hamiltonian (InteractionOperator): fermionic molecular Hamiltonian
+            molecular_hamiltonian (QubitOperator): Qubit Hamiltonian for molecular system.
         """
-        logger.debug("Building for %s qubits.", n_qubits)
         qubit_reduction = 0
+        core_indices = np.array(core_indices)
+        active_indices = np.array(active_indices)
+
+        if n_qubits == 0:
+            logger.error("n_qubits input as 0.")
+            message = "n_qubits input as 0.\n"
+            +"Positive integers can be used to define total qubits used.\n"
+            +"Negative integers can be used to define a reduction."
+            raise HamiltonianBuilderError(message)
+        elif n_qubits is None:
+            logger.debug("No qubit reduction requested.")
+        elif n_qubits < 0:
+            logger.debug("Interpreting negative n_qubits as reduction.")
+            qubit_reduction = -1 * n_qubits
+            n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
+
+        logger.info("Building Hamiltonian for %s qubits.", n_qubits)
 
         while True:
             one_body_integrals = self._one_body_integrals
             two_body_integrals = self._two_body_integrals
+
+            if core_indices is None or active_indices is None:
+                logger.debug("No indices given.")
+                core_indices, active_indices = self._reduced_orbitals(qubit_reduction)
+                logger.debug("Ensuring n_qubits is none.")
+                n_qubits = None
 
             (
                 core_constant,
                 one_body_integrals,
                 two_body_integrals,
             ) = self._reduce_active_space(
-                qubit_reduction, one_body_integrals, two_body_integrals
+                one_body_integrals, two_body_integrals, core_indices, active_indices
             )
 
             one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
                 one_body_integrals, two_body_integrals
             )
 
+            logger.debug("Building interaction operator.")
             molecular_hamiltonian = InteractionOperator(
                 (self.constant_e_shift + core_constant),
                 one_body_coefficients,
@@ -414,7 +475,7 @@ class HamiltonianBuilder:
             # ...but it works for now.
             if taper is True:
                 qham = self._taper(qham)
-            if n_qubits is None:
+            if n_qubits == 0:
                 logger.debug("Unreduced Hamiltonain found.")
                 return qham
 
