@@ -177,7 +177,6 @@ class SPADELocalizer(Localizer):
         # We'll transform this in the loop
         c_iker = effective_virt
 
-
         c_total = np.hstack((c_total, c_ispan))
 
         # keep track of the number of orbitals in each shell
