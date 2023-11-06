@@ -155,7 +155,7 @@ class HamiltonianBuilder:
         two_body_integrals: np.ndarray,
     ) -> Tuple[float, np.ndarray, np.ndarray]:
         """Reduce the active space to accommodate a certain number of qubits.
-        
+
         Args:
             qubit_reduction (int): Number of qubits to reduce by.
             one_body_integrals (np.ndarray): One-electron integrals in physicist notation.
@@ -366,7 +366,7 @@ class HamiltonianBuilder:
         return taper_off_qubits(qham, stabilizers)
 
     def build(
-        self, n_qubits: Optional[int] = 0, taper: Optional[bool] = False
+        self, n_qubits: Optional[int] = None, taper: Optional[bool] = False
     ) -> QubitOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
@@ -383,7 +383,16 @@ class HamiltonianBuilder:
         Returns:
             molecular_hamiltonian (QubitOperator): Qubit Hamiltonian for molecular system.
         """
-        if n_qubits < 0:
+        if n_qubits == 0:
+            logger.error("n_qubits input as 0.")
+            message = "n_qubits input as 0.\n"
+            + "Positive integers can be used to define total qubits used.\n"
+            + "Negative integers can be used to define a reduction."
+            raise HamiltonianBuilderError(message)
+        elif n_qubits is None:
+            logger.debug("No qubit reduction requested.")
+            n_qubits = 0
+        elif n_qubits < 0:
             logger.debug("Interpreting negative n_qubits as reduction.")
             n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
 
