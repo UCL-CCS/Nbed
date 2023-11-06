@@ -176,6 +176,7 @@ class SPADELocalizer(Localizer):
         c_ispan = effective_virt @ v_span
         c_iker = effective_virt @ v_ker
 
+
         c_total = np.hstack((c_total, c_ispan))
 
         # keep track of the number of orbitals in each shell
@@ -186,6 +187,14 @@ class SPADELocalizer(Localizer):
         # why use the overlap for the first shell and then the fock for the rest?
 
         for ishell in range(1, self.max_shells + 1):
+
+            logger.debug(f"{v_ker.shape[1]=}")
+            if v_ker.shape[1] > 0:
+                c_iker = c_iker @ v_ker
+            else:
+                # This means that all virtual orbitals have been included.
+                logger.debug("No kernel, ending CL.")
+                break
 
             logger.debug("Beginning Concentric Localization Iteration")
             logger.debug(f"{c_ispan.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
@@ -205,16 +214,6 @@ class SPADELocalizer(Localizer):
             logger.debug("Adding shell to total C matrix.")
             shells.append(c_total.shape[1])
             logger.debug(f"{c_total.shape=}")
-
-            dim_ker = v_ker.shape[1]
-            logger.debug(f"{dim_ker=}")
-
-            if dim_ker > 0:
-                c_iker = c_iker @ v_ker
-            else:
-                # This means that all virtual orbitals have been included.
-                logger.debug("No kernel, ending CL.")
-                break
 
         self.shells = shells
 
