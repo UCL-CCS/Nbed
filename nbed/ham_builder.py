@@ -194,7 +194,9 @@ class HamiltonianBuilder:
             occupied[occupied_reduction:], unoccupied[:unoccupied_reduction]
         )
         core_indices = occupied[:occupied_reduction]
-        active_indices = np.append(occupied[occupied_reduction:], unoccupied[:-unoccupied_reduction])
+        active_indices = np.append(
+            occupied[occupied_reduction:], unoccupied[:-unoccupied_reduction]
+        )
         logger.debug(f"Active indices {active_space_indices}.")
 
         return core_indices, active_indices
