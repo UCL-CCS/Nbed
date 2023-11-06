@@ -1005,6 +1005,7 @@ class NbedDriver:
                 - result["correction"]
                 - result["beta_correction"]
             )
+            logger.debug(f"Classical energy: {result['classical_energy']}")
 
             # Virtual localization
             if self.run_virtual_localization is True:
