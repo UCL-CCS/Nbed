@@ -40,14 +40,6 @@ mol_args = {
     "unit": "angstrom",
 }
 
-scf_args = {
-    "conv_tol": 1e-8,
-    "max_memory": 8_000,
-    "verbose": 1,
-    "max_cycle": 50,
-}
-
-
 mol = Mole(**mol_args, charge=0, spin=0).build()
 restricted_scf = RHF(mol)
 restricted_scf.kernel()

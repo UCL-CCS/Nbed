@@ -31,14 +31,14 @@ class HamiltonianBuilder:
         constant_e_shift: Optional[float] = 0,
         transform: Optional[str] = "jordan_wigner",
     ) -> None:
-        """Initialise the Hamiltonianself.
+        """Initialise the HamiltonianBuilder.
 
         Args:
             scf_method: Pyscf scf object.
             constant_e_shift: Constant energy shift to apply to the Hamiltonian.
             transform: Transformation to apply to the Hamiltonian.
         """
-        logger.debug("Initialising Hamiltonianself.")
+        logger.debug("Initialising HamiltonianBuilder.")
         logger.debug(type(scf_method))
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
