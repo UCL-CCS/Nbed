@@ -171,17 +171,13 @@ class HamiltonianBuilder:
             raise HamiltonianBuilderError("qubit_reduction must be an Intger")
         if qubit_reduction == 0:
             logger.debug("No active space reduction required.")
-            return np.array([]), np.where(self.scf_method.mo_occ >= 0)[0]
+            if self._restricted:
+                return np.array([]), np.where(self.scf_method.mo_occ >= 0)[0]
+            else:
+                return np.array([]), np.where(self.scf_method.mo_occ.sum(axis=0) >= 0)[0]
 
         # +1 because each MO is 2 qubits for closed shell
         orbital_reduction = (qubit_reduction + 1) // 2
-
-        n_orbitals = (
-            (self._one_body_integrals.shape[-1] * 2) - alpha_reduction - beta_reduction
-        )
-        logger.debug(f"Reducing to {n_orbitals} spin orbitals.")
-        # Again +1 because we want to use odd numbers to reduce
-        # occupied orbitals
 
         occupation = self.scf_method.mo_occ
         if not self._restricted:
@@ -198,9 +194,12 @@ class HamiltonianBuilder:
         ) // self._one_body_integrals.shape[-1]
         virtual_reduction = orbital_reduction - occupied_reduction
         logger.debug(
-            f"Reducing occupied by {occupied_reduction} orbitals for spin {i}."
+            f"Reducing occupied by {occupied_reduction} spatial orbitals."
         )
-        logger.debug(f"Reducing virtual by {virtual_reduction} orbitals for spin {i}.")
+        logger.debug(f"Reducing virtual by {virtual_reduction} spatial orbitals.")
+
+        core_indices = np.array([])
+        removed_virtual = np.array([])
 
         if occupied_reduction > 0:
             core_indices = occupied[:occupied_reduction]
@@ -233,6 +232,8 @@ class HamiltonianBuilder:
             active_indices (np.ndarray): Indices of active orbitals.
         """
         logger.debug("Reducing the active space.")
+        logger.debug(f"{core_indices=}")
+        logger.debug(f"{active_indices=}")
 
         # Determine core constant
         core_constant = 0.0
@@ -479,6 +480,8 @@ class HamiltonianBuilder:
             one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
                 one_body_integrals, two_body_integrals
             )
+            logger.debug(f"{one_body_coefficients.shape=}")
+            logger.debug(f"{two_body_coefficients.shape=}")
 
             logger.debug("Building interaction operator.")
             molecular_hamiltonian = InteractionOperator(
@@ -486,6 +489,7 @@ class HamiltonianBuilder:
                 one_body_coefficients,
                 0.5 * two_body_coefficients,
             )
+            logger.debug(f"{count_qubits(molecular_hamiltonian)} qubits in Hamiltonian.")
 
             qham = self._qubit_transform(self.transform, molecular_hamiltonian)
 

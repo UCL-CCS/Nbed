@@ -32,8 +32,6 @@ mol_args = {
     "atom": str(mol_filepath),
     "n_active_atoms": 1,
     "basis": "STO-3G",
-    "charge": 0,
-    "spin":0,
     "unit": "angstrom",
 }
 
@@ -48,7 +46,7 @@ from pyscf.gto import Mole
 from pyscf.scf import RHF,UHF
 from pyscf.fci import FCI
 
-mol = Mole(**mol_args).build()
+mol = Mole(**mol_args, charge=0, spin=0).build()
 restricted_scf = RHF(mol)
 restricted_scf.kernel()
 
@@ -75,14 +73,18 @@ def test_qubit_reduction() -> None:
     Check that the qubit reduction is working as expected.
     """
 
-    builder = HamiltonianBuilder(restric_driver.embedded_scf, 0, "jordan_wigner")
+    # We're still constructing qubit hamiltonians that double the size for restricted systems!
+    builder = HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
     ham = builder.build()
-    assert count_qubits(ham) == 8
+    assert count_qubits(ham) == 14
 
-    builder = HamiltonianBuilder(restric_driver.embedded_scf, 0, "jordan_wigner")
-    ham = builder.build(n_qubits=-1)
-    assert count_qubits(ham) == 4
+    reduced_builder = HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
+    rham = reduced_builder.build(n_qubits=-1)
+    assert count_qubits(rham) == 12
 
+mol = Mole(**mol_args, charge=1, spin=1).build()
+unrestricted_scf = UHF(mol)
+unrestricted_scf.kernel()
 
 def test_unrestricted() -> None:
     """
@@ -94,12 +96,11 @@ def test_unrestricted() -> None:
 
     builder = HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
     ham = builder.build()
-    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=1, which="SA")
-    logger.info(f"Ground state via diagonalisation: {diag}")
-    assert np.isclose(e_fci, diag)
+    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=2, which="SA")
 
+    print(diag)
     # Ground state for this charge is 2nd eigenstate
     diag = diag[1]
 
     logger.info(f"Ground state via diagonalisation: {diag}")
-    assert np.isclose(fci, diag)
+    assert np.isclose(e_fci, diag)
