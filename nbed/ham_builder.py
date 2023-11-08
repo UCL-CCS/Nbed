@@ -174,7 +174,10 @@ class HamiltonianBuilder:
             if self._restricted:
                 return np.array([]), np.where(self.scf_method.mo_occ >= 0)[0]
             else:
-                return np.array([]), np.where(self.scf_method.mo_occ.sum(axis=0) >= 0)[0]
+                return (
+                    np.array([]),
+                    np.where(self.scf_method.mo_occ.sum(axis=0) >= 0)[0],
+                )
 
         # +1 because each MO is 2 qubits for closed shell
         orbital_reduction = (qubit_reduction + 1) // 2
@@ -193,9 +196,7 @@ class HamiltonianBuilder:
             orbital_reduction * len(occupied)
         ) // self._one_body_integrals.shape[-1]
         virtual_reduction = orbital_reduction - occupied_reduction
-        logger.debug(
-            f"Reducing occupied by {occupied_reduction} spatial orbitals."
-        )
+        logger.debug(f"Reducing occupied by {occupied_reduction} spatial orbitals.")
         logger.debug(f"Reducing virtual by {virtual_reduction} spatial orbitals.")
 
         core_indices = np.array([])
@@ -235,6 +236,9 @@ class HamiltonianBuilder:
         logger.debug(f"{core_indices=}")
         logger.debug(f"{active_indices=}")
 
+        core_indices = np.array(core_indices)
+        active_indices = np.array(active_indices)
+
         # Determine core constant
         core_constant = 0.0
         if core_indices.ndim != 1:
@@ -245,6 +249,14 @@ class HamiltonianBuilder:
                 "Active indices given as dimension %s array.", active_indices.ndim
             )
             raise HamiltonianBuilderError("Active indices must be 1D array.")
+        if set(core_indices).intersection(set(active_indices)) != set():
+            logger.error("Core and active indices overlap.")
+            raise HamiltonianBuilderError("Core and active indices must not overlap.")
+        if len(core_indices) + len(active_indices) > self._one_body_integrals.shape[-1]:
+            logger.error("Too many indices given.")
+            raise HamiltonianBuilderError(
+                "Number of core and active indices must not exceed number of orbitals."
+            )
 
         for i in core_indices:
             core_constant += one_body_integrals[0, i, i]
@@ -459,15 +471,16 @@ class HamiltonianBuilder:
 
         logger.info("Building Hamiltonian for %s qubits.", n_qubits)
 
-        while True:
+        indices_not_set = (core_indices is None) or (active_indices is None)
+
+        max_cycles = 5
+        for i in range(1, max_cycles + 1):
             one_body_integrals = self._one_body_integrals
             two_body_integrals = self._two_body_integrals
 
-            if core_indices is None or active_indices is None:
-                logger.debug("No indices given.")
+            if indices_not_set:
+                logger.debug("No active space indices given.")
                 core_indices, active_indices = self._reduced_orbitals(qubit_reduction)
-                logger.debug("Ensuring n_qubits is none.")
-                n_qubits = None
 
             (
                 core_constant,
@@ -489,7 +502,9 @@ class HamiltonianBuilder:
                 one_body_coefficients,
                 0.5 * two_body_coefficients,
             )
-            logger.debug(f"{count_qubits(molecular_hamiltonian)} qubits in Hamiltonian.")
+            logger.debug(
+                f"{count_qubits(molecular_hamiltonian)} qubits in Hamiltonian."
+            )
 
             qham = self._qubit_transform(self.transform, molecular_hamiltonian)
 
@@ -505,8 +520,12 @@ class HamiltonianBuilder:
             # Wanted to do a recursive thing to get the correct number
             # from tapering but it takes ages.
             final_n_qubits = count_qubits(qham)
+            logger.debug(f"{final_n_qubits} qubits used in cycle {i} Hamiltonian.")
             if final_n_qubits <= n_qubits:
                 logger.debug("Hamiltonian reduced to %s qubits.", final_n_qubits)
+                return qham
+            if i == max_cycles:
+                logger.info("Maximum number of cycles reached.")
                 return qham
 
             # Check that we have the right number of qubits.

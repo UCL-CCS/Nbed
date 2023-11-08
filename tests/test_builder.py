@@ -8,8 +8,13 @@ from pathlib import Path
 import numpy as np
 import scipy as sp
 from openfermion import QubitOperator, count_qubits, get_sparse_operator
+from pyscf.fci import FCI
+from pyscf.gto import Mole
+from pyscf.scf import RHF, UHF
+from pytest import raises
 
 from nbed.driver import NbedDriver
+from nbed.exceptions import HamiltonianBuilderError
 from nbed.ham_builder import HamiltonianBuilder
 
 logger = getLogger(__name__)
@@ -42,9 +47,6 @@ scf_args = {
     "max_cycle": 50,
 }
 
-from pyscf.gto import Mole
-from pyscf.scf import RHF,UHF
-from pyscf.fci import FCI
 
 mol = Mole(**mol_args, charge=0, spin=0).build()
 restricted_scf = RHF(mol)
@@ -52,6 +54,7 @@ restricted_scf.kernel()
 
 unrestricted_scf = UHF(mol)
 unrestricted_scf.kernel()
+
 
 def test_restricted() -> None:
     """
@@ -68,23 +71,78 @@ def test_restricted() -> None:
     logger.info(f"Ground state via diagonalisation: {diag}")
     assert np.isclose(e_fci, diag)
 
-def test_qubit_reduction() -> None:
+
+rbuilder = HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
+ubuilder = HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
+
+
+def test_qubit_number_reduction() -> None:
     """
     Check that the qubit reduction is working as expected.
     """
 
     # We're still constructing qubit hamiltonians that double the size for restricted systems!
-    builder = HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
-    ham = builder.build()
-    assert count_qubits(ham) == 14
 
-    reduced_builder = HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
-    rham = reduced_builder.build(n_qubits=-1)
+    rham = rbuilder.build()
+    assert count_qubits(rham) == 14
+    uham = ubuilder.build()
+    assert count_qubits(uham) == 14
+
+
+def test_qubit_reduction() -> None:
+
+    rham = rbuilder.build(n_qubits=-1)
     assert count_qubits(rham) == 12
+    uham = ubuilder.build(n_qubits=-1)
+    assert count_qubits(uham) == 12
+
+
+def test_qubit_specification() -> None:
+    rham = rbuilder.build(n_qubits=12)
+    assert count_qubits(rham) == 12
+    uham = ubuilder.build(n_qubits=12)
+    assert count_qubits(uham) == 12
+
+
+def test_active_space_reduction() -> None:
+    rham = rbuilder.build(core_indices=[], active_indices=[0, 1, 2, 3, 4, 5])
+    assert count_qubits(rham) == 12
+    uham = ubuilder.build(core_indices=[], active_indices=[0, 1, 2, 3, 4, 5])
+    assert count_qubits(uham) == 12
+
+
+def test_frozen_core_validation() -> None:
+    """
+    Test the the appropriate error is raised for invalid frozen core indices.
+    """
+    rbuilder = HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
+
+    with raises(HamiltonianBuilderError, match="Core indices must be 1D array."):
+        rbuilder.build(core_indices=[[0, 1], [0, 1]], active_indices=[0, 1, 2, 3, 4, 5])
+
+    with raises(HamiltonianBuilderError, match="Active indices must be 1D array."):
+        rbuilder.build(core_indices=[0], active_indices=[[1, 2], [1, 2]])
+
+    with raises(
+        HamiltonianBuilderError, match="Core and active indices must not overlap."
+    ):
+        rbuilder.build(
+            core_indices=[0, 1, 2, 3, 4, 5], active_indices=[0, 1, 2, 3, 4, 5]
+        )
+
+    with raises(
+        HamiltonianBuilderError,
+        match="Number of core and active indices must not exceed number of orbitals.",
+    ):
+        rbuilder.build(
+            core_indices=[0, 1, 2, 3, 4, 5], active_indices=[6, 7, 8, 9, 10, 11]
+        )
+
 
 mol = Mole(**mol_args, charge=1, spin=1).build()
 unrestricted_scf = UHF(mol)
 unrestricted_scf.kernel()
+
 
 def test_unrestricted() -> None:
     """
