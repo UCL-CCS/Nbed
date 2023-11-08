@@ -153,8 +153,7 @@ class HamiltonianBuilder:
         self,
         qubit_reduction: int,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Find the orbitals which correspond to the active space and core.
+        """Find the orbitals which correspond to the active space and core.
 
         Args:
             qubit_reduction (int): Number of qubits to reduce by.
@@ -451,6 +450,7 @@ class HamiltonianBuilder:
             taper (bool): Whether to taper the Hamiltonian.
             core_indices (List[int]): Indices of core orbitals.
             active_indices (List[int]): Indices of active orbitals.
+            
         Returns:
             molecular_hamiltonian (QubitOperator): Qubit Hamiltonian for molecular system.
         """
