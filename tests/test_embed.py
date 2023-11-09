@@ -66,5 +66,6 @@ def test_nbed_openfermion() -> None:
     assert isinstance(qham, QubitOperator)
     return None
 
+
 if __name__ == "__main__":
     pass

@@ -41,6 +41,7 @@ global_uks.max_memory = max_ram_memory
 global_uks.verbose = pyscf_print_level
 global_uks.kernel()
 
+
 def test_PMLocalizer_local_basis_transform() -> None:
     """Check change of basis operator (from canonical to localized) is correct"""
 
@@ -92,11 +93,14 @@ def test_spade_spins_match() -> None:
     assert np.all(unrestricted.active_MO_inds == unrestricted.beta_active_MO_inds)
     assert np.all(restricted.active_MO_inds == unrestricted.active_MO_inds)
 
+
 def test_cl_shells() -> None:
     pass
 
+
 def test_cl_open_shell() -> None:
     pass
+
 
 if __name__ == "__main__":
     pass
