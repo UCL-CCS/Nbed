@@ -128,6 +128,7 @@ class SPADELocalizer(Localizer):
         """
         logger.debug("Localising virtual orbital spin with concentric localization.")
 
+        logger.debug("Creating projected molecule object.")
         projected_mol = gto.mole.Mole()
         projected_mol.atom = embedded_scf.mol.atom
         projected_mol.basis = embedded_scf.mol.basis  # can be anything
@@ -157,7 +158,6 @@ class SPADELocalizer(Localizer):
         _, sigma, right_vectors = np.linalg.svd(
             np.swapaxes(left, -1, -2) @ overlap_two_basis @ effective_virt
         )
-
         logger.debug(f"Singular values: {sigma}")
 
         if self._restricted:
@@ -180,6 +180,7 @@ class SPADELocalizer(Localizer):
         )  # 0 but instability
 
         logger.debug(f"{v_span.shape=}")
+        logger.debug(f"{v_ker.shape=}")
 
         c_ispan = effective_virt @ v_span
         # We'll transform this in the loop
@@ -190,14 +191,18 @@ class SPADELocalizer(Localizer):
         # keep track of the number of orbitals in each shell
         shells = []
         shells.append(c_total.shape[-1])
+        logger.debug("Created 0th shell.")
 
         fock_operator = embedded_scf.get_fock()
         # why use the overlap for the first shell and then the fock for the rest?
 
         for ishell in range(1, self.max_shells + 1):
+            logger.debug("Beginning Concentric Localization Iteration")
+            logged.debug(f"Shell {ishell}.")
 
             logger.debug(f"{v_ker.shape[-1]=}")
             if v_ker.shape[-1] > 1:
+                logger.debug("Kernel dimension is greater than 1, continuing CL.")
                 c_iker = c_iker @ v_ker
             elif v_ker.shape[-1] == 1:
                 logger.debug("Kernel is 1, ending CL as cannot perform SVD of vector.")
@@ -209,7 +214,6 @@ class SPADELocalizer(Localizer):
                 logger.debug("No kernel, ending CL.")
                 break
 
-            logger.debug("Beginning Concentric Localization Iteration")
             logger.debug(f"{c_ispan.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
             _, sigma, right_vectors = linalg.svd(
                 np.swapaxes(c_ispan, -1, -2) @ fock_operator @ c_iker
@@ -231,6 +235,7 @@ class SPADELocalizer(Localizer):
             )  # 0 but instability
 
             logger.debug(f"{v_span.shape=}")
+            logger.debug(f"{v_ker.shape=}")
 
             c_total = np.concatenate((c_total, c_iker @ v_span), axis=-1)
             logger.debug("Adding shell to total C matrix.")
