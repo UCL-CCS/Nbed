@@ -21,7 +21,7 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .scf import _absorb_h1e, energy_elec, huzinaga_HF, huzinaga_KS
+from .scf import _absorb_h1e, energy_elec, huzinaga_SCF
 
 # from .log_conf import setup_logs
 
@@ -649,10 +649,6 @@ class NbedDriver:
             )
 
         localized_scf = active_scf
-        if isinstance(localized_scf, (dft.rks.RKS, dft.uks.UKS)):
-            huz_method = huzinaga_KS
-        elif isinstance(localized_scf, (scf.rhf.RHF, scf.uhf.UHF)):
-            huz_method = huzinaga_HF
 
         (
             c_active_embedded,
@@ -660,7 +656,7 @@ class NbedDriver:
             dm_active_embedded,
             huzinaga_op_std,
             huz_scf_conv_flag,
-        ) = huz_method(
+        ) = huzinaga_SCF(
             localized_scf,
             dft_potential,
             total_enviro_dm,
