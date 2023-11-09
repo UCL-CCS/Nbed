@@ -32,8 +32,6 @@ class PySCFLocalizer(Localizer, ABC):
                                 spade localization is NOT used)
         virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
                                 spade approach too!)
-        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
-                                         Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
 
     Attributes:
         c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
@@ -273,8 +271,6 @@ class PMLocalizer(PySCFLocalizer):
                                 spade localization is NOT used)
         virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
                                 spade approach too!)
-        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
-                                         Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
 
     Attributes:
         c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
@@ -296,7 +292,6 @@ class PMLocalizer(PySCFLocalizer):
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
-        run_virtual_localization: Optional[bool] = False,
     ):
         """Initialize Localizer."""
         super().__init__(
@@ -304,7 +299,6 @@ class PMLocalizer(PySCFLocalizer):
             n_active_atoms,
             occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,
-            run_virtual_localization=run_virtual_localization,
         )
 
     def _pyscf_method(self, c_std_occ: np.ndarray) -> np.ndarray:
@@ -340,8 +334,6 @@ class BOYSLocalizer(PySCFLocalizer):
                                 spade localization is NOT used)
         virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
                                 spade approach too!)
-        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
-                                         Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
 
     Attributes:
         c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
@@ -363,7 +355,6 @@ class BOYSLocalizer(PySCFLocalizer):
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
-        run_virtual_localization: Optional[bool] = False,
     ):
         """Initialize Localizer."""
         super().__init__(
@@ -371,7 +362,6 @@ class BOYSLocalizer(PySCFLocalizer):
             n_active_atoms,
             occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,
-            run_virtual_localization=run_virtual_localization,
         )
 
     def _pyscf_method(self, c_std_occ: np.ndarray) -> np.ndarray:
@@ -399,8 +389,6 @@ class IBOLocalizer(PySCFLocalizer):
                                 spade localization is NOT used)
         virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
                                 spade approach too!)
-        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
-                                         Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
 
     Attributes:
         c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
@@ -422,7 +410,6 @@ class IBOLocalizer(PySCFLocalizer):
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
-        run_virtual_localization: Optional[bool] = False,
     ):
         """Initialise Localizer."""
         super().__init__(
@@ -430,7 +417,6 @@ class IBOLocalizer(PySCFLocalizer):
             n_active_atoms,
             occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,
-            run_virtual_localization=run_virtual_localization,
         )
 
     def _pyscf_method(self, c_std_occ: np.ndarray) -> np.ndarray:
