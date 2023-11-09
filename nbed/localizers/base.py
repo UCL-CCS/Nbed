@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 from typing import Optional, Tuple, Union
 
 import numpy as np
-from pyscf.scf.hf import RHF
 from pyscf.lib import StreamObject
+from pyscf.scf.hf import RHF
 
 from ..exceptions import NbedLocalizerError
 

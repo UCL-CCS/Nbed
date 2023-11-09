@@ -146,9 +146,7 @@ class SPADELocalizer(Localizer):
             occ = embedded_scf.mo_occ
             effective_virt = embedded_scf.mo_coeff[:, occ == 0]
         else:
-            occ = np.array(
-                [embedded_scf.mo_occ[0], embedded_scf.mo_occ[1]]
-            )
+            occ = np.array([embedded_scf.mo_occ[0], embedded_scf.mo_occ[1]])
             effective_virt = np.array(
                 [embedded_scf.mo_coeff[i][:, occ[i] == 0] for i in [0, 1]]
             )
@@ -199,8 +197,13 @@ class SPADELocalizer(Localizer):
         for ishell in range(1, self.max_shells + 1):
 
             logger.debug(f"{v_ker.shape[-1]=}")
-            if v_ker.shape[-1] > 0:
+            if v_ker.shape[-1] > 1:
                 c_iker = c_iker @ v_ker
+            elif v_ker.shape[-1] == 1:
+                logger.debug("Kernel is 1, ending CL as cannot perform SVD of vector.")
+                c_total = np.concatenate((c_total, c_iker @ v_span), axis=-1)
+                shells.append(c_total.shape[-1])
+                break
             else:
                 # This means that all virtual orbitals have been included.
                 logger.debug("No kernel, ending CL.")
@@ -239,4 +242,3 @@ class SPADELocalizer(Localizer):
 
         embedded_scf.mo_coeff = c_total
         logger.debug("Completed Concentric Localization.")
-        return embedded_scf

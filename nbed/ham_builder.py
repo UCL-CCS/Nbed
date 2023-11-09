@@ -455,40 +455,40 @@ class HamiltonianBuilder:
             molecular_hamiltonian (QubitOperator): Qubit Hamiltonian for molecular system.
         """
         qubit_reduction = 0
-        core_indices = np.array(core_indices)
-        active_indices = np.array(active_indices)
-
-        if n_qubits == 0:
-            logger.error("n_qubits input as 0.")
-            message = "n_qubits input as 0.\n"
-            +"Positive integers can be used to define total qubits used.\n"
-            +"Negative integers can be used to define a reduction."
-            raise HamiltonianBuilderError(message)
-        elif n_qubits is None:
-            logger.debug("No qubit reduction requested.")
-        elif n_qubits < 0:
-            logger.debug("Interpreting negative n_qubits as reduction.")
-            qubit_reduction = -1 * n_qubits
-            n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
-
-        logger.info("Building Hamiltonian for %s qubits.", n_qubits)
-
-        if n_qubits == 0:
-            logger.error("n_qubits input as 0.")
-            message = "n_qubits input as 0.\n"
-            +"Positive integers can be used to define total qubits used.\n"
-            +"Negative integers can be used to define a reduction."
-            raise HamiltonianBuilderError(message)
-        elif n_qubits is None:
-            logger.debug("No qubit reduction requested.")
-        elif n_qubits < 0:
-            logger.debug("Interpreting negative n_qubits as reduction.")
-            qubit_reduction = -1 * n_qubits
-            n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
-
-        logger.info("Building Hamiltonian for %s qubits.", n_qubits)
-
         indices_not_set = (core_indices is None) or (active_indices is None)
+        if indices_not_set is False:
+            core_indices = np.array(core_indices)
+            active_indices = np.array(active_indices)
+
+        if n_qubits == 0:
+            logger.error("n_qubits input as 0.")
+            message = "n_qubits input as 0.\n"
+            +"Positive integers can be used to define total qubits used.\n"
+            +"Negative integers can be used to define a reduction."
+            raise HamiltonianBuilderError(message)
+        elif n_qubits is None:
+            logger.debug("No qubit reduction requested.")
+        elif n_qubits < 0:
+            logger.debug("Interpreting negative n_qubits as reduction.")
+            qubit_reduction = -1 * n_qubits
+            n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
+
+        logger.info("Building Hamiltonian for %s qubits.", n_qubits)
+
+        if n_qubits == 0:
+            logger.error("n_qubits input as 0.")
+            message = "n_qubits input as 0.\n"
+            +"Positive integers can be used to define total qubits used.\n"
+            +"Negative integers can be used to define a reduction."
+            raise HamiltonianBuilderError(message)
+        elif n_qubits is None:
+            logger.debug("No qubit reduction requested.")
+        elif n_qubits < 0:
+            logger.debug("Interpreting negative n_qubits as reduction.")
+            qubit_reduction = -1 * n_qubits
+            n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
+
+        logger.info("Building Hamiltonian for %s qubits.", n_qubits)
 
         max_cycles = 5
         for i in range(1, max_cycles + 1):
@@ -530,7 +530,7 @@ class HamiltonianBuilder:
             # ...but it works for now.
             if taper is True:
                 qham = self._taper(qham)
-            if n_qubits == 0:
+            if n_qubits is None:
                 logger.debug("Unreduced Hamiltonain found.")
                 return qham
 
