@@ -14,6 +14,8 @@ from pyscf import ao2mo, dft, scf
 from pyscf.lib import StreamObject
 from pyscf.lib.numpy_helper import SYMMETRIC
 from qiskit.opflow import Z2Symmetries
+from symmer.operators import PauliwordOp
+from symmer.projection import ContextualSubspace, QubitTapering
 from typing_extensions import final
 
 from nbed.exceptions import HamiltonianBuilderError
@@ -412,9 +414,6 @@ class HamiltonianBuilder:
 
             qham = self._qubit_transform(self.transform, molecular_hamiltonian)
 
-            from symmer.operators import PauliwordOp
-            from symmmer.projection import QubitTapering, ContextualSubspace
-
             logger.debug("Converting to Symmer PauliWordOp")
             pwop = PauliwordOp.from_openfermion(qham)
             if taper:
@@ -425,7 +424,7 @@ class HamiltonianBuilder:
                 logger.debug("Projecting onto contextual subspace.")
                 pwop = ContextualSubspace(pwop).project_onto_subspace()
                 logger.debug(f"Projected to {pwop.n_qubits}")
-            qham = pwop.to_openfermion()
+            qham = pwop.to_openfermion
             logger.debug("Symmer functions complete.")
 
             if n_qubits is None:
