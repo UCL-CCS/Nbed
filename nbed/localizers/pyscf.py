@@ -125,9 +125,9 @@ class PySCFLocalizer(Localizer, ABC):
         mo_active_share = numerator_all / denominator_all
 
         logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(mo_active_share, 4)}")
-        logger.debug(f"threshold for active part: {self._occ_cutoff}")
+        logger.debug(f"threshold for active part: {self.occ_cutoff}")
 
-        active_MO_inds = np.where(mo_active_share > self._occ_cutoff)[0]
+        active_MO_inds = np.where(mo_active_share > self.occ_cutoff)[0]
         # print(active_MO_inds)
 
         all_ao_shares_same_bool = np.allclose(
