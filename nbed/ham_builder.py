@@ -450,11 +450,15 @@ class HamiltonianBuilder:
             taper (bool): Whether to taper the Hamiltonian.
             core_indices (List[int]): Indices of core orbitals.
             active_indices (List[int]): Indices of active orbitals.
-            
+
         Returns:
             molecular_hamiltonian (QubitOperator): Qubit Hamiltonian for molecular system.
         """
         qubit_reduction = 0
+        indices_not_set = (core_indices is None) or (active_indices is None)
+        if indices_not_set is False:
+            core_indices = np.array(core_indices)
+            active_indices = np.array(active_indices)
 
         if n_qubits == 0:
             logger.error("n_qubits input as 0.")
@@ -470,8 +474,6 @@ class HamiltonianBuilder:
             n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
 
         logger.info("Building Hamiltonian for %s qubits.", n_qubits)
-
-        indices_not_set = (core_indices is None) or (active_indices is None)
 
         max_cycles = 5
         for i in range(1, max_cycles + 1):

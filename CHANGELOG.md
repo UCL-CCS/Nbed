@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Builder calculates electron integrals correctly
     - Active space reduction in builder
 - Tests for unrestricted SCF methods.
+- Virtual orbital localization in SPADE localizer, using concentric localization.
 ### Changed
 - pyscf version updated to `2.3.0` to correct installation issues with `1.7.6.post1`
 - Location of explainer notebooks moved up a level to `docs/notebooks`
