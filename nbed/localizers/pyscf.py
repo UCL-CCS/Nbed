@@ -25,9 +25,8 @@ class PySCFLocalizer(Localizer, ABC):
 
 
     Args:
-        pyscf_rks (gto.Mole): PySCF molecule object
+        global_scf (gto.Mole): PySCF molecule object
         n_active_atoms (int): Number of active atoms
-        localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
         occ_cutoff (float): Threshold for selecting occupied active region (only requried if
                                 spade localization is NOT used)
         virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
@@ -49,18 +48,18 @@ class PySCFLocalizer(Localizer, ABC):
 
     def __init__(
         self,
-        global_ks: StreamObject,
+        global_scf: StreamObject,
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
     ):
         """Initialize PySCF Localizer."""
-        super().__init__(
-            global_ks,
-            n_active_atoms,
-        )
         self.occ_cutoff = self._valid_threshold(occ_cutoff)
         self.virt_cutoff = self._valid_threshold(virt_cutoff)
+        super().__init__(
+            global_scf,
+            n_active_atoms,
+        )
 
     def _valid_threshold(self, threshold: float):
         """Checks if threshold is within 0-1 range (percentage).
@@ -179,7 +178,7 @@ class PySCFLocalizer(Localizer, ABC):
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
 
         Args:
-            global_ks (StreamObject): PySCF molecule object
+            global_scf (StreamObject): PySCF molecule object
             n_active_atoms (int): Number of active atoms
             virt_threshold (float): Threshold for selecting unoccupied (virtual) active MOs.
 
@@ -200,7 +199,7 @@ class PySCFLocalizer(Localizer, ABC):
         ao_slice_matrix = self._global_scf.mol.aoslice_by_atom()
 
         # TODO: Check the following:
-        # S_ovlp = global_ks.get_ovlp()
+        # S_ovlp = global_scf.get_ovlp()
         # S_half = sp.linalg.fractional_matrix_power(S_ovlp , 0.5)
         # C_loc_occ_ORTHO = S_half@C_loc_occ_full
         # run numerator_all and denominator_all in ortho basis
@@ -264,9 +263,8 @@ class PMLocalizer(PySCFLocalizer):
     Running localization returns active and environment systems.
 
     Args:
-        pyscf_rks (gto.Mole): PySCF molecule object
+        global_scf (gto.Mole): PySCF molecule object
         n_active_atoms (int): Number of active atoms
-        localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
         occ_cutoff (float): Threshold for selecting occupied active region (only requried if
                                 spade localization is NOT used)
         virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
@@ -288,14 +286,14 @@ class PMLocalizer(PySCFLocalizer):
 
     def __init__(
         self,
-        pyscf_scf: StreamObject,
+        global_scf: StreamObject,
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
     ):
         """Initialize Localizer."""
         super().__init__(
-            pyscf_scf,
+            global_scf,
             n_active_atoms,
             occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,
@@ -327,7 +325,7 @@ class BOYSLocalizer(PySCFLocalizer):
     Running localization returns active and environment systems.
 
     Args:
-        pyscf_rks (gto.Mole): PySCF molecule object
+        global_scf (gto.Mole): PySCF molecule object
         n_active_atoms (int): Number of active atoms
         localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
         occ_cutoff (float): Threshold for selecting occupied active region (only requried if
@@ -351,14 +349,14 @@ class BOYSLocalizer(PySCFLocalizer):
 
     def __init__(
         self,
-        pyscf_scf: StreamObject,
+        global_scf: StreamObject,
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
     ):
         """Initialize Localizer."""
         super().__init__(
-            pyscf_scf,
+            global_scf,
             n_active_atoms,
             occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,
@@ -382,9 +380,8 @@ class IBOLocalizer(PySCFLocalizer):
     Running localization returns active and environment systems.
 
     Args:
-        pyscf_rks (gto.Mole): PySCF molecule object
+        global_scf (gto.Mole): PySCF molecule object
         n_active_atoms (int): Number of active atoms
-        localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
         occ_cutoff (float): Threshold for selecting occupied active region (only requried if
                                 spade localization is NOT used)
         virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
@@ -406,14 +403,14 @@ class IBOLocalizer(PySCFLocalizer):
 
     def __init__(
         self,
-        pyscf_scf: StreamObject,
+        global_scf: StreamObject,
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
     ):
         """Initialise Localizer."""
         super().__init__(
-            pyscf_scf,
+            global_scf,
             n_active_atoms,
             occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,

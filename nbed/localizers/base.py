@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Tuple, Union
 
 import numpy as np
-from pyscf import scf
+from pyscf.scf.hf import RHF
 from pyscf.lib import StreamObject
 
 from ..exceptions import NbedLocalizerError
@@ -25,15 +25,9 @@ class Localizer(ABC):
     Mulliken charges. As a result, IBOs are always well-defined.  (Ref: J. Chem. Theory Comput. 2013, 9, 4834−4843)
 
     Args:
-        global_ks (gto.Mole): PySCF molecule object
+        global_scf (gto.Mole): PySCF molecule object
         n_active_atoms (int): Number of active atoms
         localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
-        occ_cutoff (float): Threshold for selecting occupied active region (only requried if
-                                spade localization is NOT used)
-        virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
-                                spade approach too!)
-        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
-                                         Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
 
     Attributes:
         c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
@@ -51,19 +45,19 @@ class Localizer(ABC):
 
     def __init__(
         self,
-        global_ks: StreamObject,
+        global_scf: StreamObject,
         n_active_atoms: int,
     ):
         """Initialise class."""
         logger.debug("Initialising Localizer.")
-        if global_ks.mo_coeff is None:
+        if global_scf.mo_coeff is None:
             logger.debug("SCF method not initialised, running now...")
-            global_ks.run()
+            global_scf.run()
             logger.debug("SCF method initialised.")
 
-        self._global_scf = global_ks
+        self._global_scf = global_scf
         self._n_active_atoms = n_active_atoms
-        self._restricted_scf = True if type(self._global_scf) in [scf.hf.RHF, scf.ks.RKS] else False
+        self._restricted = isinstance(self._global_scf, RHF)
 
         # Run the localization procedure
         self.run()
@@ -80,7 +74,7 @@ class Localizer(ABC):
             c_enviro (np.array): C matrix of localized occupied ennironment MOs
             c_loc_occ (np.array): full C matrix of localized occupied MOs
         """
-        if self._restricted_scf:
+        if self._restricted:
             alpha = self._localize_spin(
                 self._global_scf.mo_coeff, self._global_scf.mo_occ
             )
@@ -134,7 +128,7 @@ class Localizer(ABC):
         """
         logger.debug("Running localizer sense check.")
         warn_flag = False
-        if self._restricted_scf is False:
+        if self._restricted is False:
             logger.debug("Checking spin does not affect localization.")
             active_number_match = (
                 self.active_MO_inds.shape == self.beta_active_MO_inds.shape
@@ -159,7 +153,7 @@ class Localizer(ABC):
 
         density_match = np.allclose(dm_localised_full_system, dm_sum)
 
-        if self._restricted_scf is False:
+        if self._restricted is False:
             beta_dm_localised_full_system = (
                 self._beta_c_loc_occ @ self._beta_c_loc_occ.conj().T
             )
@@ -180,7 +174,7 @@ class Localizer(ABC):
         n_active_electrons = np.trace(self.dm_active @ s_ovlp)
         n_enviro_electrons = np.trace(self.dm_enviro @ s_ovlp)
 
-        if self._restricted_scf is False:
+        if self._restricted is False:
             n_active_electrons += np.trace(self.beta_dm_active @ s_ovlp)
             n_enviro_electrons += np.trace(self.beta_dm_enviro @ s_ovlp)
 

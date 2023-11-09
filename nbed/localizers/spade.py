@@ -19,15 +19,9 @@ class SPADELocalizer(Localizer):
     Running localization returns active and environment systems.
 
     Args:
-        pyscf_rks (gto.Mole): PySCF molecule object
+        global_scf (scf.StreamObject): PySCF method object.
         n_active_atoms (int): Number of active atoms
         localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
-        occ_cutoff (float): Threshold for selecting occupied active region (only requried if
-                                spade localization is NOT used)
-        virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
-                                spade approach too!)
-        run_virtual_localization (bool): optional flag on whether to perform localization of virtual orbitals.
-                                         Note if False appends canonical virtual orbs to C_loc_occ_and_virt matrix
 
     Attributes:
         c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
@@ -45,13 +39,13 @@ class SPADELocalizer(Localizer):
 
     def __init__(
         self,
-        pyscf_scf: gto.Mole,
+        global_scf: gto.Mole,
         n_active_atoms: int,
         max_shells: int = 4,
     ):
         """Initialize SPADE Localizer object."""
         super().__init__(
-            pyscf_scf,
+            global_scf,
             n_active_atoms,
         )
         self.max_shells = max_shells
@@ -118,7 +112,7 @@ class SPADELocalizer(Localizer):
 
         return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
 
-    def localize_virtual(self, local_scf: StreamObject) -> StreamObject:
+    def localize_virtual(self, embedded_scf: StreamObject) -> StreamObject:
         """Localise virtual (unoccupied) obitals using concentric localization.
 
         [1] D. Claudino and N. J. Mayhall, "Simple and Efficient Truncation of Virtual
@@ -127,7 +121,7 @@ class SPADELocalizer(Localizer):
         doi: 10.1021/ACS.JCTC.9B00682.
 
         Args:
-            local_scf (StreamObject): SCF object with occupied orbitals localized.
+            embedded_scf (StreamObject): SCF object with occupied orbitals localized.
 
         Returns:
             StreamObject: Fully Localized SCF object.
@@ -135,28 +129,28 @@ class SPADELocalizer(Localizer):
         logger.debug("Localising virtual orbital spin with concentric localization.")
 
         projected_mol = gto.mole.Mole()
-        projected_mol.atom = local_scf.mol.atom
-        projected_mol.basis = local_scf.mol.basis  # can be anything
+        projected_mol.atom = embedded_scf.mol.atom
+        projected_mol.basis = embedded_scf.mol.basis  # can be anything
         projected_mf = scf.RKS(projected_mol)
         n_act_proj_aos = projected_mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_proj_aos=}")
 
-        projected_overlap = projected_mf.get_ovlp(local_scf.mol)[
+        projected_overlap = projected_mf.get_ovlp(embedded_scf.mol)[
             :n_act_proj_aos, :n_act_proj_aos
         ]
         overlap_two_basis = gto.intor_cross(
-            "int1e_ovlp_sph", local_scf.mol, projected_mol
+            "int1e_ovlp_sph", embedded_scf.mol, projected_mol
         )[:n_act_proj_aos, :]
 
         if self._restricted:
-            occ = self.pyscf_scf.mo_occ
-            effective_virt = self.pyscf_scf.mo_coeff[:, occ == 0]
+            occ = embedded_scf.mo_occ
+            effective_virt = embedded_scf.mo_coeff[:, occ == 0]
         else:
             occ = np.array(
-                [self.pyscf_scf.mo_occ[0], self.pyscf_scf.mo_occ[1]]
+                [embedded_scf.mo_occ[0], embedded_scf.mo_occ[1]]
             )
             effective_virt = np.array(
-                [self.pyscf_scf.mo_coeff[i][:, occ[i] == 0] for i in [0, 1]]
+                [embedded_scf.mo_coeff[i][:, occ[i] == 0] for i in [0, 1]]
             )
 
         logger.debug(f"N effective viruals: {effective_virt.shape}")
@@ -169,13 +163,13 @@ class SPADELocalizer(Localizer):
         logger.debug(f"Singular values: {sigma}")
 
         if self._restricted:
-            c_total = self.pyscf_scf.mo_coeff[:, occ > 0]
+            c_total = embedded_scf.mo_coeff[:, occ > 0]
         else:
             sigma = np.min(sigma, axis=0)
             c_total = np.array(
                 [
-                    self.pyscf_scf.mo_coeff[0][:, occ[0] > 0],
-                    self.pyscf_scf.mo_coeff[1][:, occ[1] > 0],
+                    embedded_scf.mo_coeff[0][:, occ[0] > 0],
+                    embedded_scf.mo_coeff[1][:, occ[1] > 0],
                 ]
             )
 
@@ -199,7 +193,7 @@ class SPADELocalizer(Localizer):
         shells = []
         shells.append(c_total.shape[-1])
 
-        fock_operator = local_scf.get_fock()
+        fock_operator = embedded_scf.get_fock()
         # why use the overlap for the first shell and then the fock for the rest?
 
         for ishell in range(1, self.max_shells + 1):
@@ -243,6 +237,6 @@ class SPADELocalizer(Localizer):
         self.shells = shells
         logger.debug(f"Shell indices: {shells}")
 
-        local_scf.mo_coeff = c_total
+        embedded_scf.mo_coeff = c_total
         logger.debug("Completed Concentric Localization.")
-        return local_scf
+        return embedded_scf
