@@ -148,14 +148,14 @@ class SPADELocalizer(Localizer):
         )[:n_act_proj_aos, :]
 
         if self._restricted:
-            occ = driver.embedded_scf.mo_occ
-            effective_virt = driver.embedded_scf.mo_coeff[:, occ == 0]
+            occ = self.pyscf_scf.mo_occ
+            effective_virt = self.pyscf_scf.mo_coeff[:, occ == 0]
         else:
             occ = np.array(
-                [driver.embedded_scf.mo_occ[0], driver.embedded_scf.mo_occ[1]]
+                [self.pyscf_scf.mo_occ[0], self.pyscf_scf.mo_occ[1]]
             )
             effective_virt = np.array(
-                [driver.embedded_scf.mo_coeff[i][:, occ[i] == 0] for i in [0, 1]]
+                [self.pyscf_scf.mo_coeff[i][:, occ[i] == 0] for i in [0, 1]]
             )
 
         logger.debug(f"N effective viruals: {effective_virt.shape}")
@@ -167,14 +167,14 @@ class SPADELocalizer(Localizer):
 
         logger.debug(f"Singular values: {sigma}")
 
-        if driver._restricted_scf:
-            c_total = driver.embedded_scf.mo_coeff[:, occ > 0]
+        if self._restricted:
+            c_total = self.pyscf_scf.mo_coeff[:, occ > 0]
         else:
             sigma = np.min(sigma, axis=0)
             c_total = np.array(
                 [
-                    driver.embedded_scf.mo_coeff[0][:, occ[0] > 0],
-                    driver.embedded_scf.mo_coeff[1][:, occ[1] > 0],
+                    self.pyscf_scf.mo_coeff[0][:, occ[0] > 0],
+                    self.pyscf_scf.mo_coeff[1][:, occ[1] > 0],
                 ]
             )
 
@@ -214,10 +214,10 @@ class SPADELocalizer(Localizer):
             logger.debug("Beginning Concentric Localization Iteration")
             logger.debug(f"{c_ispan.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
             _, sigma, right_vectors = linalg.svd(
-                np.swapaxes(c_span, -1, -2) @ fock_operator @ c_iker
+                np.swapaxes(c_ispan, -1, -2) @ fock_operator @ c_iker
             )
             logger.debug(f"Singular values: {sigma}")
-            if not driver._restricted_scf:
+            if not self._restricted:
                 sigma = np.min(sigma, axis=0)
             logger.debug(f"{right_vectors.shape=}")
 
