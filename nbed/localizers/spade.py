@@ -55,6 +55,7 @@ class SPADELocalizer(Localizer):
             n_active_atoms,
         )
         self.max_shells = max_shells
+        self.shells = None
 
     def _localize_spin(
         self, c_matrix: np.ndarray, occupancy: np.ndarray
@@ -76,10 +77,10 @@ class SPADELocalizer(Localizer):
         n_occupied_orbitals = np.count_nonzero(occupancy)
         occupied_orbitals = c_matrix[:, :n_occupied_orbitals]
 
-        n_act_aos = self._global_ks.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
+        n_act_aos = self._global_scf.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_aos} active AOs.")
 
-        ao_overlap = self._global_ks.get_ovlp()
+        ao_overlap = self._global_scf.get_ovlp()
 
         # Orbital rotation and partition into subsystems A and B
         # rotation_matrix, sigma = embed.orbital_rotation(occupied_orbitals,

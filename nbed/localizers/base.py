@@ -61,9 +61,9 @@ class Localizer(ABC):
             global_ks.run()
             logger.debug("SCF method initialised.")
 
-        self._global_ks = global_ks
+        self._global_scf = global_ks
         self._n_active_atoms = n_active_atoms
-        self._restricted_scf = isinstance(self._global_ks, scf.hf.RHF)
+        self._restricted_scf = True if type(self._global_scf) in [scf.hf.RHF, scf.ks.RKS] else False
 
         # Run the localization procedure
         self.run()
@@ -82,15 +82,15 @@ class Localizer(ABC):
         """
         if self._restricted_scf:
             alpha = self._localize_spin(
-                self._global_ks.mo_coeff, self._global_ks.mo_occ
+                self._global_scf.mo_coeff, self._global_scf.mo_occ
             )
             beta = None
         else:
             alpha = self._localize_spin(
-                self._global_ks.mo_coeff[0], self._global_ks.mo_occ[0]
+                self._global_scf.mo_coeff[0], self._global_scf.mo_occ[0]
             )
             beta = self._localize_spin(
-                self._global_ks.mo_coeff[1], self._global_ks.mo_occ[1]
+                self._global_scf.mo_coeff[1], self._global_scf.mo_occ[1]
             )
 
         return (alpha, beta)
@@ -176,7 +176,7 @@ class Localizer(ABC):
 
         # check number of electrons is still the same after orbitals have been localized (change of basis)
         logger.debug("Checking electron number conserverd.")
-        s_ovlp = self._global_ks.get_ovlp()
+        s_ovlp = self._global_scf.get_ovlp()
         n_active_electrons = np.trace(self.dm_active @ s_ovlp)
         n_enviro_electrons = np.trace(self.dm_enviro @ s_ovlp)
 
@@ -184,7 +184,7 @@ class Localizer(ABC):
             n_active_electrons += np.trace(self.beta_dm_active @ s_ovlp)
             n_enviro_electrons += np.trace(self.beta_dm_enviro @ s_ovlp)
 
-        n_all_electrons = self._global_ks.mol.nelectron
+        n_all_electrons = self._global_scf.mol.nelectron
         electron_number_match = np.isclose(
             (n_active_electrons + n_enviro_electrons), n_all_electrons
         )
