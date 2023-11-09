@@ -147,50 +147,64 @@ class SPADELocalizer(Localizer):
             "int1e_ovlp_sph", local_scf.mol, projected_mol
         )[:n_act_proj_aos, :]
 
-        occupancy = local_scf.mo_occ
-        virtual_mos = np.where(occupancy == 0)[0]
-        logger.debug(f"{virtual_mos=}")
+        if self._restricted:
+            occ = driver.embedded_scf.mo_occ
+            effective_virt = driver.embedded_scf.mo_coeff[:, occ == 0]
+        else:
+            occ = np.array(
+                [driver.embedded_scf.mo_occ[0], driver.embedded_scf.mo_occ[1]]
+            )
+            effective_virt = np.array(
+                [driver.embedded_scf.mo_coeff[i][:, occ[i] == 0] for i in [0, 1]]
+            )
 
-        effective_virt = local_scf.mo_coeff[:, virtual_mos]
         logger.debug(f"N effective viruals: {effective_virt.shape}")
 
         left = np.linalg.inv(projected_overlap) @ overlap_two_basis @ effective_virt
-
         _, sigma, right_vectors = np.linalg.svd(
-            left.T @ overlap_two_basis @ effective_virt
+            np.swapaxes(left, -1, -2) @ overlap_two_basis @ effective_virt
         )
+
         logger.debug(f"Singular values: {sigma}")
 
-        # We'll iteratively build up the total C matrix
-        active_mos = np.where(occupancy > 0)[0]
-        logger.debug(f"Using active MOs for CL: {active_mos}")
-        c_total = local_scf.mo_coeff[:, active_mos]
-        logger.debug(f"{c_total.shape=}")
+        if driver._restricted_scf:
+            c_total = driver.embedded_scf.mo_coeff[:, occ > 0]
+        else:
+            sigma = np.min(sigma, axis=0)
+            c_total = np.array(
+                [
+                    driver.embedded_scf.mo_coeff[0][:, occ[0] > 0],
+                    driver.embedded_scf.mo_coeff[1][:, occ[1] > 0],
+                ]
+            )
 
         shell_size = np.sum(sigma[:n_act_proj_aos] >= 1e-15)
         logger.debug(f"{shell_size=}")
 
-        v_span = right_vectors.T[:, :shell_size]  # 0 but instability
-        v_ker = right_vectors.T[:, shell_size:]
+        right_vectors = np.swapaxes(right_vectors, -1, -2)
+        v_span, v_ker = np.split(
+            right_vectors, [shell_size], axis=-1
+        )  # 0 but instability
+
         logger.debug(f"{v_span.shape=}")
 
         c_ispan = effective_virt @ v_span
         # We'll transform this in the loop
         c_iker = effective_virt
 
-        c_total = np.hstack((c_total, c_ispan))
+        c_total = np.concatenate((c_total, c_ispan), axis=-1)
 
         # keep track of the number of orbitals in each shell
         shells = []
-        shells.append(c_total.shape[1])
+        shells.append(c_total.shape[-1])
 
         fock_operator = local_scf.get_fock()
         # why use the overlap for the first shell and then the fock for the rest?
 
         for ishell in range(1, self.max_shells + 1):
 
-            logger.debug(f"{v_ker.shape[1]=}")
-            if v_ker.shape[1] > 0:
+            logger.debug(f"{v_ker.shape[-1]=}")
+            if v_ker.shape[-1] > 0:
                 c_iker = c_iker @ v_ker
             else:
                 # This means that all virtual orbitals have been included.
@@ -199,8 +213,12 @@ class SPADELocalizer(Localizer):
 
             logger.debug("Beginning Concentric Localization Iteration")
             logger.debug(f"{c_ispan.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
-            _, sigma, right_vectors = linalg.svd(c_total.T @ fock_operator @ c_iker)
+            _, sigma, right_vectors = linalg.svd(
+                np.swapaxes(c_span, -1, -2) @ fock_operator @ c_iker
+            )
             logger.debug(f"Singular values: {sigma}")
+            if not driver._restricted_scf:
+                sigma = np.min(sigma, axis=0)
             logger.debug(f"{right_vectors.shape=}")
 
             shell_size = np.sum(sigma[:n_act_proj_aos] >= 1e-15)
@@ -209,14 +227,16 @@ class SPADELocalizer(Localizer):
                 logger.debug("Empty shell, ending CL.")
                 break
 
-            v_span = right_vectors.T[:, :shell_size]
-            v_ker = right_vectors.T[:, shell_size:]
+            right_vectors = np.swapaxes(right_vectors, -1, -2)
+            v_span, v_ker = np.split(
+                right_vectors, [shell_size], axis=-1
+            )  # 0 but instability
 
             logger.debug(f"{v_span.shape=}")
 
-            c_total = np.hstack((c_total, c_iker @ v_span))
+            c_total = np.concatenate((c_total, c_iker @ v_span), axis=-1)
             logger.debug("Adding shell to total C matrix.")
-            shells.append(c_total.shape[1])
+            shells.append(c_total.shape[-1])
             logger.debug(f"{c_total.shape=}")
 
         self.shells = shells
