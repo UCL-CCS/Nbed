@@ -43,6 +43,7 @@ class HamiltonianBuilder:
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
         self.transform = transform
+        self._restricted = isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
 
     @property
     def _one_body_integrals(self) -> np.ndarray:
@@ -64,7 +65,7 @@ class HamiltonianBuilder:
             hcore = self.scf_method.get_hcore()
 
         # one body terms
-        if isinstance(self.scf_method, (scf.uhf.UHF, dft.uks.UKS)):
+        if not self._restricted:
             logger.info("Calculating unrestricted one body intergrals.")
             one_body_integrals_alpha = (
                 c_matrix_active[0].T @ hcore[0] @ c_matrix_active[0]
@@ -95,7 +96,7 @@ class HamiltonianBuilder:
         logger.debug("Calculating two body integrals.")
         c_matrix_active = self.scf_method.mo_coeff
 
-        if isinstance(self.scf_method, (scf.uhf.UHF, dft.uks.UKS)):
+        if not self._restricted:
             n_orbs_alpha = c_matrix_active[0].shape[1]
             n_orbs_beta = c_matrix_active[1].shape[1]
 
@@ -152,8 +153,7 @@ class HamiltonianBuilder:
         self,
         qubit_reduction: int,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Find the orbitals which correspond to the active space and core.
+        """Find the orbitals which correspond to the active space and core.
 
         Args:
             qubit_reduction (int): Number of qubits to reduce by.
@@ -170,39 +170,50 @@ class HamiltonianBuilder:
             raise HamiltonianBuilderError("qubit_reduction must be an Intger")
         if qubit_reduction == 0:
             logger.debug("No active space reduction required.")
-            return np.array([]), np.where(self.scf_method.mo_occ >= 0)[0]
+            if self._restricted:
+                return np.array([]), np.where(self.scf_method.mo_occ >= 0)[0]
+            else:
+                return (
+                    np.array([]),
+                    np.where(self.scf_method.mo_occ.sum(axis=0) >= 0)[0],
+                )
+
+        # +1 because each MO is 2 qubits for closed shell
+        orbital_reduction = (qubit_reduction + 1) // 2
+
+        occupation = self.scf_method.mo_occ
+        if not self._restricted:
+            occupation = occupation.sum(axis=0)
+        occupied = np.where(occupation > 0)[0]
+        virtual = np.where(occupation == 0)[0]
 
         # find where the last occupied level is
-        occupied = np.where(self.scf_method.mo_occ > 0)[0]
-        unoccupied = np.where(self.scf_method.mo_occ == 0)[0]
         logger.debug("Occupied orbitals %s.", occupied)
-        logger.debug("Unoccupied orbitals %s.", unoccupied)
+        logger.debug("virtual orbitals %s.", virtual)
 
-        # +1 because each MO is 2 qubits for closed shell.
-        orbital_reduction = (qubit_reduction + 1) // 2
-        n_orbitals = (self._one_body_integrals.shape[-1] * 2) - orbital_reduction
-        logger.debug(f"Reducing to {n_orbitals}.")
-        # Again +1 because we want to use odd numbers to reduce
-        # occupied orbitals
-        occupied_reduction = (orbital_reduction + 1) // 2
-        unoccupied_reduction = orbital_reduction - occupied_reduction
-        logger.debug(f"Reducing occupied by {occupied_reduction} orbitals.")
-        logger.debug(f"Reducing unoccupied by {unoccupied_reduction} orbitals.")
+        occupied_reduction = (
+            orbital_reduction * len(occupied)
+        ) // self._one_body_integrals.shape[-1]
+        virtual_reduction = orbital_reduction - occupied_reduction
+        logger.debug(f"Reducing occupied by {occupied_reduction} spatial orbitals.")
+        logger.debug(f"Reducing virtual by {virtual_reduction} spatial orbitals.")
 
-        occupied = occupied[occupied_reduction:] if occupied_reduction > 0 else occupied
-        unoccupied = (
-            unoccupied[:-unoccupied_reduction]
-            if unoccupied_reduction > 0
-            else unoccupied
-        )
+        core_indices = np.array([])
+        removed_virtual = np.array([])
+
+        if occupied_reduction > 0:
+            core_indices = occupied[:occupied_reduction]
+            occupied = occupied[occupied_reduction:]
 
         # We want the MOs nearest the fermi level
-        # unoccupied orbitals go from 0->N and occupied from N->M
-        core_indices = occupied[:occupied_reduction]
-        active_indices = np.append(occupied, unoccupied)
+        if virtual_reduction > 0:
+            removed_virtual = virtual[-virtual_reduction:]
+            virtual = virtual[:-virtual_reduction]
+
+        active_indices = np.append(occupied, virtual)
         logger.debug(f"Core indices {core_indices}.")
         logger.debug(f"Active indices {active_indices}.")
-
+        logger.debug(f"Removed virtual indices {removed_virtual}.")
         return core_indices, active_indices
 
     def _reduce_active_space(
@@ -221,9 +232,31 @@ class HamiltonianBuilder:
             active_indices (np.ndarray): Indices of active orbitals.
         """
         logger.debug("Reducing the active space.")
+        logger.debug(f"{core_indices=}")
+        logger.debug(f"{active_indices=}")
+
+        core_indices = np.array(core_indices)
+        active_indices = np.array(active_indices)
 
         # Determine core constant
         core_constant = 0.0
+        if core_indices.ndim != 1:
+            logger.error("Core indices given as dimension %s array.", core_indices.ndim)
+            raise HamiltonianBuilderError("Core indices must be 1D array.")
+        if active_indices.ndim != 1:
+            logger.error(
+                "Active indices given as dimension %s array.", active_indices.ndim
+            )
+            raise HamiltonianBuilderError("Active indices must be 1D array.")
+        if set(core_indices).intersection(set(active_indices)) != set():
+            logger.error("Core and active indices overlap.")
+            raise HamiltonianBuilderError("Core and active indices must not overlap.")
+        if len(core_indices) + len(active_indices) > self._one_body_integrals.shape[-1]:
+            logger.error("Too many indices given.")
+            raise HamiltonianBuilderError(
+                "Number of core and active indices must not exceed number of orbitals."
+            )
+
         for i in core_indices:
             core_constant += one_body_integrals[0, i, i]
             core_constant += one_body_integrals[1, i, i]
@@ -240,9 +273,9 @@ class HamiltonianBuilder:
 
         # Modified one electron integrals
         one_body_integrals_new = np.copy(one_body_integrals)
-        for u in active_indices:
-            for v in active_indices:
-                for i in core_indices:
+        for i in core_indices:
+            for u in active_indices:
+                for v in active_indices:
                     one_body_integrals_new[0, u, v] += (
                         two_body_integrals[0, i, u, v, i]
                         - two_body_integrals[0, i, u, i, v]
@@ -417,6 +450,7 @@ class HamiltonianBuilder:
             taper (bool): Whether to taper the Hamiltonian.
             core_indices (List[int]): Indices of core orbitals.
             active_indices (List[int]): Indices of active orbitals.
+            
         Returns:
             molecular_hamiltonian (QubitOperator): Qubit Hamiltonian for molecular system.
         """
@@ -439,15 +473,31 @@ class HamiltonianBuilder:
 
         logger.info("Building Hamiltonian for %s qubits.", n_qubits)
 
-        while True:
+        if n_qubits == 0:
+            logger.error("n_qubits input as 0.")
+            message = "n_qubits input as 0.\n"
+            +"Positive integers can be used to define total qubits used.\n"
+            +"Negative integers can be used to define a reduction."
+            raise HamiltonianBuilderError(message)
+        elif n_qubits is None:
+            logger.debug("No qubit reduction requested.")
+        elif n_qubits < 0:
+            logger.debug("Interpreting negative n_qubits as reduction.")
+            qubit_reduction = -1 * n_qubits
+            n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
+
+        logger.info("Building Hamiltonian for %s qubits.", n_qubits)
+
+        indices_not_set = (core_indices is None) or (active_indices is None)
+
+        max_cycles = 5
+        for i in range(1, max_cycles + 1):
             one_body_integrals = self._one_body_integrals
             two_body_integrals = self._two_body_integrals
 
-            if core_indices is None or active_indices is None:
-                logger.debug("No indices given.")
+            if indices_not_set:
+                logger.debug("No active space indices given.")
                 core_indices, active_indices = self._reduced_orbitals(qubit_reduction)
-                logger.debug("Ensuring n_qubits is none.")
-                n_qubits = None
 
             (
                 core_constant,
@@ -460,12 +510,17 @@ class HamiltonianBuilder:
             one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
                 one_body_integrals, two_body_integrals
             )
+            logger.debug(f"{one_body_coefficients.shape=}")
+            logger.debug(f"{two_body_coefficients.shape=}")
 
             logger.debug("Building interaction operator.")
             molecular_hamiltonian = InteractionOperator(
                 (self.constant_e_shift + core_constant),
                 one_body_coefficients,
                 0.5 * two_body_coefficients,
+            )
+            logger.debug(
+                f"{count_qubits(molecular_hamiltonian)} qubits in Hamiltonian."
             )
 
             qham = self._qubit_transform(self.transform, molecular_hamiltonian)
@@ -482,8 +537,12 @@ class HamiltonianBuilder:
             # Wanted to do a recursive thing to get the correct number
             # from tapering but it takes ages.
             final_n_qubits = count_qubits(qham)
+            logger.debug(f"{final_n_qubits} qubits used in cycle {i} Hamiltonian.")
             if final_n_qubits <= n_qubits:
                 logger.debug("Hamiltonian reduced to %s qubits.", final_n_qubits)
+                return qham
+            if i == max_cycles:
+                logger.info("Maximum number of cycles reached.")
                 return qham
 
             # Check that we have the right number of qubits.
