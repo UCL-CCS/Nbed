@@ -198,7 +198,7 @@ class SPADELocalizer(Localizer):
 
         for ishell in range(1, self.max_shells + 1):
             logger.debug("Beginning Concentric Localization Iteration")
-            logged.debug(f"Shell {ishell}.")
+            logger.debug(f"Shell {ishell}.")
 
             logger.debug(f"{v_ker.shape[-1]=}")
             if v_ker.shape[-1] > 1:
