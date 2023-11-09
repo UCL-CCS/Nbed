@@ -34,6 +34,12 @@ global_rks.max_memory = max_ram_memory
 global_rks.verbose = pyscf_print_level
 global_rks.kernel()
 
+global_uks = scf.UKS(full_mol)
+global_uks.conv_tol = convergence
+global_uks.xc = xc_functional
+global_uks.max_memory = max_ram_memory
+global_uks.verbose = pyscf_print_level
+global_uks.kernel()
 
 def test_PMLocalizer_local_basis_transform() -> None:
     """Check change of basis operator (from canonical to localized) is correct"""
@@ -61,7 +67,7 @@ def test_PMLocalizer_local_basis_transform() -> None:
     assert np.isclose(n_all_electrons, n_active_electrons + n_enviro_electrons)
 
 
-def test_spin_localizations_match() -> None:
+def test_spade_spins_match() -> None:
     """Check that localization of restricted and unrestricted match."""
     # define RKS DFT object
 
@@ -72,13 +78,6 @@ def test_spin_localizations_match() -> None:
         virt_cutoff=virt_cutoff,
         run_virtual_localization=run_virtual_localization,
     )
-
-    global_uks = scf.UKS(full_mol)
-    global_uks.conv_tol = convergence
-    global_uks.xc = xc_functional
-    global_uks.max_memory = max_ram_memory
-    global_uks.verbose = pyscf_print_level
-    global_uks.kernel()
 
     unrestricted = SPADELocalizer(
         global_uks,
