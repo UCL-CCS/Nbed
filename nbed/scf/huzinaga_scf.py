@@ -44,10 +44,7 @@ def huzinaga_HF(
     s_mat = scf_method.get_ovlp()
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
-    if isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS)):
-        unrestricted = False
-    else:
-        unrestricted = True
+    unrestricted = False if isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS)) else True
 
     if unrestricted:
         dm_env_S = np.array([dm_enviroment[0] @ s_mat, dm_enviroment[1] @ s_mat])
@@ -115,14 +112,26 @@ def huzinaga_HF(
         dm_mat_old = dm_mat
         dm_mat = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
 
-        # Find RHF energy
-        e_core_dft = np.einsum(
-            "...ij,...ji->...", scf_method.get_hcore() + dft_potential, dm_mat
-        )
 
-        e_coul = 0.5 * np.einsum("...ij,...ji->...", vhf, dm_mat)
-        e_huz = np.einsum("...ij,...ji->...", huzinaga_op_std, dm_mat)
-        rhf_energy = e_core_dft + e_coul + e_huz
+        if hf:
+            # Find RHF energy
+            e_core_dft = np.einsum(
+                "...ij,...ji->...", scf_method.get_hcore() + dft_potential, dm_mat
+            )
+
+            e_coul = 0.5 * np.einsum("...ij,...ji->...", vhf, dm_mat)
+            e_huz = np.einsum("...ij,...ji->...", huzinaga_op_std, dm_mat)
+            rhf_energy = e_core_dft + e_coul + e_huz
+        elif ks:
+            rks_energy = (
+                vhf_updated.ecoul
+                + vhf_updated.exc
+                + np.einsum(
+                    "...ij, ...ji->...",
+                    dm_mat,
+                    (scf_method.get_hcore() + huzinaga_op_std + dft_potential),
+                )
+            )
 
         # check convergence
         # use max difference so that this works for unrestricted
