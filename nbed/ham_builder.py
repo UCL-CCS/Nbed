@@ -475,21 +475,6 @@ class HamiltonianBuilder:
 
         logger.info("Building Hamiltonian for %s qubits.", n_qubits)
 
-        if n_qubits == 0:
-            logger.error("n_qubits input as 0.")
-            message = "n_qubits input as 0.\n"
-            +"Positive integers can be used to define total qubits used.\n"
-            +"Negative integers can be used to define a reduction."
-            raise HamiltonianBuilderError(message)
-        elif n_qubits is None:
-            logger.debug("No qubit reduction requested.")
-        elif n_qubits < 0:
-            logger.debug("Interpreting negative n_qubits as reduction.")
-            qubit_reduction = -1 * n_qubits
-            n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
-
-        logger.info("Building Hamiltonian for %s qubits.", n_qubits)
-
         max_cycles = 5
         for i in range(1, max_cycles + 1):
             one_body_integrals = self._one_body_integrals
