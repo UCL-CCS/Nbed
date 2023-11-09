@@ -360,7 +360,10 @@ class HamiltonianBuilder:
         return taper_off_qubits(qham, stabilizers)
 
     def build(
-        self, n_qubits: Optional[int] = None, taper: Optional[bool] = False
+        self,
+        n_qubits: Optional[int] = None,
+        taper: Optional[bool] = True,
+        contextual_space: Optional[bool] = False,
     ) -> QubitOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
@@ -409,11 +412,22 @@ class HamiltonianBuilder:
 
             qham = self._qubit_transform(self.transform, molecular_hamiltonian)
 
-            # Don't like this option sitting with the recursive
-            # call beneath it - just a little too complicated.
-            # ...but it works for now.
-            if taper is True:
-                qham = self._taper(qham)
+            from symmer.operators import PauliwordOp
+            from symmmer.projection import QubitTapering, ContextualSubspace
+
+            logger.debug("Converting to Symmer PauliWordOp")
+            pwop = PauliwordOp.from_openfermion(qham)
+            if taper:
+                logger.debug("Tapering.")
+                pwop = QubitTapering(pwop).taper_it()
+                logger.debug(f"Tapered to {pwop.n_qubits}")
+            if contextual_space:
+                logger.debug("Projecting onto contextual subspace.")
+                pwop = ContextualSubspace(pwop).project_onto_subspace()
+                logger.debug(f"Projected to {pwop.n_qubits}")
+            qham = pwop.to_openfermion()
+            logger.debug("Symmer functions complete.")
+
             if n_qubits is None:
                 logger.debug("Unreduced Hamiltonain found.")
                 return qham
