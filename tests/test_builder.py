@@ -80,12 +80,14 @@ def test_qubit_number_match() -> None:
     uham = ubuilder.build(taper=False)
     assert count_qubits(uham) == 14
 
+
 def test_taper() -> None:
 
     rham = rbuilder.build(taper=True)
     assert count_qubits(rham) == 10
     uham = ubuilder.build(taper=True)
     assert count_qubits(uham) == 10
+
 
 def test_active_space_reduction() -> None:
 
@@ -103,9 +105,13 @@ def test_qubit_specification() -> None:
 
 
 def test_active_space_reduction() -> None:
-    rham = rbuilder.build(core_indices=[], active_indices=[0, 1, 2, 3, 4, 5], taper=False)
+    rham = rbuilder.build(
+        core_indices=[], active_indices=[0, 1, 2, 3, 4, 5], taper=False
+    )
     assert count_qubits(rham) == 12
-    uham = ubuilder.build(core_indices=[], active_indices=[0, 1, 2, 3, 4, 5], taper=False)
+    uham = ubuilder.build(
+        core_indices=[], active_indices=[0, 1, 2, 3, 4, 5], taper=False
+    )
     assert count_qubits(uham) == 12
 
 

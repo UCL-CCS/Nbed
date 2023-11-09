@@ -400,35 +400,6 @@ class HamiltonianBuilder:
         logger.debug("Qubit Hamiltonian constructed.")
         return qubit_hamiltonain
 
-    def _taper(self, qham: QubitOperator) -> QubitOperator:
-        """Taper a hamiltonian.
-
-        Args:
-            qham: QubitOperator to taper.
-
-        Returns:
-            QubitOperator: Tapered QubitOperator.
-        """
-        logger.error("Tapering not implemented.")
-        raise ValueError("tapering currently NOT working properly!")
-        logger.debug("Beginning qubit tapering.")
-        converter = HamiltonianConverter(qham)
-        symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
-        symm_strings = [symm.to_label() for symm in symmetries.sq_paulis]
-
-        logger.debug(f"Found {len(symm_strings)} Z2Symmetries")
-
-        stabilizers = []
-        for string in symm_strings:
-            term = [
-                f"{pauli}{index}" for index, pauli in enumerate(string) if pauli != "I"
-            ]
-            term = " ".join(term)
-            stabilizers.append(QubitOperator(term=term))
-
-        logger.debug("Tapering complete.")
-        return taper_off_qubits(qham, stabilizers)
-
     def build(
         self,
         n_qubits: Optional[int] = None,
