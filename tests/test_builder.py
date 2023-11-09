@@ -68,24 +68,30 @@ rbuilder = HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
 ubuilder = HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
 
 
-def test_qubit_number_reduction() -> None:
+def test_qubit_number_match() -> None:
     """
-    Check that the qubit reduction is working as expected.
+    Check that the qubit hamiltonian is working as expected.
     """
 
     # We're still constructing qubit hamiltonians that double the size for restricted systems!
 
-    rham = rbuilder.build()
+    rham = rbuilder.build(taper=False)
     assert count_qubits(rham) == 14
-    uham = ubuilder.build()
+    uham = ubuilder.build(taper=False)
     assert count_qubits(uham) == 14
 
+def test_taper() -> None:
 
-def test_qubit_reduction() -> None:
+    rham = rbuilder.build(taper=True)
+    assert count_qubits(rham) == 10
+    uham = ubuilder.build(taper=True)
+    assert count_qubits(uham) == 10
 
-    rham = rbuilder.build(n_qubits=-1)
+def test_active_space_reduction() -> None:
+
+    rham = rbuilder.build(n_qubits=-1, taper=False)
     assert count_qubits(rham) == 12
-    uham = ubuilder.build(n_qubits=-1)
+    uham = ubuilder.build(n_qubits=-1, taper=False)
     assert count_qubits(uham) == 12
 
 
@@ -97,9 +103,9 @@ def test_qubit_specification() -> None:
 
 
 def test_active_space_reduction() -> None:
-    rham = rbuilder.build(core_indices=[], active_indices=[0, 1, 2, 3, 4, 5])
+    rham = rbuilder.build(core_indices=[], active_indices=[0, 1, 2, 3, 4, 5], taper=False)
     assert count_qubits(rham) == 12
-    uham = ubuilder.build(core_indices=[], active_indices=[0, 1, 2, 3, 4, 5])
+    uham = ubuilder.build(core_indices=[], active_indices=[0, 1, 2, 3, 4, 5], taper=False)
     assert count_qubits(uham) == 12
 
 
