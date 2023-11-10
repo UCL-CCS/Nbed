@@ -420,8 +420,8 @@ class HamiltonianBuilder:
         Args:
             n_qubits (int): Either total number of qubits to use (positive value) or
                 number of qubits to reduce size by (negative value).
-
             taper (bool): Whether to taper the Hamiltonian.
+            contextual_space (bool): Whether to project onto the contextual subspace.
             core_indices (List[int]): Indices of core orbitals.
             active_indices (List[int]): Indices of active orbitals.
 
@@ -444,7 +444,6 @@ class HamiltonianBuilder:
             logger.debug("No qubit reduction requested.")
         elif n_qubits < 0:
             logger.debug("Interpreting negative n_qubits as reduction.")
-            qubit_reduction = -1 * n_qubits
             n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
 
         logger.info("Building Hamiltonian for %s qubits.", n_qubits)
