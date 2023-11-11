@@ -58,10 +58,16 @@ def test_restricted() -> None:
     logger.info(f"FCI energy of unrestricted driver test: {e_fci}")
 
     builder = HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
-    ham = builder.build()
+    ham = builder.build(taper=False)
     diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=1, which="SA")
-    logger.info(f"Ground state via diagonalisation: {diag}")
+    logger.info(f"Ground state via diagonalisation (without tapering): {diag}")
     assert np.isclose(e_fci, diag)
+
+    builder = HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
+    tapered_ham = builder.build(taper=True)
+    tdiag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(tapered_ham), k=1, which="SA")
+    logger.info(f"Ground state via diagonalisation (with tapering): {tdiag}")
+    assert np.isclose(e_fci, tdiag)
 
 
 rbuilder = HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
@@ -98,10 +104,10 @@ def test_active_space_reduction() -> None:
 
 
 def test_qubit_specification() -> None:
-    rham = rbuilder.build(n_qubits=12)
-    assert count_qubits(rham) == 12
-    uham = ubuilder.build(n_qubits=12)
-    assert count_qubits(uham) == 12
+    rham = rbuilder.build(n_qubits=8)
+    assert count_qubits(rham) == 10
+    uham = ubuilder.build(n_qubits=8)
+    assert count_qubits(uham) == 10
 
 
 def test_active_space_reduction() -> None:

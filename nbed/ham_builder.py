@@ -448,14 +448,16 @@ class HamiltonianBuilder:
 
         logger.info("Building Hamiltonian for %s qubits.", n_qubits)
 
+        if indices_not_set:
+            logger.debug("No active space indices given.")
+            core_indices, active_indices = np.array([]), np.arange(self._one_body_integrals.shape[-1])
+            logger.debug(f"{core_indices=}")
+            logger.debug(f"{active_indices=}")
+
         max_cycles = 5
         for i in range(1, max_cycles + 1):
             one_body_integrals = self._one_body_integrals
             two_body_integrals = self._two_body_integrals
-
-            if indices_not_set:
-                logger.debug("No active space indices given.")
-                core_indices, active_indices = self._reduced_orbitals(qubit_reduction)
 
             (
                 core_constant,
@@ -513,3 +515,7 @@ class HamiltonianBuilder:
 
             # Check that we have the right number of qubits.
             qubit_reduction += final_n_qubits - n_qubits
+
+            if indices_not_set:
+                logger.debug("No active space indices given.")
+                core_indices, active_indices = self._reduced_orbitals(qubit_reduction)
