@@ -45,6 +45,7 @@ class HamiltonianBuilder:
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
         self.transform = transform
+        self.occupancy = self.scf_method.mo_occ
         self._restricted = isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
 
     @property
@@ -299,6 +300,8 @@ class HamiltonianBuilder:
                 active_indices,
             )
         ]
+
+        self.occupancy = self.occupancy[active_indices]
 
         logger.debug("Active space reduced.")
         logger.debug(f"{one_body_integrals_new.shape}")
