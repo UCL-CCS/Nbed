@@ -225,7 +225,7 @@ class HamiltonianConverter:
 
     @cached_property
     def symmer(self) -> PauliwordOp:
-        """Convert from intermediate representation to symmer PauliwordOp
+        """Convert from intermediate representation to symmer PauliwordOp.
 
         Args:
             intermediate (dict[str, float]): Intermediate representation of a qubit hamiltonian.

@@ -96,7 +96,7 @@ def test_taper() -> None:
     # assert count_qubits(uham) == 10
 
 
-def test_active_space_reduction() -> None:
+def test_qubit_reduction() -> None:
 
     rham = rbuilder.build(n_qubits=-1, taper=False)
     assert count_qubits(rham) == 12
@@ -174,10 +174,13 @@ def test_unrestricted() -> None:
     logger.info(f"Ground state via diagonalisation: {diag}")
     assert np.isclose(e_fci, diag)
 
+
 def test_unrestricted_taper_warning() -> None:
     """
     Check that the appropriate warning is raised for unrestricted tapering.
     """
     builder = HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
-    with raises(HamiltonianBuilderError, match="Unrestricted tapering not implemented."):
+    with raises(
+        HamiltonianBuilderError, match="Unrestricted tapering not implemented."
+    ):
         builder.build(taper=True)

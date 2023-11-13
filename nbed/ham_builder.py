@@ -46,7 +46,9 @@ class HamiltonianBuilder:
         self.constant_e_shift = constant_e_shift
         self.transform = transform
         self._restricted = isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
-        self.occupancy = self.scf_method.mo_occ #if self._restricted else self.scf_method.mo_occ.sum(axis=1)
+        self.occupancy = (
+            self.scf_method.mo_occ
+        )  # if self._restricted else self.scf_method.mo_occ.sum(axis=1)
 
     @property
     def _one_body_integrals(self) -> np.ndarray:
@@ -301,7 +303,7 @@ class HamiltonianBuilder:
             )
         ]
 
-        self.occupancy = self.scf_method.mo_occ[...,active_indices]
+        self.occupancy = self.scf_method.mo_occ[..., active_indices]
 
         logger.debug("Active space reduced.")
         logger.debug(f"{one_body_integrals_new.shape}")
@@ -453,7 +455,9 @@ class HamiltonianBuilder:
 
         if indices_not_set:
             logger.debug("No active space indices given.")
-            core_indices, active_indices = np.array([]), np.arange(self._one_body_integrals.shape[-1])
+            core_indices, active_indices = np.array([]), np.arange(
+                self._one_body_integrals.shape[-1]
+            )
             logger.debug(f"{core_indices=}")
             logger.debug(f"{active_indices=}")
 
@@ -496,7 +500,7 @@ class HamiltonianBuilder:
                         "Unrestricted tapering not implemented."
                     )
                 electrons = self.occupancy.sum()
-                states = (2*self.occupancy.shape[-1]) - self.occupancy.sum()
+                states = (2 * self.occupancy.shape[-1]) - self.occupancy.sum()
                 logger.debug(f"{electrons=} {states=}")
                 hf_state = np.hstack((np.ones(int(electrons)), np.zeros(int(states))))
                 logger.debug(f"Tapering with HF state {hf_state}.")
