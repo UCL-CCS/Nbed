@@ -45,8 +45,8 @@ class HamiltonianBuilder:
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
         self.transform = transform
-        self.occupancy = self.scf_method.mo_occ
         self._restricted = isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
+        self.occupancy = self.scf_method.mo_occ #if self._restricted else self.scf_method.mo_occ.sum(axis=1)
 
     @property
     def _one_body_integrals(self) -> np.ndarray:
@@ -301,7 +301,7 @@ class HamiltonianBuilder:
             )
         ]
 
-        self.occupancy = self.occupancy[active_indices]
+        self.occupancy = self.scf_method.mo_occ[...,active_indices]
 
         logger.debug("Active space reduced.")
         logger.debug(f"{one_body_integrals_new.shape}")
@@ -491,8 +491,16 @@ class HamiltonianBuilder:
             logger.debug("Converting to Symmer PauliWordOp")
             pwop = PauliwordOp.from_openfermion(qham)
             if taper:
-                logger.debug("Tapering.")
-                pwop = QubitTapering(pwop).taper_it()
+                if self._restricted is False:
+                    raise HamiltonianBuilderError(
+                        "Unrestricted tapering not implemented."
+                    )
+                electrons = self.occupancy.sum()
+                states = (2*self.occupancy.shape[-1]) - self.occupancy.sum()
+                logger.debug(f"{electrons=} {states=}")
+                hf_state = np.hstack((np.ones(int(electrons)), np.zeros(int(states))))
+                logger.debug(f"Tapering with HF state {hf_state}.")
+                pwop = QubitTapering(pwop).taper_it(hf_state)
                 logger.debug(f"Tapered to {pwop.n_qubits}")
             if contextual_space:
                 logger.debug("Projecting onto contextual subspace.")

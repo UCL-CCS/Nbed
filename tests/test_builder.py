@@ -91,8 +91,9 @@ def test_taper() -> None:
 
     rham = rbuilder.build(taper=True)
     assert count_qubits(rham) == 10
-    uham = ubuilder.build(taper=True)
-    assert count_qubits(uham) == 10
+    # Unrestricted tapering not implemente
+    # uham = ubuilder.build(taper=True)
+    # assert count_qubits(uham) == 10
 
 
 def test_active_space_reduction() -> None:
@@ -105,9 +106,9 @@ def test_active_space_reduction() -> None:
 
 def test_qubit_specification() -> None:
     rham = rbuilder.build(n_qubits=8)
-    assert count_qubits(rham) == 10
-    uham = ubuilder.build(n_qubits=8)
-    assert count_qubits(uham) == 10
+    assert count_qubits(rham) == 8
+    uham = ubuilder.build(n_qubits=8, taper=False)
+    assert count_qubits(uham) == 8
 
 
 def test_active_space_reduction() -> None:
@@ -163,7 +164,7 @@ def test_unrestricted() -> None:
     logger.info(f"FCI energy of unrestricted driver test: {e_fci}")
 
     builder = HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
-    ham = builder.build()
+    ham = builder.build(taper=False)
     diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=2, which="SA")
 
     print(diag)
@@ -172,3 +173,11 @@ def test_unrestricted() -> None:
 
     logger.info(f"Ground state via diagonalisation: {diag}")
     assert np.isclose(e_fci, diag)
+
+def test_unrestricted_taper_warning() -> None:
+    """
+    Check that the appropriate warning is raised for unrestricted tapering.
+    """
+    builder = HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
+    with raises(HamiltonianBuilderError, match="Unrestricted tapering not implemented."):
+        builder.build(taper=True)
