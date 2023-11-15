@@ -15,7 +15,7 @@ from pyscf.lib import StreamObject
 from pyscf.lib.numpy_helper import SYMMETRIC
 from qiskit.opflow import Z2Symmetries
 from symmer.operators import PauliwordOp
-from symmer.projection import ContextualSubspace, QubitTapering
+from symmer.projection import QubitSubspaceManager
 from typing_extensions import final
 
 from nbed.exceptions import HamiltonianBuilderError
@@ -494,23 +494,22 @@ class HamiltonianBuilder:
 
             logger.debug("Converting to Symmer PauliWordOp")
             pwop = PauliwordOp.from_openfermion(qham)
-            if taper:
-                if self._restricted is False:
-                    raise HamiltonianBuilderError(
-                        "Unrestricted tapering not implemented."
-                    )
-                electrons = self.occupancy.sum()
-                states = (2 * self.occupancy.shape[-1]) - self.occupancy.sum()
-                logger.debug(f"{electrons=} {states=}")
-                hf_state = np.hstack((np.ones(int(electrons)), np.zeros(int(states))))
-                logger.debug(f"Tapering with HF state {hf_state}.")
-                pwop = QubitTapering(pwop).taper_it(hf_state)
-                logger.debug(f"Tapered to {pwop.n_qubits}")
-            if contextual_space:
-                logger.debug("Projecting onto contextual subspace.")
-                pwop = ContextualSubspace(pwop).project_onto_subspace()
-                logger.debug(f"Projected to {pwop.n_qubits}")
-            qham = pwop.to_openfermion
+            if taper is True and self._restricted is False:
+                raise HamiltonianBuilderError("Unrestricted tapering not implemented.")
+            logger.debug("Creating reference state.")
+            electrons = self.occupancy.sum()
+            states = (2 * self.occupancy.shape[-1]) - self.occupancy.sum()
+            logger.debug(f"{electrons=} {states=}")
+            hf_state = np.hstack((np.ones(int(electrons)), np.zeros(int(states))))
+            logger.debug(f"{hf_state.shape=}")
+            logger.debug("Creating QubitSubspaceManager.")
+            qsm = QubitSubspaceManager(
+                pwop,
+                ref_state=hf_state,
+                run_qubit_tapering=taper,
+                run_contextual_subspace=contextual_space,
+            )
+            qham = qsm.get_reduced_hamiltonian()
             logger.debug("Symmer functions complete.")
 
             if n_qubits is None:
