@@ -1,6 +1,5 @@
 """Tests for the hamiltonian converter."""
 
-from nis import match
 from pathlib import Path
 
 import numpy as np

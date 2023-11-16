@@ -13,6 +13,7 @@ from openfermion.ops.operators.qubit_operator import QubitOperator
 from openfermion.utils import count_qubits
 from pennylane import Identity, PauliX, PauliY, PauliZ
 from qiskit.opflow.primitive_ops.pauli_sum_op import PauliSumOp
+from symmer.operators import PauliwordOp
 
 from .exceptions import HamiltonianConverterError
 
@@ -222,17 +223,35 @@ class HamiltonianConverter:
         logger.debug("Qiskit PauliSumOp created.")
         return PauliSumOp.from_list(input_list)
 
+    @cached_property
+    def symmer(self) -> PauliwordOp:
+        """Convert from intermediate representation to symmer PauliwordOp.
+
+        Args:
+            intermediate (dict[str, float]): Intermediate representation of a qubit hamiltonian.
+
+        Returns:
+            symmer.operators.PauliwordOp
+        """
+        logger.debug("Converting to symmer PauliwordOp")
+        from symmer.operators import PauliwordOp
+
+        input_dict = self._intermediate
+
+        logger.debug("symmer PauliwordOp created.")
+        return PauliwordOp.from_dictionary(input_dict)
+
 
 def load_hamiltonian(
     filepath: Path, output: str
-) -> Union[QubitOperator, qml.Hamiltonian, PauliSumOp]:
+) -> Union[QubitOperator, qml.Hamiltonian, PauliSumOp, PauliwordOp]:
     """Create a Hamiltonian from a file.
 
     Reads the input file and converts to the desired output format.
 
     Args:
         filepath (Path): Path to a saved Qubit Hamiltonian file.
-        output (str): One of 'openfermion', 'pennylane', 'qiskit'
+        output (str): One of 'openfermion', 'pennylane', 'qiskit', 'symmer'
 
     Returns:
         object: A qubit Hamiltonian.

@@ -14,6 +14,8 @@ from pyscf import ao2mo, dft, scf
 from pyscf.lib import StreamObject
 from pyscf.lib.numpy_helper import SYMMETRIC
 from qiskit.opflow import Z2Symmetries
+from symmer.operators import PauliwordOp
+from symmer.projection import QubitSubspaceManager, QubitTapering
 from typing_extensions import final
 
 from nbed.exceptions import HamiltonianBuilderError
@@ -44,6 +46,9 @@ class HamiltonianBuilder:
         self.constant_e_shift = constant_e_shift
         self.transform = transform
         self._restricted = isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
+        self.occupancy = (
+            self.scf_method.mo_occ
+        )  # if self._restricted else self.scf_method.mo_occ.sum(axis=1)
 
     @property
     def _one_body_integrals(self) -> np.ndarray:
@@ -298,6 +303,8 @@ class HamiltonianBuilder:
             )
         ]
 
+        self.occupancy = self.scf_method.mo_occ[..., active_indices]
+
         logger.debug("Active space reduced.")
         logger.debug(f"{one_body_integrals_new.shape}")
         logger.debug(f"{two_body_integrals_new.shape}")
@@ -398,39 +405,11 @@ class HamiltonianBuilder:
         logger.debug("Qubit Hamiltonian constructed.")
         return qubit_hamiltonain
 
-    def _taper(self, qham: QubitOperator) -> QubitOperator:
-        """Taper a hamiltonian.
-
-        Args:
-            qham: QubitOperator to taper.
-
-        Returns:
-            QubitOperator: Tapered QubitOperator.
-        """
-        logger.error("Tapering not implemented.")
-        raise ValueError("tapering currently NOT working properly!")
-        logger.debug("Beginning qubit tapering.")
-        converter = HamiltonianConverter(qham)
-        symmetries = Z2Symmetries.find_Z2_symmetries(converter.qiskit)
-        symm_strings = [symm.to_label() for symm in symmetries.sq_paulis]
-
-        logger.debug(f"Found {len(symm_strings)} Z2Symmetries")
-
-        stabilizers = []
-        for string in symm_strings:
-            term = [
-                f"{pauli}{index}" for index, pauli in enumerate(string) if pauli != "I"
-            ]
-            term = " ".join(term)
-            stabilizers.append(QubitOperator(term=term))
-
-        logger.debug("Tapering complete.")
-        return taper_off_qubits(qham, stabilizers)
-
     def build(
         self,
         n_qubits: Optional[int] = None,
-        taper: Optional[bool] = False,
+        taper: Optional[bool] = True,
+        contextual_space: Optional[bool] = False,
         core_indices: Optional[List[int]] = None,
         active_indices: Optional[List[int]] = None,
     ) -> QubitOperator:
@@ -446,8 +425,8 @@ class HamiltonianBuilder:
         Args:
             n_qubits (int): Either total number of qubits to use (positive value) or
                 number of qubits to reduce size by (negative value).
-
             taper (bool): Whether to taper the Hamiltonian.
+            contextual_space (bool): Whether to project onto the contextual subspace.
             core_indices (List[int]): Indices of core orbitals.
             active_indices (List[int]): Indices of active orbitals.
 
@@ -460,6 +439,9 @@ class HamiltonianBuilder:
             core_indices = np.array(core_indices)
             active_indices = np.array(active_indices)
 
+        if taper is True and self._restricted is False:
+            raise HamiltonianBuilderError("Unrestricted tapering not implemented.")
+
         if n_qubits == 0:
             logger.error("n_qubits input as 0.")
             message = "n_qubits input as 0.\n"
@@ -468,21 +450,29 @@ class HamiltonianBuilder:
             raise HamiltonianBuilderError(message)
         elif n_qubits is None:
             logger.debug("No qubit reduction requested.")
+            if contextual_space is True:
+                logger.error("Contextual subspace requires a specifc qubit reduction.")
+                raise HamiltonianBuilderError(
+                    "Contextual subspace requires a specifc qubit reduction."
+                )
         elif n_qubits < 0:
             logger.debug("Interpreting negative n_qubits as reduction.")
-            qubit_reduction = -1 * n_qubits
             n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
 
         logger.info("Building Hamiltonian for %s qubits.", n_qubits)
+
+        if indices_not_set:
+            logger.debug("No active space indices given.")
+            core_indices, active_indices = np.array([]), np.arange(
+                self._one_body_integrals.shape[-1]
+            )
+            logger.debug(f"{core_indices=}")
+            logger.debug(f"{active_indices=}")
 
         max_cycles = 5
         for i in range(1, max_cycles + 1):
             one_body_integrals = self._one_body_integrals
             two_body_integrals = self._two_body_integrals
-
-            if indices_not_set:
-                logger.debug("No active space indices given.")
-                core_indices, active_indices = self._reduced_orbitals(qubit_reduction)
 
             (
                 core_constant,
@@ -510,11 +500,32 @@ class HamiltonianBuilder:
 
             qham = self._qubit_transform(self.transform, molecular_hamiltonian)
 
-            # Don't like this option sitting with the recursive
-            # call beneath it - just a little too complicated.
-            # ...but it works for now.
+            logger.debug("Converting to Symmer PauliWordOp")
+            pwop = PauliwordOp.from_openfermion(qham)
+
+            logger.debug("Creating reference state.")
+            electrons = self.occupancy.sum()
+            states = (2 * self.occupancy.shape[-1]) - self.occupancy.sum()
+            logger.debug(f"{electrons=} {states=}")
+            hf_state = np.hstack((np.ones(int(electrons)), np.zeros(int(states))))
+            logger.debug(f"{hf_state.shape=}")
+
+            # We have to do these separately because QubitSubspaceManager requires n_qubits
             if taper is True:
-                qham = self._taper(qham)
+                logger.debug("Running QubitTapering")
+                pwop = QubitTapering(pwop).taper_it(ref_state=hf_state)
+            if contextual_space is True and n_qubits is not None:
+                logger.debug("Creating QubitSubspaceManager.")
+                qsm = QubitSubspaceManager(
+                    pwop,
+                    ref_state=hf_state,
+                    run_qubit_tapering=False,
+                    run_contextual_subspace=contextual_space,
+                )
+                pwop = qsm.get_reduced_hamiltonian(n_qubits=n_qubits)
+            qham = pwop.to_openfermion
+            logger.debug("Symmer functions complete.")
+
             if n_qubits is None:
                 logger.debug("Unreduced Hamiltonain found.")
                 return qham
@@ -532,3 +543,7 @@ class HamiltonianBuilder:
 
             # Check that we have the right number of qubits.
             qubit_reduction += final_n_qubits - n_qubits
+
+            if indices_not_set:
+                logger.debug("No active space indices given.")
+                core_indices, active_indices = self._reduced_orbitals(qubit_reduction)

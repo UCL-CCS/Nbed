@@ -21,7 +21,6 @@ class SPADELocalizer(Localizer):
     Args:
         global_scf (scf.StreamObject): PySCF method object.
         n_active_atoms (int): Number of active atoms
-        localization_method (str): String of orbital localization method (spade, pipekmezey, boys, ibo)
 
     Attributes:
         c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
