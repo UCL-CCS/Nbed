@@ -15,7 +15,7 @@ from pyscf.lib import StreamObject
 from pyscf.lib.numpy_helper import SYMMETRIC
 from qiskit.opflow import Z2Symmetries
 from symmer.operators import PauliwordOp
-from symmer.projection import QubitSubspaceManager
+from symmer.projection import QubitSubspaceManager, QubitTapering
 from typing_extensions import final
 
 from nbed.exceptions import HamiltonianBuilderError
@@ -439,6 +439,9 @@ class HamiltonianBuilder:
             core_indices = np.array(core_indices)
             active_indices = np.array(active_indices)
 
+        if taper is True and self._restricted is False:
+            raise HamiltonianBuilderError("Unrestricted tapering not implemented.")
+
         if n_qubits == 0:
             logger.error("n_qubits input as 0.")
             message = "n_qubits input as 0.\n"
@@ -447,6 +450,11 @@ class HamiltonianBuilder:
             raise HamiltonianBuilderError(message)
         elif n_qubits is None:
             logger.debug("No qubit reduction requested.")
+            if contextual_space is True:
+                logger.error("Contextual subspace requires a specifc qubit reduction.")
+                raise HamiltonianBuilderError(
+                    "Contextual subspace requires a specifc qubit reduction."
+                )
         elif n_qubits < 0:
             logger.debug("Interpreting negative n_qubits as reduction.")
             n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
@@ -494,22 +502,28 @@ class HamiltonianBuilder:
 
             logger.debug("Converting to Symmer PauliWordOp")
             pwop = PauliwordOp.from_openfermion(qham)
-            if taper is True and self._restricted is False:
-                raise HamiltonianBuilderError("Unrestricted tapering not implemented.")
+
             logger.debug("Creating reference state.")
             electrons = self.occupancy.sum()
             states = (2 * self.occupancy.shape[-1]) - self.occupancy.sum()
             logger.debug(f"{electrons=} {states=}")
             hf_state = np.hstack((np.ones(int(electrons)), np.zeros(int(states))))
             logger.debug(f"{hf_state.shape=}")
-            logger.debug("Creating QubitSubspaceManager.")
-            qsm = QubitSubspaceManager(
-                pwop,
-                ref_state=hf_state,
-                run_qubit_tapering=taper,
-                run_contextual_subspace=contextual_space,
-            )
-            qham = qsm.get_reduced_hamiltonian()
+
+            # We have to do these separately because QubitSubspaceManager requires n_qubits
+            if taper is True:
+                logger.debug("Running QubitTapering")
+                pwop = QubitTapering(pwop).taper_it(ref_state=hf_state)
+            if contextual_space is True and n_qubits is not None:
+                logger.debug("Creating QubitSubspaceManager.")
+                qsm = QubitSubspaceManager(
+                    pwop,
+                    ref_state=hf_state,
+                    run_qubit_tapering=False,
+                    run_contextual_subspace=contextual_space,
+                )
+                pwop = qsm.get_reduced_hamiltonian(n_qubits=n_qubits)
+            qham = pwop.to_openfermion
             logger.debug("Symmer functions complete.")
 
             if n_qubits is None:
