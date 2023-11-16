@@ -110,9 +110,11 @@ def test_qubit_specification() -> None:
     uham = ubuilder.build(n_qubits=8, taper=False)
     assert count_qubits(uham) == 8
 
+
 def test_contextual_subspace() -> None:
     rham = rbuilder.build(n_qubits=8, taper=False, contextual_space=True)
     assert count_qubits(rham) == 8
+
 
 def test_active_space_reduction() -> None:
     rham = rbuilder.build(
