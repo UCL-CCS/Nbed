@@ -64,3 +64,6 @@ filterwarnings = [
     # Lots of downstream deprecation warnings
     'ignore::DeprecationWarning'
 ]
+
+[tool.pydocstyle]
+convention = "google"

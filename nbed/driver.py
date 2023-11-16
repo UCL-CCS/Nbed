@@ -68,6 +68,7 @@ class NbedDriver:
         mu_level_shift (float): Level shift parameter to use for mu-projector.
         run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
         run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
+        run_virtual_localization (bool): Whether or not to localize virtual orbitals.
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
@@ -109,6 +110,7 @@ class NbedDriver:
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
+        max_shells: Optional[int] = 4,
         init_huzinaga_rhf_with_mu: bool = False,
         max_hf_cycles: int = 50,
         max_dft_cycles: int = 50,
@@ -155,6 +157,7 @@ class NbedDriver:
         self.unit = unit
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
+        self.max_shells = max_shells
         self.max_hf_cycles = max_hf_cycles
         self.max_dft_cycles = max_dft_cycles
 
@@ -306,14 +309,19 @@ class NbedDriver:
             "pipek-mezey": PMLocalizer,
         }
 
-        # Should already be validated.
-        localized_system = localizers[self.localization](
-            self._global_ks,
-            self.n_active_atoms,
-            occ_cutoff=self.occupied_threshold,
-            virt_cutoff=self.virtual_threshold,
-            run_virtual_localization=self.run_virtual_localization,
-        )
+        if self.localization == "spade":
+            localized_system = localizers[self.localization](
+                self._global_ks,
+                self.n_active_atoms,
+                max_shells=self.max_shells,
+            )
+        else:
+            localized_system = localizers[self.localization](
+                self._global_ks,
+                self.n_active_atoms,
+                occ_cutoff=self.occupied_threshold,
+                virt_cutoff=self.virtual_threshold,
+            )
         return localized_system
 
     def _init_local_hf(self) -> Union[scf.uhf.UHF, scf.rhf.RHF]:
@@ -925,13 +933,14 @@ class NbedDriver:
         logger.info(f"DFT potential average {np.mean(self.dft_potential)}.")
 
         # To add a projector, put it in this dict with a function
-        # if we want any more it's also time to turn them into a class
+        # if we want any more we could consider adding classes
+        # or using a match statement for >python3.10
         embeddings: Dict[str, callable] = {
             "huzinaga": self._huzinaga_embed,
             "mu": self._mu_embed,
         }
         # If only one projector is specified, remove the others.
-        if self.projector in embeddings:
+        if self.projector != "both":
             embeddings = {self.projector: embeddings[self.projector]}
 
         # This is reverse so that huz can be initialised with mu
@@ -994,6 +1003,12 @@ class NbedDriver:
                 - result["correction"]
                 - result["beta_correction"]
             )
+            logger.debug(f"Classical energy: {result['classical_energy']}")
+
+            # Virtual localization
+            if self.run_virtual_localization is True:
+                logger.debug("Performing virtual localization.")
+                self.localized_system.localize_virtual(result["scf"])
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:

@@ -222,10 +222,10 @@ class HamiltonianConverter:
 
         logger.debug("Qiskit PauliSumOp created.")
         return PauliSumOp.from_list(input_list)
-    
+
     @cached_property
     def symmer(self) -> PauliwordOp:
-        """ Convert from intermediate representation to symmer PauliwordOp
+        """Convert from intermediate representation to symmer PauliwordOp.
 
         Args:
             intermediate (dict[str, float]): Intermediate representation of a qubit hamiltonian.
