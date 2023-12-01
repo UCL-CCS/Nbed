@@ -11,15 +11,14 @@ target-version = ["py38", "py39", "py310", "py311"]
 [tool.poetry.dependencies]
 python = ">=3.8, <3.11"
 openfermion = "^1.1.0"
-PennyLane = "^0.17.0"
-PennyLane-Qchem = "^0.17.0"
-PyYAML = "^5.4.1"
+PennyLane = "^0.33.0"
+PyYAML = "^6.0.0"
 types-PyYAML = "^5.4.11"
-qiskit-nature = "^0.2.2"
+qiskit-nature = "^0.7.0"
 cached-property = "^1.5.2"
 py3Dmol = "^1.7.0"
 jupyter = "^1.0.0"
-h5py = "3.1"
+h5py = "^3.7"
 symmer = "0.0.4"
 pyscf = "^2.3.0"
 
@@ -47,6 +46,8 @@ sphinx-rtd-theme = "^1.0.0"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+
 
 
 
