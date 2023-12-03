@@ -500,6 +500,10 @@ class HamiltonianBuilder:
 
             qham = self._qubit_transform(self.transform, molecular_hamiltonian)
 
+            if taper is False and n_qubits is None:
+                logger.debug("Unreduced Hamiltonain found.")
+                return qham
+
             logger.debug("Converting to Symmer PauliWordOp")
             pwop = PauliwordOp.from_openfermion(qham)
 
