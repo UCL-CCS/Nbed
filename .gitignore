@@ -1,6 +1,7 @@
 # Data directory
 data/
 *save_tests/
+*.pkl
 
 # Notebook for development
 problem_solving.ipynb
