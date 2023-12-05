@@ -275,6 +275,7 @@ class NbedDriver:
         mol_full = self._build_mol()
 
         global_ks = scf.RKS(mol_full) if self._restricted_scf else scf.UKS(mol_full)
+        logger.debug(f"{type(global_ks)}")
         global_ks.conv_tol = self.convergence
         global_ks.xc = self.xc_functional
         global_ks.max_memory = self.max_ram_memory
