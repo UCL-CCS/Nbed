@@ -1,14 +1,14 @@
 # Data directory
 data/
 *save_tests/
-*.pkl
 
 # Notebook for development
 problem_solving.ipynb
 
 # ignore locally defined structures
 molecular_structures/
-
+*.pkl
+*.png
 tmp*
 
 *.DS_Store

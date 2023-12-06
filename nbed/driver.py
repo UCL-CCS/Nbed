@@ -420,10 +420,8 @@ class NbedDriver:
             # v_xc = two_e_term - j_mat
 
             if not self._restricted_scf:
-                j_tot = j_mat[0] + j_mat[1]
                 dm_tot = subsystem_dm[0] + subsystem_dm[1]
             else:
-                j_tot = j_mat
                 dm_tot = subsystem_dm
 
             # e_act = (
