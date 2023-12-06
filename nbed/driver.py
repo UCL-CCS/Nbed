@@ -426,9 +426,14 @@ class NbedDriver:
                 j_tot = j_mat
                 dm_tot = subsystem_dm
 
+            # e_act = (
+            #     np.einsum("ij,ji->", ks_system.get_hcore(), dm_tot)
+            #     + 0.5 * (np.einsum("ij,ji->", j_tot, dm_tot))
+            #     + two_e_term.exc
+            # )
             e_act = (
                 np.einsum("ij,ji->", ks_system.get_hcore(), dm_tot)
-                + 0.5 * (np.einsum("ij,ji->", j_tot, dm_tot))
+                + two_e_term.ecoul
                 + two_e_term.exc
             )
 
@@ -1024,8 +1029,7 @@ class NbedDriver:
                     result["scf"], frozen_orb_list=None
                 )
                 result["e_ccsd"] = (
-                    ccsd_emb.e_hf
-                    - ccsd_emb.e_corr
+                    ccsd_emb.e_tot
                     + self.e_env
                     + self.two_e_cross
                     - result["correction"]
