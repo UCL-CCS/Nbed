@@ -554,16 +554,14 @@ class HamiltonianBuilder:
 
 
 def to_openfermion(pwop: PauliwordOp) -> QubitOperator:
-    """
-    Convert to OpenFermion Pauli operator representation.
+    """Convert to OpenFermion Pauli operator representation.
 
     Returns:
         open_f (QubitOperator): The QubitOperator representation of the PauliwordOp.
     """
 
     def symplectic_to_of(symp_vec, coeff) -> str:
-        """
-        Returns string form of symplectic vector defined as (X | Z)
+        """Returns string form of symplectic vector defined as (X | Z).
 
         Args:
             symp_vec (array): symplectic Pauliword array
