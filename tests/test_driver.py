@@ -173,7 +173,10 @@ def test_subsystem_dft_spin_consistency() -> None:
     assert isclose(restricted_driver.e_act, unrestricted_driver.e_act)
     assert isclose(restricted_driver.e_env, unrestricted_driver.e_env)
     assert isclose(restricted_driver.two_e_cross, unrestricted_driver.two_e_cross)
-    assert isclose(restricted_driver.classical_energy, unrestricted_driver.classical_energy)
+    assert isclose(
+        restricted_driver.classical_energy, unrestricted_driver.classical_energy
+    )
+
 
 if __name__ == "__main__":
     pass
