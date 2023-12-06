@@ -437,6 +437,8 @@ class NbedDriver:
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
             logger.debug("Subsystem RKS components found.")
+            logger.debug("{e_act=}")
+            logger.debug("{two_e_term=}")
             return e_act, two_e_term, j_mat
 
         if not self._restricted_scf:
@@ -486,11 +488,15 @@ class NbedDriver:
                 + np.einsum("ij,ij", self.localized_system.beta_dm_active, j_env[0])
                 + np.einsum("ij,ij", self.localized_system.beta_dm_enviro, j_act[0])
             )
+        logger.debug(f"{j_cross=}")
 
         # Because of projection we expect kinetic term to be zero
         k_cross = 0.0
 
         xc_cross = e_xc_total - two_e_act.exc - two_e_env.exc
+        logger.debug(f"{e_xc_total=}")
+        logger.debug(f"{two_e_act.exc=}")
+        logger.debug(f"{two_e_env.exc=}")
 
         # overall two_electron cross energy
         self.two_e_cross = j_cross + k_cross + xc_cross

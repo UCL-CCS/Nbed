@@ -47,7 +47,7 @@ def test_driver_standard_xyz_file_input() -> None:
         "geometry": str(water_filepath),
         "n_active_atoms": 1,
         "basis": "STO-3G",
-        "xc_functional": "b3lyp5",
+        "xc_functional": "b3lyp",
         "projector": "mu",
         "localization": "spade",
         "convergence": 1e-6,
@@ -69,7 +69,7 @@ def test_driver_standard_xyz_string_input() -> None:
         "geometry": water_xyz_raw,
         "n_active_atoms": 2,
         "basis": "STO-3G",
-        "xc_functional": "b3lyp5",
+        "xc_functional": "b3lyp",
         "projector": "mu",
         "localization": "spade",
         "convergence": 1e-6,
@@ -88,7 +88,7 @@ def test_n_active_atoms_validation() -> None:
     args = {
         "geometry": str(water_filepath),
         "basis": "STO-3G",
-        "xc_functional": "b3lyp5",
+        "xc_functional": "b3lyp",
         "projector": "mu",
         "localization": "spade",
         "convergence": 1e-6,
@@ -110,7 +110,7 @@ def test_subsystem_dft() -> None:
         "geometry": str(water_filepath),
         "n_active_atoms": 2,
         "basis": "STO-3G",
-        "xc_functional": "b3lyp5",
+        "xc_functional": "b3lyp",
         "projector": "mu",
         "localization": "spade",
         "convergence": 1e-6,
@@ -130,52 +130,50 @@ def test_subsystem_dft() -> None:
     assert isclose(energy_DFT_components, driver._global_ks.e_tot)
 
 
-# def test_subsystem_dft_spin_consistency() -> None:
-#     """Check restricted & unrestricted components match."""
-#     args = {
-#         "geometry": str(water_filepath),
-#         "n_active_atoms": 1,
-#         "basis": "STO-3G",
-#         "xc_functional": "b3lyp",
-#         "projector": "mu",
-#         "localization": "spade",
-#         "convergence": 1e-6,
-#         "run_ccsd_emb": True,
-#         "run_fci_emb": True,
-#     }
+def test_subsystem_dft_spin_consistency() -> None:
+    """Check restricted & unrestricted components match."""
+    args = {
+        "geometry": str(water_filepath),
+        "n_active_atoms": 1,
+        "basis": "STO-3G",
+        "xc_functional": "b3lyp",
+        "projector": "mu",
+        "localization": "spade",
+        "convergence": 1e-6,
+        "run_ccsd_emb": True,
+        "run_fci_emb": True,
+    }
 
-#     restricted_driver = NbedDriver(
-#         geometry=args["geometry"],
-#         n_active_atoms=args["n_active_atoms"],
-#         basis=args["basis"],
-#         xc_functional=args["xc_functional"],
-#         projector=args["projector"],
-#         localization=args["localization"],
-#         convergence=args["convergence"],
-#         run_ccsd_emb=args["run_ccsd_emb"],
-#         run_fci_emb=args["run_fci_emb"],
-#     )
+    restricted_driver = NbedDriver(
+        geometry=args["geometry"],
+        n_active_atoms=args["n_active_atoms"],
+        basis=args["basis"],
+        xc_functional=args["xc_functional"],
+        projector=args["projector"],
+        localization=args["localization"],
+        convergence=args["convergence"],
+        run_ccsd_emb=args["run_ccsd_emb"],
+        run_fci_emb=args["run_fci_emb"],
+    )
 
-#     unrestricted_driver = NbedDriver(
-#         geometry=args["geometry"],
-#         n_active_atoms=args["n_active_atoms"],
-#         basis=args["basis"],
-#         xc_functional=args["xc_functional"],
-#         projector=args["projector"],
-#         localization=args["localization"],
-#         convergence=args["convergence"],
-#         run_ccsd_emb=args["run_ccsd_emb"],
-#         run_fci_emb=args["run_fci_emb"],
-#     )
-#     # Could be problems with caching here
-#     unrestricted_driver._restricted_scf = False
-#     unrestricted_driver.embed()
+    unrestricted_driver = NbedDriver(
+        geometry=args["geometry"],
+        n_active_atoms=args["n_active_atoms"],
+        basis=args["basis"],
+        xc_functional=args["xc_functional"],
+        projector=args["projector"],
+        localization=args["localization"],
+        convergence=args["convergence"],
+        run_ccsd_emb=args["run_ccsd_emb"],
+        run_fci_emb=args["run_fci_emb"],
+        force_unrestricted=True,
+    )
+    # Could be problems with caching here
 
-#     restricted_driver.e_act
-#     restricted_driver.e_env
-#     restricted_driver.two_e_cross
-#     restricted_driver._global_ks.energy_nuc()
-
+    assert isclose(restricted_driver.e_act, unrestricted_driver.e_act)
+    assert isclose(restricted_driver.e_env, unrestricted_driver.e_env)
+    assert isclose(restricted_driver.two_e_cross, unrestricted_driver.two_e_cross)
+    assert isclose(restricted_driver.classical_energy, unrestricted_driver.classical_energy)
 
 if __name__ == "__main__":
     pass
