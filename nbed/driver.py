@@ -275,6 +275,7 @@ class NbedDriver:
         mol_full = self._build_mol()
 
         global_ks = scf.RKS(mol_full) if self._restricted_scf else scf.UKS(mol_full)
+        logger.debug(f"{type(global_ks)}")
         global_ks.conv_tol = self.convergence
         global_ks.xc = self.xc_functional
         global_ks.max_memory = self.max_ram_memory
@@ -419,15 +420,18 @@ class NbedDriver:
             # v_xc = two_e_term - j_mat
 
             if not self._restricted_scf:
-                j_tot = j_mat[0] + j_mat[1]
                 dm_tot = subsystem_dm[0] + subsystem_dm[1]
             else:
-                j_tot = j_mat
                 dm_tot = subsystem_dm
 
+            # e_act = (
+            #     np.einsum("ij,ji->", ks_system.get_hcore(), dm_tot)
+            #     + 0.5 * (np.einsum("ij,ji->", j_tot, dm_tot))
+            #     + two_e_term.exc
+            # )
             e_act = (
                 np.einsum("ij,ji->", ks_system.get_hcore(), dm_tot)
-                + 0.5 * (np.einsum("ij,ji->", j_tot, dm_tot))
+                + two_e_term.ecoul
                 + two_e_term.exc
             )
 
@@ -436,6 +440,8 @@ class NbedDriver:
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
             logger.debug("Subsystem RKS components found.")
+            logger.debug("{e_act=}")
+            logger.debug("{two_e_term=}")
             return e_act, two_e_term, j_mat
 
         if not self._restricted_scf:
@@ -485,11 +491,15 @@ class NbedDriver:
                 + np.einsum("ij,ij", self.localized_system.beta_dm_active, j_env[0])
                 + np.einsum("ij,ij", self.localized_system.beta_dm_enviro, j_act[0])
             )
+        logger.debug(f"{j_cross=}")
 
         # Because of projection we expect kinetic term to be zero
         k_cross = 0.0
 
         xc_cross = e_xc_total - two_e_act.exc - two_e_env.exc
+        logger.debug(f"{e_xc_total=}")
+        logger.debug(f"{two_e_act.exc=}")
+        logger.debug(f"{two_e_env.exc=}")
 
         # overall two_electron cross energy
         self.two_e_cross = j_cross + k_cross + xc_cross
@@ -1017,8 +1027,7 @@ class NbedDriver:
                     result["scf"], frozen_orb_list=None
                 )
                 result["e_ccsd"] = (
-                    ccsd_emb.e_hf
-                    - ccsd_emb.e_corr
+                    ccsd_emb.e_tot
                     + self.e_env
                     + self.two_e_cross
                     - result["correction"]

@@ -500,6 +500,10 @@ class HamiltonianBuilder:
 
             qham = self._qubit_transform(self.transform, molecular_hamiltonian)
 
+            if taper is False and n_qubits is None:
+                logger.debug("Unreduced Hamiltonain found.")
+                return qham
+
             logger.debug("Converting to Symmer PauliWordOp")
             pwop = PauliwordOp.from_openfermion(qham)
 
@@ -523,7 +527,7 @@ class HamiltonianBuilder:
                     run_contextual_subspace=contextual_space,
                 )
                 pwop = qsm.get_reduced_hamiltonian(n_qubits=n_qubits)
-            qham = pwop.to_openfermion
+            qham = to_openfermion(pwop)
             logger.debug("Symmer functions complete.")
 
             if n_qubits is None:
@@ -547,3 +551,51 @@ class HamiltonianBuilder:
             if indices_not_set:
                 logger.debug("No active space indices given.")
                 core_indices, active_indices = self._reduced_orbitals(qubit_reduction)
+
+
+def to_openfermion(pwop: PauliwordOp) -> QubitOperator:
+    """Convert to OpenFermion Pauli operator representation.
+
+    Returns:
+        open_f (QubitOperator): The QubitOperator representation of the PauliwordOp.
+    """
+
+    def symplectic_to_of(symp_vec, coeff) -> str:
+        """Returns string form of symplectic vector defined as (X | Z).
+
+        Args:
+            symp_vec (array): symplectic Pauliword array
+
+        Returns:
+            Pword_string (str): String version of symplectic array
+        """
+        n_qubits = len(symp_vec) // 2
+
+        X_block = symp_vec[:n_qubits]
+        Z_block = symp_vec[n_qubits:]
+
+        Y_loc = np.logical_and(X_block, Z_block)
+        X_loc = np.logical_xor(Y_loc, X_block)
+        Z_loc = np.logical_xor(Y_loc, Z_block)
+
+        char_aray = np.array(list("I" * n_qubits), dtype=str)
+
+        char_aray[Y_loc] = "Y"
+        char_aray[X_loc] = "X"
+        char_aray[Z_loc] = "Z"
+
+        indices = np.array(range(n_qubits), dtype=str)
+        char_aray = np.char.add(char_aray, indices)[np.where(char_aray != "I")[0]]
+
+        Pword_string = " ".join(char_aray)
+
+        return QubitOperator(Pword_string, coeff)
+
+    open_f = QubitOperator()
+    ops = [
+        symplectic_to_of(P_sym, coeff)
+        for P_sym, coeff in zip(pwop.symp_matrix, pwop.coeff_vec)
+    ]
+    for op in ops:
+        open_f += op
+    return open_f

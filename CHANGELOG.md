@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Fixed
+- Correct error in embedded CCSD energy.
+- Correct error in driver for calculating e_act
+
+### Changed
+- tests now use `b3lyp5` functional to match those in v1 before PySCF update.
+
+### Added
+- Function to convert Symmer PualiwordOp to openfermion faster (to be removed when updated symmer is released)
+- `notebook/publications` containing jupyter notebook for replicating results of PBE paper.
+
 ## [0.0.2]
 ### Fixed
 - Typo with the license file, which was called 'LISENCE' instead of 'LICENSE'.
