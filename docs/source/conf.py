@@ -20,11 +20,11 @@ sys.path.insert(0, os.path.abspath("../../nbed"))
 # -- Project information -----------------------------------------------------
 
 project = "Nbed"
-copyright = "2022, Michael Williams, Alexis Ralli"
-author = "Michael Williams, Alexis Ralli"
+copyright = "2022, Michael Williams de la Bastida, Alexis Ralli"
+author = "Michael Williams de la Bastida, Alexis Ralli"
 
 # The full version, including alpha/beta/rc tags
-release = "0.0.2"
+release = "0.0.3"
 
 
 # -- General configuration ---------------------------------------------------

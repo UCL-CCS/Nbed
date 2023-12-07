@@ -2,7 +2,7 @@
 name = "nbed"
 version = "0.0.3"
 description = ""
-authors = ["Michael Williams <michael.williams.20@ucl.ac.uk>"]
+authors = ["Michael Williams de la Bastida <michael.williams.20@ucl.ac.uk>", "Alexis Ralli <alexis.ralli.18@ucl.ac.uk>"]
 
 [tool.black]
 line-length = 88
