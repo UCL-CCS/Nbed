@@ -245,4 +245,5 @@ class SPADELocalizer(Localizer):
         logger.debug(f"Shell indices: {shells}")
 
         embedded_scf.mo_coeff = c_total
+        embedded_scf.mo_occ = embedded_scf.mo_occ[:c_total.shape[-1]]
         logger.debug("Completed Concentric Localization.")

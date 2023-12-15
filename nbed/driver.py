@@ -103,7 +103,7 @@ class NbedDriver:
         mu_level_shift: Optional[float] = 1e6,
         run_ccsd_emb: Optional[bool] = False,
         run_fci_emb: Optional[bool] = False,
-        run_virtual_localization: Optional[bool] = False,
+        run_virtual_localization: Optional[bool] = True,
         run_dft_in_dft: Optional[bool] = False,
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
@@ -1017,14 +1017,13 @@ class NbedDriver:
                     result["scf"], frozen_orb_list=None
                 )
                 result["e_ccsd"] = (
-                    ccsd_emb.e_hf
-                    - ccsd_emb.e_corr
+                    ccsd_emb.e_tot
                     + self.e_env
                     + self.two_e_cross
                     - result["correction"]
                     - result["beta_correction"]
                 )
-                result["ccsd_emb"] = ccsd_emb.e_hf - e_ccsd_corr - e_nuc
+                result["ccsd_emb"] = ccsd_emb.e_tot - e_nuc
 
                 logger.info(f"CCSD Energy {name}:\t{result['e_ccsd']}")
 
