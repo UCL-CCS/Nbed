@@ -60,7 +60,7 @@ class NbedDriver:
         geometry (str): Path to .xyz file containing molecular geometry or raw xyz string.
         n_active_atoms (int): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
-        xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
+        xc_functional (str): The name of an Exchange-Correlation functional to be used for DFT.
         projector (str): Projector to screen out environment orbitals, One of 'mu' or 'huzinaga'.
         localization (str): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
         convergence (float): The convergence tolerance for energy calculations.
@@ -103,7 +103,7 @@ class NbedDriver:
         mu_level_shift: Optional[float] = 1e6,
         run_ccsd_emb: Optional[bool] = False,
         run_fci_emb: Optional[bool] = False,
-        run_virtual_localization: Optional[bool] = False,
+        run_virtual_localization: Optional[bool] = True,
         run_dft_in_dft: Optional[bool] = False,
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
@@ -271,7 +271,7 @@ class NbedDriver:
 
         Note this is necessary to perform localization procedure.
         """
-        logger.debug("Running full system RKS DFT.")
+        logger.debug("Running full system KS DFT.")
         mol_full = self._build_mol()
 
         global_ks = scf.RKS(mol_full) if self._restricted_scf else scf.UKS(mol_full)
