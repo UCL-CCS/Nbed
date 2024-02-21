@@ -151,7 +151,7 @@ class SPADELocalizer(Localizer):
                 [embedded_scf.mo_coeff[i][:, occ[i] == 0] for i in [0, 1]]
             )
 
-        logger.debug(f"N effective viruals: {effective_virt.shape}")
+        logger.debug(f"N effective virtuals: {effective_virt.shape}")
 
         left = np.linalg.inv(projected_overlap) @ overlap_two_basis @ effective_virt
         _, sigma, right_vectors = np.linalg.svd(
@@ -163,12 +163,13 @@ class SPADELocalizer(Localizer):
             c_total = embedded_scf.mo_coeff[:, occ > 0]
         else:
             sigma = np.min(sigma, axis=0)
-            c_total = np.array(
+            c_total = np.array( # <- do we want to have two different sizes of c_total?? No, shells should be constant
                 [
                     embedded_scf.mo_coeff[0][:, occ[0] > 0],
                     embedded_scf.mo_coeff[1][:, occ[1] > 0],
                 ]
             )
+        logger.debug(f"Initial {c_total.shape=} (nocc)")
 
         shell_size = np.sum(sigma[:n_act_proj_aos] >= 1e-15)
         logger.debug(f"{shell_size=}")
@@ -187,9 +188,19 @@ class SPADELocalizer(Localizer):
         c_total = np.concatenate((c_total, c_ispan), axis=-1)
 
         # keep track of the number of orbitals in each shell
-        shells = []
-        shells.append(c_total.shape[-1])
+        self.shells = []
+        self.shells.append(c_total.shape[-1])
         logger.debug("Created 0th shell.")
+
+        if v_ker.shape[-1] ==0:
+            logger.debug("No kernel for 0th shell, cannot perform CL.")
+            logger.debug('This is expected for molecules with majority active MOs occupied.')
+            return
+        elif v_ker.shape[-1] == 1:
+            logger.debug("Kernel is 1 for 0th shell, ending CL as cannot perform SVD of vector.")
+            c_total = np.concatenate((c_total, c_iker), axis=-1)
+            self.shells.append(c_total.shape[-1])
+            return
 
         fock_operator = embedded_scf.get_fock()
         # why use the overlap for the first shell and then the fock for the rest?
@@ -198,9 +209,9 @@ class SPADELocalizer(Localizer):
             logger.debug("Beginning Concentric Localization Iteration")
             logger.debug(f"Shell {ishell}.")
 
-            logger.debug(f"{c_ispan.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
+            logger.debug(f"{c_total.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
             _, sigma, right_vectors = linalg.svd(
-                np.swapaxes(c_ispan, -1, -2) @ fock_operator @ c_iker
+                np.swapaxes(c_total, -1, -2) @ fock_operator @ c_iker
             )
             logger.debug(f"Singular values: {sigma}")
             if not self._restricted:
@@ -224,8 +235,8 @@ class SPADELocalizer(Localizer):
             # span must be done first as both need to use old c_iker
             c_ispan = c_iker @ v_span
             c_total = np.concatenate((c_total, c_ispan), axis=-1)
-            shells.append(c_total.shape[-1])
-            
+            self.shells.append(c_total.shape[-1])
+
             if v_ker.shape[-1] >= 1:
                 logger.debug("Kernel dimension is greater than 1, continuing CL.")
                 # in-place update
@@ -234,15 +245,14 @@ class SPADELocalizer(Localizer):
                 if v_ker.shape[-1] == 1:
                     logger.debug("Kernel is 1, ending CL as cannot perform SVD of vector.")
                     c_total = np.concatenate((c_total, c_iker), axis=-1)
-                    shells.append(c_total.shape[-1])
+                    self.shells.append(c_total.shape[-1])
                     break
             else:
                 # This means that all virtual orbitals have been included.
                 logger.debug("No kernel, ending CL.")
                 break
 
-        self.shells = shells
-        logger.debug(f"Shell indices: {shells}")
+        logger.debug(f"Shell indices: {self.shells}")
 
         embedded_scf.mo_coeff[:, :c_total.shape[-1]] = c_total # <- is there any issue with using half of the cmatrix in localized form?
         logger.debug("Completed Concentric Localization.")
