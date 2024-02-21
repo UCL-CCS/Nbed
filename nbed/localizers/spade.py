@@ -182,8 +182,7 @@ class SPADELocalizer(Localizer):
         logger.debug(f"{v_ker.shape=}")
 
         c_ispan = effective_virt @ v_span
-        # We'll transform this in the loop
-        c_iker = effective_virt
+        c_iker = effective_virt @ v_ker
 
         c_total = np.concatenate((c_total, c_ispan), axis=-1)
 
@@ -198,20 +197,6 @@ class SPADELocalizer(Localizer):
         for ishell in range(1, self.max_shells + 1):
             logger.debug("Beginning Concentric Localization Iteration")
             logger.debug(f"Shell {ishell}.")
-
-            logger.debug(f"{v_ker.shape[-1]=}")
-            if v_ker.shape[-1] > 1:
-                logger.debug("Kernel dimension is greater than 1, continuing CL.")
-                c_iker = c_iker @ v_ker
-            elif v_ker.shape[-1] == 1:
-                logger.debug("Kernel is 1, ending CL as cannot perform SVD of vector.")
-                c_total = np.concatenate((c_total, c_iker @ v_span), axis=-1)
-                shells.append(c_total.shape[-1])
-                break
-            else:
-                # This means that all virtual orbitals have been included.
-                logger.debug("No kernel, ending CL.")
-                break
 
             logger.debug(f"{c_ispan.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
             _, sigma, right_vectors = linalg.svd(
@@ -236,13 +221,28 @@ class SPADELocalizer(Localizer):
             logger.debug(f"{v_span.shape=}")
             logger.debug(f"{v_ker.shape=}")
 
-            c_total = np.concatenate((c_total, c_iker @ v_span), axis=-1)
-            logger.debug("Adding shell to total C matrix.")
+            # span must be done first as both need to use old c_iker
+            c_ispan = c_iker @ v_span
+            c_total = np.concatenate((c_total, c_ispan), axis=-1)
             shells.append(c_total.shape[-1])
-            logger.debug(f"{c_total.shape=}")
+            
+            if v_ker.shape[-1] >= 1:
+                logger.debug("Kernel dimension is greater than 1, continuing CL.")
+                # in-place update
+                c_iker = c_iker @ v_ker
+
+                if v_ker.shape[-1] == 1:
+                    logger.debug("Kernel is 1, ending CL as cannot perform SVD of vector.")
+                    c_total = np.concatenate((c_total, c_iker), axis=-1)
+                    shells.append(c_total.shape[-1])
+                    break
+            else:
+                # This means that all virtual orbitals have been included.
+                logger.debug("No kernel, ending CL.")
+                break
 
         self.shells = shells
         logger.debug(f"Shell indices: {shells}")
 
-        embedded_scf.mo_coeff = c_total
+        embedded_scf.mo_coeff[:, :c_total.shape[-1]] = c_total # <- is there any issue with using half of the cmatrix in localized form?
         logger.debug("Completed Concentric Localization.")
