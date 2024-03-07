@@ -1015,6 +1015,7 @@ class NbedDriver:
             if self.run_virtual_localization is True:
                 logger.debug("Performing virtual localization.")
                 self.localized_system.localize_virtual(result["scf"])
+                self.cl_shells = self.localized_system.shells
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
@@ -1029,7 +1030,7 @@ class NbedDriver:
                     - result["correction"]
                     - result["beta_correction"]
                 )
-                result["ccsd_emb"] = ccsd_emb.e_hf - e_ccsd_corr - e_nuc
+                result["ccsd_emb"] = ccsd_emb.e_tot - e_nuc
 
                 logger.info(f"CCSD Energy {name}:\t{result['e_ccsd']}")
 
