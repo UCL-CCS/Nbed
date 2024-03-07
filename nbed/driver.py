@@ -571,7 +571,12 @@ class NbedDriver:
             fci_scf (fci.FCI): PySCF FCI object
         """
         logger.debug("Starting embedded FCI calculation.")
-        fci_scf = fci.FCI(emb_pyscf_scf_rhf, frozen=frozen)
+        if frozen is None:
+            fci_scf = fci.FCI(emb_pyscf_scf_rhf)
+        else:
+            from pyscf import mcscf
+            fci_scf = mcscf.CASSCF(emb_pyscf_scf_rhf, emb_pyscf_scf_rhf.mol.nelec, emb_pyscf_scf_rhf.mol.nao - len(frozen))
+            fci_scf.sort_mo([i+1 for i in range(emb_pyscf_scf_rhf.mol.nao) if i not in frozen])
         fci_scf.conv_tol = self.convergence
         fci_scf.verbose = self.pyscf_print_level
         fci_scf.max_memory = self.max_ram_memory
