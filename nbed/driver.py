@@ -575,8 +575,15 @@ class NbedDriver:
             fci_scf = fci.FCI(emb_pyscf_scf_rhf)
         else:
             from pyscf import mcscf
-            fci_scf = mcscf.CASSCF(emb_pyscf_scf_rhf, emb_pyscf_scf_rhf.mol.nelec, emb_pyscf_scf_rhf.mol.nao - len(frozen))
-            fci_scf.sort_mo([i+1 for i in range(emb_pyscf_scf_rhf.mol.nao) if i not in frozen])
+
+            fci_scf = mcscf.CASSCF(
+                emb_pyscf_scf_rhf,
+                emb_pyscf_scf_rhf.mol.nelec,
+                emb_pyscf_scf_rhf.mol.nao - len(frozen),
+            )
+            fci_scf.sort_mo(
+                [i + 1 for i in range(emb_pyscf_scf_rhf.mol.nao) if i not in frozen]
+            )
         fci_scf.conv_tol = self.convergence
         fci_scf.verbose = self.pyscf_print_level
         fci_scf.max_memory = self.max_ram_memory
@@ -1025,9 +1032,7 @@ class NbedDriver:
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
                 logger.debug("Performing CCSD-in-DFT embedding.")
-                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(
-                    result["scf"], frozen=None
-                )
+                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(result["scf"], frozen=None)
                 result["e_ccsd"] = (
                     ccsd_emb.e_tot
                     + self.e_env
