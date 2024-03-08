@@ -163,7 +163,7 @@ class SPADELocalizer(Localizer):
             c_total = embedded_scf.mo_coeff[:, occ > 0]
         else:
             sigma = np.min(sigma, axis=0)
-            c_total = np.array( # <- do we want to have two different sizes of c_total?? No, shells should be constant
+            c_total = np.array(  # <- do we want to have two different sizes of c_total?? No, shells should be constant
                 [
                     embedded_scf.mo_coeff[0][:, occ[0] > 0],
                     embedded_scf.mo_coeff[1][:, occ[1] > 0],
@@ -192,12 +192,16 @@ class SPADELocalizer(Localizer):
         self.shells.append(c_total.shape[-1])
         logger.debug("Created 0th shell.")
 
-        if v_ker.shape[-1] ==0:
+        if v_ker.shape[-1] == 0:
             logger.debug("No kernel for 0th shell, cannot perform CL.")
-            logger.debug('This is expected for molecules with majority active MOs occupied.')
+            logger.debug(
+                "This is expected for molecules with majority active MOs occupied."
+            )
             return
         elif v_ker.shape[-1] == 1:
-            logger.debug("Kernel is 1 for 0th shell, ending CL as cannot perform SVD of vector.")
+            logger.debug(
+                "Kernel is 1 for 0th shell, ending CL as cannot perform SVD of vector."
+            )
             c_total = np.concatenate((c_total, c_iker), axis=-1)
             self.shells.append(c_total.shape[-1])
             return
@@ -243,7 +247,9 @@ class SPADELocalizer(Localizer):
                 c_iker = c_iker @ v_ker
 
                 if v_ker.shape[-1] == 1:
-                    logger.debug("Kernel is 1, ending CL as cannot perform SVD of vector.")
+                    logger.debug(
+                        "Kernel is 1, ending CL as cannot perform SVD of vector."
+                    )
                     c_total = np.concatenate((c_total, c_iker), axis=-1)
                     self.shells.append(c_total.shape[-1])
                     break
@@ -254,5 +260,7 @@ class SPADELocalizer(Localizer):
 
         logger.debug(f"Shell indices: {self.shells}")
 
-        embedded_scf.mo_coeff[:, :c_total.shape[-1]] = c_total # <- is there any issue with using half of the cmatrix in localized form?
+        embedded_scf.mo_coeff[
+            :, : c_total.shape[-1]
+        ] = c_total  # <- is there any issue with using half of the cmatrix in localized form?
         logger.debug("Completed Concentric Localization.")
