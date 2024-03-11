@@ -131,6 +131,8 @@ class SPADELocalizer(Localizer):
         projected_mol = gto.mole.Mole()
         projected_mol.atom = embedded_scf.mol.atom
         projected_mol.basis = embedded_scf.mol.basis  # can be anything
+        projected_mol.charge = embedded_scf.mol.charge
+        projected_mol.spin = embedded_scf.mol.spin
         projected_mf = scf.RKS(projected_mol)
         n_act_proj_aos = projected_mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_proj_aos=}")
