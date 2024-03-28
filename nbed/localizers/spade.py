@@ -216,7 +216,7 @@ class SPADELocalizer(Localizer):
             logger.debug(f"Shell {ishell}.")
 
             logger.debug(f"{c_total.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
-            _, sigma, right_vectors = linalg.svd(
+            _, sigma, right_vectors = np.linalg.svd(
                 np.swapaxes(c_total, -1, -2) @ fock_operator @ c_iker
             )
             logger.debug(f"Singular values: {sigma}")
@@ -262,7 +262,9 @@ class SPADELocalizer(Localizer):
 
         logger.debug(f"Shell indices: {self.shells}")
 
-        embedded_scf.mo_coeff[
-            :, : c_total.shape[-1]
-        ] = c_total  # <- is there any issue with using half of the cmatrix in localized form?
+        if self._restricted:
+            embedded_scf.mo_coeff = c_total  # <- is there any issue with using half of the cmatrix in localized form?
+        else:
+            embedded_scf.mo_coeff[0] = c_total[0]
+            embedded_scf.mo_coeff[1] = c_total[1]
         logger.debug("Completed Concentric Localization.")
