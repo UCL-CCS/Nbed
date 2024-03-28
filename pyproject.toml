@@ -50,6 +50,8 @@ build-backend = "poetry.core.masonry.api"
 
 
 
+
+
 [tool.poetry.scripts]
 nbed = "nbed.embed:cli"
 
