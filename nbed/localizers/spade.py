@@ -49,6 +49,7 @@ class SPADELocalizer(Localizer):
         )
         self.max_shells = max_shells
         self.shells = None
+        self.singular_values = None
 
     def _localize_spin(
         self, c_matrix: np.ndarray, occupancy: np.ndarray
@@ -161,6 +162,10 @@ class SPADELocalizer(Localizer):
         )
         logger.debug(f"Singular values: {sigma}")
 
+        #record singular values for analysis
+        singular_values = []
+        singular_values.append(sigma)
+
         if self._restricted:
             c_total = embedded_scf.mo_coeff[:, occ > 0]
         else:
@@ -220,6 +225,7 @@ class SPADELocalizer(Localizer):
                 np.swapaxes(c_total, -1, -2) @ fock_operator @ c_iker
             )
             logger.debug(f"Singular values: {sigma}")
+            singular_values.append(sigma)
             if not self._restricted:
                 sigma = np.min(sigma, axis=0)
             logger.debug(f"{right_vectors.shape=}")
@@ -261,6 +267,8 @@ class SPADELocalizer(Localizer):
                 break
 
         logger.debug(f"Shell indices: {self.shells}")
+
+        self.singular_values = singular_values
 
         if self._restricted:
             embedded_scf.mo_coeff = c_total  # <- is there any issue with using half of the cmatrix in localized form?
