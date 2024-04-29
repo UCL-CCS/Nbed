@@ -335,10 +335,6 @@ class NbedDriver:
         """
         logger.debug("Constructing localised RHF object.")
         embedded_mol: gto.Mole = self._build_mol()
-        embedded_mol.charge = 0 # Is this correct? Should we check the Nelec of the active region as a single mol?
-        # really we might want fractional charges, as the extra/missing electrons 
-        # effect will be spread around the whole molecule
-        # this could be a way to enforce localisation of an addtional charge
 
         # overwrite total number of electrons to only include active system
         if self._restricted_scf:
@@ -356,7 +352,6 @@ class NbedDriver:
         local_hf.conv_tol = self.convergence
         local_hf.verbose = self.pyscf_print_level
         local_hf.max_cycle = self.max_hf_cycles
-        local_hf.spin = 1 if (self.electron % 2 == 1) else 0
 
         return local_hf
 
