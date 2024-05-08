@@ -303,8 +303,6 @@ class HamiltonianBuilder:
             )
         ]
 
-        logger.debug(f"{self.scf_method.mo_occ.shape=}")
-        logger.debug(f"{self.scf_method.mo_occ=}")
         if self.scf_method.mo_occ.ndim == 1:
             self.occupancy = self.scf_method.mo_occ[active_indices]
         else:
