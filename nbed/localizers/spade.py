@@ -162,7 +162,7 @@ class SPADELocalizer(Localizer):
         )
         logger.debug(f"Singular values: {sigma}")
 
-        #record singular values for analysis
+        # record singular values for analysis
         singular_values = []
         singular_values.append(sigma)
 
