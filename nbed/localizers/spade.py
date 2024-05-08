@@ -170,7 +170,7 @@ class SPADELocalizer(Localizer):
             c_total = embedded_scf.mo_coeff[:, occ > 0]
         else:
             sigma = np.min(sigma, axis=0)
-            c_total = np.array(  # <- do we want to have two different sizes of c_total?? No, shells should be constant
+            c_total = np.array(
                 [
                     embedded_scf.mo_coeff[0][:, occ[0] > 0],
                     embedded_scf.mo_coeff[1][:, occ[1] > 0],
