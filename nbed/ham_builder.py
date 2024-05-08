@@ -303,7 +303,10 @@ class HamiltonianBuilder:
             )
         ]
 
-        self.occupancy = self.scf_method.mo_occ[..., active_indices]
+        if self.scf_method.mo_occ.shape[0] == 1:
+            self.occupancy = self.scf_method.mo_occ[active_indices]
+        else:
+            self.occupancy = np.vstack((self.scf_method.mo_occ[0], self.scf_method.mo_occ[1]))[:, active_indices]
 
         logger.debug("Active space reduced.")
         logger.debug(f"{one_body_integrals_new.shape}")
