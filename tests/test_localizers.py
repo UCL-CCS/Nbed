@@ -102,7 +102,7 @@ def test_cl_shells() -> None:
     )
 
     restricted.localize_virtual(restricted._global_scf)
-    assert restricted.shells == [12, 19]
+    assert restricted.shells == [12, 13]
 
 
 def test_cl_open_shell() -> None:

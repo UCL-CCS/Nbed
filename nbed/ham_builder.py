@@ -303,7 +303,12 @@ class HamiltonianBuilder:
             )
         ]
 
-        self.occupancy = self.scf_method.mo_occ[..., active_indices]
+        if self.scf_method.mo_occ.ndim == 1:
+            self.occupancy = self.scf_method.mo_occ[active_indices]
+        else:
+            self.occupancy = np.vstack(
+                (self.scf_method.mo_occ[0], self.scf_method.mo_occ[1])
+            )[:, active_indices]
 
         logger.debug("Active space reduced.")
         logger.debug(f"{one_body_integrals_new.shape}")
@@ -508,11 +513,12 @@ class HamiltonianBuilder:
             pwop = PauliwordOp.from_openfermion(qham)
 
             logger.debug("Creating reference state.")
+            logger.debug(f"{self.occupancy=}")
             electrons = self.occupancy.sum()
-            states = (2 * self.occupancy.shape[-1]) - self.occupancy.sum()
-            logger.debug(f"{electrons=} {states=}")
-            hf_state = np.hstack((np.ones(int(electrons)), np.zeros(int(states))))
-            logger.debug(f"{hf_state.shape=}")
+            virtuals = (2 * self.occupancy.shape[-1]) - self.occupancy.sum()
+            logger.debug(f"{electrons=} {virtuals=}")
+            hf_state = np.hstack((np.ones(int(electrons)), np.zeros(int(virtuals))))
+            logger.debug(f"{hf_state=}")
 
             # We have to do these separately because QubitSubspaceManager requires n_qubits
             if taper is True:

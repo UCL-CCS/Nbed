@@ -60,7 +60,7 @@ class NbedDriver:
         geometry (str): Path to .xyz file containing molecular geometry or raw xyz string.
         n_active_atoms (int): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
-        xc_functonal (str): The name of an Exchange-Correlation functional to be used for DFT.
+        xc_functional (str): The name of an Exchange-Correlation functional to be used for DFT.
         projector (str): Projector to screen out environment orbitals, One of 'mu' or 'huzinaga'.
         localization (str): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
         convergence (float): The convergence tolerance for energy calculations.
@@ -103,7 +103,7 @@ class NbedDriver:
         mu_level_shift: Optional[float] = 1e6,
         run_ccsd_emb: Optional[bool] = False,
         run_fci_emb: Optional[bool] = False,
-        run_virtual_localization: Optional[bool] = False,
+        run_virtual_localization: Optional[bool] = True,
         run_dft_in_dft: Optional[bool] = False,
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
@@ -271,7 +271,7 @@ class NbedDriver:
 
         Note this is necessary to perform localization procedure.
         """
-        logger.debug("Running full system RKS DFT.")
+        logger.debug("Running full system KS DFT.")
         mol_full = self._build_mol()
 
         global_ks = scf.RKS(mol_full) if self._restricted_scf else scf.UKS(mol_full)
@@ -361,7 +361,7 @@ class NbedDriver:
         Note this function overwrites the total number of electrons to only include active number.
 
         Args:
-            xc_functonal (str): XC functional to use in embedded calculation.
+            xc_functional (str): XC functional to use in embedded calculation.
 
         Returns:
             local_ks (pyscf.dft.rks.RKS or pyscf.dft.uks.UKS): embedded Kohn-Sham DFT object.
@@ -528,7 +528,7 @@ class NbedDriver:
     def _run_emb_CCSD(
         self,
         emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
-        frozen_orb_list: Optional[list] = None,
+        frozen: Optional[list] = None,
     ) -> Tuple[cc.CCSD, float]:
         """Function run CCSD on embedded restricted Hartree Fock object.
 
@@ -537,20 +537,18 @@ class NbedDriver:
 
         Args:
             emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
-            frozen_orb_list (List): A path to an .xyz file describing molecular geometry.
+            frozen (List): A path to an .xyz file describing molecular geometry.
 
         Returns:
             ccsd (cc.CCSD): PySCF CCSD object
             e_ccsd_corr (float): electron correlation CCSD energy
         """
         logger.debug("Starting embedded CCSD calculation.")
-        ccsd = cc.CCSD(emb_pyscf_scf_rhf)
+        ccsd = cc.CCSD(emb_pyscf_scf_rhf, frozen=frozen)
         ccsd.conv_tol = self.convergence
         ccsd.max_memory = self.max_ram_memory
         ccsd.verbose = self.pyscf_print_level
 
-        # Set which orbitals are to be frozen
-        ccsd.frozen = frozen_orb_list
         e_ccsd_corr, _, _ = ccsd.kernel()
         logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
         return ccsd, e_ccsd_corr
@@ -558,7 +556,7 @@ class NbedDriver:
     def _run_emb_FCI(
         self,
         emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
-        frozen_orb_list: Optional[list] = None,
+        frozen: Optional[list] = None,
     ) -> fci.FCI:
         """Function run FCI on embedded restricted Hartree Fock object.
 
@@ -567,18 +565,28 @@ class NbedDriver:
 
         Args:
             emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
-            frozen_orb_list (List): A path to an .xyz file describing moleclar geometry.
+            frozen (List): A path to an .xyz file describing moleclar geometry.
 
         Returns:
             fci_scf (fci.FCI): PySCF FCI object
         """
         logger.debug("Starting embedded FCI calculation.")
-        fci_scf = fci.FCI(emb_pyscf_scf_rhf)
+        if frozen is None:
+            fci_scf = fci.FCI(emb_pyscf_scf_rhf)
+        else:
+            from pyscf import mcscf
+
+            fci_scf = mcscf.CASSCF(
+                emb_pyscf_scf_rhf,
+                emb_pyscf_scf_rhf.mol.nelec,
+                emb_pyscf_scf_rhf.mol.nao - len(frozen),
+            )
+            fci_scf.sort_mo(
+                [i + 1 for i in range(emb_pyscf_scf_rhf.mol.nao) if i not in frozen]
+            )
         fci_scf.conv_tol = self.convergence
         fci_scf.verbose = self.pyscf_print_level
         fci_scf.max_memory = self.max_ram_memory
-
-        fci_scf.frozen = frozen_orb_list
         fci_scf.run()
         logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
         return fci_scf
@@ -1019,13 +1027,12 @@ class NbedDriver:
             if self.run_virtual_localization is True:
                 logger.debug("Performing virtual localization.")
                 self.localized_system.localize_virtual(result["scf"])
+                self.cl_shells = self.localized_system.shells
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
                 logger.debug("Performing CCSD-in-DFT embedding.")
-                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(
-                    result["scf"], frozen_orb_list=None
-                )
+                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(result["scf"], frozen=None)
                 result["e_ccsd"] = (
                     ccsd_emb.e_tot
                     + self.e_env
@@ -1033,13 +1040,13 @@ class NbedDriver:
                     - result["correction"]
                     - result["beta_correction"]
                 )
-                result["ccsd_emb"] = ccsd_emb.e_hf - e_ccsd_corr - e_nuc
+                result["ccsd_emb"] = ccsd_emb.e_tot - e_nuc
 
                 logger.info(f"CCSD Energy {name}:\t{result['e_ccsd']}")
 
             if self.run_fci_emb is True:
                 logger.debug("Performing FCI-in-DFT embedding.")
-                fci_emb = self._run_emb_FCI(result["scf"], frozen_orb_list=None)
+                fci_emb = self._run_emb_FCI(result["scf"], frozen=None)
                 result["e_fci"] = (
                     (fci_emb.e_tot)
                     + self.e_env

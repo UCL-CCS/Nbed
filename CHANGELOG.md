@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## UNRELEASED
+### Fixed
+- Typo on `xc_functional` arg for driver
+- HamiltonianBuilder sets occupancy correctly for both restricted and unrestricted
+- issue with concentric localization which left `c_ispan` unchanged over iterations
+- error in `test_localizers.py` which had incorrect shell sizes in assert
+
+### Changed
+- Driver defaults to `run_virtual_localization=True`
+- `frozen_orb_list` of embedded PySCF functions renamed `frozen` in line with PySCF
+- readthedocs config updated to python3.9
+
+### Added
+- `frozen` option for FCI calls CASSCF
+- `driver.cl_shells` attribute assigned when concentric localization is run
+- `SpadeLocalizer.singular_values` and `.shells` properties 
+
 ## [0.0.3]
 ### Fixed
 - Correct error in embedded CCSD energy.
