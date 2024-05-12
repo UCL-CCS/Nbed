@@ -361,7 +361,7 @@ class NbedDriver:
         Note this function overwrites the total number of electrons to only include active number.
 
         Args:
-            xc_functonal (str): XC functional to use in embedded calculation.
+            xc_functional (str): XC functional to use in embedded calculation.
 
         Returns:
             local_ks (pyscf.dft.rks.RKS or pyscf.dft.uks.UKS): embedded Kohn-Sham DFT object.
