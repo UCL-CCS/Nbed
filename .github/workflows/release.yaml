@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ['3.8','3.10']
+        python-version: ['3.9','3.10','3.11']
     steps:
       - uses: actions/checkout@v2
       - name: Set up python
@@ -23,13 +23,21 @@ jobs:
         run: |
           pip install poetry
           poetry install
-      - name: Linting
-        run: |
-          poetry run pydocstyle --convention=google
-          poetry run isort . --check
-          poetry run black . --check
-          poetry run flake8 . --ignore E501,F401,W503 --count
+    lint:
+      needs: build
+      steps:
+      - name: pydocstyle
+        run: poetry run pydocstyle --convention=google
+      -name: isort
+        run: poetry run isort . --check
+      - name: black
+        run: poetry run black . --check
+      - name: flake8
+        run: poetry run flake8 . --ignore E501,F401,W503 --count
         continue-on-error: True
+    test:
+      needs: build
+      steps:
       - name: Testing
         run: |
           poetry run pytest 
