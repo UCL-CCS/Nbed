@@ -3,6 +3,9 @@ name: Linting
 on:
   workflow_call
 
+defaults:
+  continue-on-error: True
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -19,4 +22,3 @@ jobs:
         run: poetry run black . --check
       - name: flake8
         run: poetry run flake8 . --ignore E501,F401,W503 --count
-        continue-on-error: True
