@@ -1,20 +1,10 @@
 name: Testing
 
-<<<<<<< HEAD
 on: [workflow_call]
-jobs:
-  test:
-    runs-on: ubuntu-latests
-=======
-on:
-  workflow_call
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    defaults:
-      continue-on-error: True
->>>>>>> bfb9069fff47a4d4f7597e3f0d72a8bc09c4e07d
+    runs-on: ubuntu-latests
     steps:
       - uses: actions/setup-python@v2
         with:

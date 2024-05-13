@@ -1,13 +1,7 @@
 name: Linting
 
-<<<<<<< HEAD
 on: [workflow_call]
     
-=======
-on:
-  workflow_call
-
->>>>>>> bfb9069fff47a4d4f7597e3f0d72a8bc09c4e07d
 jobs:
   lint:
     runs-on: ubuntu-latest

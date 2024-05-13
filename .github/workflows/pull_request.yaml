@@ -1,13 +1,12 @@
 name: PR CICD
-on:
+on: [workflow_dispatch]
   pull_request:
     branches:
       - master
     types:
       - opened
       - edited
-  workflow_dispatch
-
+  
 jobs:
   build:
     runs-on: ubuntu-latest
