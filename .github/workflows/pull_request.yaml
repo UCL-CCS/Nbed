@@ -6,11 +6,7 @@ on:
     types:
       - opened
       - edited
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to test'
-        required: true
+  workflow_dispatch
 jobs:
   build:
     runs-on: ubuntu-latest
