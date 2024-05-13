@@ -29,22 +29,6 @@ jobs:
           pip install poetry
           poetry install
   lint:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: pydocstyle
-        run: poetry run pydocstyle --convention=google
-      - name: isort
-        run: poetry run isort . --check
-      - name: black
-        run: poetry run black . --check
-      - name: flake8
-        run: poetry run flake8 . --ignore E501,F401,W503 --count
-        continue-on-error: True
+    uses: ./.github/workflows/linting.yaml
   test:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Testing
-        run: |
-          poetry run pytest 
+    uses: ./.github/workflows/testing.yaml

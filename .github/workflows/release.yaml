@@ -10,6 +10,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: ['3.9','3.10','3.11']
     steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
       - uses: actions/checkout@v2
       - name: Set up python
         uses: actions/setup-python@v2
@@ -27,6 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
       - name: pydocstyle
         run: poetry run pydocstyle --convention=google
       - name: isort
@@ -40,6 +46,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
       - name: Testing
         run: |
           poetry run pytest 
