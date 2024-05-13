@@ -23,12 +23,14 @@ jobs:
     lint:
       needs: build
       steps:
-      - name: Linting
-        run: |
-          poetry run pydocstyle --convention=google
-          poetry run isort . --check
-          poetry run black . --check
-          poetry run flake8 . --ignore E501,F401,W503 --count
+      - name: pydocstyle
+        run: poetry run pydocstyle --convention=google
+      -name: isort
+        run: poetry run isort . --check
+      - name: black
+        run: poetry run black . --check
+      - name: flake8
+        run: poetry run flake8 . --ignore E501,F401,W503 --count
         continue-on-error: True
     test:
       needs: build
