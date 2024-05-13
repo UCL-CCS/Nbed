@@ -20,9 +20,9 @@ jobs:
         run: |
           pip install poetry
           poetry install
-    lint:
-      needs: build
-      steps:
+  lint:
+    needs: build
+    steps:
       - name: pydocstyle
         run: poetry run pydocstyle --convention=google
       -name: isort
@@ -32,9 +32,9 @@ jobs:
       - name: flake8
         run: poetry run flake8 . --ignore E501,F401,W503 --count
         continue-on-error: True
-    test:
-      needs: build
-      steps:
+  test:
+    needs: build
+    steps:
       - name: Testing
         run: |
           poetry run pytest 
