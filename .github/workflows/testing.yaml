@@ -3,12 +3,11 @@ name: Testing
 on:
   workflow_call
 
-defaults:
-  continue-on-error: True
-
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      continue-on-error: True
     steps:
       - uses: actions/setup-python@v2
         with:
