@@ -19,7 +19,7 @@ jobs:
       - name: Set up python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.8'
+          python-version: '3.9'
       - name: Pip install package
         run: |
           python -m pip install --upgrade pip
@@ -28,6 +28,9 @@ jobs:
         run: |
           pip install poetry
           poetry install
+    lint:
+      needs: build
+      steps:
       - name: Linting
         run: |
           poetry run pydocstyle --convention=google
@@ -35,6 +38,9 @@ jobs:
           poetry run black . --check
           poetry run flake8 . --ignore E501,F401,W503 --count
         continue-on-error: True
+    test:
+      needs: build
+      steps:
       - name: Testing
         run: |
           poetry run pytest 
