@@ -20,6 +20,7 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: '3.9'
+          cache: 'poetry'
       - name: Pip install package
         run: |
           python -m pip install --upgrade pip
@@ -28,7 +29,9 @@ jobs:
         run: |
           pip install poetry
           poetry install
-  lint:
-    uses: ./.github/workflows/linting.yaml
-  test:
-    uses: ./.github/workflows/testing.yaml
+    lint:
+      name: Linting
+      uses: ./.github/workflows/linting.yaml
+    test:
+      name: Testing
+      uses: ./.github/workflows/testing.yaml

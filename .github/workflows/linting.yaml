@@ -1,14 +1,12 @@
 name: Linting
 
-on:
-  workflow_call
-
-defaults:
-  continue-on-error: True
-
+on: [workflow_call]
+    
 jobs:
   lint:
     runs-on: ubuntu-latest
+    defaults:
+      continue-on-error: True
     steps:
       - uses: actions/setup-python@v2
         with:
