@@ -28,7 +28,7 @@ jobs:
     steps:
       - name: pydocstyle
         run: poetry run pydocstyle --convention=google
-      -name: isort
+      - name: isort
         run: poetry run isort . --check
       - name: black
         run: poetry run black . --check
