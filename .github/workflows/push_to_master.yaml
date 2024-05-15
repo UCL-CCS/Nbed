@@ -1,4 +1,4 @@
-name: PR CICD
+name: Push to Master CICD
 on: 
   push:
     branches:
