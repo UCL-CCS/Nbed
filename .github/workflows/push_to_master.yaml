@@ -3,6 +3,11 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to test'
+        required: true
 jobs:
   build:
     runs-on: ubuntu-latest
