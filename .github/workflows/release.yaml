@@ -33,7 +33,18 @@ jobs:
       - name: Testing
         run: |
           poetry run pytest 
+  publish:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Install poetry
+        run: |
+          pip install poetry
       - name: Build and publish
         run: |
-          poetry build
           poetry publish --build -u ${{secrets.PYPI_USERNAME}} -p ${{secrets.PYPI_PASSWORD}}
