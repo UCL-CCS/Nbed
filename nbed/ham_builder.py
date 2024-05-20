@@ -311,8 +311,8 @@ class HamiltonianBuilder:
             self.occupancy = self.scf_method.mo_occ[active_indices]
 
         logger.debug("Active space reduced.")
-        logger.debug(f"{one_body_integrals_new.shape}")
-        logger.debug(f"{two_body_integrals_new.shape}")
+        logger.debug(f"{one_body_integrals_new.shape=}")
+        logger.debug(f"{two_body_integrals_new.shape=}")
         return core_constant, one_body_integrals_new, two_body_integrals_new
 
     def _spinorb_from_spatial(
