@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## UNRELEASED
+## [0.0.4]
 ### Fixed
 - Typo on `xc_functional` arg for driver
 - HamiltonianBuilder sets occupancy correctly for both restricted and unrestricted
@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Driver defaults to `run_virtual_localization=True`
 - `frozen_orb_list` of embedded PySCF functions renamed `frozen` in line with PySCF
 - readthedocs config updated to python3.9
+- readthedocs build controlled directly with commands
 
 ### Added
 - `frozen` option for FCI calls CASSCF

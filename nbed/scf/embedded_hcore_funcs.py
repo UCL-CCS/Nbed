@@ -10,7 +10,6 @@ def energy_elec(mf, dm=None, h1e=None, vhf=None) -> Tuple[float, float]:
     """Electronic energy of Unrestricted Hartree-Fock.
 
     Note this function has side effects which cause mf.scf_summary updated.
-    This version is
 
     Args:
         mf (pyscf.scf.hf.HF): Hartree-Fock object
