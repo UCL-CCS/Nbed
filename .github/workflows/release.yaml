@@ -1,14 +1,14 @@
 name: Release CICD
 on:
   release:
-    types: [prereleased]
+    types: [published]
 jobs:
   build:
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ['3.9','3.10']
+        python-version: ['3.9']
     steps:
       - uses: actions/checkout@v2
       - name: Set up python
@@ -33,3 +33,22 @@ jobs:
       - name: Testing
         run: |
           poetry run pytest 
+  publish:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Install poetry
+        run: pip install poetry
+      - name: Build
+        run: |
+          poetry config repositories.testpypi https://test.pypi.org/legacy/
+          poetry build
+      - name: Publish to testpypi
+        run: poetry publish -r testpypi --skip-existing -u ${{secrets.PYPI_USERNAME}} -p ${{secrets.TESTPYPI_PASSWORD}}        
+      - name: Publish to pypi
+        run: poetry publish -u ${{secrets.PYPI_USERNAME}} -p ${{secrets.PYPI_PASSWORD}}
