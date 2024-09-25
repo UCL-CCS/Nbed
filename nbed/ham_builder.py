@@ -303,12 +303,24 @@ class HamiltonianBuilder:
             )
         ]
 
+        """
         if self.scf_method.mo_occ.ndim == 1:
             self.occupancy = self.scf_method.mo_occ[active_indices]
         else:
             self.occupancy = np.vstack(
                 (self.scf_method.mo_occ[0], self.scf_method.mo_occ[1])
             )[:, active_indices]
+        """
+
+        # if restricted, first mo_occ element will be float, otherwise it should be a ndarray for alpha electrons
+        if isinstance(self.scf_method.mo_occ[0], np.float64):
+            self.occupancy = self.scf_method.mo_occ[active_indices]
+        elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
+            self.occupancy = np.vstack(
+                (self.scf_method.mo_occ[0], self.scf_method.mo_occ[1])
+                )[:, active_indices]
+        else:
+            raise HamiltonianBuilderError("occupancy dimension error")
 
         logger.debug("Active space reduced.")
         logger.debug(f"{one_body_integrals_new.shape}")
