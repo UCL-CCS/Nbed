@@ -17,6 +17,7 @@ from qiskit.opflow import Z2Symmetries
 from symmer.operators import PauliwordOp
 from symmer.projection import QubitSubspaceManager, QubitTapering
 from typing_extensions import final
+from numbers import Number
 
 from nbed.exceptions import HamiltonianBuilderError
 from nbed.ham_converter import HamiltonianConverter
@@ -303,17 +304,17 @@ class HamiltonianBuilder:
             )
         ]
 
-        """
-        if self.scf_method.mo_occ.ndim == 1:
-            self.occupancy = self.scf_method.mo_occ[active_indices]
-        else:
-            self.occupancy = np.vstack(
-                (self.scf_method.mo_occ[0], self.scf_method.mo_occ[1])
-            )[:, active_indices]
-        """
-
+        # For some reason the UHF mo_occ is stored as a one-dimensional array of dtype=object, 
+        # where each entry is itself an array. Therefore, ndim=1, when it should be 2. Old code:
+        # if self.scf_method.mo_occ.ndim == 1:
+        #     self.occupancy = self.scf_method.mo_occ[active_indices]
+        # else:
+        #     self.occupancy = np.vstack(
+        #         (self.scf_method.mo_occ[0], self.scf_method.mo_occ[1])
+        #     )[:, active_indices]
+        
         # if restricted, first mo_occ element will be float, otherwise it should be a ndarray for alpha electrons
-        if isinstance(self.scf_method.mo_occ[0], np.float64):
+        if isinstance(self.scf_method.mo_occ[0], Number):
             self.occupancy = self.scf_method.mo_occ[active_indices]
         elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
             self.occupancy = np.vstack(
