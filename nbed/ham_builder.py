@@ -457,8 +457,10 @@ class HamiltonianBuilder:
             core_indices = np.array(core_indices)
             active_indices = np.array(active_indices)
 
+        """
         if taper is True and self._restricted is False:
             raise HamiltonianBuilderError("Unrestricted tapering not implemented.")
+        """
 
         if n_qubits == 0:
             logger.error("n_qubits input as 0.")
