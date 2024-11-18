@@ -76,7 +76,7 @@ class HamiltonianBuilder:
                 c_matrix_active[0].T @ hcore[0] @ c_matrix_active[0]
             )
             one_body_integrals_beta = (
-                c_matrix_active[1].T @ hcore[0] @ c_matrix_active[1]
+                c_matrix_active[1].T @ hcore[1] @ c_matrix_active[1]
             )
 
             one_body_integrals = np.array(
