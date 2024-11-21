@@ -9,7 +9,7 @@ from typing import Callable, Dict, Optional, Tuple, Union
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
-from pyscf import cc, dft, fci, gto, scf, qmmm
+from pyscf import cc, dft, fci, gto, scf
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
@@ -116,10 +116,6 @@ class NbedDriver:
         max_dft_cycles: int = 50,
         return_dict: Optional[bool] = False,
         force_unrestricted: Optional[bool] = False,
-        run_qmmm: Optional[bool] = False,
-        mm_coords: Optional[list] = None,
-        mm_charges: Optional[list] = None,
-        mm_radii: Optional[list] = None,
     ):
         """Initialise class."""
         logger.debug("Initialising driver.")
@@ -164,10 +160,6 @@ class NbedDriver:
         self.max_shells = max_shells
         self.max_hf_cycles = max_hf_cycles
         self.max_dft_cycles = max_dft_cycles
-        self.run_qmmm = run_qmmm
-        self.mm_coords = mm_coords
-        self.mm_charges = mm_charges
-        self.mm_radii = mm_radii
 
         self._check_active_atoms()
         self.localized_system = None
@@ -287,11 +279,6 @@ class NbedDriver:
         global_ks.max_memory = self.max_ram_memory
         global_ks.verbose = self.pyscf_print_level
         global_ks.max_cycle = self.max_dft_cycles
-
-        if self.run_qmmm:
-            logger.debug("QM/MM: running full system KS DFT in presence of point charges.")
-            global_ks = qmmm.mm_charge(global_ks, self.mm_coords, self.mm_charges, self.mm_radii)
-
         global_ks.kernel()
         logger.info(f"Global RKS: {global_ks.e_tot}")
 
