@@ -17,6 +17,7 @@ from qiskit.opflow import Z2Symmetries
 from symmer.operators import PauliwordOp
 from symmer.projection import QubitSubspaceManager, QubitTapering
 from typing_extensions import final
+from numbers import Number
 
 from nbed.exceptions import HamiltonianBuilderError
 from nbed.ham_converter import HamiltonianConverter
@@ -303,12 +304,15 @@ class HamiltonianBuilder:
             )
         ]
 
-        if self.scf_method.mo_occ.ndim == 1:
+        # if restricted, first mo_occ element will be float, otherwise it should be a ndarray for alpha electrons
+        if isinstance(self.scf_method.mo_occ[0], Number):
             self.occupancy = self.scf_method.mo_occ[active_indices]
-        else:
+        elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
             self.occupancy = np.vstack(
                 (self.scf_method.mo_occ[0], self.scf_method.mo_occ[1])
-            )[:, active_indices]
+                )[:, active_indices]
+        else:
+            raise HamiltonianBuilderError("Could not determine SCF restriction from MO occupancy.")
 
         logger.debug("Active space reduced.")
         logger.debug(f"{one_body_integrals_new.shape}")
@@ -444,8 +448,10 @@ class HamiltonianBuilder:
             core_indices = np.array(core_indices)
             active_indices = np.array(active_indices)
 
+        """
         if taper is True and self._restricted is False:
             raise HamiltonianBuilderError("Unrestricted tapering not implemented.")
+        """
 
         if n_qubits == 0:
             logger.error("n_qubits input as 0.")
