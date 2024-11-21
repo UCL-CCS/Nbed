@@ -321,7 +321,7 @@ class HamiltonianBuilder:
                 (self.scf_method.mo_occ[0], self.scf_method.mo_occ[1])
                 )[:, active_indices]
         else:
-            raise HamiltonianBuilderError("occupancy dimension error")
+            raise HamiltonianBuilderError("Could not determine SCF restriction from MO occupancy.")
 
         logger.debug("Active space reduced.")
         logger.debug(f"{one_body_integrals_new.shape}")
