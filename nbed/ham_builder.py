@@ -304,15 +304,6 @@ class HamiltonianBuilder:
             )
         ]
 
-        # For some reason the UHF mo_occ is stored as a one-dimensional array of dtype=object, 
-        # where each entry is itself an array. Therefore, ndim=1, when it should be 2. Old code:
-        # if self.scf_method.mo_occ.ndim == 1:
-        #     self.occupancy = self.scf_method.mo_occ[active_indices]
-        # else:
-        #     self.occupancy = np.vstack(
-        #         (self.scf_method.mo_occ[0], self.scf_method.mo_occ[1])
-        #     )[:, active_indices]
-        
         # if restricted, first mo_occ element will be float, otherwise it should be a ndarray for alpha electrons
         if isinstance(self.scf_method.mo_occ[0], Number):
             self.occupancy = self.scf_method.mo_occ[active_indices]
