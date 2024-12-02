@@ -432,7 +432,7 @@ class HamiltonianBuilder:
         # index the frozen orbitals positions:
         frozen_spatial_orbital_indices = np.append(
             np.argsort(self.scf_method.mo_energy[0])[: self.n_frozen_core],
-            np.argsort(self.scf_method.mo_energy[0])[nao - self.n_frozen_virt :],
+            np.argsort(self.scf_method.mo_energy[0])[nao - self.n_frozen_virt:],
         )
         frozen_spin_orbital_indices = np.sort(
             np.append(
