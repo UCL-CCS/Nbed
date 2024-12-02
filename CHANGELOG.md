@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Fixed
+
+### Changed
+- black version update to `>22` from `^22`
+- `HamConverter` now uses `SparsePauliOp` rather than `PauliSumOp`.
+- Symmer version dependency updates to `0.0.6`
+
+### Added
+- `run_qmmm`, `mm_coords`, `mm_charges`, `mm_radii` and `symmetry` attributes for NbedDriver. 
+
 ## [0.0.4]
 ### Fixed
 - Typo on `xc_functional` arg for driver
