@@ -49,6 +49,9 @@ class HamiltonianBuilder:
             scf_method: Pyscf scf object.
             constant_e_shift: Constant energy shift to apply to the Hamiltonian.
             transform: Transformation to apply to the Hamiltonian.
+            auto_freeze_core: Automatically freeze core orbitals.
+            n_frozen_core: Number of core orbitals to freeze.
+            n_frozen_virt: Number of virtual orbitals to freeze.
         """
         logger.debug("Initialising HamiltonianBuilder.")
         logger.debug(type(scf_method))
@@ -338,7 +341,7 @@ class HamiltonianBuilder:
         return qubit_hamiltonain
 
     def get_hartree_fock_state(self):
-        """Returns the Hartree-Fock state |1,...,1,0,...,0>"""
+        """Returns the Hartree-Fock state |1,...,1,0,...,0>."""
         logger.debug(f"{self.occupancy=}")
         electrons = self.occupancy.sum()
         virtuals = (2 * self.occupancy.shape[-1]) - self.occupancy.sum()
@@ -403,12 +406,12 @@ class HamiltonianBuilder:
 
     @cached_property
     def H(self) -> PauliwordOp:
-        """The full, untapered, unfrozen Hamiltonian"""
+        """The full, untapered, unfrozen Hamiltonian."""
         return PauliwordOp.from_openfermion(self.build())
 
     @cached_property
     def qubit_reduction_driver(self) -> S3Projection:
-        """Qubit tapering and frozen core reduction"""
+        """Qubit tapering and frozen core reduction."""
         if isinstance(self.scf_method.mo_occ[0], Number):
             mo_energy = self.scf_method.mo_energy
         elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
@@ -452,6 +455,7 @@ class HamiltonianBuilder:
 
     def reduce(self, operator: PauliwordOp = None) -> PauliwordOp:
         """Perform qubit reduction over the input operator.
+
         If None set, then will take the full molecular Hamiltonian.
         """
         if operator is None:
@@ -465,7 +469,7 @@ class HamiltonianBuilder:
 
 
 def array_to_dict_nonzero_indices(arr, tol=1e-10):
-    """ """
+    """Convert an array to a dict for the non-zero indices."""
     where_nonzero = np.where(~np.isclose(arr, 0, atol=tol))
     nonzero_indices = list(zip(*where_nonzero))
     return dict(zip(nonzero_indices, arr[where_nonzero]))
@@ -474,14 +478,13 @@ def array_to_dict_nonzero_indices(arr, tol=1e-10):
 def fermion_to_qubit_operator(
     fermionic_operator: FermionOperator, n_qubits: int = None
 ):
-    """
-    Function to convert from fermion operators to qubit operators.
-    Note see openfermion.transforms for different fermion to qubit mappings
+    """Function to convert from fermion operators to qubit operators.
+    
+    Note: see `openfermion.transforms` for different fermion to qubit mappings
 
     Args:
         Fermionic_operator(FermionOperator): any fermionic operator (openfermion)
-        qubit_mapping_str (str): fermion to qubit mapping
-        N_qubits (int): number of qubits (or spin orbitals)
+        n_qubits (int): number of qubits (or spin orbitals)
 
     Returns:
         qubit_operator (PauliwordOp): qubit operator of fermonic operator (under certain mapping)
@@ -497,15 +500,16 @@ def get_coupled_cluster_operator(
     t2=None,
     hf_array=None,
     operator_type="qubit",
-    qubit_transformation="JW",
     orbspin=None,
-):
-    """ """
+)   -> Union[FermionOperator, PauliwordOp]:
+    """Build a coupled cluster operator from t1 and t2 amplitudes."""
     if cc_obj is not None:
         t1 = spatial2spin(cc_obj.t1, orbspin=orbspin)
         t2 = spatial2spin(cc_obj.t2, orbspin=orbspin)
-    else:
-        assert t1 is not None and t2 is not None, "Must supply t1 and t2 matrices"
+    elif t1 is None and t2 is None:
+            error_string = "Must supply t1 and t2 matrices."
+            logger.error(error_string)
+            raise HamiltonianBuilderError(error_string)
 
     no, nv = t1.shape
     nmo = no + nv
@@ -542,8 +546,8 @@ def get_coupled_cluster_operator(
     if operator_type == "fermion":
         return generator
     elif operator_type == "qubit":
-        return fermion_to_qubit_operator(generator, n_qubits=nmo)
-
+        pwop: PauliwordOp = fermion_to_qubit_operator(generator, n_qubits=nmo)
+        return pwop
 
 def to_openfermion(pwop: PauliwordOp) -> QubitOperator:
     """Convert to OpenFermion Pauli operator representation.
