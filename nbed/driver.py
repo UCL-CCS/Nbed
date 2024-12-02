@@ -9,7 +9,7 @@ from typing import Callable, Dict, Optional, Tuple, Union
 import numpy as np
 import scipy as sp
 from cached_property import cached_property
-from pyscf import cc, dft, fci, gto, scf, qmmm
+from pyscf import cc, dft, fci, gto, qmmm, scf
 from pyscf.lib import StreamObject
 
 from nbed.exceptions import NbedConfigError
@@ -293,8 +293,12 @@ class NbedDriver:
         global_ks.max_cycle = self.max_dft_cycles
 
         if self.run_qmmm:
-            logger.debug("QM/MM: running full system KS DFT in presence of point charges.")
-            global_ks = qmmm.mm_charge(global_ks, self.mm_coords, self.mm_charges, self.mm_radii)
+            logger.debug(
+                "QM/MM: running full system KS DFT in presence of point charges."
+            )
+            global_ks = qmmm.mm_charge(
+                global_ks, self.mm_coords, self.mm_charges, self.mm_radii
+            )
 
         global_ks.kernel()
         logger.info(f"Global RKS: {global_ks.e_tot}")
@@ -365,7 +369,9 @@ class NbedDriver:
 
         if self.run_qmmm:
             logger.debug("QM/MM: running local SCF in presence of point charges.")
-            local_hf = qmmm.mm_charge(local_hf, self.mm_coords, self.mm_charges, self.mm_radii)
+            local_hf = qmmm.mm_charge(
+                local_hf, self.mm_coords, self.mm_charges, self.mm_radii
+            )
 
         local_hf.max_memory = self.max_ram_memory
         local_hf.conv_tol = self.convergence
