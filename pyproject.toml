@@ -27,7 +27,7 @@ pyscf = "^2.3.0"
 grpcio = "^1.59.0"
 
 [tool.poetry.group.dev.dependencies]
-black = "^22.0.0"
+black = ">22.0.0"
 flake8 = ">=4.0.0, <5"
 pydocstyle = "^6.1.1"
 pytest = "^7.2.2"
