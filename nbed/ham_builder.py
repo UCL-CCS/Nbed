@@ -1,25 +1,27 @@
 """Class to build qubit Hamiltonians from scf object."""
+
 import logging
-from typing import List, Optional, Tuple, Union
+import warnings
+from numbers import Number
+from typing import Optional, Tuple
 
 import numpy as np
 import openfermion.transforms as of_transforms
 from cached_property import cached_property
-from openfermion import InteractionOperator, QubitOperator, count_qubits
-from openfermion.chem.molecular_data import spinorb_from_spatial
+from openfermion import (
+    FermionOperator,
+    InteractionOperator,
+    QubitOperator,
+    count_qubits,
+)
 from openfermion.config import EQ_TOLERANCE
-from openfermion.ops.representations import get_active_space_integrals
-from openfermion.transforms import taper_off_qubits
+from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, dft, scf
 from pyscf.lib import StreamObject
-from pyscf.lib.numpy_helper import SYMMETRIC
-from qiskit.opflow import Z2Symmetries
-from symmer.operators import PauliwordOp
-from symmer.projection import QubitSubspaceManager, QubitTapering
-from typing_extensions import final
+from symmer.operators import IndependentOp, PauliwordOp, QuantumState
+from symmer.projection import QubitTapering, S3Projection
 
 from nbed.exceptions import HamiltonianBuilderError
-from nbed.ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,9 @@ class HamiltonianBuilder:
         scf_method: StreamObject,
         constant_e_shift: Optional[float] = 0,
         transform: Optional[str] = "jordan_wigner",
+        auto_freeze_core: bool = False,
+        n_frozen_core: int = 0,
+        n_frozen_virt: int = 0,
     ) -> None:
         """Initialise the HamiltonianBuilder.
 
@@ -39,16 +44,30 @@ class HamiltonianBuilder:
             scf_method: Pyscf scf object.
             constant_e_shift: Constant energy shift to apply to the Hamiltonian.
             transform: Transformation to apply to the Hamiltonian.
+            auto_freeze_core: Automatically freeze core orbitals.
+            n_frozen_core: Number of core orbitals to freeze.
+            n_frozen_virt: Number of virtual orbitals to freeze.
         """
         logger.debug("Initialising HamiltonianBuilder.")
         logger.debug(type(scf_method))
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
         self.transform = transform
+        self.auto_freeze_core = auto_freeze_core
+        self.n_frozen_core = n_frozen_core
+        self.n_frozen_virt = n_frozen_virt
         self._restricted = isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
-        self.occupancy = (
-            self.scf_method.mo_occ
-        )  # if self._restricted else self.scf_method.mo_occ.sum(axis=1)
+        # self.occupancy = (
+        #     self.scf_method.mo_occ
+        # )  # if self._restricted else self.scf_method.mo_occ.sum(axis=1)
+        if isinstance(self.scf_method.mo_occ[0], Number):
+            self.occupancy = self.scf_method.mo_occ
+        elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
+            self.occupancy = np.vstack(
+                (self.scf_method.mo_occ[0], self.scf_method.mo_occ[1])
+            )
+        else:
+            raise HamiltonianBuilderError("occupancy dimension error")
 
     @property
     def _one_body_integrals(self) -> np.ndarray:
@@ -221,100 +240,6 @@ class HamiltonianBuilder:
         logger.debug(f"Removed virtual indices {removed_virtual}.")
         return core_indices, active_indices
 
-    def _reduce_active_space(
-        self,
-        one_body_integrals: np.ndarray,
-        two_body_integrals: np.ndarray,
-        core_indices: np.ndarray,
-        active_indices: np.ndarray,
-    ) -> Tuple[float, np.ndarray, np.ndarray]:
-        """Reduce the active space to accommodate a certain number of qubits.
-
-        Args:
-            one_body_integrals (np.ndarray): One-electron integrals in physicist notation.
-            two_body_integrals (np.ndarray): Two-electron integrals in physicist notation.
-            core_indices (np.ndarray): Indices of core orbitals.
-            active_indices (np.ndarray): Indices of active orbitals.
-        """
-        logger.debug("Reducing the active space.")
-        logger.debug(f"{core_indices=}")
-        logger.debug(f"{active_indices=}")
-
-        core_indices = np.array(core_indices)
-        active_indices = np.array(active_indices)
-
-        # Determine core constant
-        core_constant = 0.0
-        if core_indices.ndim != 1:
-            logger.error("Core indices given as dimension %s array.", core_indices.ndim)
-            raise HamiltonianBuilderError("Core indices must be 1D array.")
-        if active_indices.ndim != 1:
-            logger.error(
-                "Active indices given as dimension %s array.", active_indices.ndim
-            )
-            raise HamiltonianBuilderError("Active indices must be 1D array.")
-        if set(core_indices).intersection(set(active_indices)) != set():
-            logger.error("Core and active indices overlap.")
-            raise HamiltonianBuilderError("Core and active indices must not overlap.")
-        if len(core_indices) + len(active_indices) > self._one_body_integrals.shape[-1]:
-            logger.error("Too many indices given.")
-            raise HamiltonianBuilderError(
-                "Number of core and active indices must not exceed number of orbitals."
-            )
-
-        for i in core_indices:
-            core_constant += one_body_integrals[0, i, i]
-            core_constant += one_body_integrals[1, i, i]
-
-            for j in core_indices:
-                core_constant += (
-                    two_body_integrals[0, i, j, j, i]
-                    - two_body_integrals[0, i, j, i, j]
-                )
-                core_constant += (
-                    two_body_integrals[1, i, j, j, i]
-                    - two_body_integrals[1, i, j, i, j]
-                )
-
-        # Modified one electron integrals
-        one_body_integrals_new = np.copy(one_body_integrals)
-        for i in core_indices:
-            for u in active_indices:
-                for v in active_indices:
-                    one_body_integrals_new[0, u, v] += (
-                        two_body_integrals[0, i, u, v, i]
-                        - two_body_integrals[0, i, u, i, v]
-                    )
-                    one_body_integrals_new[1, u, v] += (
-                        two_body_integrals[1, i, u, v, i]
-                        - two_body_integrals[1, i, u, i, v]
-                    )
-
-        one_body_integrals_new = one_body_integrals_new[
-            np.ix_([0, 1], active_indices, active_indices)
-        ]
-        two_body_integrals_new = two_body_integrals[
-            np.ix_(
-                [0, 1, 2, 3],
-                active_indices,
-                active_indices,
-                active_indices,
-                active_indices,
-            )
-        ]
-
-        if self.scf_method.mo_occ.ndim == 1:
-            self.occupancy = self.scf_method.mo_occ[active_indices]
-        else:
-            self.occupancy = np.vstack(
-                (self.scf_method.mo_occ[0], self.scf_method.mo_occ[1])
-            )[:, active_indices]
-
-        logger.debug("Active space reduced.")
-        logger.debug(f"{one_body_integrals_new.shape}")
-        logger.debug(f"{two_body_integrals_new.shape}")
-        return core_constant, one_body_integrals_new, two_body_integrals_new
-
     def _spinorb_from_spatial(
         self, one_body_integrals: np.ndarray, two_body_integrals: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -352,20 +277,20 @@ class HamiltonianBuilder:
                     for s in range(n_qubits // 2):
 
                         # Same spin
-                        two_body_coefficients[
-                            2 * p, 2 * q, 2 * r, 2 * s
-                        ] = two_body_integrals[0, p, q, r, s]
+                        two_body_coefficients[2 * p, 2 * q, 2 * r, 2 * s] = (
+                            two_body_integrals[0, p, q, r, s]
+                        )
                         two_body_coefficients[
                             2 * p + 1, 2 * q + 1, 2 * r + 1, 2 * s + 1
                         ] = two_body_integrals[1, p, q, r, s]
 
                         # Mixed spin in physicist
-                        two_body_coefficients[
-                            2 * p, 2 * q + 1, 2 * r + 1, 2 * s
-                        ] = two_body_integrals[2, p, q, r, s]
-                        two_body_coefficients[
-                            2 * p + 1, 2 * q, 2 * r, 2 * s + 1
-                        ] = two_body_integrals[3, p, q, r, s]
+                        two_body_coefficients[2 * p, 2 * q + 1, 2 * r + 1, 2 * s] = (
+                            two_body_integrals[2, p, q, r, s]
+                        )
+                        two_body_coefficients[2 * p + 1, 2 * q, 2 * r, 2 * s + 1] = (
+                            two_body_integrals[3, p, q, r, s]
+                        )
 
         # Truncate.
         one_body_coefficients[np.absolute(one_body_coefficients) < EQ_TOLERANCE] = 0.0
@@ -410,13 +335,21 @@ class HamiltonianBuilder:
         logger.debug("Qubit Hamiltonian constructed.")
         return qubit_hamiltonain
 
+    def get_hartree_fock_state(self):
+        """Returns the Hartree-Fock state |1,...,1,0,...,0>."""
+        logger.debug(f"{self.occupancy=}")
+        electrons = self.occupancy.sum()
+        virtuals = (2 * self.occupancy.shape[-1]) - self.occupancy.sum()
+        logger.debug(f"{electrons=} {virtuals=}")
+        hf_state = np.hstack((np.ones(int(electrons)), np.zeros(int(virtuals)))).astype(
+            int
+        )
+        logger.debug(f"{hf_state=}")
+        return QuantumState(hf_state)
+
     def build(
         self,
-        n_qubits: Optional[int] = None,
-        taper: Optional[bool] = True,
-        contextual_space: Optional[bool] = False,
-        core_indices: Optional[List[int]] = None,
-        active_indices: Optional[List[int]] = None,
+        taper: bool = False,
     ) -> QubitOperator:
         """Returns second quantized fermionic molecular Hamiltonian.
 
@@ -438,125 +371,125 @@ class HamiltonianBuilder:
         Returns:
             molecular_hamiltonian (QubitOperator): Qubit Hamiltonian for molecular system.
         """
-        qubit_reduction = 0
-        indices_not_set = (core_indices is None) or (active_indices is None)
-        if indices_not_set is False:
-            core_indices = np.array(core_indices)
-            active_indices = np.array(active_indices)
+        if taper is not None:
+            logger.warning("Tapering is deprecated. Use the qubit_reduction_driver.")
 
-        if taper is True and self._restricted is False:
-            raise HamiltonianBuilderError("Unrestricted tapering not implemented.")
-
-        if n_qubits == 0:
-            logger.error("n_qubits input as 0.")
-            message = "n_qubits input as 0.\n"
-            +"Positive integers can be used to define total qubits used.\n"
-            +"Negative integers can be used to define a reduction."
-            raise HamiltonianBuilderError(message)
-        elif n_qubits is None:
-            logger.debug("No qubit reduction requested.")
-            if contextual_space is True:
-                logger.error("Contextual subspace requires a specifc qubit reduction.")
-                raise HamiltonianBuilderError(
-                    "Contextual subspace requires a specifc qubit reduction."
-                )
-        elif n_qubits < 0:
-            logger.debug("Interpreting negative n_qubits as reduction.")
-            n_qubits = (self._one_body_integrals.shape[-1] * 2) + n_qubits
-
-        logger.info("Building Hamiltonian for %s qubits.", n_qubits)
-
-        if indices_not_set:
-            logger.debug("No active space indices given.")
-            core_indices, active_indices = np.array([]), np.arange(
-                self._one_body_integrals.shape[-1]
-            )
-            logger.debug(f"{core_indices=}")
-            logger.debug(f"{active_indices=}")
-
-        max_cycles = 5
-        for i in range(1, max_cycles + 1):
-            one_body_integrals = self._one_body_integrals
-            two_body_integrals = self._two_body_integrals
-
-            (
-                core_constant,
-                one_body_integrals,
-                two_body_integrals,
-            ) = self._reduce_active_space(
-                one_body_integrals, two_body_integrals, core_indices, active_indices
-            )
-
-            one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
-                one_body_integrals, two_body_integrals
-            )
-            logger.debug(f"{one_body_coefficients.shape=}")
-            logger.debug(f"{two_body_coefficients.shape=}")
-
-            logger.debug("Building interaction operator.")
-            molecular_hamiltonian = InteractionOperator(
-                (self.constant_e_shift + core_constant),
-                one_body_coefficients,
-                0.5 * two_body_coefficients,
-            )
-            logger.debug(
-                f"{count_qubits(molecular_hamiltonian)} qubits in Hamiltonian."
-            )
-
-            qham = self._qubit_transform(self.transform, molecular_hamiltonian)
-
-            if taper is False and n_qubits is None:
-                logger.debug("Unreduced Hamiltonain found.")
-                return qham
-
+        logger.info("Building Hamiltonian")
+        one_body_integrals = self._one_body_integrals
+        two_body_integrals = self._two_body_integrals
+        one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
+            one_body_integrals, two_body_integrals
+        )
+        logger.debug(f"{one_body_coefficients.shape=}")
+        logger.debug(f"{two_body_coefficients.shape=}")
+        logger.debug("Building interaction operator.")
+        molecular_hamiltonian = InteractionOperator(
+            self.constant_e_shift,
+            one_body_coefficients,
+            0.5 * two_body_coefficients,
+        )
+        logger.debug(f"{count_qubits(molecular_hamiltonian)} qubits in Hamiltonian.")
+        qham = self._qubit_transform(self.transform, molecular_hamiltonian)
+        if taper:
+            # for legacy compatibility (recommended usage is via the qubit_reduction_driver)
             logger.debug("Converting to Symmer PauliWordOp")
             pwop = PauliwordOp.from_openfermion(qham)
-
             logger.debug("Creating reference state.")
-            logger.debug(f"{self.occupancy=}")
-            electrons = self.occupancy.sum()
-            virtuals = (2 * self.occupancy.shape[-1]) - self.occupancy.sum()
-            logger.debug(f"{electrons=} {virtuals=}")
-            hf_state = np.hstack((np.ones(int(electrons)), np.zeros(int(virtuals))))
-            logger.debug(f"{hf_state=}")
-
-            # We have to do these separately because QubitSubspaceManager requires n_qubits
-            if taper is True:
-                logger.debug("Running QubitTapering")
-                pwop = QubitTapering(pwop).taper_it(ref_state=hf_state)
-            if contextual_space is True and n_qubits is not None:
-                logger.debug("Creating QubitSubspaceManager.")
-                qsm = QubitSubspaceManager(
-                    pwop,
-                    ref_state=hf_state,
-                    run_qubit_tapering=False,
-                    run_contextual_subspace=contextual_space,
-                )
-                pwop = qsm.get_reduced_hamiltonian(n_qubits=n_qubits)
+            hf_state = self.get_hartree_fock_state()
+            logger.debug("Running QubitTapering")
+            pwop = QubitTapering(pwop).taper_it(ref_state=hf_state)
             qham = to_openfermion(pwop)
             logger.debug("Symmer functions complete.")
+        return qham
 
-            if n_qubits is None:
-                logger.debug("Unreduced Hamiltonain found.")
-                return qham
+    @cached_property
+    def H(self) -> PauliwordOp:
+        """The full, untapered, unfrozen Hamiltonian."""
+        return PauliwordOp.from_openfermion(self.build())
 
-            # Wanted to do a recursive thing to get the correct number
-            # from tapering but it takes ages.
-            final_n_qubits = count_qubits(qham)
-            logger.debug(f"{final_n_qubits} qubits used in cycle {i} Hamiltonian.")
-            if final_n_qubits <= n_qubits:
-                logger.debug("Hamiltonian reduced to %s qubits.", final_n_qubits)
-                return qham
-            if i == max_cycles:
-                logger.info("Maximum number of cycles reached.")
-                return qham
+    @cached_property
+    def qubit_reduction_driver(self) -> S3Projection:
+        """Qubit tapering and frozen core reduction."""
+        if isinstance(self.scf_method.mo_occ[0], Number):
+            mo_energy = self.scf_method.mo_energy
+        elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
+            mo_energy = self.scf_method.mo_energy[0]
+        else:
+            raise ValueError("occupancy dimension error")
+        occ_energy = mo_energy[: self.scf_method.mol.nelec[0]]
+        nao = mo_energy.shape[0]
+        hf_state = self.get_hartree_fock_state()
+        if self.auto_freeze_core:
+            if self.n_frozen_core != 0:
+                warnings.warn(
+                    f"Auto freezing core: will overwrite n_frozen_core={self.n_frozen_core}"
+                )
+            self.n_frozen_core = np.count_nonzero(
+                occ_energy < np.mean(occ_energy) - np.std(occ_energy)
+            )
+        # index the frozen orbitals positions:
+        frozen_spatial_orbital_indices = np.append(
+            np.argsort(self.scf_method.mo_energy[0])[: self.n_frozen_core],
+            np.argsort(self.scf_method.mo_energy[0])[nao - self.n_frozen_virt:],
+        )
+        frozen_spin_orbital_indices = np.sort(
+            np.append(
+                2 * frozen_spatial_orbital_indices,
+                2 * frozen_spatial_orbital_indices + 1,
+            )
+        )
+        frozen_Z_block = np.eye(nao * 2, dtype=bool)[frozen_spin_orbital_indices]
+        # build the symplectic matrix:
+        frozen_symp = np.hstack(
+            [np.zeros_like(frozen_Z_block, dtype=bool), frozen_Z_block]
+        )
+        stab_symp = np.vstack(
+            [frozen_symp, IndependentOp.symmetry_generators(self.H).symp_matrix]
+        )
+        # Stabilizer SubSpace (S3) projection object contains the stabilizers for the frozen core AND tapering:
+        s3_proj = S3Projection(IndependentOp(stab_symp))
+        s3_proj.stabilizers.update_sector(hf_state)
+        return s3_proj
 
-            # Check that we have the right number of qubits.
-            qubit_reduction += final_n_qubits - n_qubits
+    def reduce(self, operator: PauliwordOp = None) -> PauliwordOp:
+        """Perform qubit reduction over the input operator.
 
-            if indices_not_set:
-                logger.debug("No active space indices given.")
-                core_indices, active_indices = self._reduced_orbitals(qubit_reduction)
+        If None set, then will take the full molecular Hamiltonian.
+        """
+        if operator is None:
+            operator = self.H
+        if isinstance(operator, PauliwordOp):
+            return self.qubit_reduction_driver.perform_projection(operator)
+        elif isinstance(operator, QuantumState):
+            return self.qubit_reduction_driver._project_state(operator)
+        else:
+            raise ValueError("Unrecognised input, must be PauliwordOp or QuantumState.")
+
+
+def array_to_dict_nonzero_indices(arr, tol=1e-10):
+    """Convert an array to a dict for the non-zero indices."""
+    where_nonzero = np.where(~np.isclose(arr, 0, atol=tol))
+    nonzero_indices = list(zip(*where_nonzero))
+    return dict(zip(nonzero_indices, arr[where_nonzero]))
+
+
+def fermion_to_qubit_operator(
+    fermionic_operator: FermionOperator, n_qubits: int = None
+):
+    """Function to convert from fermion operators to qubit operators.
+
+    Note: see `openfermion.transforms` for different fermion to qubit mappings
+
+    Args:
+        Fermionic_operator(FermionOperator): any fermionic operator (openfermion)
+        n_qubits (int): number of qubits (or spin orbitals)
+
+    Returns:
+        qubit_operator (PauliwordOp): qubit operator of fermonic operator (under certain mapping)
+    """
+    mapping = jordan_wigner
+    qubit_operator = mapping(fermionic_operator)
+    return PauliwordOp.from_openfermion(qubit_operator, n_qubits)
 
 
 def to_openfermion(pwop: PauliwordOp) -> QubitOperator:

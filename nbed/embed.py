@@ -2,11 +2,9 @@
 
 import logging
 from datetime import datetime
-from os import mkdir
 from pathlib import Path
 from typing import Optional
 
-from numpy import save
 from openfermion.utils import save_operator
 
 from nbed.exceptions import NbedConfigError
@@ -118,7 +116,7 @@ def nbed(
                 scf_method=scf,
                 constant_e_shift=driver.classical_energy,
                 transform=transform,
-            ).build(n_qubits=qubits)
+            ).build()
 
             converter = HamiltonianConverter(qham)
             qham = getattr(converter, output.lower(), qham)
@@ -138,7 +136,7 @@ def nbed(
             scf_method=driver.embedded_scf,
             constant_e_shift=driver.classical_energy,
             transform=transform,
-        ).build(n_qubits=qubits)
+        ).build()
 
         converter = HamiltonianConverter(qham)
         qham = getattr(converter, output.lower(), qham)
