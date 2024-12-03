@@ -494,62 +494,6 @@ def fermion_to_qubit_operator(
     return PauliwordOp.from_openfermion(qubit_operator, n_qubits)
 
 
-def get_coupled_cluster_operator(
-    cc_obj=None,
-    t1=None,
-    t2=None,
-    hf_array=None,
-    operator_type="qubit",
-    orbspin=None,
-) -> Union[FermionOperator, PauliwordOp]:
-    """Build a coupled cluster operator from t1 and t2 amplitudes."""
-    if cc_obj is not None:
-        t1 = spatial2spin(cc_obj.t1, orbspin=orbspin)
-        t2 = spatial2spin(cc_obj.t2, orbspin=orbspin)
-    elif t1 is None and t2 is None:
-        error_string = "Must supply t1 and t2 matrices."
-        logger.error(error_string)
-        raise HamiltonianBuilderError(error_string)
-
-    no, nv = t1.shape
-    nmo = no + nv
-
-    if hf_array is None:
-        warnings.warn("No Hartree-Fock state provided: assumed singlet configuration")
-        occ_mask = np.zeros(nmo, dtype=bool)
-        occ_mask[:no] = True
-    else:
-        occ_mask = hf_array.reshape(-1).astype(bool)
-
-    indices = np.arange(0, nmo)
-    single_mask = np.ix_(indices[~occ_mask], indices[occ_mask])
-    double_mask = np.ix_(
-        indices[~occ_mask], indices[occ_mask], indices[~occ_mask], indices[occ_mask]
-    )
-
-    # dictionary of single aplitudes of form {(i,j):t_ij}
-    single_amplitudes = np.zeros((nmo, nmo))
-    single_amplitudes[single_mask] = t1.T
-    single_amp_dict = array_to_dict_nonzero_indices(single_amplitudes)
-
-    # dictionary of double aplitudes of form {(i,j,k,l):t_ijkl}
-    double_amplitudes = np.zeros((nmo, nmo, nmo, nmo))
-    double_amplitudes[double_mask] = 0.25 * t2.transpose(2, 0, 3, 1)
-    double_amp_dict = array_to_dict_nonzero_indices(double_amplitudes)
-
-    generator = FermionOperator()
-    for (i, j), t_ij in single_amp_dict.items():
-        generator += FermionOperator(f"{i}^ {j}", t_ij)
-    for (i, j, k, l), t_ijkl in double_amp_dict.items():
-        generator += FermionOperator(f"{i}^ {j} {k}^ {l}", t_ijkl)
-
-    if operator_type == "fermion":
-        return generator
-    elif operator_type == "qubit":
-        pwop: PauliwordOp = fermion_to_qubit_operator(generator, n_qubits=nmo)
-        return pwop
-
-
 def to_openfermion(pwop: PauliwordOp) -> QubitOperator:
     """Convert to OpenFermion Pauli operator representation.
 
