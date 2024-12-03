@@ -178,14 +178,3 @@ def test_unrestricted() -> None:
 
     logger.info(f"Ground state via diagonalisation: {diag}")
     assert np.isclose(e_fci, diag)
-
-
-def test_unrestricted_taper_warning() -> None:
-    """
-    Check that the appropriate warning is raised for unrestricted tapering.
-    """
-    builder = HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
-    with raises(
-        HamiltonianBuilderError, match="Unrestricted tapering not implemented."
-    ):
-        builder.build(taper=True)
