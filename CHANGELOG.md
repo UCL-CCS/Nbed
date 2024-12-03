@@ -9,12 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Changed
+- `HamBuilder` uses `Symmer` functionality to calculate frozen core integrals.
 - black version update to `>22` from `^22`
 - `HamConverter` now uses `SparsePauliOp` rather than `PauliSumOp`.
 - Symmer version dependency updates to `0.0.6`
 
 ### Added
+- `get_hartree_fock_state` function in `HamBuilder`
 - `run_qmmm`, `mm_coords`, `mm_charges`, `mm_radii` and `symmetry` attributes for NbedDriver. 
+
+### Deprecated
+- `HamBuilder.build` has `taper` bool input, but the main way to do this is now the `Symmer.QubitReductionDriver`
 
 ## [0.0.4]
 ### Fixed

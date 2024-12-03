@@ -1,4 +1,5 @@
 """Class to build qubit Hamiltonians from scf object."""
+
 import logging
 import warnings
 from numbers import Number
@@ -282,20 +283,20 @@ class HamiltonianBuilder:
                     for s in range(n_qubits // 2):
 
                         # Same spin
-                        two_body_coefficients[
-                            2 * p, 2 * q, 2 * r, 2 * s
-                        ] = two_body_integrals[0, p, q, r, s]
+                        two_body_coefficients[2 * p, 2 * q, 2 * r, 2 * s] = (
+                            two_body_integrals[0, p, q, r, s]
+                        )
                         two_body_coefficients[
                             2 * p + 1, 2 * q + 1, 2 * r + 1, 2 * s + 1
                         ] = two_body_integrals[1, p, q, r, s]
 
                         # Mixed spin in physicist
-                        two_body_coefficients[
-                            2 * p, 2 * q + 1, 2 * r + 1, 2 * s
-                        ] = two_body_integrals[2, p, q, r, s]
-                        two_body_coefficients[
-                            2 * p + 1, 2 * q, 2 * r, 2 * s + 1
-                        ] = two_body_integrals[3, p, q, r, s]
+                        two_body_coefficients[2 * p, 2 * q + 1, 2 * r + 1, 2 * s] = (
+                            two_body_integrals[2, p, q, r, s]
+                        )
+                        two_body_coefficients[2 * p + 1, 2 * q, 2 * r, 2 * s + 1] = (
+                            two_body_integrals[3, p, q, r, s]
+                        )
 
         # Truncate.
         one_body_coefficients[np.absolute(one_body_coefficients) < EQ_TOLERANCE] = 0.0
@@ -376,6 +377,9 @@ class HamiltonianBuilder:
         Returns:
             molecular_hamiltonian (QubitOperator): Qubit Hamiltonian for molecular system.
         """
+        if taper is not None:
+            logger.warning("Tapering is deprecated. Use the qubit_reduction_driver.")
+
         logger.info("Building Hamiltonian")
         one_body_integrals = self._one_body_integrals
         two_body_integrals = self._two_body_integrals
@@ -432,7 +436,7 @@ class HamiltonianBuilder:
         # index the frozen orbitals positions:
         frozen_spatial_orbital_indices = np.append(
             np.argsort(self.scf_method.mo_energy[0])[: self.n_frozen_core],
-            np.argsort(self.scf_method.mo_energy[0])[nao - self.n_frozen_virt:],
+            np.argsort(self.scf_method.mo_energy[0])[nao - self.n_frozen_virt :],
         )
         frozen_spin_orbital_indices = np.sort(
             np.append(
