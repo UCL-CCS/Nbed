@@ -4,10 +4,9 @@ File to contain tests of the driver.py script.
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import pytest
-from numpy import isclose, number
+from numpy import isclose
 from pyscf.lib.misc import StreamObject
 
 from nbed.driver import NbedDriver
