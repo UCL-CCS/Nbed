@@ -2,12 +2,9 @@
 
 import logging
 import os
-from copy import copy
-from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
-import scipy as sp
 from cached_property import cached_property
 from pyscf import cc, dft, fci, gto, qmmm, scf
 from pyscf.lib import StreamObject
@@ -21,7 +18,7 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .scf import _absorb_h1e, energy_elec, huzinaga_HF, huzinaga_KS
+from .scf import energy_elec, huzinaga_HF, huzinaga_KS
 
 # from .log_conf import setup_logs
 
