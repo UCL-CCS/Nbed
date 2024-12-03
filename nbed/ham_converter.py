@@ -12,7 +12,6 @@ from cached_property import cached_property
 from openfermion.ops.operators.qubit_operator import QubitOperator
 from openfermion.utils import count_qubits
 from pennylane import Identity, PauliX, PauliY, PauliZ
-
 from qiskit.quantum_info import SparsePauliOp
 from symmer.operators import PauliwordOp
 
