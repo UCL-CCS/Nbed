@@ -7,14 +7,11 @@ from pathlib import Path
 
 import numpy as np
 import scipy as sp
-from openfermion import QubitOperator, count_qubits, get_sparse_operator
+from openfermion import count_qubits, get_sparse_operator
 from pyscf.fci import FCI
 from pyscf.gto import Mole
 from pyscf.scf import RHF, UHF
-from pytest import raises
 
-from nbed.driver import NbedDriver
-from nbed.exceptions import HamiltonianBuilderError
 from nbed.ham_builder import HamiltonianBuilder
 
 logger = getLogger(__name__)
