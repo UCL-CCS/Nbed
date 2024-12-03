@@ -118,7 +118,7 @@ def nbed(
                 scf_method=scf,
                 constant_e_shift=driver.classical_energy,
                 transform=transform,
-            ).build(n_qubits=qubits)
+            ).build()
 
             converter = HamiltonianConverter(qham)
             qham = getattr(converter, output.lower(), qham)
@@ -138,7 +138,7 @@ def nbed(
             scf_method=driver.embedded_scf,
             constant_e_shift=driver.classical_energy,
             transform=transform,
-        ).build(n_qubits=qubits)
+        ).build()
 
         converter = HamiltonianConverter(qham)
         qham = getattr(converter, output.lower(), qham)
