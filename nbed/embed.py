@@ -2,11 +2,9 @@
 
 import logging
 from datetime import datetime
-from os import mkdir
 from pathlib import Path
 from typing import Optional
 
-from numpy import save
 from openfermion.utils import save_operator
 
 from nbed.exceptions import NbedConfigError
