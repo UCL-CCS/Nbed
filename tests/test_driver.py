@@ -1,6 +1,7 @@
 """
 File to contain tests of the driver.py script.
 """
+
 import logging
 from pathlib import Path
 from typing import Optional

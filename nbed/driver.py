@@ -826,7 +826,11 @@ class NbedDriver:
             mo_coeff = np.array([None, None])
             mo_energy = np.array([None, None])
             mo_occ = np.array([None, None])
-            (mo_coeff[0], mo_energy[0], mo_occ[0],) = self._delete_spin_environment(
+            (
+                mo_coeff[0],
+                mo_energy[0],
+                mo_occ[0],
+            ) = self._delete_spin_environment(
                 method,
                 alpha_n_env_mos,
                 scf.mo_coeff[0],

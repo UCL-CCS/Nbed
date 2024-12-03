@@ -1,6 +1,7 @@
 """
 File to contain tests of the embed.py script.
 """
+
 from pathlib import Path
 
 from openfermion import QubitOperator, count_qubits
