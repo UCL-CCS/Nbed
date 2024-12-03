@@ -3,7 +3,7 @@
 import logging
 import warnings
 from numbers import Number
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import numpy as np
 import openfermion.transforms as of_transforms
@@ -14,20 +14,14 @@ from openfermion import (
     QubitOperator,
     count_qubits,
 )
-from openfermion.chem.molecular_data import spinorb_from_spatial
 from openfermion.config import EQ_TOLERANCE
-from openfermion.ops.representations import get_active_space_integrals
-from openfermion.transforms import jordan_wigner, taper_off_qubits
+from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, dft, scf
-from pyscf.cc.addons import spatial2spin
 from pyscf.lib import StreamObject
-from pyscf.lib.numpy_helper import SYMMETRIC
 from symmer.operators import IndependentOp, PauliwordOp, QuantumState
 from symmer.projection import QubitTapering, S3Projection
-from typing_extensions import final
 
 from nbed.exceptions import HamiltonianBuilderError
-from nbed.ham_converter import HamiltonianConverter
 
 logger = logging.getLogger(__name__)
 
