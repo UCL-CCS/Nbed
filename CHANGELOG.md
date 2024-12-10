@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.7]
 ### Changed
+- `HamiltonianBuilder` now checks type of indices of mo_occ to determine resteriction.
 - Black version `^24.0.0`
 - Summer version now `symmer=~0.0.7`.
 
