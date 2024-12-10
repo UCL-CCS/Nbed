@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nbed"
-version = "0.0.5"
+version = "0.0.6"
 description = ""
 authors = [
     "Michael Williams de la Bastida <michael.williams.20@ucl.ac.uk>", 
@@ -22,7 +22,7 @@ cached-property = "^1.5.2"
 py3Dmol = "^1.7.0"
 jupyter = "^1.0.0"
 h5py = "^3.7"
-symmer = "0.0.6"
+symmer = "^0.0.6"
 pyscf = "^2.3.0"
 grpcio = "^1.59.0"
 
