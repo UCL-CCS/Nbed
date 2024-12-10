@@ -1,6 +1,10 @@
 [tool.poetry]
 name = "nbed"
+<<<<<<< HEAD
 version = "0.0.6"
+=======
+version = "0.0.5"
+>>>>>>> 44d2b10178976c89bb509a0cf5f25e97fb9e7a87
 description = ""
 authors = [
     "Michael Williams de la Bastida <michael.williams.20@ucl.ac.uk>", 
