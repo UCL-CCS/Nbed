@@ -7,13 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<<<<<<< HEAD
 ## [0.0.6]
 ### Changed
 - `symmer dependence was pinned to 0.0.6, now ^0.0.6
 
-=======
->>>>>>> 44d2b10178976c89bb509a0cf5f25e97fb9e7a87
 ## [0.0.5]
 ### Fixed
 
