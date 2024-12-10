@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import numpy as np
-import scipy as sp
 from pyscf import gto, scf
 
 from nbed.localizers.pyscf import PMLocalizer

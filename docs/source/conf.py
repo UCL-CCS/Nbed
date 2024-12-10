@@ -1,4 +1,5 @@
 """Documentation Configuration File."""
+
 # Configuration file for the Sphinx documentation builder.
 #
 # This file only contains a selection of the most common options. For a full
@@ -27,7 +28,7 @@ copyright = "2022, Michael Williams de la Bastida, Alexis Ralli"
 author = "Michael Williams de la Bastida, Alexis Ralli"
 
 # The full version, including alpha/beta/rc tags
-release = "0.0.4"
+release = "0.0.7"
 
 
 # -- General configuration ---------------------------------------------------

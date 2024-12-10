@@ -1,10 +1,10 @@
 """SPADE Localizer Class."""
 
 import logging
-from typing import Optional, Tuple, Union
+from typing import Tuple
 
 import numpy as np
-from pyscf import dft, gto, scf
+from pyscf import gto, scf
 from pyscf.lib import StreamObject
 from scipy import linalg
 

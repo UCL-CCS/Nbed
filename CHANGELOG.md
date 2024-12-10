@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.0.7]
+### Changed
+- `HamiltonianBuilder` now checks type of indices of mo_occ to determine resteriction.
+- Black version `^24.0.0`
+- Summer version now `symmer=~0.0.7`.
+
+## [0.0.6]
+### Changed
+- `symmer dependence was pinned to 0.0.6, now ^0.0.6
+
+## [0.0.5]
+### Fixed
+
+### Changed
+- `HamBuilder` uses `Symmer` functionality to calculate frozen core integrals.
+- black version update to `>22` from `^22`
+- `HamConverter` now uses `SparsePauliOp` rather than `PauliSumOp`.
+- Symmer version dependency updates to `0.0.6`
+
+### Added
+- `get_hartree_fock_state` function in `HamBuilder`
+- `run_qmmm`, `mm_coords`, `mm_charges`, `mm_radii` and `symmetry` attributes for NbedDriver. 
+
+### Deprecated
+- `HamBuilder.build` has `taper` bool input, but the main way to do this is now the `Symmer.QubitReductionDriver`
+
 ## [0.0.4]
 ### Fixed
 - Typo on `xc_functional` arg for driver

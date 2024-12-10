@@ -5,14 +5,14 @@ import logging
 import re
 from numbers import Number
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Union
 
 import pennylane as qml
 from cached_property import cached_property
 from openfermion.ops.operators.qubit_operator import QubitOperator
 from openfermion.utils import count_qubits
 from pennylane import Identity, PauliX, PauliY, PauliZ
-from qiskit.opflow.primitive_ops.pauli_sum_op import PauliSumOp
+from qiskit.quantum_info import SparsePauliOp
 from symmer.operators import PauliwordOp
 
 from .exceptions import HamiltonianConverterError
@@ -206,22 +206,22 @@ class HamiltonianConverter:
         return hamiltonian
 
     @cached_property
-    def qiskit(self) -> PauliSumOp:
+    def qiskit(self) -> SparsePauliOp:
         """Return Qiskit spin operator.
 
         Args:
             intermediate (dict[str, float]): Intermediate representation of a qubit hamiltonian.
 
         Returns:
-            qiskit_nature.opflow.PauliSumOp
+            qiskit_nature.opflow.SparsePauliOp
         """
-        logger.debug("Converting to qiskit PauliSumOp.")
-        from qiskit.opflow.primitive_ops import PauliSumOp
+        logger.debug("Converting to qiskit SparsePauliOp.")
+        from qiskit.quantum_info import SparsePauliOp
 
         input_list = [(key, value) for key, value in self._intermediate.items()]
 
-        logger.debug("Qiskit PauliSumOp created.")
-        return PauliSumOp.from_list(input_list)
+        logger.debug("Qiskit SparsePauliOp created.")
+        return SparsePauliOp.from_list(input_list)
 
     @cached_property
     def symmer(self) -> PauliwordOp:
@@ -244,7 +244,7 @@ class HamiltonianConverter:
 
 def load_hamiltonian(
     filepath: Path, output: str
-) -> Union[QubitOperator, qml.Hamiltonian, PauliSumOp, PauliwordOp]:
+) -> Union[QubitOperator, qml.Hamiltonian, SparsePauliOp, PauliwordOp]:
     """Create a Hamiltonian from a file.
 
     Reads the input file and converts to the desired output format.
