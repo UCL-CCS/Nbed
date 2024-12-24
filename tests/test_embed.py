@@ -29,12 +29,10 @@ def args(water_filepath) -> dict:
         "qubits": None,
     }
 
-def test_nbed_openfermion(args, qham) -> None:
+def test_nbed_openfermion(args) -> None:
     """test nbed"""
-    qham = nbed(**args)
 
-    assert isinstance(qham, QubitOperator)
-    return None
+    assert isinstance(nbed(**args), QubitOperator)
 
 
 if __name__ == "__main__":
