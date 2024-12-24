@@ -53,7 +53,7 @@ def ubuilder(unrestricted_scf):
     return HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
 
 
-def test_restricted(restricted_scf, rbuilder) -> None:
+def test_restricted_energy(restricted_scf, rbuilder) -> None:
     """
     Use the full system to check that output hamiltonian diagonalises to fci value for a restricted calculation.
     """
@@ -112,7 +112,7 @@ def charged_scf(charged_mol):
     return rhf
 
 
-def test_unrestricted(charged_scf) -> None:
+def test_unrestricted_energy(charged_scf) -> None:
     """
     Check the output hamiltonian diagonalises to fci value for an unrestricted calculation with spin and charge.
     """

@@ -49,6 +49,39 @@ def global_uks(molecule) -> scf.UKS:
     global_uks.kernel()
     return global_uks
 
+def test_PM_arguments(global_rks) -> None:
+    """Check the internal test of values."""
+    with pytest.raises(ValueError):
+        PMLocalizer(
+            global_rks,
+            n_active_atoms=n_active_atoms,
+            occ_cutoff=1.1,
+            virt_cutoff=virt_cutoff,
+        )
+
+    with pytest.raises(ValueError):
+        PMLocalizer(
+            global_rks,
+            n_active_atoms=n_active_atoms,
+            occ_cutoff=occ_cutoff,
+            virt_cutoff=1.1,
+        )
+    
+    with pytest.raises(ValueError):
+        PMLocalizer(
+            global_rks,
+            n_active_atoms=n_active_atoms,
+            occ_cutoff=-0.1,
+            virt_cutoff=virt_cutoff,
+        )
+    
+    with pytest.raises(ValueError):
+        PMLocalizer(
+            global_rks,
+            n_active_atoms=n_active_atoms,
+            occ_cutoff=occ_cutoff,
+            virt_cutoff=-0.1,
+        )
 
 def test_PM_check_values(global_rks, global_uks) -> None:
     """Check the internal test of values."""
