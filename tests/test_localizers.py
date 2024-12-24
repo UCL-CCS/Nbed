@@ -77,6 +77,12 @@ def test_PM_mo_indices(global_rks, global_uks) -> None:
         occ_cutoff=occ_cutoff,
         virt_cutoff=virt_cutoff,
     )
+    assert(restricted_loc_system.beta_active_MO_inds is None)
+    assert(restricted_loc_system.beta_enviro_MO_inds is None)
+    assert(restricted_loc_system.beta_c_active is None)
+    assert(restricted_loc_system.beta_c_enviro is None)
+    assert(restricted_loc_system.beta_c_loc_occ is None)
+    
     unrestricted_loc_system = PMLocalizer(
         global_uks,
         n_active_atoms=n_active_atoms,
@@ -104,6 +110,12 @@ def test_SPADE_mo_indices(global_rks, global_uks) -> None:
         global_rks,
         n_active_atoms=n_active_atoms,
     )
+    assert(restricted_loc_system.beta_active_MO_inds is None)
+    assert(restricted_loc_system.beta_enviro_MO_inds is None)
+    assert(restricted_loc_system.beta_c_active is None)
+    assert(restricted_loc_system.beta_c_enviro is None)
+    assert(restricted_loc_system.beta_c_loc_occ is None)
+
     unrestricted_loc_system = SPADELocalizer(
         global_uks,
         n_active_atoms=n_active_atoms,
