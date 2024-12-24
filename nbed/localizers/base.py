@@ -132,9 +132,11 @@ class Localizer(ABC):
             active_number_match = (
                 self.active_MO_inds.shape == self.beta_active_MO_inds.shape
             )
+            logger.debug(f"{active_number_match=}")
             enviro_number_match = (
                 self.enviro_MO_inds.shape == self.beta_enviro_MO_inds.shape
             )
+            logger.debug(f"{enviro_number_match=}")
             if not active_number_match or not enviro_number_match:
                 logger.error("Number of alpha and beta orbitals do not match.")
                 logger.debug(
@@ -149,19 +151,22 @@ class Localizer(ABC):
         logger.debug("Checking density matrix partition.")
         dm_localised_full_system = self._c_loc_occ @ self._c_loc_occ.conj().T
         dm_sum = self.dm_active + self.dm_enviro
-
-        density_match = np.allclose(dm_localised_full_system, dm_sum)
-
-        if self._restricted is False:
+        if self._restricted is True:
+            # In a restricted system we have two electrons per orbital
+            density_match = np.allclose(2 * dm_localised_full_system, dm_sum)
+            logger.debug(f"Restricted {density_match=}")
+        else:
             beta_dm_localised_full_system = (
                 self._beta_c_loc_occ @ self._beta_c_loc_occ.conj().T
             )
             beta_dm_sum = self.beta_dm_active + self.beta_dm_enviro
 
             # both need to be correct
-            density_match = density_match and np.allclose(
-                beta_dm_localised_full_system, beta_dm_sum
-            )
+            alpha_density_match = np.allclose(dm_localised_full_system, dm_sum)
+            logger.debug(f"Unrestricted {alpha_density_match=}")
+            beta_density_match = np.allclose(beta_dm_localised_full_system, beta_dm_sum)
+            logger.debug(f"Unrestricted {beta_density_match=}")
+            density_match = alpha_density_match and beta_density_match
 
         if not density_match:
             logger.error("Density matrix partition does not sum to total.")
@@ -181,15 +186,17 @@ class Localizer(ABC):
         electron_number_match = np.isclose(
             (n_active_electrons + n_enviro_electrons), n_all_electrons
         )
+        logger.debug(f"{electron_number_match=}")
         if not electron_number_match:
             logger.error("Number of electrons in localized orbitals is not consistent.")
             logger.debug(f"N total electrons: {n_all_electrons}")
             warn_flag = True
 
         if warn_flag:
-            raise NbedLocalizerError(
-                f"Sense check failed.\n {active_number_match=},\n {enviro_number_match=},\n {density_match=},\n {electron_number_match=}"
-            )
+            logger.error("Localizer sense check failed.")
+            raise NbedLocalizerError(f"Localizer sense check failed.\n")
+        else:
+            logger.debug("Localizer sense check passed.")
 
     def run(self, check_values: bool = False) -> None:
         """Function that runs localization.
