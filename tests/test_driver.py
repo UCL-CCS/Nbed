@@ -15,10 +15,6 @@ from nbed.exceptions import NbedConfigError
 
 logger = logging.getLogger(__name__)
 
-
-water_filepath = Path("tests/molecules/water.xyz").absolute()
-
-
 def test_incorrect_geometry_path() -> None:
     """test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
 
@@ -41,7 +37,7 @@ def test_incorrect_geometry_path() -> None:
         NbedDriver(**args)
 
 
-def test_driver_standard_xyz_file_input() -> None:
+def test_driver_standard_xyz_file_input(water_filepath) -> None:
     """test to check driver works... path to xyz file given"""
 
     args = {
@@ -99,7 +95,7 @@ def test_driver_standard_xyz_string_input() -> None:
                             -7.65177031e-06, -8.10573832e-01, -8.05367765e-01]]))
 
 
-def test_n_active_atoms_validation() -> None:
+def test_n_active_atoms_validation(water_filepath) -> None:
     """test to check driver works... path to xyz file given"""
 
     args = {
@@ -121,7 +117,7 @@ def test_n_active_atoms_validation() -> None:
         NbedDriver(n_active_atoms=3, **args)
 
 
-def test_subsystem_dft() -> None:
+def test_subsystem_dft(water_filepath) -> None:
     """Check thatcmponenets match total dft energy."""
     args = {
         "geometry": str(water_filepath),
@@ -147,7 +143,7 @@ def test_subsystem_dft() -> None:
     assert isclose(energy_DFT_components, driver._global_ks.e_tot)
 
 
-def test_subsystem_dft_spin_consistency() -> None:
+def test_subsystem_dft_spin_consistency(water_filepath) -> None:
     """Check restricted & unrestricted components match."""
     args = {
         "geometry": str(water_filepath),

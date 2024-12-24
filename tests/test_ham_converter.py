@@ -12,8 +12,6 @@ from qiskit.quantum_info import SparsePauliOp
 from nbed.exceptions import HamiltonianConverterError
 from nbed.ham_converter import HamiltonianConverter
 
-water_filepath = Path("tests/molecules/water.xyz").absolute()
-
 @pytest.fixture
 def intermediate_hamiltonian() -> dict:
     return {"IIII": 0.5, "IIXI": 0.25, "IIIY": 0.2}

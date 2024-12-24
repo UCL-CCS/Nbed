@@ -9,9 +9,6 @@ import pytest
 from nbed.localizers.pyscf import PMLocalizer
 from nbed.localizers.spade import SPADELocalizer
 
-water_filepath = Path("tests/molecules/water.xyz").absolute()
-basis = "6-31g"
-charge = 0
 xc_functional = "b3lyp"
 convergence = 1e-6
 pyscf_print_level = 1
@@ -22,11 +19,11 @@ virt_cutoff = 0.95
 run_virtual_localization = False
 
 @pytest.fixture
-def molecule() -> gto.Mole:
+def molecule(water_filepath) -> gto.Mole:
     return gto.Mole(
         atom=str(water_filepath),
-        basis=basis,
-        charge=charge,
+        basis="6-31g",
+        charge=0,
     ).build()
 
 @pytest.fixture
