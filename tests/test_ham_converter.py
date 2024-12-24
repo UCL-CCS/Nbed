@@ -1,6 +1,7 @@
 """Tests for the hamiltonian converter."""
 
 from pathlib import Path
+import pytest
 
 import numpy as np
 import pennylane as qml
@@ -13,28 +14,36 @@ from nbed.ham_converter import HamiltonianConverter
 
 water_filepath = Path("tests/molecules/water.xyz").absolute()
 
-intermediate = {"IIII": 0.5, "IIXI": 0.25, "IIIY": 0.2}
+@pytest.fixture
+def intermediate_hamiltonian() -> dict:
+    return {"IIII": 0.5, "IIXI": 0.25, "IIIY": 0.2}
 
-hamiltonian = 0.5 * QubitOperator("")
-hamiltonian += 0.25 * QubitOperator("X2")
-hamiltonian += 0.2 * QubitOperator("Y3")
+@pytest.fixture
+def hamiltonian() -> QubitOperator:
+    return 0.5 * QubitOperator("") + 0.25 * QubitOperator("X2") + 0.2 * QubitOperator("Y3")
+    
 
-qiskit_hamiltonian = SparsePauliOp.from_list(
-    [("IIII", 0.5), ("IIXI", 0.25), ("IIIY", 0.2)]
-)
-pennylane_hamiltonian = qml.Hamiltonian(
-    [0.5, 0.25, 0.2],
-    [
-        qml.Identity(0) @ qml.Identity(1) @ qml.Identity(2) @ qml.Identity(3),
-        qml.Identity(0) @ qml.Identity(1) @ qml.PauliX(2) @ qml.Identity(3),
-        qml.Identity(0) @ qml.Identity(1) @ qml.Identity(2) @ qml.PauliY(3),
-    ],
-)
+@pytest.fixture
+def qiskit_hamiltonian() -> SparsePauliOp:
+    return SparsePauliOp.from_list(
+        [("IIII", 0.5), ("IIXI", 0.25), ("IIIY", 0.2)]
+    )
+
+@pytest.fixture
+def pennylane_hamiltonian() -> qml.Hamiltonian:
+    return qml.Hamiltonian(
+        [0.5, 0.25, 0.2],
+        [
+            qml.Identity(0) @ qml.Identity(1) @ qml.Identity(2) @ qml.Identity(3),
+            qml.Identity(0) @ qml.Identity(1) @ qml.PauliX(2) @ qml.Identity(3),
+            qml.Identity(0) @ qml.Identity(1) @ qml.Identity(2) @ qml.PauliY(3),
+        ],
+    )
 
 
-def test_intermediate_input() -> None:
-    converted_ham = HamiltonianConverter(intermediate)._intermediate
-    assert converted_ham == intermediate
+def test_intermediate_input(intermediate_hamiltonian) -> None:
+    converted_ham = HamiltonianConverter(intermediate_hamiltonian)._intermediate
+    assert converted_ham == intermediate_hamiltonian
 
     with raises(
         HamiltonianConverterError, match=".*Input dict keys must only contain I,X,Y,Z.*"
@@ -52,8 +61,8 @@ def test_intermediate_input() -> None:
         HamiltonianConverter({"I": "1"})
 
 
-def test_file_input() -> None:
-    assert HamiltonianConverter("tests/test.qham")._intermediate == intermediate
+def test_file_input(intermediate_hamiltonian) -> None:
+    assert HamiltonianConverter("tests/test.qham")._intermediate == intermediate_hamiltonian
 
 
 def test_bad_input_type() -> None:
@@ -66,16 +75,16 @@ def test_bad_input_type() -> None:
         HamiltonianConverter({"a", 1, 0.1})
 
 
-def test_qiskit() -> None:
+def test_qiskit(hamiltonian, qiskit_hamiltonian) -> None:
     converted_ham = HamiltonianConverter(hamiltonian).convert("qiskit")
     assert type(converted_ham) is SparsePauliOp
     assert np.all(converted_ham.to_matrix() - qiskit_hamiltonian.to_matrix() == 0)
 
 
-def test_pennylane() -> None:
+def test_pennylane(hamiltonian, pennylane_hamiltonian) -> None:
     converted_ham = HamiltonianConverter(hamiltonian).convert("pennylane")
     assert type(converted_ham) is qml.Hamiltonian
-    assert pennylane_hamiltonian.compare(pennylane_hamiltonian)
+    assert pennylane_hamiltonian.compare(converted_ham)
 
 
 if __name__ == "__main__":
