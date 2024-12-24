@@ -3,12 +3,11 @@ File to contain tests of the embed.py script.
 """
 
 from pathlib import Path
-import pytest
 
+import pytest
 from openfermion import QubitOperator
 
 from nbed.embed import nbed
-
 
 
 @pytest.fixture
@@ -28,6 +27,7 @@ def args(water_filepath) -> dict:
         "run_fci_emb": True,
         "qubits": None,
     }
+
 
 def test_nbed_openfermion(args) -> None:
     """test nbed"""

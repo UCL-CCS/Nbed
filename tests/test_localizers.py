@@ -3,8 +3,8 @@
 from pathlib import Path
 
 import numpy as np
-from pyscf import gto, scf
 import pytest
+from pyscf import gto, scf
 
 from nbed.localizers.pyscf import PMLocalizer
 from nbed.localizers.spade import SPADELocalizer
@@ -18,6 +18,7 @@ occ_cutoff = 0.95
 virt_cutoff = 0.95
 run_virtual_localization = False
 
+
 @pytest.fixture
 def molecule(water_filepath) -> gto.Mole:
     return gto.Mole(
@@ -25,6 +26,7 @@ def molecule(water_filepath) -> gto.Mole:
         basis="6-31g",
         charge=0,
     ).build()
+
 
 @pytest.fixture
 def global_rks(molecule) -> scf.RKS:
@@ -35,6 +37,7 @@ def global_rks(molecule) -> scf.RKS:
     global_rks.verbose = pyscf_print_level
     global_rks.kernel()
     return global_rks
+
 
 @pytest.fixture
 def global_uks(molecule) -> scf.UKS:
@@ -57,6 +60,7 @@ def test_PM_check_values(global_rks, global_uks) -> None:
             virt_cutoff=virt_cutoff,
         ).run(check_values=True)
 
+
 def test_SPADE_check_values(global_rks, global_uks) -> None:
     """Check the internal test of values."""
     for ks in [global_rks, global_uks]:
@@ -64,6 +68,7 @@ def test_SPADE_check_values(global_rks, global_uks) -> None:
             ks,
             n_active_atoms=n_active_atoms,
         ).run(check_values=True)
+
 
 def test_PMLocalizer_local_basis_transform(global_rks) -> None:
     """Check change of basis operator (from canonical to localized) is correct"""
@@ -109,6 +114,7 @@ def test_spade_spins_match(global_rks, global_uks) -> None:
     assert np.all(unrestricted.active_MO_inds == unrestricted.beta_active_MO_inds)
     assert np.all(restricted.active_MO_inds == unrestricted.active_MO_inds)
 
+
 def test_cl_shell_numbers(global_rks, global_uks) -> None:
 
     restricted = SPADELocalizer(
@@ -122,7 +128,7 @@ def test_cl_shell_numbers(global_rks, global_uks) -> None:
         n_active_atoms=n_active_atoms,
     )
     unrestricted.localize_virtual(unrestricted._global_scf)
-    
+
     assert restricted.shells == [12, 13]
     assert restricted.shells == unrestricted.shells
 

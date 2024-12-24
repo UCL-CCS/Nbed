@@ -4,9 +4,9 @@ Tests for the HamiltonianBuilder class.
 
 from logging import getLogger
 from pathlib import Path
-import pytest
 
 import numpy as np
+import pytest
 import scipy as sp
 from openfermion import count_qubits, get_sparse_operator
 from pyscf.fci import FCI
@@ -17,15 +17,17 @@ from nbed.ham_builder import HamiltonianBuilder
 
 logger = getLogger(__name__)
 
+
 @pytest.fixture
 def uncharged_mol(water_filepath) -> dict:
     mol_args = {
-    "atom": str(water_filepath),
-    "n_active_atoms": 1,
-    "basis": "STO-3G",
-    "unit": "angstrom",
+        "atom": str(water_filepath),
+        "n_active_atoms": 1,
+        "basis": "STO-3G",
+        "unit": "angstrom",
     }
     return Mole(**mol_args, charge=0, spin=0).build()
+
 
 @pytest.fixture
 def restricted_scf(uncharged_mol):
@@ -33,19 +35,23 @@ def restricted_scf(uncharged_mol):
     rhf.kernel()
     return rhf
 
+
 @pytest.fixture
 def unrestricted_scf(uncharged_mol):
     uhf = UHF(uncharged_mol)
     uhf.kernel()
     return uhf
 
+
 @pytest.fixture
 def rbuilder(restricted_scf):
     return HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
 
+
 @pytest.fixture
 def ubuilder(unrestricted_scf):
     return HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
+
 
 def test_restricted(restricted_scf, rbuilder) -> None:
     """
@@ -150,18 +156,20 @@ def test_taper(rbuilder, ubuilder) -> None:
 @pytest.fixture
 def charged_mol(water_filepath) -> Mole:
     mol_args = {
-    "atom": str(water_filepath),
-    "n_active_atoms": 1,
-    "basis": "STO-3G",
-    "unit": "angstrom",
+        "atom": str(water_filepath),
+        "n_active_atoms": 1,
+        "basis": "STO-3G",
+        "unit": "angstrom",
     }
     return Mole(**mol_args, charge=1, spin=1).build()
+
 
 @pytest.fixture
 def charged_scf(charged_mol):
     rhf = UHF(charged_mol)
     rhf.kernel()
     return rhf
+
 
 def test_unrestricted(charged_scf) -> None:
     """

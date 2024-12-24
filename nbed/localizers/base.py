@@ -153,7 +153,7 @@ class Localizer(ABC):
         dm_sum = self.dm_active + self.dm_enviro
         if self._restricted is True:
             # In a restricted system we have two electrons per orbital
-            density_match = np.allclose(2* dm_localised_full_system, dm_sum)
+            density_match = np.allclose(2 * dm_localised_full_system, dm_sum)
             logger.debug(f"Restricted {density_match=}")
         else:
             beta_dm_localised_full_system = (
@@ -162,13 +162,9 @@ class Localizer(ABC):
             beta_dm_sum = self.beta_dm_active + self.beta_dm_enviro
 
             # both need to be correct
-            alpha_density_match = np.allclose(
-                dm_localised_full_system, dm_sum
-            )
+            alpha_density_match = np.allclose(dm_localised_full_system, dm_sum)
             logger.debug(f"Unrestricted {alpha_density_match=}")
-            beta_density_match = np.allclose(
-                beta_dm_localised_full_system, beta_dm_sum
-            )
+            beta_density_match = np.allclose(beta_dm_localised_full_system, beta_dm_sum)
             logger.debug(f"Unrestricted {beta_density_match=}")
             density_match = alpha_density_match and beta_density_match
 
@@ -198,9 +194,7 @@ class Localizer(ABC):
 
         if warn_flag:
             logger.error("Localizer sense check failed.")
-            raise NbedLocalizerError(
-                f"Localizer sense check failed.\n"
-            )
+            raise NbedLocalizerError(f"Localizer sense check failed.\n")
         else:
             logger.debug("Localizer sense check passed.")
 

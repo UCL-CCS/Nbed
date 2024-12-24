@@ -1,10 +1,10 @@
 """Tests for the hamiltonian converter."""
 
 from pathlib import Path
-import pytest
 
 import numpy as np
 import pennylane as qml
+import pytest
 from openfermion import QubitOperator
 from pytest import raises
 from qiskit.quantum_info import SparsePauliOp
@@ -12,20 +12,23 @@ from qiskit.quantum_info import SparsePauliOp
 from nbed.exceptions import HamiltonianConverterError
 from nbed.ham_converter import HamiltonianConverter
 
+
 @pytest.fixture
 def intermediate_hamiltonian() -> dict:
     return {"IIII": 0.5, "IIXI": 0.25, "IIIY": 0.2}
 
+
 @pytest.fixture
 def hamiltonian() -> QubitOperator:
-    return 0.5 * QubitOperator("") + 0.25 * QubitOperator("X2") + 0.2 * QubitOperator("Y3")
-    
+    return (
+        0.5 * QubitOperator("") + 0.25 * QubitOperator("X2") + 0.2 * QubitOperator("Y3")
+    )
+
 
 @pytest.fixture
 def qiskit_hamiltonian() -> SparsePauliOp:
-    return SparsePauliOp.from_list(
-        [("IIII", 0.5), ("IIXI", 0.25), ("IIIY", 0.2)]
-    )
+    return SparsePauliOp.from_list([("IIII", 0.5), ("IIXI", 0.25), ("IIIY", 0.2)])
+
 
 @pytest.fixture
 def pennylane_hamiltonian() -> qml.Hamiltonian:
@@ -60,7 +63,10 @@ def test_intermediate_input(intermediate_hamiltonian) -> None:
 
 
 def test_file_input(intermediate_hamiltonian) -> None:
-    assert HamiltonianConverter("tests/test.qham")._intermediate == intermediate_hamiltonian
+    assert (
+        HamiltonianConverter("tests/test.qham")._intermediate
+        == intermediate_hamiltonian
+    )
 
 
 def test_bad_input_type() -> None:
