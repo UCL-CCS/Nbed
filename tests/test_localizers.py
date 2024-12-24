@@ -70,6 +70,60 @@ def test_SPADE_check_values(global_rks, global_uks) -> None:
         ).run(check_values=True)
 
 
+def test_PM_mo_indices(global_rks, global_uks) -> None:
+    restricted_loc_system = PMLocalizer(
+        global_rks,
+        n_active_atoms=n_active_atoms,
+        occ_cutoff=occ_cutoff,
+        virt_cutoff=virt_cutoff,
+    )
+    unrestricted_loc_system = PMLocalizer(
+        global_uks,
+        n_active_atoms=n_active_atoms,
+        occ_cutoff=occ_cutoff,
+        virt_cutoff=virt_cutoff,
+    )
+    assert np.all(
+        restricted_loc_system.active_MO_inds == unrestricted_loc_system.active_MO_inds
+    )
+    assert np.all(
+        restricted_loc_system.enviro_MO_inds == unrestricted_loc_system.enviro_MO_inds
+    )
+    assert np.all(
+        unrestricted_loc_system.active_MO_inds
+        == unrestricted_loc_system.beta_active_MO_inds
+    )
+    assert np.all(
+        unrestricted_loc_system.enviro_MO_inds
+        == unrestricted_loc_system.beta_enviro_MO_inds
+    )
+
+
+def test_SPADE_mo_indices(global_rks, global_uks) -> None:
+    restricted_loc_system = SPADELocalizer(
+        global_rks,
+        n_active_atoms=n_active_atoms,
+    )
+    unrestricted_loc_system = SPADELocalizer(
+        global_uks,
+        n_active_atoms=n_active_atoms,
+    )
+    assert np.all(
+        restricted_loc_system.active_MO_inds == unrestricted_loc_system.active_MO_inds
+    )
+    assert np.all(
+        restricted_loc_system.enviro_MO_inds == unrestricted_loc_system.enviro_MO_inds
+    )
+    assert np.all(
+        unrestricted_loc_system.active_MO_inds
+        == unrestricted_loc_system.beta_active_MO_inds
+    )
+    assert np.all(
+        unrestricted_loc_system.enviro_MO_inds
+        == unrestricted_loc_system.beta_enviro_MO_inds
+    )
+
+
 def test_PMLocalizer_local_basis_transform(global_rks) -> None:
     """Check change of basis operator (from canonical to localized) is correct"""
 
