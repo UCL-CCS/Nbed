@@ -40,6 +40,23 @@ global_uks.max_memory = max_ram_memory
 global_uks.verbose = pyscf_print_level
 global_uks.kernel()
 
+def test_PM_check_values() -> None:
+    """Check the internal test of values."""
+    loc_system = PMLocalizer(
+        global_rks,
+        n_active_atoms=n_active_atoms,
+        occ_cutoff=occ_cutoff,
+        virt_cutoff=virt_cutoff,
+    )
+    loc_system._check_values()
+
+def test_SPADE_check_values() -> None:
+    """Check the internal test of values."""
+    loc_system = SPADELocalizer(
+        global_rks,
+        n_active_atoms=n_active_atoms,
+    )
+    loc_system._check_values()
 
 def test_PMLocalizer_local_basis_transform() -> None:
     """Check change of basis operator (from canonical to localized) is correct"""
