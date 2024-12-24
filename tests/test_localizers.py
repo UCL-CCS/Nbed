@@ -55,7 +55,7 @@ def test_PM_check_values(global_rks, global_uks) -> None:
             n_active_atoms=n_active_atoms,
             occ_cutoff=occ_cutoff,
             virt_cutoff=virt_cutoff,
-        )._check_values()
+        ).run(check_values=True)
 
 def test_SPADE_check_values(global_rks, global_uks) -> None:
     """Check the internal test of values."""
@@ -63,7 +63,7 @@ def test_SPADE_check_values(global_rks, global_uks) -> None:
         SPADELocalizer(
             ks,
             n_active_atoms=n_active_atoms,
-        )._check_values()
+        ).run(check_values=True)
 
 def test_PMLocalizer_local_basis_transform(global_rks) -> None:
     """Check change of basis operator (from canonical to localized) is correct"""

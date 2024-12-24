@@ -151,19 +151,21 @@ class Localizer(ABC):
         logger.debug("Checking density matrix partition.")
         dm_localised_full_system = self._c_loc_occ @ self._c_loc_occ.conj().T
         dm_sum = self.dm_active + self.dm_enviro
-
-        density_match = np.allclose(dm_localised_full_system, dm_sum)
-        logger.debug(f"{density_match=}")
-
-        if self._restricted is False:
-            alpha_density_match = density_match
-
+        if self._restricted is True:
+            # In a restricted system we have two electrons per orbital
+            density_match = np.allclose(2* dm_localised_full_system, dm_sum)
+            logger.debug(f"Restricted {density_match=}")
+        else:
             beta_dm_localised_full_system = (
                 self._beta_c_loc_occ @ self._beta_c_loc_occ.conj().T
             )
             beta_dm_sum = self.beta_dm_active + self.beta_dm_enviro
 
             # both need to be correct
+            alpha_density_match = np.allclose(
+                dm_localised_full_system, dm_sum
+            )
+            logger.debug(f"Unrestricted {alpha_density_match=}")
             beta_density_match = np.allclose(
                 beta_dm_localised_full_system, beta_dm_sum
             )
