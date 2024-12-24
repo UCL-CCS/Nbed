@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from pyscf import gto, scf
+import pytest
 
 from nbed.localizers.pyscf import PMLocalizer
 from nbed.localizers.spade import SPADELocalizer
@@ -20,45 +21,54 @@ occ_cutoff = 0.95
 virt_cutoff = 0.95
 run_virtual_localization = False
 
-full_mol = gto.Mole(
-    atom=str(water_filepath),
-    basis=basis,
-    charge=charge,
-).build()
+@pytest.fixture
+def molecule() -> gto.Mole:
+    return gto.Mole(
+        atom=str(water_filepath),
+        basis=basis,
+        charge=charge,
+    ).build()
 
-global_rks = scf.RKS(full_mol)
-global_rks.conv_tol = convergence
-global_rks.xc = xc_functional
-global_rks.max_memory = max_ram_memory
-global_rks.verbose = pyscf_print_level
-global_rks.kernel()
+@pytest.fixture
+def global_rks(molecule) -> scf.RKS:
+    global_rks = scf.RKS(molecule)
+    global_rks.conv_tol = convergence
+    global_rks.xc = xc_functional
+    global_rks.max_memory = max_ram_memory
+    global_rks.verbose = pyscf_print_level
+    global_rks.kernel()
+    return global_rks
 
-global_uks = scf.UKS(full_mol)
-global_uks.conv_tol = convergence
-global_uks.xc = xc_functional
-global_uks.max_memory = max_ram_memory
-global_uks.verbose = pyscf_print_level
-global_uks.kernel()
+@pytest.fixture
+def global_uks(molecule) -> scf.UKS:
+    global_uks = scf.UKS(molecule)
+    global_uks.conv_tol = convergence
+    global_uks.xc = xc_functional
+    global_uks.max_memory = max_ram_memory
+    global_uks.verbose = pyscf_print_level
+    global_uks.kernel()
+    return global_uks
 
-def test_PM_check_values() -> None:
+
+def test_PM_check_values(global_rks, global_uks) -> None:
     """Check the internal test of values."""
-    loc_system = PMLocalizer(
-        global_rks,
-        n_active_atoms=n_active_atoms,
-        occ_cutoff=occ_cutoff,
-        virt_cutoff=virt_cutoff,
-    )
-    loc_system._check_values()
+    for ks in [global_rks, global_uks]:
+        PMLocalizer(
+            ks,
+            n_active_atoms=n_active_atoms,
+            occ_cutoff=occ_cutoff,
+            virt_cutoff=virt_cutoff,
+        )._check_values()
 
-def test_SPADE_check_values() -> None:
+def test_SPADE_check_values(global_rks, global_uks) -> None:
     """Check the internal test of values."""
-    loc_system = SPADELocalizer(
-        global_rks,
-        n_active_atoms=n_active_atoms,
-    )
-    loc_system._check_values()
+    for ks in [global_rks, global_uks]:
+        SPADELocalizer(
+            ks,
+            n_active_atoms=n_active_atoms,
+        )._check_values()
 
-def test_PMLocalizer_local_basis_transform() -> None:
+def test_PMLocalizer_local_basis_transform(global_rks) -> None:
     """Check change of basis operator (from canonical to localized) is correct"""
 
     # run Localizer
@@ -83,7 +93,7 @@ def test_PMLocalizer_local_basis_transform() -> None:
     assert np.isclose(n_all_electrons, n_active_electrons + n_enviro_electrons)
 
 
-def test_spade_spins_match() -> None:
+def test_spade_spins_match(global_rks, global_uks) -> None:
     """Check that localization of restricted and unrestricted match."""
     # define RKS DFT object
 
@@ -102,40 +112,7 @@ def test_spade_spins_match() -> None:
     assert np.all(unrestricted.active_MO_inds == unrestricted.beta_active_MO_inds)
     assert np.all(restricted.active_MO_inds == unrestricted.active_MO_inds)
 
-
-def test_cl_shells() -> None:
-
-    global_rks = scf.RKS(full_mol)
-    global_rks.conv_tol = convergence
-    global_rks.xc = xc_functional
-    global_rks.max_memory = max_ram_memory
-    global_rks.verbose = pyscf_print_level
-    global_rks.kernel()
-
-    restricted = SPADELocalizer(
-        global_rks,
-        n_active_atoms=n_active_atoms,
-    )
-
-    restricted.localize_virtual(restricted._global_scf)
-    assert restricted.shells == [12, 13]
-
-
-def test_cl_open_shell() -> None:
-
-    global_rks = scf.RKS(full_mol)
-    global_rks.conv_tol = convergence
-    global_rks.xc = xc_functional
-    global_rks.max_memory = max_ram_memory
-    global_rks.verbose = pyscf_print_level
-    global_rks.kernel()
-
-    global_uks = scf.UKS(full_mol)
-    global_uks.conv_tol = convergence
-    global_uks.xc = xc_functional
-    global_uks.max_memory = max_ram_memory
-    global_uks.verbose = pyscf_print_level
-    global_uks.kernel()
+def test_cl_shell_numbers(global_rks, global_uks) -> None:
 
     restricted = SPADELocalizer(
         global_rks,
@@ -148,6 +125,8 @@ def test_cl_open_shell() -> None:
         n_active_atoms=n_active_atoms,
     )
     unrestricted.localize_virtual(unrestricted._global_scf)
+    
+    assert restricted.shells == [12, 13]
     assert restricted.shells == unrestricted.shells
 
 
