@@ -3,7 +3,7 @@ name = "nbed"
 version = "0.0.7"
 description = ""
 authors = [
-    "Michael Williams de la Bastida <michael.williams.20@ucl.ac.uk>", 
+    "Michael Williams de la Bastida <michael.williams.20@ucl.ac.uk>",
     "Alexis Ralli <alexis.ralli.18@ucl.ac.uk>"
 ]
 
@@ -60,7 +60,7 @@ filterwarnings = [
 ]
 
 [tool.ruff]
-exclude = ["notebooks/", "docs/"]
+exclude = ["notebooks/", "docs/", "tests/"]
 line-length = 88
 indent-width = 4
 

@@ -63,10 +63,10 @@ def restricted_float_percentage(x: float) -> float:
     try:
         x = float(x)
     except ValueError:
-        raise argparse.ArgumentTypeError("%r not a floating-point literal" % (x,))
+        raise argparse.ArgumentTypeError("{!r} not a floating-point literal".format(x))
 
     if x < 0.0 or x > 1.0:
-        raise argparse.ArgumentTypeError("%r not in range [0.0, 1.0]" % (x,))
+        raise argparse.ArgumentTypeError("{!r} not in range [0.0, 1.0]".format(x))
     return x
 
 
@@ -212,7 +212,7 @@ def parse():
     if args.config:
         logger.debug("Reading config file.")
         filepath = Path(args.config).absolute()
-        stream = open(filepath, "r")
+        stream = open(filepath)
         args = yaml.safe_load(stream)["nbed"]
 
         # Optional argument defaults
@@ -432,8 +432,7 @@ def build_ordered_xyz_string(struct_dict: dict, active_atom_inds: list) -> str:
     Returns:
         xyz_string (str): raw xyz string of molecular geometry (atoms ordered by atom_ordering_by_inds list)
 
-        Example
-
+    Example:
         input_struct_dict = { 0: ('O', (0, 0, 0)),
                               1: ('H', (0.2774, 0.8929, 0.2544)),
                               2: ('H', (0.6068, -0.2383, -0.7169))

@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `get_hartree_fock_state` function in `HamBuilder`
-- `run_qmmm`, `mm_coords`, `mm_charges`, `mm_radii` and `symmetry` attributes for NbedDriver. 
+- `run_qmmm`, `mm_coords`, `mm_charges`, `mm_radii` and `symmetry` attributes for NbedDriver.
 
 ### Deprecated
 - `HamBuilder.build` has `taper` bool input, but the main way to do this is now the `Symmer.QubitReductionDriver`
@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `frozen` option for FCI calls CASSCF
 - `driver.cl_shells` attribute assigned when concentric localization is run
-- `SpadeLocalizer.singular_values` and `.shells` properties 
+- `SpadeLocalizer.singular_values` and `.shells` properties
 
 ## [0.0.3]
 ### Fixed
@@ -87,7 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## [0.0.1] - 2022-03-07
-### Fixed 
+### Fixed
 - `NbedDriver._init_local_rhf` reversion which used the old `local_basis_transform`
 ### Added
 - Basic functionality for initial release

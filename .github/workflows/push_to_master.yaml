@@ -1,5 +1,5 @@
 name: Push to Master CICD
-on: 
+on:
   push:
     branches:
       - master
@@ -34,4 +34,4 @@ jobs:
         continue-on-error: True
       - name: Testing
         run: |
-          poetry run pytest 
+          poetry run pytest

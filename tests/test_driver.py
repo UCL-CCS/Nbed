@@ -1,9 +1,6 @@
-"""
-File to contain tests of the driver.py script.
-"""
+"""File to contain tests of the driver.py script."""
 
 import logging
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -17,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def test_incorrect_geometry_path() -> None:
-    """test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
-
+    """Test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
     molecule = "THIS/IS/NOT/AN/XYZ/FILE"
 
     args = {
@@ -39,8 +35,7 @@ def test_incorrect_geometry_path() -> None:
 
 
 def test_driver_standard_xyz_file_input(water_filepath) -> None:
-    """test to check driver works... path to xyz file given"""
-
+    """Test to check driver works... path to xyz file given"""
     args = {
         "geometry": str(water_filepath),
         "n_active_atoms": 1,
@@ -59,7 +54,7 @@ def test_driver_standard_xyz_file_input(water_filepath) -> None:
 
 
 def test_driver_standard_xyz_string_input() -> None:
-    """test to check driver works... raw xyz string given"""
+    """Test to check driver works... raw xyz string given"""
     water_xyz_raw = (
         "3\n \nH\t0.2774\t0.8929\t0.2544\nO\t0\t0\t0\nH\t0.6068\t-0.2383\t-0.7169"
     )
@@ -144,8 +139,7 @@ def test_driver_standard_xyz_string_input() -> None:
 
 
 def test_n_active_atoms_validation(water_filepath) -> None:
-    """test to check driver works... path to xyz file given"""
-
+    """Test to check driver works... path to xyz file given"""
     args = {
         "geometry": str(water_filepath),
         "basis": "STO-3G",
