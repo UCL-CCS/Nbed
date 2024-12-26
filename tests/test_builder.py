@@ -50,6 +50,29 @@ def ubuilder(unrestricted_scf):
     return HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
 
 
+def test_restricted_energy(restricted_scf, rbuilder) -> None:
+    """
+    Use the full system to check that output hamiltonian diagonalises to fci value for a restricted calculation.
+    """
+
+
+@pytest.fixture
+def unrestricted_scf(uncharged_mol):
+    uhf = UHF(uncharged_mol)
+    uhf.kernel()
+    return uhf
+
+
+@pytest.fixture
+def rbuilder(restricted_scf):
+    return HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
+
+
+@pytest.fixture
+def ubuilder(unrestricted_scf):
+    return HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
+
+
 def test_restricted(restricted_scf, rbuilder) -> None:
     """Use the full system to check that output hamiltonian diagonalises to fci value for a restricted calculation."""
     e_fci = FCI(restricted_scf).kernel()[0] - restricted_scf.energy_nuc()

@@ -484,7 +484,6 @@ def save_ordered_xyz_file(
     Args:
         file_name (str): Name of xyz file
         struct_dict (dict): Dictionary of indexed atoms and Cartesian coordinates (x,y,z)
-        struct_dict (dict): Dictionary of indexed atoms and Cartesian coordinates (x,y,z)
         active_atom_inds (list): list of indices to be considered active. This will put these atoms to the top of the xyz file.
                                  Note indices are chosen from the struct_dict.
         save_location (Path): Path of where to save xyz file. If not defined then current working dir used.

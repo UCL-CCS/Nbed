@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from pyscf import gto, scf
 
+from nbed.localizers.base import Localizer
 from nbed.localizers.pyscf import PMLocalizer
 from nbed.localizers.spade import SPADELocalizer
 
@@ -48,6 +49,50 @@ def global_uks(molecule) -> scf.UKS:
     return global_uks
 
 
+def test_base_localizer(global_rks) -> None:
+    """Check the base class can be instantiated."""
+    with pytest.raises(TypeError) as excinfo:
+        Localizer(global_rks, n_active_atoms=n_active_atoms)
+
+    assert "_localize_spin" in str(excinfo.value)
+    assert "localize_virtual" in str(excinfo.value)
+
+
+def test_PM_arguments(global_rks) -> None:
+    """Check the internal test of values."""
+    with pytest.raises(ValueError):
+        PMLocalizer(
+            global_rks,
+            n_active_atoms=n_active_atoms,
+            occ_cutoff=1.1,
+            virt_cutoff=virt_cutoff,
+        )
+
+    with pytest.raises(ValueError):
+        PMLocalizer(
+            global_rks,
+            n_active_atoms=n_active_atoms,
+            occ_cutoff=occ_cutoff,
+            virt_cutoff=1.1,
+        )
+
+    with pytest.raises(ValueError):
+        PMLocalizer(
+            global_rks,
+            n_active_atoms=n_active_atoms,
+            occ_cutoff=-0.1,
+            virt_cutoff=virt_cutoff,
+        )
+
+    with pytest.raises(ValueError):
+        PMLocalizer(
+            global_rks,
+            n_active_atoms=n_active_atoms,
+            occ_cutoff=occ_cutoff,
+            virt_cutoff=-0.1,
+        )
+
+
 def test_PM_check_values(global_rks, global_uks) -> None:
     """Check the internal test of values."""
     for ks in [global_rks, global_uks]:
@@ -66,6 +111,72 @@ def test_SPADE_check_values(global_rks, global_uks) -> None:
             ks,
             n_active_atoms=n_active_atoms,
         ).run(check_values=True)
+
+
+def test_PM_mo_indices(global_rks, global_uks) -> None:
+    restricted_loc_system = PMLocalizer(
+        global_rks,
+        n_active_atoms=n_active_atoms,
+        occ_cutoff=occ_cutoff,
+        virt_cutoff=virt_cutoff,
+    )
+    assert restricted_loc_system.beta_active_MO_inds is None
+    assert restricted_loc_system.beta_enviro_MO_inds is None
+    assert restricted_loc_system.beta_c_active is None
+    assert restricted_loc_system.beta_c_enviro is None
+    assert restricted_loc_system._beta_c_loc_occ is None
+
+    unrestricted_loc_system = PMLocalizer(
+        global_uks,
+        n_active_atoms=n_active_atoms,
+        occ_cutoff=occ_cutoff,
+        virt_cutoff=virt_cutoff,
+    )
+    assert np.all(
+        restricted_loc_system.active_MO_inds == unrestricted_loc_system.active_MO_inds
+    )
+    assert np.all(
+        restricted_loc_system.enviro_MO_inds == unrestricted_loc_system.enviro_MO_inds
+    )
+    assert np.all(
+        unrestricted_loc_system.active_MO_inds
+        == unrestricted_loc_system.beta_active_MO_inds
+    )
+    assert np.all(
+        unrestricted_loc_system.enviro_MO_inds
+        == unrestricted_loc_system.beta_enviro_MO_inds
+    )
+
+
+def test_SPADE_mo_indices(global_rks, global_uks) -> None:
+    restricted_loc_system = SPADELocalizer(
+        global_rks,
+        n_active_atoms=n_active_atoms,
+    )
+    assert restricted_loc_system.beta_active_MO_inds is None
+    assert restricted_loc_system.beta_enviro_MO_inds is None
+    assert restricted_loc_system.beta_c_active is None
+    assert restricted_loc_system.beta_c_enviro is None
+    assert restricted_loc_system._beta_c_loc_occ is None
+
+    unrestricted_loc_system = SPADELocalizer(
+        global_uks,
+        n_active_atoms=n_active_atoms,
+    )
+    assert np.all(
+        restricted_loc_system.active_MO_inds == unrestricted_loc_system.active_MO_inds
+    )
+    assert np.all(
+        restricted_loc_system.enviro_MO_inds == unrestricted_loc_system.enviro_MO_inds
+    )
+    assert np.all(
+        unrestricted_loc_system.active_MO_inds
+        == unrestricted_loc_system.beta_active_MO_inds
+    )
+    assert np.all(
+        unrestricted_loc_system.enviro_MO_inds
+        == unrestricted_loc_system.beta_enviro_MO_inds
+    )
 
 
 def test_PMLocalizer_local_basis_transform(global_rks) -> None:

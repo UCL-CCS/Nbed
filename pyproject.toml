@@ -8,40 +8,34 @@ authors = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9, <4.0"
+python = ">=3.10, <4.0"
 openfermion = "^1.1.0"
-PennyLane = "^0.33.0"
+PennyLane = "^0.39.0"
 PyYAML = "^6.0.0"
-types-PyYAML = "^5.4.11"
 qiskit-nature = "^0.7.0"
-cached-property = "^1.5.2"
-py3Dmol = "^1.7.0"
-jupyter = "^1.0.0"
-h5py = "^3.7"
 symmer = "~0.0.7"
 pyscf = "^2.3.0"
 grpcio = "^1.59.0"
-pre-commit = "^4.0.1"
-pytest-cov = "^6.0.0"
 
 [tool.poetry.group.dev.dependencies]
-black = "^24.0.0"
-flake8 = ">=4.0.0, <5"
+pre-commit = "^4.0.1"
+jupyter = "^1.0.0"
+black = ">24.0.0"
+flake8 = "^4.0.0"
 pydocstyle = "^6.1.1"
-pytest = "^7.2.2"
-mypy = "^0.902"
-bpython = "^0.21"
+pytest = "^7.4.2"
 isort = "^5.9.3"
 pandoc = "^2.3"
 poetry = "^1.7.0"
+pytest-cov = "^6.0.0"
 
 [tool.poetry.group.docs]
 optional = true
 
 [tool.poetry.group.docs.dependencies]
 nbsphinx = "^0.9.0"
-Sphinx = "^5"
-sphinx-rtd-theme = "^1.0.0"
+Sphinx = ">5"
+sphinx-rtd-theme = "^2.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
