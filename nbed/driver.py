@@ -18,7 +18,7 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .scf import energy_elec, huzinaga_HF, huzinaga_KS
+from .scf import energy_elec, huzinaga_scf
 
 # Create the Logger
 logger = logging.getLogger(__name__)
@@ -660,20 +660,14 @@ class NbedDriver:
                 [self.localized_system.dm_enviro, self.localized_system.beta_dm_enviro]
             )
 
-        localized_scf = active_scf
-        if isinstance(localized_scf, (dft.rks.RKS, dft.uks.UKS)):
-            huz_method = huzinaga_KS
-        elif isinstance(localized_scf, (scf.rhf.RHF, scf.uhf.UHF)):
-            huz_method = huzinaga_HF
-
         (
             c_active_embedded,
             mo_embedded_energy,
             dm_active_embedded,
             huzinaga_op_std,
             huz_scf_conv_flag,
-        ) = huz_method(
-            localized_scf,
+        ) = huzinaga_scf(
+            active_scf,
             dft_potential,
             total_enviro_dm,
             dm_conv_tol=1e-6,
@@ -684,24 +678,22 @@ class NbedDriver:
 
         # write results to pyscf object
         logger.debug("Writing results to PySCF object.")
-        hcore_std = localized_scf.get_hcore()
+        hcore_std = active_scf.get_hcore()
         v_emb = huzinaga_op_std + dft_potential
-        localized_scf.get_hcore = lambda *args: hcore_std + v_emb
+        active_scf.get_hcore = lambda *args: hcore_std + v_emb
 
         if not self._restricted_scf:
-            localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
+            active_scf.energy_elec = lambda *args: energy_elec(active_scf, *args)
 
-        localized_scf.mo_coeff = c_active_embedded
-        localized_scf.mo_occ = localized_scf.get_occ(
-            mo_embedded_energy, c_active_embedded
-        )
-        localized_scf.mo_energy = mo_embedded_energy
-        localized_scf.e_tot = localized_scf.energy_tot(dm=dm_active_embedded)
+        active_scf.mo_coeff = c_active_embedded
+        active_scf.mo_occ = active_scf.get_occ(mo_embedded_energy, c_active_embedded)
+        active_scf.mo_energy = mo_embedded_energy
+        active_scf.e_tot = active_scf.energy_tot(dm=dm_active_embedded)
         # localized_scf.conv_check = huz_scf_conv_flag
-        localized_scf.converged = huz_scf_conv_flag
+        active_scf.converged = huz_scf_conv_flag
 
-        logger.info(f"Huzinaga scf energy: {localized_scf.e_tot}")
-        return localized_scf, v_emb
+        logger.info(f"Huzinaga scf energy: {active_scf.e_tot}")
+        return active_scf, v_emb
 
     def _delete_spin_environment(
         self,
@@ -949,23 +941,23 @@ class NbedDriver:
         # initializing huzinaga with mu
 
         embedding_methods_to_run = []
-        if self.projector in ["both","mu"] or init_huzinaga_rhf_with_mu:
+        if self.projector in ["both", "mu"] or init_huzinaga_rhf_with_mu:
             embedding_methods_to_run.append("mu")
 
-        if self.projector in ["both","huzinaga"]:
+        if self.projector in ["both", "huzinaga"]:
             embedding_methods_to_run.append("huzinaga")
 
         if self.projector not in ["mu", "huzinaga", "both"]:
             logger.error("Invalid projector specified %s.", self.projector)
             raise NbedConfigError("Invalid projector specified %s.", self.projector)
-        
+
         logger.debug(f"Embedding methods to run: {embedding_methods_to_run}")
 
         for projector_name in embedding_methods_to_run:
             result = {}
             logger.debug(f"Runnning embedding with {projector_name} projector.")
 
-            if projector_name== "mu":
+            if projector_name == "mu":
                 embedding_method = self._mu_embed
             elif projector_name == "huzinaga":
                 embedding_method = self._huzinaga_embed
@@ -973,7 +965,7 @@ class NbedDriver:
             local_hf = self._init_local_hf()
 
             if projector_name == "huzinaga" and init_huzinaga_rhf_with_mu:
-                dmat_initial_guess=self._mu["scf"].make_rdm1(),
+                dmat_initial_guess = (self._mu["scf"].make_rdm1(),)
 
                 result["scf"], result["v_emb"] = embedding_method(
                     local_hf, dft_potential, dmat_initial_guess
@@ -982,7 +974,6 @@ class NbedDriver:
                 result["scf"], result["v_emb"] = embedding_method(
                     local_hf, dft_potential
                 )
-            
 
             result["mo_energies_emb_pre_del"] = local_hf.mo_energy
             result["scf"] = self._delete_environment(projector_name, result["scf"])
@@ -1069,7 +1060,6 @@ class NbedDriver:
                 self._mu = result
             elif projector_name == "huzinaga":
                 self._huzinaga = result
-
 
         if self.projector == "mu":
             self.embedded_scf = self._mu["scf"]
