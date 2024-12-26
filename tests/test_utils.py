@@ -53,4 +53,4 @@ def test_save_xyz(water_struct_dict, water_xyz_o_active) -> None:
         raise AssertionError("File not saved correctly")
     finally:
         f.close()
-        os.remove("tests/molecules/water.xyz")
+        os.remove(file_path)
