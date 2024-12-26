@@ -15,7 +15,6 @@ PyYAML = "^6.0.0"
 qiskit-nature = "^0.7.0"
 symmer = "~0.0.7"
 pyscf = "^2.3.0"
-grpcio = "^1.59.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.0.1"
