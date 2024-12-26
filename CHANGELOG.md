@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Added
 - `.pre-commit-config.yaml` added
 
+## Changed
+- python version requirement changed to `>=3.9, <4`
+
 ## [0.0.7]
 ### Changed
 - `HamiltonianBuilder` now checks type of indices of mo_occ to determine resteriction.
