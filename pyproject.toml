@@ -31,7 +31,6 @@ pytest = "^7.2.2"
 mypy = "^0.902"
 bpython = "^0.21"
 isort = "^5.9.3"
-coverage = "^6.3.1"
 pandoc = "^2.3"
 poetry = "^1.7.0"
 
