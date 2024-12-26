@@ -16,70 +16,49 @@ from nbed.exceptions import NbedConfigError
 logger = logging.getLogger(__name__)
 
 
-def test_incorrect_geometry_path() -> None:
-    """test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
 
-    molecule = "THIS/IS/NOT/AN/XYZ/FILE"
+@pytest.fixture
+def mu_driver(driver_args) -> NbedDriver:
+    driver_args["projector"] = "mu"
+    return NbedDriver(**driver_args)
 
-    args = {
-        "geometry": molecule,
-        "n_active_atoms": 1,
-        "basis": "STO-3G",
-        "xc_functional": "b3lyp5",
-        "projector": "mu",
-        "localization": "spade",
-        "convergence": 1e-6,
-        "run_ccsd_emb": True,
-        "run_fci_emb": True,
-    }
+@pytest.fixture
+def huz_driver(driver_args) -> NbedDriver:
+    driver_args["projector"] = "huzinaga"
+    return NbedDriver(**driver_args)
 
-    with pytest.raises(RuntimeError, match="Unsupported atom symbol .*"):
-        # match will match with any printed error message
-        NbedDriver(**args)
+def test_projectors_results_match(mu_driver, huz_driver) -> None:
+    assert mu_driver._mu is not {} and mu_driver._huzinaga is None
+    assert huz_driver._huzinaga is not {} and huz_driver._mu is None
+    assert mu_driver._mu.keys() == huz_driver._huzinaga.keys()
 
+def test_projectors_scf_match(mu_driver, huz_driver) -> None:
+    mu_scf = mu_driver.embedded_scf
+    huz_scf = huz_driver.embedded_scf
+    assert mu_scf.converged is True
+    assert huz_scf.converged is True
 
-def test_driver_standard_xyz_file_input(water_filepath) -> None:
+    assert type(mu_scf) is type(huz_scf)
+    assert mu_scf.mo_coeff.shape == huz_scf.mo_coeff.shape
+    assert mu_scf.mo_occ.shape == huz_scf.mo_occ.shape
+    assert mu_scf.mo_energy.shape == huz_scf.mo_energy.shape
+    assert np.isclose(mu_scf.e_tot, huz_scf.e_tot)
+
+def test_driver_standard_xyz_file_input(driver_args) -> None:
     """test to check driver works... path to xyz file given"""
 
-    args = {
-        "geometry": str(water_filepath),
-        "n_active_atoms": 1,
-        "basis": "STO-3G",
-        "xc_functional": "b3lyp",
-        "projector": "mu",
-        "localization": "spade",
-        "convergence": 1e-6,
-        "run_ccsd_emb": False,
-        "run_fci_emb": False,
-    }
-
-    driver = NbedDriver(**args)
+    driver = NbedDriver(**driver_args)
     assert isinstance(driver.embedded_scf, StreamObject)
     assert isclose(driver.classical_energy, -14.229079481431608)
 
 
-def test_driver_standard_xyz_string_input() -> None:
+def test_driver_standard_xyz_string_input(restricted_driver) -> None:
     """test to check driver works... raw xyz string given"""
-    water_xyz_raw = (
-        "3\n \nH\t0.2774\t0.8929\t0.2544\nO\t0\t0\t0\nH\t0.6068\t-0.2383\t-0.7169"
-    )
-    args = {
-        "geometry": water_xyz_raw,
-        "n_active_atoms": 2,
-        "basis": "STO-3G",
-        "xc_functional": "b3lyp",
-        "projector": "mu",
-        "localization": "spade",
-        "convergence": 1e-6,
-        "run_ccsd_emb": False,
-        "run_fci_emb": False,
-    }
 
-    driver = NbedDriver(**args)
-    assert isinstance(driver.embedded_scf, StreamObject)
-    assert isclose(driver.classical_energy, -3.5867934952241356)
+    assert isinstance(restricted_driver.embedded_scf, StreamObject)
+    assert isclose(restricted_driver.classical_energy, -3.5867934952241356)
     assert np.allclose(
-        driver.embedded_scf.mo_coeff,
+        restricted_driver.embedded_scf.mo_coeff,
         np.array(
             [
                 [
@@ -238,6 +217,26 @@ def test_subsystem_dft_spin_consistency(water_filepath) -> None:
         restricted_driver.classical_energy, unrestricted_driver.classical_energy
     )
 
+def test_incorrect_geometry_path() -> None:
+    """test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
+
+    molecule = "THIS/IS/NOT/AN/XYZ/FILE"
+
+    args = {
+        "geometry": molecule,
+        "n_active_atoms": 1,
+        "basis": "STO-3G",
+        "xc_functional": "b3lyp5",
+        "projector": "mu",
+        "localization": "spade",
+        "convergence": 1e-6,
+        "run_ccsd_emb": True,
+        "run_fci_emb": True,
+    }
+
+    with pytest.raises(RuntimeError, match="Unsupported atom symbol .*"):
+        # match will match with any printed error message
+        NbedDriver(**args)
 
 if __name__ == "__main__":
     pass

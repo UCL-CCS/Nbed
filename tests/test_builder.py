@@ -14,31 +14,20 @@ from pyscf.gto import Mole
 from pyscf.scf import RHF, UHF
 
 from nbed.ham_builder import HamiltonianBuilder
+from nbed.driver import NbedDriver
 
 logger = getLogger(__name__)
 
 
 @pytest.fixture
-def uncharged_mol(water_filepath) -> dict:
-    mol_args = {
-        "atom": str(water_filepath),
-        "n_active_atoms": 1,
-        "basis": "STO-3G",
-        "unit": "angstrom",
-    }
-    return Mole(**mol_args, charge=0, spin=0).build()
-
-
-@pytest.fixture
-def restricted_scf(uncharged_mol):
-    rhf = RHF(uncharged_mol)
+def restricted_scf(water_mol):
+    rhf = RHF(water_mol)
     rhf.kernel()
     return rhf
 
-
 @pytest.fixture
-def unrestricted_scf(uncharged_mol):
-    uhf = UHF(uncharged_mol)
+def unrestricted_scf(water_mol):
+    uhf = UHF(water_mol)
     uhf.kernel()
     return uhf
 
