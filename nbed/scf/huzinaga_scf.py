@@ -15,13 +15,26 @@ def _huzinaga_fock_operator(
     scf_method: StreamObject,
     dft_potential: np.ndarray,
     vhf: np.ndarray,
-    dm_enviroment: np.ndarray,
+    dm_environment: np.ndarray,
     adiis: Optional[diis.DIIS],
-) -> np.ndarray:
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Update the Fock operator with corrections for the Huzinaga operator.
+
+    Args:
+        scf_method (StreamObject): PySCF HF method
+        dft_potential (np.ndarray): DFT embedding potential
+        vhf (np.ndarray): Hartree-Fock potential
+        dm_environment (np.ndarray): Embedded region density matrix (updates each cycle)
+        adiis (diis.DIIS): Optional PySCF diis class to update fock operator
+
+    Returns:
+        np.ndarray: Huzinaga operator
+        np.ndarray: fock operator
+    """
     logger.debug("Calculating Huzinaga operator")
     fock = scf_method.get_hcore() + dft_potential + vhf
     logger.debug(f"{fock.shape=}")
-    dm_env_S = dm_enviroment @ scf_method.get_ovlp()
+    dm_env_S = dm_environment @ scf_method.get_ovlp()
     logger.debug(f"{dm_env_S.shape=}")
 
     fock = fock @ dm_env_S
@@ -100,7 +113,7 @@ def calculate_ks_energy(
 def huzinaga_scf(
     scf_method: StreamObject,
     dft_potential: np.ndarray,
-    dm_enviroment: np.ndarray,
+    dm_environment: np.ndarray,
     dm_conv_tol: float = 1e-6,
     dm_initial_guess: Optional[np.ndarray] = None,
     use_DIIS: Optional[np.ndarray] = True,
@@ -116,7 +129,7 @@ def huzinaga_scf(
     Args:
         scf_method (StreamObjecty):PySCF RHF object (containing info about max cycles and convergence tolerence)
         dft_potential (np.ndarray): DFT active and environment two body terms - DFT active environemnt two body term
-        dm_enviroment (np.ndarray): Density matrix of the environment.
+        dm_environment (np.ndarray): Density matrix of the environment.
         dm_conv_tol (float): density matrix convergence tolerance.
         dm_initial_guess (np.ndarray): Optional initial guess density matrix.
         use_DIIS (bool): whether to use  Direct Inversion in the Iterative Subspace (DIIS) method
@@ -135,7 +148,7 @@ def huzinaga_scf(
 
     # there are many more unrestricted types than restricted
     unrestricted = not isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
-    if unrestricted and dm_enviroment.ndim != 3:
+    if unrestricted and dm_environment.ndim != 3:
         raise ValueError(
             "Unrestricted calculation requires stacked dm_environment shape (2xMxM)."
         )
@@ -143,7 +156,7 @@ def huzinaga_scf(
     # Create an initial dm if needed.
     if dm_initial_guess is None:
         huzinaga_op_std, fock = _huzinaga_fock_operator(
-            scf_method, dft_potential, 0, dm_enviroment, None
+            scf_method, dft_potential, 0, dm_environment, None
         )
         fock_ortho = s_neg_half @ fock @ s_neg_half
         mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
@@ -162,12 +175,12 @@ def huzinaga_scf(
 
         if i == 0:
             huzinaga_op_std, fock = _huzinaga_fock_operator(
-                scf_method, dft_potential, vhf, dm_enviroment, None
+                scf_method, dft_potential, vhf, dm_environment, None
             )
         else:
             # DIIS update of Fock matrix
             huzinaga_op_std, fock = _huzinaga_fock_operator(
-                scf_method, dft_potential, vhf, dm_enviroment, adiis
+                scf_method, dft_potential, vhf, dm_environment, adiis
             )
 
         fock_ortho = s_neg_half @ fock @ s_neg_half
