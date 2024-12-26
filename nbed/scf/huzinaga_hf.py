@@ -10,6 +10,28 @@ from pyscf.lib import StreamObject, diis
 
 logger = logging.getLogger(__name__)
 
+def huzinaga_fock_operator(fock: np.ndarray, s_neg_half:np.ndarray, adiis: Optional[diis.DIIS]) -> np.ndarray:
+    logger.debug("Calculating Huzinaga operator")
+    if fock.dim == 3 and fock.shape[0] == 2:
+        logger.debug("Calculatign unrestricted density matrix")
+        huzinaga_op_std = np.array(
+            [
+                -(fock[0] + fock[0].T),
+                -(fock[1] + fock[1].T),
+            ]
+        )
+    else:
+        logger.debug("Calculating restricted density matrix")
+        huzinaga_op_std = -0.5 * (fock + fock.T)
+
+    fock += huzinaga_op_std
+    
+    if isinstance(diis, diis.DIIS):
+        fock = adiis.update(fock)
+
+    # Create the orthogonal fock operator
+    fock_ortho = s_neg_half @ fock @ s_neg_half
+    return huzinaga_op_std, fock_ortho
 
 def huzinaga_HF(
     scf_method: StreamObject,
@@ -37,97 +59,67 @@ def huzinaga_HF(
     Returns:
         mo_coeff_std (np.ndarray): Optimized C_matrix (columns are optimized moelcular orbtials)
         mo_energy (np.ndarray): 1D array of molecular orbital energies
-        dm_mat (np.ndarray): Converged density matrix
+        density_matrix (np.ndarray): Converged density matrix
         huzinaga_op_std (np.ndarray): Huzinaga operator in standard basis (same basis as Fock operator).
         conv_flag (bool): Flag to indicate whether SCF has converged or not
     """
+    logger.debug("Initializising Huzinaga HF calculation")
     s_mat = scf_method.get_ovlp()
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
+    dm_env_S = dm_enviroment @ s_mat
 
-    if isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS)):
-        unrestricted = False
-    else:
-        unrestricted = True
+    adiis = diis.DIIS() if use_DIIS else None
 
-    if unrestricted:
-        dm_env_S = np.array([dm_enviroment[0] @ s_mat, dm_enviroment[1] @ s_mat])
-    else:
-        dm_env_S = dm_enviroment @ s_mat
+    # there are many more unrestricted types than restricted
+    unrestricted = not isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
+    if unrestricted and dm_enviroment.shape[0] != 2:
+        raise ValueError("Unrestricted calculation requires stacked dm_environment shape (2xMxM).")
 
     # Create an initial dm if needed.
     if dm_initial_guess is None:
         fock = scf_method.get_hcore() + dft_potential
+        fds = fock @ dm_env_S
 
-        if unrestricted:
-            fds_alpha = fock[0] @ dm_env_S[0]
-            fds_beta = fock[1] @ dm_env_S[1]
-            huzinaga_op_std = np.array(
-                [
-                    -(fds_alpha + fds_alpha.T),
-                    -(fds_beta + fds_beta.T),
-                ]
-            )
+        huzinaga_op_std, fock_ortho = huzinaga_fock_operator(fds, s_neg_half, None)
+        mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
+        mo_coeff_std = s_neg_half @ mo_coeff_ortho
+        mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
+        dm_initial_guess = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
+
+    density_matrix = dm_initial_guess
+    conv_flag = False
+    rhf_energy_prev = 0
+
+    for i in range(scf_method.max_cycle):
+        # build fock matrix
+        vhf = scf_method.get_veff(dm=density_matrix)
+        fock = scf_method.get_hcore() + dft_potential + vhf
+        dm_mat_old = density_matrix
+
+        if i==0:
+            huzinaga_op_std, fock_ortho = huzinaga_fock_operator(fds, s_neg_half, None)
         else:
-            fds = fock @ dm_env_S
-            huzinaga_op_std = -0.5 * (fds + fds.T)
-
-        fock += huzinaga_op_std
-        # Create the orthogonal fock operator
-        fock_ortho = s_neg_half @ fock @ s_neg_half
+            # DIIS update of Fock matrix
+            huzinaga_op_std, fock_ortho = huzinaga_fock_operator(fds, s_neg_half, adiis)
 
         mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
         mo_coeff_std = s_neg_half @ mo_coeff_ortho
         mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
         dm_initial_guess = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
 
-    dm_mat = dm_initial_guess
-    conv_flag = False
-    rhf_energy_prev = 0
-    if use_DIIS:
-        adiis = diis.DIIS()
-    for i in range(scf_method.max_cycle):
-        # build fock matrix
-        vhf = scf_method.get_veff(dm=dm_mat)
-        fock = scf_method.get_hcore() + dft_potential + vhf
-
-        if unrestricted:
-            fds_alpha = fock[0] @ dm_env_S[0]
-            fds_beta = fock[1] @ dm_env_S[1]
-            huzinaga_op_std = np.array(
-                [-(fds_alpha + fds_alpha.T), -(fds_beta + fds_beta.T)]
-            )
-        else:
-            fds = fock @ dm_env_S
-            huzinaga_op_std = -0.5 * (fds + fds.T)
-        fock += huzinaga_op_std
-
-        if use_DIIS and (i > 1):
-            # DIIS update of Fock matrix
-            fock = adiis.update(fock)
-
-        fock_ortho = s_neg_half @ fock @ s_neg_half
-
-        mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
-        mo_coeff_std = s_neg_half @ mo_coeff_ortho
-        mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
-
-        # Create initial values for i+1 run.
-        dm_mat_old = dm_mat
-        dm_mat = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
-
         # Find RHF energy
         e_core_dft = np.einsum(
-            "...ij,...ji->...", scf_method.get_hcore() + dft_potential, dm_mat
+            "...ij,...ji->...", scf_method.get_hcore() + dft_potential, density_matrix
         )
 
-        e_coul = 0.5 * np.einsum("...ij,...ji->...", vhf, dm_mat)
-        e_huz = np.einsum("...ij,...ji->...", huzinaga_op_std, dm_mat)
+        e_coul = 0.5 * np.einsum("...ij,...ji->...", vhf, density_matrix)
+        e_huz = np.einsum("...ij,...ji->...", huzinaga_op_std, density_matrix)
         rhf_energy = e_core_dft + e_coul + e_huz
 
         # check convergence
         # use max difference so that this works for unrestricted
         run_diff = np.max(np.abs(rhf_energy - rhf_energy_prev))
-        norm_dm_diff = np.max(np.linalg.norm(dm_mat - dm_mat_old, axis=(-2, -1)))
+        norm_dm_diff = np.max(np.linalg.norm(density_matrix - dm_mat_old, axis=(-2, -1)))
 
         if (run_diff < scf_method.conv_tol) and (norm_dm_diff < dm_conv_tol):
             conv_flag = True
@@ -138,5 +130,4 @@ def huzinaga_HF(
     if conv_flag is False:
         logger.warning("SCF has NOT converged.")
 
-    # v_emb = huzinaga_op_std + dft_potential
-    return mo_coeff_std, mo_energy, dm_mat, huzinaga_op_std, conv_flag
+    return mo_coeff_std, mo_energy, density_matrix, huzinaga_op_std, conv_flag
