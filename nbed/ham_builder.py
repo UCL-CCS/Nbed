@@ -2,12 +2,12 @@
 
 import logging
 import warnings
+from functools import cached_property
 from numbers import Number
 from typing import Optional, Tuple
 
 import numpy as np
 import openfermion.transforms as of_transforms
-from cached_property import cached_property
 from openfermion import (
     FermionOperator,
     InteractionOperator,

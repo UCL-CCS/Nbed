@@ -2,10 +2,10 @@
 
 import logging
 import os
+from functools import cached_property
 from typing import Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
-from cached_property import cached_property
 from pyscf import cc, dft, fci, gto, qmmm, scf
 from pyscf.lib import StreamObject
 

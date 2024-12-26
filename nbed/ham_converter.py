@@ -3,12 +3,12 @@
 import json
 import logging
 import re
+from functools import cached_property
 from numbers import Number
 from pathlib import Path
 from typing import Dict, Union
 
 import pennylane as qml
-from cached_property import cached_property
 from openfermion.ops.operators.qubit_operator import QubitOperator
 from openfermion.utils import count_qubits
 from pennylane import Identity, PauliX, PauliY, PauliZ
