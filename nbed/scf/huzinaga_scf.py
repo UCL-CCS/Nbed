@@ -10,7 +10,10 @@ from pyscf.lib import StreamObject, diis
 
 logger = logging.getLogger(__name__)
 
-def huzinaga_fock_operator(fock: np.ndarray, s_neg_half:np.ndarray, adiis: Optional[diis.DIIS]) -> np.ndarray:
+
+def huzinaga_fock_operator(
+    fock: np.ndarray, s_neg_half: np.ndarray, adiis: Optional[diis.DIIS]
+) -> np.ndarray:
     logger.debug("Calculating Huzinaga operator")
     if fock.dim == 3 and fock.shape[0] == 2:
         logger.debug("Calculatign unrestricted density matrix")
@@ -25,7 +28,7 @@ def huzinaga_fock_operator(fock: np.ndarray, s_neg_half:np.ndarray, adiis: Optio
         huzinaga_op_std = -0.5 * (fock + fock.T)
 
     fock += huzinaga_op_std
-    
+
     if isinstance(diis, diis.DIIS):
         fock = adiis.update(fock)
 
@@ -33,7 +36,28 @@ def huzinaga_fock_operator(fock: np.ndarray, s_neg_half:np.ndarray, adiis: Optio
     fock_ortho = s_neg_half @ fock @ s_neg_half
     return huzinaga_op_std, fock_ortho
 
-def huzinaga_HF(
+
+def calculate_hf_energy(hcore, vhf, dft_potential, density_matrix, huzinaga_op_std):
+    # Find RHF energy
+    e_core_dft = np.einsum("...ij,...ji->...", hcore + dft_potential, density_matrix)
+
+    e_coul = 0.5 * np.einsum("...ij,...ji->...", vhf, density_matrix)
+    e_huz = np.einsum("...ij,...ji->...", huzinaga_op_std, density_matrix)
+    return e_core_dft + e_coul + e_huz
+
+
+def calculate_ks_energy(scf_method, dft_potential, density_matrix, huzinaga_op_std):
+    vhf_updated = scf_method.get_veff(dm=density_matrix)
+    rks_energy = vhf_updated.ecoul + vhf_updated.exc
+    rks_energy += np.einsum(
+        "...ij, ...ji->...",
+        density_matrix,
+        (scf_method.get_hcore() + huzinaga_op_std + dft_potential),
+    )
+    return rks_energy
+
+
+def huzinaga_scf(
     scf_method: StreamObject,
     dft_potential: np.ndarray,
     dm_enviroment: np.ndarray,
@@ -73,7 +97,9 @@ def huzinaga_HF(
     # there are many more unrestricted types than restricted
     unrestricted = not isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
     if unrestricted and dm_enviroment.shape[0] != 2:
-        raise ValueError("Unrestricted calculation requires stacked dm_environment shape (2xMxM).")
+        raise ValueError(
+            "Unrestricted calculation requires stacked dm_environment shape (2xMxM)."
+        )
 
     # Create an initial dm if needed.
     if dm_initial_guess is None:
@@ -96,7 +122,7 @@ def huzinaga_HF(
         fock = scf_method.get_hcore() + dft_potential + vhf
         dm_mat_old = density_matrix
 
-        if i==0:
+        if i == 0:
             huzinaga_op_std, fock_ortho = huzinaga_fock_operator(fds, s_neg_half, None)
         else:
             # DIIS update of Fock matrix
@@ -105,27 +131,36 @@ def huzinaga_HF(
         mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
         mo_coeff_std = s_neg_half @ mo_coeff_ortho
         mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
-        dm_initial_guess = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
 
-        # Find RHF energy
-        e_core_dft = np.einsum(
-            "...ij,...ji->...", scf_method.get_hcore() + dft_potential, density_matrix
-        )
+        density_matrix = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
 
-        e_coul = 0.5 * np.einsum("...ij,...ji->...", vhf, density_matrix)
-        e_huz = np.einsum("...ij,...ji->...", huzinaga_op_std, density_matrix)
-        rhf_energy = e_core_dft + e_coul + e_huz
+        if isinstance(scf_method, (dft.rks.RKS, dft.uks.UKS)):
+            # Find RKS energy
+            scf_energy = calculate_ks_energy(
+                scf_method, dft_potential, density_matrix, huzinaga_op_std
+            )
+        elif isinstance(scf_method, (scf.rhf.RHF, scf.uhf.UHF)):
+            # Find RHF energy
+            scf_energy = calculate_hf_energy(
+                scf_method.get_hcore(),
+                vhf,
+                dft_potential,
+                density_matrix,
+                huzinaga_op_std,
+            )
 
         # check convergence
         # use max difference so that this works for unrestricted
-        run_diff = np.max(np.abs(rhf_energy - rhf_energy_prev))
-        norm_dm_diff = np.max(np.linalg.norm(density_matrix - dm_mat_old, axis=(-2, -1)))
+        run_diff = np.max(np.abs(scf_energy - rhf_energy_prev))
+        norm_dm_diff = np.max(
+            np.linalg.norm(density_matrix - dm_mat_old, axis=(-2, -1))
+        )
 
         if (run_diff < scf_method.conv_tol) and (norm_dm_diff < dm_conv_tol):
             conv_flag = True
             break
 
-        rhf_energy_prev = rhf_energy
+        rhf_energy_prev = scf_energy
 
     if conv_flag is False:
         logger.warning("SCF has NOT converged.")
