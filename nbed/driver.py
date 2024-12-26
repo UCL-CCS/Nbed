@@ -437,8 +437,8 @@ class NbedDriver:
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
             logger.debug("Subsystem RKS components found.")
-            logger.debug("{e_act=}")
-            logger.debug("{two_e_term=}")
+            logger.debug(f"{e_act=}")
+            logger.debug(f"{two_e_term=}")
             return e_act, two_e_term, j_mat
 
         if not self._restricted_scf:
@@ -605,25 +605,15 @@ class NbedDriver:
 
         # Modify the energy_elec function to handle different h_cores
         # which we need for different embedding potentials
+        v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
+        hcore_std = localized_scf.get_hcore()
         if isinstance(localized_scf, (scf.uhf.UHF, dft.uks.UKS)):
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
-            v_emb_alpha = (
-                self.mu_level_shift * self._env_projector[0]
-            ) + dft_potential[0]
-            v_emb_beta = (self.mu_level_shift * self._env_projector[1]) + dft_potential[
-                1
-            ]
-            v_emb = np.array([v_emb_alpha, v_emb_beta])
 
-            hcore_std = localized_scf.get_hcore()
             localized_scf.get_hcore = (
                 lambda *args: np.array([hcore_std, hcore_std]) + v_emb
             )
         elif isinstance(localized_scf, (scf.rhf.RHF, dft.rks.RKS)):
-            # modify hcore to embedded version
-            v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
-
-            hcore_std = localized_scf.get_hcore()
             localized_scf.get_hcore = lambda *args: hcore_std + v_emb
         else:
             logger.error(f"Invalid scf object of type {type(localized_scf)}.")
