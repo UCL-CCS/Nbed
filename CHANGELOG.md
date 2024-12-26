@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Fixed
 
 ## Changed
+- Combined `scf/huzinaga_` HF and KS methods into `huzinaga_scf` 
 
 ## Added
 

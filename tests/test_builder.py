@@ -13,8 +13,8 @@ from pyscf.fci import FCI
 from pyscf.gto import Mole
 from pyscf.scf import RHF, UHF
 
-from nbed.ham_builder import HamiltonianBuilder
 from nbed.driver import NbedDriver
+from nbed.ham_builder import HamiltonianBuilder
 
 logger = getLogger(__name__)
 
@@ -24,6 +24,7 @@ def restricted_scf(water_mol):
     rhf = RHF(water_mol)
     rhf.kernel()
     return rhf
+
 
 @pytest.fixture
 def unrestricted_scf(water_mol):

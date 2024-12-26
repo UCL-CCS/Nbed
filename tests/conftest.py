@@ -1,16 +1,18 @@
 """Shared fixtures for tests."""
 
 from pathlib import Path
-from pyscf import gto, scf
-from pyscf.lib import StreamObject
-from nbed.driver import NbedDriver
 
 import pytest
+from pyscf import gto, scf
+from pyscf.lib import StreamObject
+
+from nbed.driver import NbedDriver
 
 
 @pytest.fixture(scope="module")
 def water_filepath() -> Path:
     return Path("tests/molecules/water.xyz").absolute()
+
 
 @pytest.fixture(scope="module")
 def water_mol(water_filepath) -> gto.Mole:
@@ -22,11 +24,13 @@ def water_mol(water_filepath) -> gto.Mole:
     }
     return gto.Mole(**mol_args, charge=0, spin=0).build()
 
+
 @pytest.fixture(scope="module")
 def water_rhf(water_molecule) -> StreamObject:
     rhf = scf.RHF(water_molecule)
     rhf.kernel()
     return rhf
+
 
 @pytest.fixture(scope="module")
 def driver_args(water_filepath) -> dict:
@@ -41,6 +45,7 @@ def driver_args(water_filepath) -> dict:
         "run_ccsd_emb": False,
         "run_fci_emb": False,
     }
+
 
 @pytest.fixture(scope="module")
 def restricted_driver():

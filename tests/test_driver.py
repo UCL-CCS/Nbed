@@ -16,21 +16,23 @@ from nbed.exceptions import NbedConfigError
 logger = logging.getLogger(__name__)
 
 
-
 @pytest.fixture
 def mu_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "mu"
     return NbedDriver(**driver_args)
+
 
 @pytest.fixture
 def huz_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "huzinaga"
     return NbedDriver(**driver_args)
 
+
 def test_projectors_results_match(mu_driver, huz_driver) -> None:
     assert mu_driver._mu is not {} and mu_driver._huzinaga is None
     assert huz_driver._huzinaga is not {} and huz_driver._mu is None
     assert mu_driver._mu.keys() == huz_driver._huzinaga.keys()
+
 
 def test_projectors_scf_match(mu_driver, huz_driver) -> None:
     mu_scf = mu_driver.embedded_scf
@@ -43,6 +45,7 @@ def test_projectors_scf_match(mu_driver, huz_driver) -> None:
     assert mu_scf.mo_occ.shape == huz_scf.mo_occ.shape
     assert mu_scf.mo_energy.shape == huz_scf.mo_energy.shape
     assert np.isclose(mu_scf.e_tot, huz_scf.e_tot)
+
 
 def test_driver_standard_xyz_file_input(driver_args) -> None:
     """test to check driver works... path to xyz file given"""
@@ -217,6 +220,7 @@ def test_subsystem_dft_spin_consistency(water_filepath) -> None:
         restricted_driver.classical_energy, unrestricted_driver.classical_energy
     )
 
+
 def test_incorrect_geometry_path() -> None:
     """test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
 
@@ -237,6 +241,7 @@ def test_incorrect_geometry_path() -> None:
     with pytest.raises(RuntimeError, match="Unsupported atom symbol .*"):
         # match will match with any printed error message
         NbedDriver(**args)
+
 
 if __name__ == "__main__":
     pass
