@@ -3,13 +3,9 @@ name = "nbed"
 version = "0.0.7"
 description = ""
 authors = [
-    "Michael Williams de la Bastida <michael.williams.20@ucl.ac.uk>", 
+    "Michael Williams de la Bastida <michael.williams.20@ucl.ac.uk>",
     "Alexis Ralli <alexis.ralli.18@ucl.ac.uk>"
 ]
-
-[tool.black]
-line-length = 88
-target-version = ["py38", "py39", "py310", "py311"]
 
 [tool.poetry.dependencies]
 python = ">=3.10, <4.0"
@@ -19,8 +15,10 @@ PyYAML = "^6.0.0"
 qiskit-nature = "^0.7.0"
 symmer = "~0.0.7"
 pyscf = "^2.3.0"
+grpcio = "^1.59.0"
 
 [tool.poetry.group.dev.dependencies]
+pre-commit = "^4.0.1"
 jupyter = "^1.0.0"
 black = ">24.0.0"
 flake8 = "^4.0.0"
@@ -46,10 +44,6 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 nbed = "nbed.embed:cli"
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-
 # Ignore pytest warnings here
 [tool.pytest.ini_options]
 filterwarnings = [
@@ -59,5 +53,18 @@ filterwarnings = [
     'ignore::DeprecationWarning'
 ]
 
-[tool.pydocstyle]
+[tool.ruff]
+exclude = ["notebooks/", "docs/", "tests/"]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint]
+select = [
+    "E4", "E7", "E9",
+    "F",
+    "D", #pydocstyle (lets add this when we actually write docstrings)
+    "I", #isort
+]

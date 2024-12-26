@@ -37,7 +37,7 @@ This virtual environment subsequently can be activated with:
     poetry shell
 ## Use
 
-The package has three main interfaces, each to the same function `embed/nbed`. 
+The package has three main interfaces, each to the same function `embed/nbed`.
 
 ### Importing the package
 This function is accessable by importing the package into a python file.

@@ -111,6 +111,7 @@ class Localizer(ABC):
 
         Args:
             local_scf (StreamObject): SCF object with occupied orbitals localized.
+            cutoff (float | int): Cutoff for localizing virtual orbitals.
 
         Returns:
             StreamObject: Fully Localized SCF object.
@@ -194,7 +195,7 @@ class Localizer(ABC):
 
         if warn_flag:
             logger.error("Localizer sense check failed.")
-            raise NbedLocalizerError(f"Localizer sense check failed.\n")
+            raise NbedLocalizerError("Localizer sense check failed.\n")
         else:
             logger.debug("Localizer sense check passed.")
 

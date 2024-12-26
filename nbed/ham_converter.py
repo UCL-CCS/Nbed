@@ -97,7 +97,7 @@ class HamiltonianConverter:
             filepath (Path): Path to a .json file containing the IR.
         """
         logger.debug("Reading IR from file.")
-        with open(filepath, "r") as file:
+        with open(filepath) as file:
             file_data = json.load(file)
 
         self.n_qubits = file_data["qubits"]
