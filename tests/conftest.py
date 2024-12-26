@@ -10,7 +10,7 @@ def water_filepath() -> Path:
     return Path("tests/molecules/water.xyz").absolute()
 
 @pytest.fixture(scope="module")
-def driver_args() -> dict:
+def driver_args(water_filepath) -> dict:
     return {
         "geometry": str(water_filepath),
         "n_active_atoms": 1,
