@@ -2,6 +2,7 @@
 
 import logging
 from typing import Optional, Tuple
+import pytest
 
 import numpy as np
 import scipy as sp
@@ -11,11 +12,23 @@ from pyscf.lib import StreamObject, diis
 logger = logging.getLogger(__name__)
 
 
-def huzinaga_fock_operator(
-    fock: np.ndarray, adiis: Optional[diis.DIIS]
+def _huzinaga_fock_operator(
+    scf_method: StreamObject,
+    dft_potential: np.ndarray,
+    vhf: np.ndarray,
+    dm_enviroment: np.ndarray,
+    adiis: Optional[diis.DIIS]
 ) -> np.ndarray:
     logger.debug("Calculating Huzinaga operator")
-    if fock.dim == 3 and fock.shape[0] == 2:
+    fock = scf_method.get_hcore() + dft_potential + vhf
+    logger.debug(f"{fock.shape=}")
+    dm_env_S = dm_enviroment @ scf_method.get_ovlp()
+    logger.debug(f"{dm_env_S.shape=}")
+
+    fock = fock @ dm_env_S
+    logger.debug(f"{fock.shape=}")
+
+    if fock.ndim == 3 and fock.shape[0] == 2:
         logger.debug("Calculatign unrestricted density matrix")
         huzinaga_op_std = np.array(
             [
@@ -92,7 +105,6 @@ def huzinaga_scf(
     logger.debug("Initializising Huzinaga HF calculation")
     s_mat = scf_method.get_ovlp()
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
-    dm_env_S = dm_enviroment @ s_mat
 
     adiis = diis.DIIS() if use_DIIS else None
 
@@ -106,9 +118,10 @@ def huzinaga_scf(
     # Create an initial dm if needed.
     if dm_initial_guess is None:
         fock = scf_method.get_hcore() + dft_potential
+        dm_env_S = dm_enviroment @ s_mat
         fds = fock @ dm_env_S
 
-        huzinaga_op_std, fock = huzinaga_fock_operator(fds, None)
+        huzinaga_op_std, fock = _huzinaga_fock_operator(scf_method, dft_potential, 0, dm_enviroment, None)
         fock_ortho = s_neg_half @ fock @ s_neg_half
         mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
         mo_coeff_std = s_neg_half @ mo_coeff_ortho
@@ -122,14 +135,13 @@ def huzinaga_scf(
     for i in range(scf_method.max_cycle):
         # build fock matrix
         vhf = scf_method.get_veff(dm=density_matrix)
-        fock = scf_method.get_hcore() + dft_potential + vhf
         dm_mat_old = density_matrix
 
         if i == 0:
-            huzinaga_op_std, fock = huzinaga_fock_operator(fock, None)
+            huzinaga_op_std, fock = _huzinaga_fock_operator(scf_method, dft_potential, vhf, dm_enviroment, None)
         else:
             # DIIS update of Fock matrix
-            huzinaga_op_std, fock = huzinaga_fock_operator(fock, adiis)
+            huzinaga_op_std, fock = _huzinaga_fock_operator(scf_method, dft_potential, vhf, dm_enviroment, adiis)
 
         fock_ortho = s_neg_half @ fock @ s_neg_half
 
