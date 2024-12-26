@@ -15,6 +15,35 @@ from nbed.exceptions import NbedConfigError
 
 logger = logging.getLogger(__name__)
 
+@pytest.fixture
+def mu_driver(driver_args) -> NbedDriver:
+    driver_args["projector"] = "mu"
+    return NbedDriver(**driver_args)
+
+
+@pytest.fixture
+def huz_driver(driver_args) -> NbedDriver:
+    driver_args["projector"] = "huzinaga"
+    return NbedDriver(**driver_args)
+
+
+def test_projectors_results_match(mu_driver, huz_driver) -> None:
+    assert mu_driver._mu is not {} and mu_driver._huzinaga is None
+    assert huz_driver._huzinaga is not {} and huz_driver._mu is None
+    assert mu_driver._mu.keys() == huz_driver._huzinaga.keys()
+
+
+def test_projectors_scf_match(mu_driver, huz_driver) -> None:
+    mu_scf = mu_driver.embedded_scf
+    huz_scf = huz_driver.embedded_scf
+    assert mu_scf.converged is True
+    assert huz_scf.converged is True
+
+    assert type(mu_scf) is type(huz_scf)
+    assert mu_scf.mo_coeff.shape == huz_scf.mo_coeff.shape
+    assert mu_scf.mo_occ.shape == huz_scf.mo_occ.shape
+    assert mu_scf.mo_energy.shape == huz_scf.mo_energy.shape
+    assert np.isclose(mu_scf.e_tot, huz_scf.e_tot)
 
 def test_incorrect_geometry_path() -> None:
     """test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
