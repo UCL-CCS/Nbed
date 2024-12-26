@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def huzinaga_fock_operator(
-    fock: np.ndarray, s_neg_half: np.ndarray, adiis: Optional[diis.DIIS]
+    fock: np.ndarray, adiis: Optional[diis.DIIS]
 ) -> np.ndarray:
     logger.debug("Calculating Huzinaga operator")
     if fock.dim == 3 and fock.shape[0] == 2:
@@ -33,8 +33,7 @@ def huzinaga_fock_operator(
         fock = adiis.update(fock)
 
     # Create the orthogonal fock operator
-    fock_ortho = s_neg_half @ fock @ s_neg_half
-    return huzinaga_op_std, fock_ortho
+    return huzinaga_op_std, fock
 
 
 def calculate_hf_energy(scf_method, dft_potential, density_matrix, huzinaga_op_std):
@@ -109,7 +108,8 @@ def huzinaga_scf(
         fock = scf_method.get_hcore() + dft_potential
         fds = fock @ dm_env_S
 
-        huzinaga_op_std, fock_ortho = huzinaga_fock_operator(fds, s_neg_half, None)
+        huzinaga_op_std, fock = huzinaga_fock_operator(fds, None)
+        fock_ortho = s_neg_half @ fock @ s_neg_half
         mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
         mo_coeff_std = s_neg_half @ mo_coeff_ortho
         mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
@@ -126,10 +126,12 @@ def huzinaga_scf(
         dm_mat_old = density_matrix
 
         if i == 0:
-            huzinaga_op_std, fock_ortho = huzinaga_fock_operator(fds, s_neg_half, None)
+            huzinaga_op_std, fock = huzinaga_fock_operator(fock, None)
         else:
             # DIIS update of Fock matrix
-            huzinaga_op_std, fock_ortho = huzinaga_fock_operator(fds, s_neg_half, adiis)
+            huzinaga_op_std, fock = huzinaga_fock_operator(fock, adiis)
+
+        fock_ortho = s_neg_half @ fock @ s_neg_half
 
         mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
         mo_coeff_std = s_neg_half @ mo_coeff_ortho
