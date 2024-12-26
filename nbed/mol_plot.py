@@ -97,11 +97,11 @@ def draw_cube_orbital(
         else:
             raise ValueError(f"unknown py3dmol style: {style}")
 
-        with open(File_name, "r") as f:
+        with open(File_name) as f:
             view.addVolumetricData(
                 f.read(), "cube", {"isoval": -0.02, "color": "red", "opacity": 0.75}
             )
-        with open(File_name, "r") as f2:
+        with open(File_name) as f2:
             view.addVolumetricData(
                 f2.read(), "cube", {"isoval": 0.02, "color": "blue", "opacity": 0.75}
             )

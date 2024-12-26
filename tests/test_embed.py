@@ -1,8 +1,4 @@
-"""
-File to contain tests of the embed.py script.
-"""
-
-from pathlib import Path
+"""File to contain tests of the embed.py script."""
 
 import pytest
 from openfermion import QubitOperator
@@ -30,8 +26,7 @@ def args(water_filepath) -> dict:
 
 
 def test_nbed_openfermion(args) -> None:
-    """test nbed"""
-
+    """Test nbed"""
     assert isinstance(nbed(**args), QubitOperator)
 
 

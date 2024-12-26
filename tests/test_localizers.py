@@ -1,7 +1,5 @@
 """Tests for localization functions."""
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 from pyscf import gto, scf
@@ -72,7 +70,6 @@ def test_SPADE_check_values(global_rks, global_uks) -> None:
 
 def test_PMLocalizer_local_basis_transform(global_rks) -> None:
     """Check change of basis operator (from canonical to localized) is correct"""
-
     # run Localizer
     loc_system = PMLocalizer(
         global_rks,
@@ -116,7 +113,6 @@ def test_spade_spins_match(global_rks, global_uks) -> None:
 
 
 def test_cl_shell_numbers(global_rks, global_uks) -> None:
-
     restricted = SPADELocalizer(
         global_rks,
         n_active_atoms=n_active_atoms,

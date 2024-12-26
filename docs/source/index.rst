@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 .. uncomment and add to toctree when ready
-.. notebooks/A Scalable Approach to Quantum Simulation via Projection-based Embedding   
+.. notebooks/A Scalable Approach to Quantum Simulation via Projection-based Embedding
 Welcome to Nbed's documentation!
 ================================
 
