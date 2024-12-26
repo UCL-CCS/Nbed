@@ -23,12 +23,13 @@ pyscf = "^2.3.0"
 [tool.poetry.group.dev.dependencies]
 jupyter = "^1.0.0"
 black = ">24.0.0"
-flake8 = ">=4.0.0"
+flake8 = "^4.0.0"
 pydocstyle = "^6.1.1"
 pytest = "^7.4.2"
 isort = "^5.9.3"
 pandoc = "^2.3"
 poetry = "^1.7.0"
+pytest-cov = "^6.0.0"
 
 [tool.poetry.group.docs]
 optional = true
