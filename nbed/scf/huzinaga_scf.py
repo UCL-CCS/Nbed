@@ -4,7 +4,6 @@ import logging
 from typing import Optional, Tuple
 
 import numpy as np
-import pytest
 import scipy as sp
 from pyscf import dft, scf
 from pyscf.lib import StreamObject, diis
@@ -49,7 +48,20 @@ def _huzinaga_fock_operator(
     return huzinaga_op_std, fock
 
 
-def calculate_hf_energy(scf_method, dft_potential, density_matrix, huzinaga_op_std):
+def calculate_hf_energy(
+    scf_method, dft_potential, density_matrix, huzinaga_op_std
+) -> float:
+    """Calculate the Hartree-Fock Energy.
+
+    Args:
+        scf_method (StreamObject): PySCF HF method
+        dft_potential (np.ndarray): DFT embedding potential
+        density_matrix (np.ndarray): Embedded region density matrix (updates each cycle)
+        huzinaga_op_std (np.ndarray): Huzinaga Fock operator
+
+    Returns:
+        float: Hartree-fock energy
+    """
     # Find RHF energy
     hcore = scf_method.get_hcore()
     vhf = scf_method.get_veff(dm=density_matrix)
@@ -61,7 +73,20 @@ def calculate_hf_energy(scf_method, dft_potential, density_matrix, huzinaga_op_s
     return e_core_dft + e_coul + e_huz
 
 
-def calculate_ks_energy(scf_method, dft_potential, density_matrix, huzinaga_op_std):
+def calculate_ks_energy(
+    scf_method, dft_potential, density_matrix, huzinaga_op_std
+) -> float:
+    """Calculate the Hartree-Fock Energy.
+
+    Args:
+        scf_method (StreamObject): PySCF Kohn-sham method
+        dft_potential (np.ndarray): DFT embedding potential
+        density_matrix (np.ndarray): Embedded region density matrix (updates each cycle)
+        huzinaga_op_std (np.ndarray): Huzinaga Fock operator
+
+    Returns:
+        float: Kohn-sham energy
+    """
     vhf_updated = scf_method.get_veff(dm=density_matrix)
     rks_energy = vhf_updated.ecoul + vhf_updated.exc
     rks_energy += np.einsum(
@@ -110,17 +135,13 @@ def huzinaga_scf(
 
     # there are many more unrestricted types than restricted
     unrestricted = not isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
-    if unrestricted and dm_enviroment.shape[0] != 2:
+    if unrestricted and dm_enviroment.ndim != 3:
         raise ValueError(
             "Unrestricted calculation requires stacked dm_environment shape (2xMxM)."
         )
 
     # Create an initial dm if needed.
     if dm_initial_guess is None:
-        fock = scf_method.get_hcore() + dft_potential
-        dm_env_S = dm_enviroment @ s_mat
-        fds = fock @ dm_env_S
-
         huzinaga_op_std, fock = _huzinaga_fock_operator(
             scf_method, dft_potential, 0, dm_enviroment, None
         )
