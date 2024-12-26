@@ -1,7 +1,5 @@
 """Tests for the hamiltonian converter."""
 
-from pathlib import Path
-
 import numpy as np
 import pennylane as qml
 import pytest

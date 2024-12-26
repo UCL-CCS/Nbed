@@ -3,7 +3,7 @@
 import logging
 import os
 from functools import cached_property
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 from pyscf import cc, dft, fci, gto, qmmm, scf
@@ -13,7 +13,6 @@ from nbed.exceptions import NbedConfigError
 from nbed.localizers import (
     BOYSLocalizer,
     IBOLocalizer,
-    Localizer,
     PMLocalizer,
     SPADELocalizer,
 )
@@ -146,6 +145,8 @@ class NbedDriver:
         self.dft_potential = None
         self.electron = None
         self.v_emb = None
+        self._mu = None
+        self._huzinaga = None
 
         self._mu = None
         self._huzinaga = None
@@ -387,7 +388,7 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _ks_components(
-            ks_system: Localizer,
+            ks_system: StreamObject,
             subsystem_dm: np.ndarray,
         ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
@@ -396,7 +397,9 @@ class NbedDriver:
             J,K, V_xc matrices.
 
             Args:
-                dm_matrix (np.ndarray): density matrix (to calculate all matrices from)
+                ks_system (StreamObject): PySCF Kohn-Sham object
+                subsystem_dm (np.ndarray): density matrix (to calculate all matrices from)
+
 
             Returns:
                 Energy_elec (float): DFT energy defined by input density matrix
@@ -591,7 +594,7 @@ class NbedDriver:
         """Embed using the Mu-shift projector.
 
         Args:
-            active_scf (StreamObject): A PySCF scf method with the correct number of electrons for the active region.
+            localized_scf (StreamObject): A PySCF scf method with the correct number of electrons for the active region.
             dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
 
         Returns:
@@ -702,7 +705,7 @@ class NbedDriver:
         mo_coeff: np.ndarray,
         mo_energy: np.ndarray,
         mo_occ: np.ndarray,
-        projector,
+        environment_projector: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Remove enironment orbit from embedded rhf object.
 
@@ -715,6 +718,7 @@ class NbedDriver:
             mo_coeff (np.ndarray): The molecular orbitals.
             mo_energy (np.ndarray): The molecular orbital energies.
             mo_occ (np.ndarray): The molecular orbital occupation numbers.
+            environment_projector (np.ndarray): Matrix to project mo_coeff onto environment.
 
         Returns:
             embedded_rhf (StreamObject): Returns input, but with environment orbitals deleted
@@ -725,7 +729,7 @@ class NbedDriver:
             overlap = np.einsum(
                 "ij, ki -> i",
                 mo_coeff.T,
-                projector @ mo_coeff,
+                environment_projector @ mo_coeff,
             )
             overlap_by_size = overlap.argsort()[::-1]
             frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]

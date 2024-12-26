@@ -1,9 +1,6 @@
-"""
-Tests for the HamiltonianBuilder class.
-"""
+"""Tests for the HamiltonianBuilder class."""
 
 from logging import getLogger
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -20,15 +17,26 @@ logger = getLogger(__name__)
 
 
 @pytest.fixture
-def restricted_scf(water_mol):
-    rhf = RHF(water_mol)
+def uncharged_mol(water_filepath) -> dict:
+    mol_args = {
+        "atom": str(water_filepath),
+        "n_active_atoms": 1,
+        "basis": "STO-3G",
+        "unit": "angstrom",
+    }
+    return Mole(**mol_args, charge=0, spin=0).build()
+
+
+@pytest.fixture
+def restricted_scf(uncharged_mol):
+    rhf = RHF(uncharged_mol)
     rhf.kernel()
     return rhf
 
 
 @pytest.fixture
-def unrestricted_scf(water_mol):
-    uhf = UHF(water_mol)
+def unrestricted_scf(uncharged_mol):
+    uhf = UHF(uncharged_mol)
     uhf.kernel()
     return uhf
 
@@ -48,6 +56,26 @@ def test_restricted_energy(restricted_scf, rbuilder) -> None:
     Use the full system to check that output hamiltonian diagonalises to fci value for a restricted calculation.
     """
 
+
+@pytest.fixture
+def unrestricted_scf(uncharged_mol):
+    uhf = UHF(uncharged_mol)
+    uhf.kernel()
+    return uhf
+
+
+@pytest.fixture
+def rbuilder(restricted_scf):
+    return HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
+
+
+@pytest.fixture
+def ubuilder(unrestricted_scf):
+    return HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
+
+
+def test_restricted(restricted_scf, rbuilder) -> None:
+    """Use the full system to check that output hamiltonian diagonalises to fci value for a restricted calculation."""
     e_fci = FCI(restricted_scf).kernel()[0] - restricted_scf.energy_nuc()
 
     logger.info(f"FCI energy of unrestricted driver test: {e_fci}")
@@ -64,10 +92,7 @@ def test_restricted_energy(restricted_scf, rbuilder) -> None:
 
 
 def test_qubit_number_match(rbuilder, ubuilder) -> None:
-    """
-    Check that the qubit hamiltonian is working as expected.
-    """
-
+    """Check that the qubit hamiltonian is working as expected."""
     # We're still constructing qubit hamiltonians that double the size for restricted systems!
 
     rham = rbuilder.build(taper=False)
@@ -77,7 +102,6 @@ def test_qubit_number_match(rbuilder, ubuilder) -> None:
 
 
 def test_taper(rbuilder, ubuilder) -> None:
-
     rham = rbuilder.build(taper=True)
     assert count_qubits(rham) == 10
     uham = ubuilder.build(taper=True)
@@ -102,10 +126,8 @@ def charged_scf(charged_mol):
     return rhf
 
 
-def test_unrestricted_energy(charged_scf) -> None:
-    """
-    Check the output hamiltonian diagonalises to fci value for an unrestricted calculation with spin and charge.
-    """
+def test_unrestricted(charged_scf) -> None:
+    """Check the output hamiltonian diagonalises to fci value for an unrestricted calculation with spin and charge."""
     e_fci = FCI(charged_scf).kernel()[0] - charged_scf.energy_nuc()
 
     logger.info(f"FCI energy of unrestricted driver test: {e_fci}")

@@ -1,9 +1,6 @@
-"""
-File to contain tests of the driver.py script.
-"""
+"""File to contain tests of the driver.py script."""
 
 import logging
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -14,7 +11,6 @@ from nbed.driver import NbedDriver
 from nbed.exceptions import NbedConfigError
 
 logger = logging.getLogger(__name__)
-
 
 @pytest.fixture
 def mu_driver(driver_args) -> NbedDriver:
@@ -46,14 +42,50 @@ def test_projectors_scf_match(mu_driver, huz_driver) -> None:
     assert mu_scf.mo_energy.shape == huz_scf.mo_energy.shape
     assert np.isclose(mu_scf.e_tot, huz_scf.e_tot)
 
+@pytest.fixture
+def huz_driver(driver_args) -> NbedDriver:
+    driver_args["projector"] = "huzinaga"
+    return NbedDriver(**driver_args)
 
-def test_driver_standard_xyz_file_input(driver_args) -> None:
-    """test to check driver works... path to xyz file given"""
 
-    driver = NbedDriver(**driver_args)
-    assert isinstance(driver.embedded_scf, StreamObject)
-    assert isclose(driver.classical_energy, -14.229079481431608)
+def test_projectors_results_match(mu_driver, huz_driver) -> None:
+    assert mu_driver._mu is not {} and mu_driver._huzinaga is None
+    assert huz_driver._huzinaga is not {} and huz_driver._mu is None
+    assert mu_driver._mu.keys() == huz_driver._huzinaga.keys()
 
+
+def test_projectors_scf_match(mu_driver, huz_driver) -> None:
+    mu_scf = mu_driver.embedded_scf
+    huz_scf = huz_driver.embedded_scf
+    assert mu_scf.converged is True
+    assert huz_scf.converged is True
+
+    assert type(mu_scf) is type(huz_scf)
+    assert mu_scf.mo_coeff.shape == huz_scf.mo_coeff.shape
+    assert mu_scf.mo_occ.shape == huz_scf.mo_occ.shape
+    assert mu_scf.mo_energy.shape == huz_scf.mo_energy.shape
+    assert np.isclose(mu_scf.e_tot, huz_scf.e_tot)
+
+
+def test_incorrect_geometry_path() -> None:
+    """Test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
+    molecule = "THIS/IS/NOT/AN/XYZ/FILE"
+
+    args = {
+        "geometry": molecule,
+        "n_active_atoms": 1,
+        "basis": "STO-3G",
+        "xc_functional": "b3lyp5",
+        "projector": "mu",
+        "localization": "spade",
+        "convergence": 1e-6,
+        "run_ccsd_emb": True,
+        "run_fci_emb": True,
+    }
+
+    with pytest.raises(RuntimeError, match="Unsupported atom symbol .*"):
+        # match will match with any printed error message
+        NbedDriver(**args)
 
 def test_driver_standard_xyz_string_input(restricted_driver) -> None:
     """test to check driver works... raw xyz string given"""
@@ -127,7 +159,6 @@ def test_driver_standard_xyz_string_input(restricted_driver) -> None:
 
 def test_n_active_atoms_validation(water_filepath) -> None:
     """test to check driver works... path to xyz file given"""
-
     args = {
         "geometry": str(water_filepath),
         "basis": "STO-3G",

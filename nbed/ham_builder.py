@@ -264,7 +264,6 @@ class HamiltonianBuilder:
         # Loop through integrals.
         for p in range(n_qubits // 2):
             for q in range(n_qubits // 2):
-
                 # Populate 1-body coefficients. Require p and q have same spin.
                 one_body_coefficients[2 * p, 2 * q] = one_body_integrals[0, p, q]
                 one_body_coefficients[2 * p + 1, 2 * q + 1] = one_body_integrals[
@@ -275,7 +274,6 @@ class HamiltonianBuilder:
                 # Assumes 2e ints are ordered as aaaa,bbbb,aabb,bbaa.
                 for r in range(n_qubits // 2):
                     for s in range(n_qubits // 2):
-
                         # Same spin
                         two_body_coefficients[2 * p, 2 * q, 2 * r, 2 * s] = (
                             two_body_integrals[0, p, q, r, s]
@@ -481,7 +479,7 @@ def fermion_to_qubit_operator(
     Note: see `openfermion.transforms` for different fermion to qubit mappings
 
     Args:
-        Fermionic_operator(FermionOperator): any fermionic operator (openfermion)
+        fermionic_operator (FermionOperator): any fermionic operator (openfermion)
         n_qubits (int): number of qubits (or spin orbitals)
 
     Returns:
@@ -495,6 +493,9 @@ def fermion_to_qubit_operator(
 def to_openfermion(pwop: PauliwordOp) -> QubitOperator:
     """Convert to OpenFermion Pauli operator representation.
 
+    Args:
+        pwop (PauliwordOp): The PauliwordOp to convert.
+
     Returns:
         open_f (QubitOperator): The QubitOperator representation of the PauliwordOp.
     """
@@ -504,6 +505,7 @@ def to_openfermion(pwop: PauliwordOp) -> QubitOperator:
 
         Args:
             symp_vec (array): symplectic Pauliword array
+            coeff (float): coefficient of the Pauliword
 
         Returns:
             Pword_string (str): String version of symplectic array

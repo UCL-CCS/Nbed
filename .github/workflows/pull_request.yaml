@@ -37,4 +37,4 @@ jobs:
         continue-on-error: True
       - name: Testing
         run: |
-          poetry run pytest 
+          poetry run pytest
