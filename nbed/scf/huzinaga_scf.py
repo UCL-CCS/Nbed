@@ -37,8 +37,11 @@ def huzinaga_fock_operator(
     return huzinaga_op_std, fock_ortho
 
 
-def calculate_hf_energy(hcore, vhf, dft_potential, density_matrix, huzinaga_op_std):
+def calculate_hf_energy(scf_method, dft_potential, density_matrix, huzinaga_op_std):
     # Find RHF energy
+    hcore = scf_method.get_hcore()
+    vhf = scf_method.get_veff(dm=density_matrix)
+
     e_core_dft = np.einsum("...ij,...ji->...", hcore + dft_potential, density_matrix)
 
     e_coul = 0.5 * np.einsum("...ij,...ji->...", vhf, density_matrix)
@@ -142,8 +145,7 @@ def huzinaga_scf(
         elif isinstance(scf_method, (scf.rhf.RHF, scf.uhf.UHF)):
             # Find RHF energy
             scf_energy = calculate_hf_energy(
-                scf_method.get_hcore(),
-                vhf,
+                scf_method,
                 dft_potential,
                 density_matrix,
                 huzinaga_op_std,
