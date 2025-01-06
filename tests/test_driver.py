@@ -14,15 +14,25 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def mu_driver(driver_args) -> NbedDriver:
-    driver_args["projector"] = "mu"
+    driver_args["projector"] = "mu
     return NbedDriver(**driver_args)
 
+@pytest.fixture
+def mu_unresticted_driver(driver_args) -> NbedDriver
+    driver_args["projector"] = "mu"
+    driver_args["force_unrestricted"] = True
+    return NbedDriver(**driver_args)
 
 @pytest.fixture
 def huz_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "huzinaga"
     return NbedDriver(**driver_args)
 
+@pytest.fixture
+def huz_unresticted_driver(driver_args) -> NbedDriver
+    driver_args["projector"] = "huzinaga"
+    driver_args["force_unrestricted"] = True
+    return NbedDriver(**driver_args)
 
 def test_projectors_results_match(mu_driver, huz_driver) -> None:
     assert mu_driver._mu is not {} and mu_driver._huzinaga is None
@@ -48,11 +58,15 @@ def huz_driver(driver_args) -> NbedDriver:
     return NbedDriver(**driver_args)
 
 
-def test_projectors_results_match(mu_driver, huz_driver) -> None:
+def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:
     assert mu_driver._mu is not {} and mu_driver._huzinaga is None
     assert huz_driver._huzinaga is not {} and huz_driver._mu is None
     assert mu_driver._mu.keys() == huz_driver._huzinaga.keys()
 
+def test_unrestricted_projector_results_match(mu_unresticted_driver, huz_unresticted_driver) -> None:
+    assert mu_unresticted_driver._mu is not {} and mu_unresticted_driver._huzinaga is None
+    assert huz_unresticted_driver._huzinaga is not {} and huz_unresticted_driver._mu is None
+    assert mu_unresticted_driver._mu.keys() == huz_unresticted_driver._huzinaga.keys()
 
 def test_projectors_scf_match(mu_driver, huz_driver) -> None:
     mu_scf = mu_driver.embedded_scf
