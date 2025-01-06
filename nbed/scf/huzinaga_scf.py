@@ -166,7 +166,7 @@ def huzinaga_scf(
 
     density_matrix = dm_initial_guess
     conv_flag = False
-    rhf_energy_prev = 0
+    scf_energy_prev = 0
 
     for i in range(scf_method.max_cycle):
         # build fock matrix
@@ -196,7 +196,7 @@ def huzinaga_scf(
             scf_energy = calculate_ks_energy(
                 scf_method, dft_potential, density_matrix, huzinaga_op_std
             )
-        elif isinstance(scf_method, (scf.rhf.RHF, scf.uhf.UHF)):
+        elif isinstance(scf_method, (scf.hf.RHF, scf.uhf.UHF)):
             # Find RHF energy
             scf_energy = calculate_hf_energy(
                 scf_method,
@@ -204,10 +204,12 @@ def huzinaga_scf(
                 density_matrix,
                 huzinaga_op_std,
             )
+        else:
+            raise TypeError("Cannot run Huzinaga SCF with type %s", type(scf_method))
 
         # check convergence
         # use max difference so that this works for unrestricted
-        run_diff = np.max(np.abs(scf_energy - rhf_energy_prev))
+        run_diff = np.max(np.abs(scf_energy - scf_energy_prev))
         norm_dm_diff = np.max(
             np.linalg.norm(density_matrix - dm_mat_old, axis=(-2, -1))
         )
@@ -216,7 +218,7 @@ def huzinaga_scf(
             conv_flag = True
             break
 
-        rhf_energy_prev = scf_energy
+        scf_energy_prev = scf_energy
 
     if conv_flag is False:
         logger.warning("SCF has NOT converged.")
