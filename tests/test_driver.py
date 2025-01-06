@@ -18,7 +18,7 @@ def mu_driver(driver_args) -> NbedDriver:
     return NbedDriver(**driver_args)
 
 @pytest.fixture
-def mu_unresticted_driver(driver_args) -> NbedDriver:
+def mu_unrestricted_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "mu"
     driver_args["force_unrestricted"] = True
     return NbedDriver(**driver_args)
@@ -29,7 +29,7 @@ def huz_driver(driver_args) -> NbedDriver:
     return NbedDriver(**driver_args)
 
 @pytest.fixture
-def huz_unresticted_driver(driver_args) -> NbedDriver:
+def huz_unrestricted_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "huzinaga"
     driver_args["force_unrestricted"] = True
     return NbedDriver(**driver_args)
@@ -39,34 +39,20 @@ def test_projectors_results_match(mu_driver, huz_driver) -> None:
     assert huz_driver._huzinaga is not {} and huz_driver._mu is None
     assert mu_driver._mu.keys() == huz_driver._huzinaga.keys()
 
-
-def test_projectors_scf_match(mu_driver, huz_driver) -> None:
-    mu_scf = mu_driver.embedded_scf
-    huz_scf = huz_driver.embedded_scf
-    assert mu_scf.converged is True
-    assert huz_scf.converged is True
-
-    assert type(mu_scf) is type(huz_scf)
-    assert mu_scf.mo_coeff.shape == huz_scf.mo_coeff.shape
-    assert mu_scf.mo_occ.shape == huz_scf.mo_occ.shape
-    assert mu_scf.mo_energy.shape == huz_scf.mo_energy.shape
-    assert np.isclose(mu_scf.e_tot, huz_scf.e_tot)
-
 @pytest.fixture
 def huz_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "huzinaga"
     return NbedDriver(**driver_args)
-
 
 def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:
     assert mu_driver._mu is not {} and mu_driver._huzinaga is None
     assert huz_driver._huzinaga is not {} and huz_driver._mu is None
     assert mu_driver._mu.keys() == huz_driver._huzinaga.keys()
 
-def test_unrestricted_projector_results_match(mu_unresticted_driver, huz_unresticted_driver) -> None:
-    assert mu_unresticted_driver._mu is not {} and mu_unresticted_driver._huzinaga is None
-    assert huz_unresticted_driver._huzinaga is not {} and huz_unresticted_driver._mu is None
-    assert mu_unresticted_driver._mu.keys() == huz_unresticted_driver._huzinaga.keys()
+def test_unrestricted_projector_results_match(mu_unrestricted_driver, huz_unrestricted_driver) -> None:
+    assert mu_unrestricted_driver._mu is not {} and mu_unrestricted_driver._huzinaga is None
+    assert huz_unrestricted_driver._huzinaga is not {} and huz_unrestricted_driver._mu is None
+    assert mu_unrestricted_driver._mu.keys() == huz_unrestricted_driver._huzinaga.keys()
 
 def test_projectors_scf_match(mu_driver, huz_driver) -> None:
     mu_scf = mu_driver.embedded_scf
@@ -80,6 +66,17 @@ def test_projectors_scf_match(mu_driver, huz_driver) -> None:
     assert mu_scf.mo_energy.shape == huz_scf.mo_energy.shape
     assert np.isclose(mu_scf.e_tot, huz_scf.e_tot)
 
+def test_unrestricted_projectors_scf_match(mu_unrestricted_driver, huz_unrestricted_driver) -> None:
+    mu_scf = mu_unrestricted_driver.embedded_scf
+    huz_scf = huz_unrestricted_driver.embedded_scf
+    assert mu_scf.converged is True
+    assert huz_scf.converged is True
+
+    assert type(mu_scf) is type(huz_scf)
+    assert mu_scf.mo_coeff.shape == huz_scf.mo_coeff.shape
+    assert mu_scf.mo_occ.shape == huz_scf.mo_occ.shape
+    assert mu_scf.mo_energy.shape == huz_scf.mo_energy.shape
+    assert np.isclose(mu_scf.e_tot, huz_scf.e_tot)
 
 def test_incorrect_geometry_path() -> None:
     """Test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
