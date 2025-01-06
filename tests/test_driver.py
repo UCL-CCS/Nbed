@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def mu_driver(driver_args) -> NbedDriver:
-    driver_args["projector"] = "mu
+    driver_args["projector"] = "mu"
     return NbedDriver(**driver_args)
 
 @pytest.fixture
