@@ -34,16 +34,6 @@ def huz_unrestricted_driver(driver_args) -> NbedDriver:
     driver_args["force_unrestricted"] = True
     return NbedDriver(**driver_args)
 
-def test_projectors_results_match(mu_driver, huz_driver) -> None:
-    assert mu_driver._mu is not {} and mu_driver._huzinaga is None
-    assert huz_driver._huzinaga is not {} and huz_driver._mu is None
-    assert mu_driver._mu.keys() == huz_driver._huzinaga.keys()
-
-@pytest.fixture
-def huz_driver(driver_args) -> NbedDriver:
-    driver_args["projector"] = "huzinaga"
-    return NbedDriver(**driver_args)
-
 def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:
     assert mu_driver._mu is not {} and mu_driver._huzinaga is None
     assert huz_driver._huzinaga is not {} and huz_driver._mu is None
