@@ -18,7 +18,7 @@ def mu_driver(driver_args) -> NbedDriver:
     return NbedDriver(**driver_args)
 
 @pytest.fixture
-def mu_unresticted_driver(driver_args) -> NbedDriver
+def mu_unresticted_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "mu"
     driver_args["force_unrestricted"] = True
     return NbedDriver(**driver_args)
@@ -29,7 +29,7 @@ def huz_driver(driver_args) -> NbedDriver:
     return NbedDriver(**driver_args)
 
 @pytest.fixture
-def huz_unresticted_driver(driver_args) -> NbedDriver
+def huz_unresticted_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "huzinaga"
     driver_args["force_unrestricted"] = True
     return NbedDriver(**driver_args)
