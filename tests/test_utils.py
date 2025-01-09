@@ -4,10 +4,13 @@ import os
 
 import pytest
 
+from argparse import ArgumentTypeError
+
 from nbed.utils import (
     build_ordered_xyz_string,
     pubchem_mol_geometry,
     save_ordered_xyz_file,
+    restricted_float_percentage,
 )
 
 
@@ -23,6 +26,18 @@ def water_struct_dict() -> dict[int, tuple[str, tuple[float, float, float]]]:
 @pytest.fixture
 def water_xyz_o_active():
     return "3\n \nO\t0\t0\t0\nH\t0.2774\t0.8929\t0.2544\nH\t0.6068\t-0.2383\t-0.7169\n"
+
+def test_restricted_float_percentage() -> None:
+    with pytest.raises(ArgumentTypeError):
+        restricted_float_percentage("a")
+
+    with pytest.raises(ArgumentTypeError):
+        restricted_float_percentage(float(-0.1))
+
+    with pytest.raises(ArgumentTypeError):
+        restricted_float_percentage(float(1.1))
+
+    assert float(0.123) == restricted_float_percentage(float(0.123))
 
 
 def test_pubchem_mol_geometry(water_struct_dict) -> None:
@@ -41,7 +56,7 @@ def test_build_ordered_xyz_string(water_struct_dict, water_xyz_o_active) -> None
     assert build_ordered_xyz_string(water_struct_dict, [1, 2]) == water_xyz_h_active
 
 
-def test_save_xyz(water_struct_dict, water_xyz_o_active) -> None:
+def test_save_ordered_xyz_file(water_struct_dict, water_xyz_o_active) -> None:
     file_path = save_ordered_xyz_file(
         file_name="water_test", struct_dict=water_struct_dict, active_atom_inds=[0]
     )

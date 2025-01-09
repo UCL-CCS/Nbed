@@ -51,11 +51,11 @@ def setup_logs() -> None:
     logger.debug("Logging initialised.")
 
 
-def restricted_float_percentage(x: float) -> float:
-    """Checks input x is within 0-1 range (percentage) and is a float.
+def restricted_float_percentage(x: str) -> float:
+    """Checks input x is within 0-1 range (percentage) and converts to float.
 
     Args:
-        x (float): input number between 0 and 1 (inclusive)
+        x (str): Command line input number between 0 and 1 (inclusive)
 
     Returns:
         x (float): input percentage
