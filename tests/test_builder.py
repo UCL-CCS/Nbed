@@ -10,6 +10,7 @@ from pyscf.fci import FCI
 from pyscf.gto import Mole
 from pyscf.scf import RHF, UHF
 
+from nbed.driver import NbedDriver
 from nbed.ham_builder import HamiltonianBuilder
 
 logger = getLogger(__name__)

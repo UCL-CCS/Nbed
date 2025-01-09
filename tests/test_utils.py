@@ -45,7 +45,7 @@ def test_save_xyz(water_struct_dict, water_xyz_o_active) -> None:
     file_path = save_ordered_xyz_file(
         file_name="water_test", struct_dict=water_struct_dict, active_atom_inds=[0]
     )
-    f = open(file_path, "r")
+    f = open(file_path)
 
     try:
         assert f.read() == water_xyz_o_active

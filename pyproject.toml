@@ -1,47 +1,43 @@
-[tool.poetry]
+[project]
 name = "nbed"
 version = "0.0.7"
-description = ""
+description = "Projection-based embedding methods for reducing quantum simulation resource requirements."
 authors = [
-    "Michael Williams de la Bastida <michael.williams.20@ucl.ac.uk>",
-    "Alexis Ralli <alexis.ralli.18@ucl.ac.uk>"
+    {name= "Michael Williams de la Bastida", email= "michael.williams.20@ucl.ac.uk"},
+    {name= "Alexis Ralli",  email= "alexis.ralli.18@ucl.ac.uk"}
 ]
-
-[tool.poetry.dependencies]
-python = ">=3.10, <4.0"
-openfermion = "^1.1.0"
-PennyLane = "^0.39.0"
-PyYAML = "^6.0.0"
-qiskit-nature = "^0.7.0"
-symmer = "~0.0.7"
-pyscf = "^2.3.0"
-grpcio = "^1.59.0"
+requires-python = ">=3.9, <3.13"
+dependencies = [
+    "openfermion (>=1.1.0, <2.0.0)",
+    "PennyLane (>=0.36.0, <1.0.0)",
+    "PyYAML (>=6.0.0, <7.0.0)",
+    "qiskit-nature (>=0.7.0,<1.0.0)",
+    "symmer (>=0.0.7, <1.0.0)",
+    "pyscf (>=2.3.0, <3.0.0)",
+]
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.0.1"
 jupyter = "^1.0.0"
-black = ">24.0.0"
-flake8 = "^4.0.0"
-pydocstyle = "^6.1.1"
-pytest = "^7.4.2"
-isort = "^5.9.3"
+pytest = ">=7.4.2"
 pandoc = "^2.3"
-poetry = "^1.7.0"
+poetry = "^2.0.0"
 pytest-cov = "^6.0.0"
+ruff = "^0.8.6"
 
 [tool.poetry.group.docs]
 optional = true
 
 [tool.poetry.group.docs.dependencies]
 nbsphinx = "^0.9.0"
-Sphinx = ">5"
-sphinx-rtd-theme = "^2.0.0"
+Sphinx = ">=5.0.0"
+sphinx-rtd-theme = ">=2.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry.scripts]
+[project.scripts]
 nbed = "nbed.embed:cli"
 
 # Ignore pytest warnings here
