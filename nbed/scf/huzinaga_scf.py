@@ -35,34 +35,41 @@ def _huzinaga_fock_operator(
     fock = scf_method.get_hcore() + dft_potential + vhf
     logger.debug(f"{fock.shape=}")
     dm_env_S = dm_environment @ scf_method.get_ovlp()
-    logger.debug(f"{dm_env_S.shape=}")
-
+    logger.debug(f"{dm_env_S=}")
     fock = fock @ dm_env_S
     logger.debug(f"{fock.shape=}")
 
-    if fock.ndim == 3 and fock.shape[0] == 2:
-        logger.debug("Calculatign unrestricted density matrix")
+    unrestricted = not isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
+
+    logger.debug("Calculating Huzinaga operator")
+    fock = scf_method.get_hcore() + dft_potential + vhf
+    logger.debug(f"{fock.shape=}")
+    dm_env_S = dm_environment @ scf_method.get_ovlp()
+    logger.debug(f"{dm_env_S=}")
+    fock = fock @ dm_env_S
+    logger.debug(f"{fock.shape=}")
+
+    if unrestricted:
+        fds_alpha = fock[0] @ dm_env_S[0]
+        fds_beta = fock[1] @ dm_env_S[1]
         huzinaga_op_std = np.array(
             [
-                -(fock[0] + fock[0].T),
-                -(fock[1] + fock[1].T),
+                -(fds_alpha + fds_alpha.T),
+                -(fds_beta + fds_beta.T),
             ]
         )
     else:
-        logger.debug("Calculating restricted density matrix")
-        huzinaga_op_std = -0.5 * (fock + fock.T)
+        fds = fock @ dm_env_S
+        huzinaga_op_std = -0.5 * (fds + fds.T)
 
     fock += huzinaga_op_std
-
-    if isinstance(diis, diis.DIIS):
-        fock = adiis.update(fock)
 
     # Create the orthogonal fock operator
     return huzinaga_op_std, fock
 
 
 def calculate_hf_energy(
-    scf_method, dft_potential, density_matrix, huzinaga_op_std
+    scf_method, dft_potential, density_matrix, vhf, huzinaga_op_std
 ) -> float:
     """Calculate the Hartree-Fock Energy.
 
@@ -70,20 +77,15 @@ def calculate_hf_energy(
         scf_method (StreamObject): PySCF HF method
         dft_potential (np.ndarray): DFT embedding potential
         density_matrix (np.ndarray): Embedded region density matrix (updates each cycle)
+        vhf (np.ndarray): Mean field potential
         huzinaga_op_std (np.ndarray): Huzinaga Fock operator
 
     Returns:
         float: Hartree-fock energy
     """
     # Find RHF energy
-    hcore = scf_method.get_hcore()
-    vhf = scf_method.get_veff(dm=density_matrix)
-
-    e_core_dft = np.einsum("...ij,...ji->...", hcore + dft_potential, density_matrix)
-
-    e_coul = 0.5 * np.einsum("...ij,...ji->...", vhf, density_matrix)
-    e_huz = np.einsum("...ij,...ji->...", huzinaga_op_std, density_matrix)
-    return e_core_dft + e_coul + e_huz
+    hamiltonian = scf_method.get_hcore() + dft_potential + 0.5 * vhf + huzinaga_op_std
+    return np.einsum("...ij,...ji->...", hamiltonian, density_matrix)
 
 
 def calculate_ks_energy(
@@ -171,7 +173,6 @@ def huzinaga_scf(
     for i in range(scf_method.max_cycle):
         # build fock matrix
         vhf = scf_method.get_veff(dm=density_matrix)
-        dm_mat_old = density_matrix
 
         if i == 0:
             huzinaga_op_std, fock = _huzinaga_fock_operator(
@@ -182,12 +183,15 @@ def huzinaga_scf(
             huzinaga_op_std, fock = _huzinaga_fock_operator(
                 scf_method, dft_potential, vhf, dm_environment, adiis
             )
+            fock = adiis.update(fock)
 
         fock_ortho = s_neg_half @ fock @ s_neg_half
 
         mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
         mo_coeff_std = s_neg_half @ mo_coeff_ortho
         mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
+
+        dm_mat_old = density_matrix
 
         density_matrix = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
 
@@ -197,13 +201,10 @@ def huzinaga_scf(
                 scf_method, dft_potential, density_matrix, huzinaga_op_std
             )
         elif isinstance(scf_method, (scf.hf.RHF, scf.uhf.UHF)):
-            # Find RHF energy
-            scf_energy = calculate_hf_energy(
-                scf_method,
-                dft_potential,
-                density_matrix,
-                huzinaga_op_std,
+            hamiltonian = (
+                scf_method.get_hcore() + dft_potential + 0.5 * vhf + huzinaga_op_std
             )
+            scf_energy = np.einsum("...ij,...ji->...", hamiltonian, density_matrix)
         else:
             raise TypeError("Cannot run Huzinaga SCF with type %s", type(scf_method))
 
@@ -216,6 +217,7 @@ def huzinaga_scf(
 
         if (run_diff < scf_method.conv_tol) and (norm_dm_diff < dm_conv_tol):
             conv_flag = True
+            logger.debug("Huzinaga SCF converged in cycle %s", i)
             break
 
         scf_energy_prev = scf_energy
