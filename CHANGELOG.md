@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Fixed
 
 ## Changed
+- 'nbed.scf.huzinaga_hf' and 'nbed.scf.huzinaga_rks' cmbined into 'nbed.scf.huzinaga_scf'
 - Poetry updated to `2.0.0`, with changes to `pyproject.toml`
 - Combined `scf/huzinaga_` HF and KS methods into `huzinaga_scf`
 - python version requirement changed to `>=3.9, <3.13`
