@@ -174,18 +174,16 @@ class PySCFLocalizer(Localizer, ABC):
 
     def _localize_virtual_spin(
         self, c_matrix: np.ndarray, virt_threshold: float
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> np.ndarray:
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
 
         Args:
             global_scf (StreamObject): PySCF molecule object
-            n_active_atoms (int): Number of active atoms
+            c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
             virt_threshold (float): Threshold for selecting unoccupied (virtual) active MOs.
 
         Returns:
             c_virtual_loc (np.array): C matrix of localized virtual MOs (columns define MOs)
-            active_virtual_MO_inds (np.array): 1D array of active virtual MO indices
-            enviro_virtual_MO_inds (np.array): 1D array of environment virtual MO indices
         """
         logger.debug("Localizing virtual orbitals.")
         n_occupied_orbitals = np.count_nonzero(self._global_scf.mo_occ == 2)

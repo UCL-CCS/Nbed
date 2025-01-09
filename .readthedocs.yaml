@@ -15,7 +15,7 @@ build:
     # rust: "1.55"
     # golang: "1.17"
   commands:
-    - pip install poetry==1.8.5
+    - pip install poetry==2.0.0
     - poetry config virtualenvs.create false
     - poetry install --with docs
     - mkdir -p $READTHEDOCS_OUTPUT/html/

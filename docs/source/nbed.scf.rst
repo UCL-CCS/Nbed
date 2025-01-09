@@ -4,18 +4,18 @@ nbed.scf package
 Submodules
 ----------
 
-nbed.scf.huzinaga\_rhf module
+nbed.scf.huzinaga\_scf module
 -----------------------------
 
-.. automodule:: nbed.scf.huzinaga_rhf
+.. automodule:: nbed.scf.huzinaga_scf
    :members:
    :undoc-members:
    :show-inheritance:
 
-nbed.scf.huzinaga\_rks module
+nbed.scf.embedded\_hcore\_funcs module
 -----------------------------
 
-.. automodule:: nbed.scf.huzinaga_rks
+.. automodule:: nbed.scf.embedded_hcore_funcs
    :members:
    :undoc-members:
    :show-inheritance:

@@ -53,14 +53,6 @@ nbed.ham\_converter module
    :undoc-members:
    :show-inheritance:
 
-nbed.mol\_plot module
----------------------
-
-.. automodule:: nbed.mol_plot
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 nbed.utils module
 -----------------
 
