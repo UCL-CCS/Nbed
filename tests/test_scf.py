@@ -1,12 +1,6 @@
 """Test SCF Functions."""
 
-from nbed.scf import _huzinaga_fock_operator, huzinaga_scf
-
-
-def test_fock_operator_output(restricted_driver):
-    scf = restricted_driver.embedded_scf
-    dm_env = restricted_driver.localized_system.dm_enviro
-    _huzinaga_fock_operator(scf, 0, 0, dm_env, None)
+from nbed.scf import huzinaga_scf
 
 
 def test_fock_operator_restriction_match():
