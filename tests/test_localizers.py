@@ -239,6 +239,19 @@ def test_cl_shell_numbers(global_rks, global_uks) -> None:
     assert restricted.shells == [12, 13]
     assert restricted.shells == unrestricted.shells
 
+def test_cl_reduces_orbitals(pfoa_filepath, driver_args):
+    driver_args["geometry"] = str(pfoa_filepath)
+    driver_args["n_active_atoms"] = 2
+
+    from nbed.driver import NbedDriver
+
+    novirt = NbedDriver(**driver_args, run_virtual_localization=False)
+    novirt_mos = novirt.embedded_scf.mo_coeff
+
+    virt = NbedDriver(**driver_args, run_virtual_localization=True, max_shells=2)
+    virt_mos = virt.embedded_scf.mo_coeff
+
+    assert novirt_mos.shape[-1] < virt_mos.shape[-1]
 
 if __name__ == "__main__":
     pass

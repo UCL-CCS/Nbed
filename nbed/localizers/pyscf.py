@@ -235,7 +235,7 @@ class PySCFLocalizer(Localizer, ABC):
 
         return c_virtual_loc
 
-    def localize_virtual(local_scf: StreamObject) -> StreamObject:
+    def localize_virtual(self, local_scf: StreamObject) -> StreamObject:
         """Localise virtual (unoccupied) obitals using PySCF method.
 
         [1] D. Claudino and N. J. Mayhall, "Simple and Efficient Truncation of Virtual

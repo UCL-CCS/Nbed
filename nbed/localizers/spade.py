@@ -204,19 +204,26 @@ class SPADELocalizer(Localizer):
             logger.debug(
                 "This is expected for molecules with majority active MOs occupied."
             )
-            return
+            return embedded_scf
         elif v_ker.shape[-1] == 1:
             logger.debug(
                 "Kernel is 1 for 0th shell, ending CL as cannot perform SVD of vector."
             )
             c_total = np.concatenate((c_total, c_iker), axis=-1)
             self.shells.append(c_total.shape[-1])
-            return
+
+            if self._restricted:
+                embedded_scf.mo_coeff = c_total  # <- is there any issue with using half of the cmatrix in localized form?
+            else:
+                embedded_scf.mo_coeff[0] = c_total[0]
+                embedded_scf.mo_coeff[1] = c_total[1]
+
+            return embedded_scf
 
         fock_operator = embedded_scf.get_fock()
         # why use the overlap for the first shell and then the fock for the rest?
 
-        for ishell in range(1, self.max_shells + 1):
+        for ishell in range(0, self.max_shells):
             logger.debug("Beginning Concentric Localization Iteration")
             logger.debug(f"Shell {ishell}.")
 
@@ -276,3 +283,5 @@ class SPADELocalizer(Localizer):
             embedded_scf.mo_coeff[0] = c_total[0]
             embedded_scf.mo_coeff[1] = c_total[1]
         logger.debug("Completed Concentric Localization.")
+
+        return embedded_scf

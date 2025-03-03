@@ -154,7 +154,7 @@ class NbedDriver:
         if force_unrestricted:
             logger.debug("Forcing unrestricted SCF")
             self._restricted_scf = False
-        elif self.charge % 2 == 1:
+        elif self.charge % 2 == 1 or self.spin != 0:
             logger.debug("Open shells, using unrestricted SCF.")
             self._restricted_scf = False
         else:
@@ -256,6 +256,7 @@ class NbedDriver:
         logger.debug("Running full system KS DFT.")
         mol_full = self._build_mol()
         global_ks = dft.RKS(mol_full) if self._restricted_scf else dft.UKS(mol_full)
+        logger.debug(f"{type(global_ks)=}")
         global_ks.conv_tol = self.convergence
         global_ks.xc = self.xc_functional
         global_ks.max_memory = self.max_ram_memory
@@ -328,10 +329,14 @@ class NbedDriver:
         # overwrite total number of electrons to only include active system
         if self._restricted_scf:
             embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
+            embedded_mol.spin = 0
             self.electron = embedded_mol.nelectron
             local_hf: scf.rhf.RHF = scf.RHF(embedded_mol)
         else:
             embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
+                self.localized_system.beta_active_MO_inds
+            )
+            embedded_mol.spin = len(self.localized_system.active_MO_inds) - len(
                 self.localized_system.beta_active_MO_inds
             )
             self.electron = embedded_mol.nelectron
@@ -911,12 +916,15 @@ class NbedDriver:
 
         total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
         if not self._restricted_scf:
+            logger.debug("Adding beta spin density matrix")
             total_dm += (
                 self.localized_system.beta_dm_active
                 + self.localized_system.beta_dm_enviro
             )
 
         g_act_and_env = self._global_ks.get_veff(dm=total_dm)
+        logger.debug(f"{total_dm.shape=}")
+        logger.debug(f"{g_act_and_env.shape=}")
 
         if self._restricted_scf:
             g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
@@ -960,7 +968,6 @@ class NbedDriver:
 
             if projector_name == "huzinaga" and init_huzinaga_rhf_with_mu:
                 dmat_initial_guess = (self._mu["scf"].make_rdm1(),)
-
                 result["scf"], result["v_emb"] = embedding_method(
                     local_hf, dft_potential, dmat_initial_guess
                 )
@@ -969,9 +976,9 @@ class NbedDriver:
                     local_hf, dft_potential
                 )
 
-            result["mo_energies_emb_pre_del"] = local_hf.mo_energy
+            result["mo_energies_emb_pre_del"] = result["scf"].mo_energy
             result["scf"] = self._delete_environment(projector_name, result["scf"])
-            result["mo_energies_emb_post_del"] = local_hf.mo_energy
+            result["mo_energies_emb_post_del"] = result["scf"].mo_energy
 
             logger.info(f"V emb mean {projector_name}: {np.mean(result['v_emb'])}")
 
@@ -988,6 +995,12 @@ class NbedDriver:
                 result["beta_correction"] = np.einsum(
                     "ij,ij", result["v_emb"][1], self.localized_system.beta_dm_active
                 )
+
+            # Virtual localization
+            # TODO correlation energy correction???
+            if self.run_virtual_localization is True:
+                logger.debug("Performing virtual localization.")
+                result["scf"] = self.localized_system.localize_virtual(result["scf"])
 
             result["e_rhf"] = (
                 result["scf"].e_tot
@@ -1007,12 +1020,6 @@ class NbedDriver:
                 - result["beta_correction"]
             )
             logger.debug(f"Classical energy: {result['classical_energy']}")
-
-            # Virtual localization
-            if self.run_virtual_localization is True:
-                logger.debug("Performing virtual localization.")
-                self.localized_system.localize_virtual(result["scf"])
-                self.cl_shells = self.localized_system.shells
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
