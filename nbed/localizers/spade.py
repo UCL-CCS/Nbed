@@ -41,6 +41,7 @@ class SPADELocalizer(Localizer):
         global_scf: gto.Mole,
         n_active_atoms: int,
         max_shells: int = 4,
+        n_mo_overwrite: None | int = None,
     ):
         """Initialize SPADE Localizer object."""
         super().__init__(
@@ -48,8 +49,10 @@ class SPADELocalizer(Localizer):
             n_active_atoms,
         )
         self.max_shells = max_shells
+        self.n_mo_overwrite = n_mo_overwrite
         self.shells = None
         self.singular_values = None
+        self.enviro_selection_condition = []
 
     def _localize_spin(
         self, c_matrix: np.ndarray, occupancy: np.ndarray
@@ -87,13 +90,16 @@ class SPADELocalizer(Localizer):
 
         logger.debug(f"Singular Values: {sigma}")
 
+        if self.n_mo_overwrite is not None:
+            n_act_mos = self.n_mo_overwrite
         # n_act_mos, n_env_mos = embed.orbital_partition(sigma)
         # Prevents an error with argmax
-        if len(sigma) == 1:
+        elif len(sigma) == 1:
             n_act_mos = 1
         else:
             value_diffs = sigma[:-1] - sigma[1:]
             n_act_mos = np.argmax(value_diffs) + 1
+
         n_env_mos = n_occupied_orbitals - n_act_mos
         logger.debug(f"{n_act_mos} active MOs.")
         logger.debug(f"{n_env_mos} environment MOs.")
@@ -108,7 +114,7 @@ class SPADELocalizer(Localizer):
         c_loc_occ = occupied_orbitals @ right_vectors.T
 
         # storing condition used to select env system
-        self.enviro_selection_condition = sigma
+        self.enviro_selection_condition += sigma
 
         return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
 

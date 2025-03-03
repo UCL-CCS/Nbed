@@ -198,6 +198,7 @@ class NbedDriver:
                     "virt_cutoff": self.virtual_threshold,
                 }
 
+        logger.debug(f"{kwargs=}")
         localized_system = localizer(
             self._global_ks,
             self.n_active_atoms,
