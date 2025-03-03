@@ -13,6 +13,7 @@ from nbed.exceptions import NbedConfigError
 from nbed.localizers import (
     BOYSLocalizer,
     IBOLocalizer,
+    Localizer,
     PMLocalizer,
     SPADELocalizer,
 )
@@ -161,9 +162,48 @@ class NbedDriver:
             logger.debug("Closed shells, using restricted SCF.")
             self._restricted_scf = True
 
-        self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
+        self.localized_system = self._localize()
+
+        self.embed(
+            localized_system=self.localized_system,
+            init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu,
+        )
 
         logger.debug("Driver initialisation complete.")
+
+    def _localize(self):
+        """Run the localizer class."""
+        logger.debug(f"Getting localized system using {self.localization}.")
+
+        match self.localization:
+            case "spade":
+                localizer = SPADELocalizer
+                kwargs = {"max_shells": self.max_shells}
+            case "boys":
+                localizer = BOYSLocalizer
+                kwargs = {
+                    "occ_cutoff": self.occupied_threshold,
+                    "virt_cutoff": self.virtual_threshold,
+                }
+            case "ibo":
+                localizer = IBOLocalizer
+                kwargs = {
+                    "occ_cutoff": self.occupied_threshold,
+                    "virt_cutoff": self.virtual_threshold,
+                }
+            case "pipek-mezey":
+                localizer = PMLocalizer
+                kwargs = {
+                    "occ_cutoff": self.occupied_threshold,
+                    "virt_cutoff": self.virtual_threshold,
+                }
+
+        localized_system = localizer(
+            self._global_ks,
+            self.n_active_atoms,
+            **kwargs,
+        )
+        return localized_system
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
@@ -288,32 +328,6 @@ class NbedDriver:
                 f"Invalid number of active atoms. Choose a number from 1 to {all_atoms-1}."
             )
         logger.debug("Number of active atoms valid.")
-
-    def _localize(self):
-        """Run the localizer class."""
-        logger.debug(f"Getting localized system using {self.localization}.")
-
-        localizers = {
-            "spade": SPADELocalizer,
-            "boys": BOYSLocalizer,
-            "ibo": IBOLocalizer,
-            "pipek-mezey": PMLocalizer,
-        }
-
-        if self.localization == "spade":
-            localized_system = localizers[self.localization](
-                self._global_ks,
-                self.n_active_atoms,
-                max_shells=self.max_shells,
-            )
-        else:
-            localized_system = localizers[self.localization](
-                self._global_ks,
-                self.n_active_atoms,
-                occ_cutoff=self.occupied_threshold,
-                virt_cutoff=self.virtual_threshold,
-            )
-        return localized_system
 
     def _init_local_hf(self) -> Union[scf.uhf.UHF, scf.rhf.RHF]:
         """Function to build embedded HF object for active subsystem.
@@ -895,7 +909,9 @@ class NbedDriver:
 
         return result
 
-    def embed(self, init_huzinaga_rhf_with_mu=False):
+    def embed(
+        self, localized_system: Localizer, init_huzinaga_rhf_with_mu: bool = False
+    ):
         """Run embedded scf calculation.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
@@ -905,7 +921,6 @@ class NbedDriver:
 
         e_nuc = self._global_ks.energy_nuc()
 
-        self.localized_system = self._localize()
         logger.info("Indices of embedded electrons:")
         logger.info(self.localized_system.active_MO_inds)
         logger.info(self.localized_system.enviro_MO_inds)
