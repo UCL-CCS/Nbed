@@ -32,7 +32,10 @@ class ACELocalizer:
                 scf_object, self.n_active_atoms, self.max_shells
             )
 
-        singular_values = [loc.enviro_selection_condition for loc in localized_systems]
+        # only does restricted atm
+        singular_values = [
+            loc.enviro_selection_condition[0] for loc in localized_systems
+        ]
 
         def fermi_dist(diff_i_max, beta):
             return (

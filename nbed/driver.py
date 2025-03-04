@@ -182,7 +182,7 @@ class NbedDriver:
                 localizer = SPADELocalizer
                 kwargs = {
                     "max_shells": self.max_shells,
-                    "n_mo_overwrite:": self.n_mo_overwrite,
+                    # "n_mo_overwrite:": self.n_mo_overwrite,
                 }
             case "boys":
                 localizer = BOYSLocalizer
