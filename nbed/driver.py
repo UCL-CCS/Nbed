@@ -13,7 +13,6 @@ from nbed.exceptions import NbedConfigError
 from nbed.localizers import (
     BOYSLocalizer,
     IBOLocalizer,
-    Localizer,
     PMLocalizer,
     SPADELocalizer,
 )
@@ -163,13 +162,6 @@ class NbedDriver:
         else:
             logger.debug("Closed shells, using restricted SCF.")
             self._restricted_scf = True
-
-        self.localized_system = self._localize()
-
-        self.embed(
-            localized_system=self.localized_system,
-            init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu,
-        )
 
         logger.debug("Driver initialisation complete.")
 
@@ -915,17 +907,17 @@ class NbedDriver:
 
         return result
 
-    def embed(
-        self, localized_system: Localizer, init_huzinaga_rhf_with_mu: bool = False
-    ):
+    def embed(self, init_huzinaga_rhf_with_mu: bool = False):
         """Run embedded scf calculation.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
         """
         logger.debug("Embedding molecule.")
-
         e_nuc = self._global_ks.energy_nuc()
+
+        logger.debug("Localising")
+        self.localized_system = self._localize()
 
         logger.info("Indices of embedded electrons:")
         logger.info(self.localized_system.active_MO_inds)
