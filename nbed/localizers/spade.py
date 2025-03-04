@@ -41,7 +41,7 @@ class SPADELocalizer(Localizer):
         global_scf: gto.Mole,
         n_active_atoms: int,
         max_shells: int = 4,
-        n_mo_overwrite: None | int = None,
+        n_mo_overwrite: int = 0,
     ):
         """Initialize SPADE Localizer object."""
         super().__init__(
@@ -90,8 +90,9 @@ class SPADELocalizer(Localizer):
 
         logger.debug(f"Singular Values: {sigma}")
 
-        if self.n_mo_overwrite is not None:
+        if self.n_mo_overwrite != 0:
             n_act_mos = self.n_mo_overwrite
+
         # n_act_mos, n_env_mos = embed.orbital_partition(sigma)
         # Prevents an error with argmax
         elif len(sigma) == 1:

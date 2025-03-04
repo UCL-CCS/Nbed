@@ -178,7 +178,32 @@ def test_SPADE_mo_indices(global_rks, global_uks) -> None:
         == unrestricted_loc_system.beta_enviro_MO_inds
     )
 
-
+def test_spade_n_mo_overwrite(global_rks, global_uks) -> None:
+    restricted_loc_system = SPADELocalizer(
+        global_rks,
+        n_active_atoms=n_active_atoms,
+        n_mo_overwrite=4,
+    )
+    unrestricted_loc_system = SPADELocalizer(
+        global_uks,
+        n_active_atoms=n_active_atoms,
+        n_mo_overwrite=4,
+    )
+    assert len(restricted_loc_system.active_MO_inds) == 4
+    assert np.all(
+        restricted_loc_system.active_MO_inds == unrestricted_loc_system.active_MO_inds
+    )
+    assert np.all(
+        restricted_loc_system.enviro_MO_inds == unrestricted_loc_system.enviro_MO_inds
+    )
+    assert np.all(
+        unrestricted_loc_system.active_MO_inds
+        == unrestricted_loc_system.beta_active_MO_inds
+    )
+    assert np.all(
+        unrestricted_loc_system.enviro_MO_inds
+        == unrestricted_loc_system.beta_enviro_MO_inds
+    )
 def test_PMLocalizer_local_basis_transform(global_rks) -> None:
     """Check change of basis operator (from canonical to localized) is correct"""
     # run Localizer
