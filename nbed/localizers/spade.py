@@ -120,7 +120,10 @@ class SPADELocalizer(Localizer):
         if self.enviro_selection_condition is None:
             self.enviro_selection_condition = (sigma, np.zeros(len(sigma)))
         else:
-            self.enviro_selection_condition = (self.enviro_selection_condition, sigma)
+            self.enviro_selection_condition = (
+                self.enviro_selection_condition[0],
+                sigma,
+            )
 
         return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
 

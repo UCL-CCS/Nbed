@@ -204,6 +204,29 @@ def test_spade_n_mo_overwrite(global_rks, global_uks) -> None:
         unrestricted_loc_system.enviro_MO_inds
         == unrestricted_loc_system.beta_enviro_MO_inds
     )
+
+def test_spade_selection_condition(global_rks, global_uks) -> None:
+    restricted_loc_system = SPADELocalizer(
+        global_rks,
+        n_active_atoms=n_active_atoms,
+    )
+    unrestricted_loc_system = SPADELocalizer(
+        global_uks,
+        n_active_atoms=n_active_atoms,
+    )
+
+    resc = restricted_loc_system.enviro_selection_condition
+    uesc = unrestricted_loc_system.enviro_selection_condition
+
+    assert np.all(resc[0] != resc[1])
+    assert len(resc[0]) == len(resc[1])
+    assert np.all(resc[1] == np.zeros(len(resc[1])))
+
+    assert np.any(uesc[0] != uesc[1])
+    assert len(uesc[0]) == len(uesc[1])
+    assert np.all(uesc[1] != np.zeros(len(uesc[1])))
+
+
 def test_PMLocalizer_local_basis_transform(global_rks) -> None:
     """Check change of basis operator (from canonical to localized) is correct"""
     # run Localizer
@@ -264,19 +287,20 @@ def test_cl_shell_numbers(global_rks, global_uks) -> None:
     assert restricted.shells == [12, 13]
     assert restricted.shells == unrestricted.shells
 
-def test_cl_reduces_orbitals(pfoa_filepath, driver_args):
-    driver_args["geometry"] = str(pfoa_filepath)
-    driver_args["n_active_atoms"] = 2
+def test_cl_reduces_orbitals(acetonitrile_filepath, driver_args):
+    driver_args["geometry"] = str(acetonitrile_filepath)
+    driver_args["n_active_atoms"] = 1
+    driver_args["basis"] = "6-31G"
 
     from nbed.driver import NbedDriver
 
     novirt = NbedDriver(**driver_args, run_virtual_localization=False)
     novirt_mos = novirt.embedded_scf.mo_coeff
 
-    virt = NbedDriver(**driver_args, run_virtual_localization=True, max_shells=2)
+    virt = NbedDriver(**driver_args, run_virtual_localization=True, max_shells=1)
     virt_mos = virt.embedded_scf.mo_coeff
 
-    assert novirt_mos.shape[-1] < virt_mos.shape[-1]
+    assert novirt_mos.shape[-1] > virt_mos.shape[-1]
 
 if __name__ == "__main__":
     pass

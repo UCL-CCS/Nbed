@@ -18,6 +18,10 @@ def pfoa_filepath() -> Path:
     return Path("tests/molecules/pfoa.xyz").absolute()
 
 @pytest.fixture(scope="module")
+def acetonitrile_filepath() -> Path:
+    return Path("tests/molecules/acetonitrile.xyz").absolute()
+
+@pytest.fixture(scope="module")
 def water_mol(water_filepath) -> gto.Mole:
     mol_args = {
         "atom": str(water_filepath),
