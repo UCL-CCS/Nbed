@@ -1,4 +1,7 @@
-"""ACE of SPADE localization."""
+"""ACE of SPADE localization.
+
+Based on 10.1021/acs.jctc.3c00653
+"""
 
 import logging
 
