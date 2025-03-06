@@ -6,7 +6,7 @@ import numpy as np
 from pyscf import lib
 from scipy.optimize import curve_fit, minimize
 
-from .spade import SPADELocalizer
+from nbed.localizers.spade import SPADELocalizer
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class ACELocalizer:
             diff_i_max = [i - max_i for i in range(len(val_set))]
             logger.debug(f"{diff_i_max=}")
 
-            beta_fit = curve_fit(fermi_dist, diff_i_max, val_set)
+            beta_fit, beta_cov = curve_fit(fermi_dist, diff_i_max, val_set)
             logger.debug(f"{beta_fit=}")
 
             def neg_fermi_dist(diff_i_max):
@@ -66,8 +66,11 @@ class ACELocalizer:
 
             res = minimize(neg_fermi_dist, max_i)
             max_vals.append(res.x)
+            logger.debug(f"{max_vals=}")
 
         mean_max = np.mean(max_vals)
-        mean_max = int(mean_max)
-
-        return mean_max
+        # we want to round to the nearesrt 1, we cam do this with int(val+0.5)
+        nmo = mean_max + np.argwhere(diff_i_max == np.int64(0)) + 0.5
+        nmo = int(nmo)
+        logger.debug(f"Using {nmo} Molecular Orbitals")
+        return nmo
