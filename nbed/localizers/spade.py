@@ -126,7 +126,7 @@ class SPADELocalizer(Localizer):
 
         logger.debug(f"Singular Values: {sigma}")
 
-        if n_mo_overwrite != 0:
+        if n_mo_overwrite is not None:
             logger.debug(f"Enforcing use of {n_mo_overwrite} MOs")
             n_act_mos = n_mo_overwrite
 
