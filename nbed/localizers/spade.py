@@ -40,11 +40,11 @@ class SPADELocalizer(Localizer):
         global_scf: gto.Mole,
         n_active_atoms: int,
         max_shells: int = 4,
-        n_mo_overwrite: int = 0,
+        n_mo_overwrite: tuple[int, int] | None = None,
     ):
         """Initialize SPADE Localizer object."""
         self.max_shells = max_shells
-        self.n_mo_overwrite = n_mo_overwrite
+        self.n_mo_overwrite = (None, None) if n_mo_overwrite is None else n_mo_overwrite
         self.shells = None
         self.singular_values = None
         self.enviro_selection_condition = None
