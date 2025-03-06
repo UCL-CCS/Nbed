@@ -182,12 +182,12 @@ def test_spade_n_mo_overwrite(global_rks, global_uks) -> None:
     restricted_loc_system = SPADELocalizer(
         global_rks,
         n_active_atoms=n_active_atoms,
-        n_mo_overwrite=4,
+        n_mo_overwrite=(4,4),
     )
     unrestricted_loc_system = SPADELocalizer(
         global_uks,
         n_active_atoms=n_active_atoms,
-        n_mo_overwrite=4,
+        n_mo_overwrite=(4,4),
     )
     assert len(restricted_loc_system.active_MO_inds) == 4
     assert np.all(
