@@ -3,7 +3,7 @@
 import logging
 
 import numpy as np
-from pyscf import lib
+from pyscf import lib, scf
 from scipy.optimize import curve_fit, minimize
 
 from nbed.localizers.spade import SPADELocalizer
@@ -25,10 +25,13 @@ class ACELocalizer:
         self.n_active_atoms = n_active_atoms
         self.max_shells = max_shells
 
-    def localize_path(self) -> int:
+    def localize_path(self) -> tuple(int, int):
         """Find the number of MOs to use over the reaction coordinates.
 
-        NOTE: Only returns one number for both spins
+        NOTE: Only returns one number for both spins.
+
+        Returns:
+            tuple(int,int): Number of molecular orbitals for spin alpha, beta.
         """
         logger.debug("Running ACE of SPADE across reaction coordinates.")
         localized_systems = []
@@ -37,9 +40,30 @@ class ACELocalizer:
             localized_systems.append(loc)
 
         # only does restricted atm
-        singular_values = [
-            loc.enviro_selection_condition[0] for loc in localized_systems
-        ]
+        singular_values = [loc.enviro_selection_condition for loc in localized_systems]
+
+        if isinstance(scf_object, (scf.RHF, scf.RKS)):
+            alpha = self.localize_spin([s[0] for s in singular_values])
+            beta = alpha
+        elif isinstance(scf_object, (scf.UHF, scf.UKS)):
+            alpha = self.localize_spin([s[0] for s in singular_values])
+            beta = self.localize_spin([s[1] for s in singular_values])
+        else:
+            error_string = f"SCF object of type {type(scf_object)} cannot be used."
+            logger.error(error_string)
+            raise TypeError(error_string)
+        return alpha, beta
+
+    def localize_spin(self, singular_values) -> int:
+        """Run ACE of SPADE for a single spin.
+
+        Args:
+            singular_values (np.ndarray[float]): Singular values from SPADE for each geometry.
+
+        Returns:
+            int: Numer of Molecular Orbitals to use.
+        """
+        logger.debug("Running ACE of SPADE for a single spin.")
 
         def fermi_dist(diff_i_max, beta):
             return (
