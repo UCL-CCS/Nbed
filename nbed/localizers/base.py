@@ -56,7 +56,7 @@ class Localizer(ABC):
 
         self._global_scf = global_scf
         self._n_active_atoms = n_active_atoms
-        self._restricted = isinstance(self._global_scf, (scf.rhf.RHF, dft.rks.RKS))
+        self._restricted = isinstance(self._global_scf, (scf.hf.RHF, dft.rks.RKS))
         logger.debug(f"Global scf: {type(global_scf)}")
 
         # Run the localization procedure

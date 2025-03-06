@@ -1,7 +1,6 @@
 """SPADE Localizer Class."""
 
 import logging
-from typing import Tuple
 
 import numpy as np
 from pyscf import gto, scf
@@ -55,14 +54,49 @@ class SPADELocalizer(Localizer):
             n_active_atoms,
         )
 
+    def _localize(
+        self,
+    ) -> tuple[tuple, tuple | None]:
+        """Localise orbitals using SPADE.
+
+        Returns:
+            active_MO_inds (np.array): 1D array of active occupied MO indices
+            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
+            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
+            c_enviro (np.array): C matrix of localized occupied ennironment MOs
+            c_loc_occ (np.array): full C matrix of localized occupied MOs
+        """
+        if self._restricted:
+            alpha = self._localize_spin(
+                self._global_scf.mo_coeff, self._global_scf.mo_occ
+            )
+            beta = None
+        else:
+            alpha = self._localize_spin(
+                self._global_scf.mo_coeff[0],
+                self._global_scf.mo_occ[0],
+                self.n_mo_overwrite[0],
+            )
+            beta = self._localize_spin(
+                self._global_scf.mo_coeff[1],
+                self._global_scf.mo_occ[1],
+                self.n_mo_overwrite[1],
+            )
+
+        return (alpha, beta)
+
     def _localize_spin(
-        self, c_matrix: np.ndarray, occupancy: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        self,
+        c_matrix: np.ndarray,
+        occupancy: np.ndarray,
+        n_mo_overwrite: int | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Localize orbitals of one spin using SPADE.
 
         Args:
             c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
             occupancy (np.ndarray): Occupancy of orbitals.
+            n_mo_overwrite (int): Number of molecular orbitals to use in active region. Overwrite SVD based value.
 
         Returns:
             np.ndarray: Localized C matrix of occupied orbitals.
@@ -74,6 +108,7 @@ class SPADELocalizer(Localizer):
 
         n_occupied_orbitals = np.count_nonzero(occupancy)
         occupied_orbitals = c_matrix[:, :n_occupied_orbitals]
+        logger.debug(f"{n_occupied_orbitals} occupied AOs.")
 
         n_act_aos = self._global_scf.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_aos} active AOs.")
@@ -91,9 +126,9 @@ class SPADELocalizer(Localizer):
 
         logger.debug(f"Singular Values: {sigma}")
 
-        if self.n_mo_overwrite != 0:
-            logger.debug(f"Enforcing use of {self.n_mo_overwrite} MOs")
-            n_act_mos = self.n_mo_overwrite
+        if n_mo_overwrite != 0:
+            logger.debug(f"Enforcing use of {n_mo_overwrite} MOs")
+            n_act_mos = n_mo_overwrite
 
         # n_act_mos, n_env_mos = embed.orbital_partition(sigma)
         # Prevents an error with argmax

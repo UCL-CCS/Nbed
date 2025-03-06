@@ -3,7 +3,7 @@
 import logging
 
 import numpy as np
-from pyscf import lib, scf
+from pyscf import dft, lib, scf
 from scipy.optimize import curve_fit, minimize
 
 from nbed.localizers.spade import SPADELocalizer
@@ -25,7 +25,7 @@ class ACELocalizer:
         self.n_active_atoms = n_active_atoms
         self.max_shells = max_shells
 
-    def localize_path(self) -> tuple(int, int):
+    def localize_path(self) -> tuple[int, int]:
         """Find the number of MOs to use over the reaction coordinates.
 
         NOTE: Only returns one number for both spins.
@@ -42,17 +42,17 @@ class ACELocalizer:
         # only does restricted atm
         singular_values = [loc.enviro_selection_condition for loc in localized_systems]
 
-        if isinstance(scf_object, (scf.RHF, scf.RKS)):
+        if isinstance(scf_object, (scf.hf.RHF, dft.rks.RKS)):
             alpha = self.localize_spin([s[0] for s in singular_values])
             beta = alpha
-        elif isinstance(scf_object, (scf.UHF, scf.UKS)):
+        elif isinstance(scf_object, (scf.uhf.UHF, dft.uks.UKS)):
             alpha = self.localize_spin([s[0] for s in singular_values])
             beta = self.localize_spin([s[1] for s in singular_values])
         else:
             error_string = f"SCF object of type {type(scf_object)} cannot be used."
             logger.error(error_string)
             raise TypeError(error_string)
-        return alpha, beta
+        return (alpha, beta)
 
     def localize_spin(self, singular_values) -> int:
         """Run ACE of SPADE for a single spin.
