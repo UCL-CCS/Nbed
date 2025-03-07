@@ -44,6 +44,7 @@ class ACELocalizer:
 
         # only does restricted atm
         singular_values = [loc.enviro_selection_condition for loc in localized_systems]
+        logger.debug(f"{singular_values=}")
 
         if isinstance(scf_object, (scf.hf.RHF, dft.rks.RKS)):
             alpha = self.localize_spin([s[0] for s in singular_values])
@@ -77,7 +78,8 @@ class ACELocalizer:
 
         max_vals = []
         for val_set in singular_values:
-            diffs = np.array(singular_values[:-1]) - np.array(singular_values[1:])
+            logger.debug(f"{val_set=}")
+            diffs = np.array(val_set[:-1]) - np.array(val_set[1:])
             max_i = np.argmax(diffs)
             logger.debug(f"{diffs=}")
             logger.debug(f"{max_i=}")
@@ -92,7 +94,7 @@ class ACELocalizer:
                 return -1 * fermi_dist(diff_i_max, beta_fit)
 
             res = minimize(neg_fermi_dist, max_i)
-            max_vals.append(res.x)
+            max_vals.append(res.x[0])
             logger.debug(f"{max_vals=}")
 
         mean_max = np.mean(max_vals)
