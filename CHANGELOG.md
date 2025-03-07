@@ -12,8 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 'nbed.scf.huzinaga_hf' and 'nbed.scf.huzinaga_rks' cmbined into 'nbed.scf.huzinaga_scf'
 - Poetry updated to `2.0.0`, with changes to `pyproject.toml`
 - Combined `scf/huzinaga_` HF and KS methods into `huzinaga_scf`
-- python version requirement changed to `>=3.9, <3.13`
-- `NbedDriver` no longer calls `.embed()` on init, this must be run explicitly.
+- python version requirement changed to `>=3.9, <3.13`.
+- `NbedDriver` no longer calls `.embed()` on init, this must be run explicitly. This allows ACELocalizers to be run from a set of `NbedDriver._global_ks` objects.
 - Concentric localisation now runs once for each spin in unrestricted systems.
 
 ## Added
