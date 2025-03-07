@@ -304,5 +304,10 @@ def test_cl_changes_orbitals(acetonitrile_filepath, driver_args):
 
     assert np.any(virt_mos != novirt_mos)
 
+def test_ace_of_spade() -> None:
+    # add a test for restricted/unrestricted outputs
+    # check explicitly for some smallish mol?
+    pass
+
 if __name__ == "__main__":
     pass
