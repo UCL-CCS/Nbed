@@ -80,7 +80,7 @@ class NbedDriver:
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
-        n_mo_overwrite: int | None = None,
+        n_mo_overwrite: tuple[int, int] | None = None,
         max_shells: Optional[int] = 4,
         init_huzinaga_rhf_with_mu: bool = False,
         max_hf_cycles: int = 50,
@@ -174,7 +174,7 @@ class NbedDriver:
                 localizer = SPADELocalizer
                 kwargs = {
                     "max_shells": self.max_shells,
-                    "n_mo_overwrite:": self.n_mo_overwrite,
+                    "n_mo_overwrite": self.n_mo_overwrite,
                 }
             case "boys":
                 localizer = BOYSLocalizer
