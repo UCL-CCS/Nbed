@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 - `.pre-commit-config.yaml` added
+- `ACELocalizer` added which implements ACE of SPADE over a set of geometries.
 
 ## Removed
 - `mol_plot.py` removed as not required for/by main uses of package

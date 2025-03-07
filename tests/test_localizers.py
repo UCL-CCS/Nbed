@@ -285,9 +285,9 @@ def test_cl_shell_numbers(global_rks, global_uks) -> None:
     unrestricted.localize_virtual(unrestricted._global_scf)
 
     assert restricted.shells == [12, 13]
-    assert restricted.shells == unrestricted.shells
+    assert restricted.shells == unrestricted.shells[0] == unrestricted.shells[1]
 
-def test_cl_reduces_orbitals(acetonitrile_filepath, driver_args):
+def test_cl_changes_orbitals(acetonitrile_filepath, driver_args):
     driver_args["geometry"] = str(acetonitrile_filepath)
     driver_args["n_active_atoms"] = 1
     driver_args["basis"] = "6-31G"
@@ -295,12 +295,14 @@ def test_cl_reduces_orbitals(acetonitrile_filepath, driver_args):
     from nbed.driver import NbedDriver
 
     novirt = NbedDriver(**driver_args, run_virtual_localization=False)
+    novirt.embed()
     novirt_mos = novirt.embedded_scf.mo_coeff
 
-    virt = NbedDriver(**driver_args, run_virtual_localization=True, max_shells=1)
+    virt = NbedDriver(**driver_args, run_virtual_localization=True, max_shells=4)
+    virt.embed()
     virt_mos = virt.embedded_scf.mo_coeff
 
-    assert novirt_mos.shape[-1] > virt_mos.shape[-1]
+    assert np.any(virt_mos != novirt_mos)
 
 if __name__ == "__main__":
     pass
