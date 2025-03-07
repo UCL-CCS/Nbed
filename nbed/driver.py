@@ -1093,5 +1093,8 @@ class NbedDriver:
                 self._mu["classical_energy"],
                 self._huzinaga["classical_energy"],
             )
+        else:
+            raise ValueError("Invalid projecor %s", self.projector)
 
         logger.info("Embedding complete.")
+        return self

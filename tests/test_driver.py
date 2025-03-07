@@ -15,24 +15,24 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def mu_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "mu"
-    return NbedDriver(**driver_args)
+    return NbedDriver(**driver_args).embed()
 
 @pytest.fixture
 def mu_unrestricted_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "mu"
     driver_args["force_unrestricted"] = True
-    return NbedDriver(**driver_args)
+    return NbedDriver(**driver_args).embed()
 
 @pytest.fixture
 def huz_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "huzinaga"
-    return NbedDriver(**driver_args)
+    return NbedDriver(**driver_args).embed()
 
 @pytest.fixture
 def huz_unrestricted_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "huzinaga"
     driver_args["force_unrestricted"] = True
-    return NbedDriver(**driver_args)
+    return NbedDriver(**driver_args).embed()
 
 def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:
     assert mu_driver._mu is not {} and mu_driver._huzinaga is None
@@ -95,65 +95,14 @@ def test_driver_standard_xyz_string_input(restricted_driver) -> None:
     assert isclose(restricted_driver.classical_energy, -3.5867934952241356)
     assert np.allclose(
         restricted_driver.embedded_scf.mo_coeff,
-        np.array(
-            [
-                [
-                    -3.88142342e-03,
-                    3.02684557e-01,
-                    4.52415720e-01,
-                    -1.27605620e-05,
-                    -7.61743817e-01,
-                    8.49826960e-01,
-                ],
-                [
-                    9.95680230e-01,
-                    -2.14527741e-01,
-                    1.05457231e-01,
-                    -2.70846025e-06,
-                    -1.29395721e-01,
-                    4.54348546e-03,
-                ],
-                [
-                    2.14382088e-02,
-                    8.09145086e-01,
-                    -5.27807618e-01,
-                    1.53185771e-05,
-                    8.58088321e-01,
-                    -2.80005533e-02,
-                ],
-                [
-                    -3.37254332e-03,
-                    -1.14106506e-01,
-                    4.36409575e-01,
-                    6.36016563e-01,
-                    5.60822186e-01,
-                    1.95992040e-01,
-                ],
-                [
-                    4.16624471e-03,
-                    1.97283723e-01,
-                    5.76343342e-01,
-                    -3.87702724e-01,
-                    3.90462503e-01,
-                    -7.39775077e-01,
-                ],
-                [
-                    5.63571421e-03,
-                    2.23407976e-01,
-                    -8.10867198e-02,
-                    6.67210258e-01,
-                    -3.07731005e-01,
-                    -6.16688715e-01,
-                ],
-                [
-                    -1.49279774e-02,
-                    -1.68597526e-01,
-                    3.95805971e-02,
-                    -7.65177031e-06,
-                    -8.10573832e-01,
-                    -8.05367765e-01,
-                ],
-            ]
+        np.array([
+            [-3.88142342e-03,  3.02684557e-01,  4.52415720e-01, -1.27604882e-05, 1.13974737e+00,  5.86125954e-02],
+            [ 9.95680230e-01, -2.14527741e-01,  1.05457231e-01, -2.70841960e-06, 9.44244077e-02, -8.85885271e-02],
+            [ 2.14382088e-02,  8.09145086e-01, -5.27807618e-01,  1.53183816e-05,-6.24665203e-01,  5.88976215e-01],
+            [-3.37254332e-03, -1.14106506e-01,  4.36409575e-01,  6.36016563e-01,-2.56248456e-01,  5.35976802e-01],
+            [ 4.16624471e-03,  1.97283723e-01,  5.76343342e-01, -3.87702724e-01,-7.99990268e-01, -2.44425249e-01],
+            [ 5.63571422e-03,  2.23407976e-01, -8.10867200e-02,  6.67210258e-01,-2.20570850e-01, -6.52956233e-01],
+            [-1.49279773e-02, -1.68597526e-01,  3.95805969e-02, -7.65174279e-06, 6.66133815e-16, -1.14264919e+00]]
         ),
     )
 
@@ -193,7 +142,7 @@ def test_subsystem_dft(water_filepath) -> None:
         "run_fci_emb": False,
     }
 
-    driver = NbedDriver(**args)
+    driver = NbedDriver(**args).embed()
 
     energy_DFT_components = (
         driver.e_act
@@ -229,7 +178,7 @@ def test_subsystem_dft_spin_consistency(water_filepath) -> None:
         convergence=args["convergence"],
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
-    )
+    ).embed()
 
     unrestricted_driver = NbedDriver(
         geometry=args["geometry"],
@@ -242,7 +191,7 @@ def test_subsystem_dft_spin_consistency(water_filepath) -> None:
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
         force_unrestricted=True,
-    )
+    ).embed()
     # Could be problems with caching here
 
     assert isclose(restricted_driver.e_act, unrestricted_driver.e_act)

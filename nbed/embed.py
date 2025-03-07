@@ -25,7 +25,6 @@ def nbed(
     projector: str,
     output: str,
     transform: str,
-    qubits: Optional[int] = None,
     localization: Optional[str] = "spade",
     convergence: Optional[float] = 1e-6,
     charge: Optional[int] = 0,
@@ -102,7 +101,7 @@ def nbed(
         max_hf_cycles=max_hf_cycles,
         max_dft_cycles=max_dft_cycles,
         force_unrestricted=unrestricted,
-    )
+    ).embed()
     if savefile is not None:
         data_directory = Path(savefile).absolute()
         data_directory.mkdir(parents=True, exist_ok=True)
