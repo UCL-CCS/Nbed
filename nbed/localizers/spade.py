@@ -309,8 +309,6 @@ class SPADELocalizer(Localizer):
                 )
                 logger.debug(f"Singular values: {sigma}")
                 singular_values.append(sigma)
-                if not self._restricted:
-                    sigma = np.min(sigma, axis=0)
                 logger.debug(f"{right_vectors.shape=}")
 
                 shell_size = np.sum(sigma[: self.n_act_proj_aos] >= 1e-15)
