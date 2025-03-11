@@ -327,6 +327,57 @@ class NbedDriver:
             )
         logger.debug("Number of active atoms valid.")
 
+    def _build_local_mol(self) -> gto.Mole:
+        """Build a molecule with the correct charge and spin for the localized system."""
+        if os.path.exists(self.geometry):
+            with open(self.geometry) as f:
+                geometry = f.read()
+                geometry = geometry.splitlines()
+        elif isinstance(self.geometry, str):
+            geometry = self.geometry.splitlines()
+        else:
+            logger.error("Geometry is not existing file or string.")
+            raise ValueError("Geometry is not existing file or string.")
+
+        # logger.debug(f"{local_geometry=}")
+        # local_geometry = local_geometry[3:3+self.n_active_atoms]
+        # local_geometry = "\n".join(local_geometry)
+
+        embedded_mol: gto.Mole = gto.Mole(
+            atom=self.geometry[3:],
+            basis=self.basis,
+            charge=self.charge,
+            unit=self.unit,
+            spin=self.spin,
+            symmetry=self.symmetry,
+        ).build()
+
+        old_nelectron = embedded_mol.nelectron - self.charge
+        logger.debug(f"{old_nelectron} electrons in active atoms")
+        # overwrite total number of electrons to only include active system
+        embedded_mol.nelectron = (
+            self.localized_system.ne_active + self.localized_system.beta_ne_active
+        )
+
+        embedded_mol.charge = old_nelectron - embedded_mol.nelectron
+        logger.debug(f"Setting local mol charge {embedded_mol.charge}")
+        embedded_mol.spin = (
+            0
+            if embedded_mol.nelectron % 2 == 0
+            else (
+                self.localized_system.ne_active - self.localized_system.beta_ne_active
+            )
+        )
+        embedded_mol.nelec = (
+            self.localized_system.ne_active,
+            self.localized_system.beta_ne_active,
+        )
+        self.electron = embedded_mol.nelectron
+        logger.debug(f"{embedded_mol.nelectron=}")
+        logger.debug(f"{embedded_mol.spin=}")
+        embedded_mol.build()
+        return embedded_mol
+
     def _init_local_hf(self) -> Union[scf.uhf.UHF, scf.rhf.RHF]:
         """Function to build embedded HF object for active subsystem.
 
@@ -336,25 +387,15 @@ class NbedDriver:
             local_hf (scf.uhf.UHF or scf.rhf.RHF): embedded Hartree-Fock object.
         """
         logger.debug("Constructing localised RHF object.")
-        embedded_mol: gto.Mole = self._build_mol()
 
-        # overwrite total number of electrons to only include active system
-        if self._restricted_scf:
-            embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
-            embedded_mol.spin = 0
-            self.electron = embedded_mol.nelectron
+        embedded_mol = self._build_local_mol()
+
+        if self.localized_system.beta_dm_active is None:
+            logger.debug("Localized system has no beta component, using RHF.")
             local_hf: scf.rhf.RHF = scf.RHF(embedded_mol)
         else:
-            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
-                self.localized_system.beta_active_MO_inds
-            )
-            embedded_mol.spin = len(self.localized_system.active_MO_inds) - len(
-                self.localized_system.beta_active_MO_inds
-            )
-            self.electron = embedded_mol.nelectron
+            logger.debug("Localized system has beta component, using UHF.")
             local_hf: scf.uhf.UHF = scf.UHF(embedded_mol)
-        logger.debug(f"{embedded_mol.nelectron=}")
-        logger.debug(f"{embedded_mol.spin=}")
 
         if self.run_qmmm:
             logger.debug("QM/MM: running local SCF in presence of point charges.")
@@ -366,6 +407,7 @@ class NbedDriver:
         local_hf.conv_tol = self.convergence
         local_hf.verbose = self.pyscf_print_level
         local_hf.max_cycle = self.max_hf_cycles
+        local_hf.kernel()
 
         return local_hf
 
@@ -381,18 +423,12 @@ class NbedDriver:
             local_ks (pyscf.dft.rks.RKS or pyscf.dft.uks.UKS): embedded Kohn-Sham DFT object.
         """
         logger.debug("Initialising localised RKS object.")
-        embedded_mol: gto.Mole = self._build_mol()
+        embedded_mol: gto.Mole = self._build_local_mol()
 
-        if self._restricted_scf:
+        if self.localized_system.beta_dm_active is None:
             # overwrite total number of electrons to only include active system
-            embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
-            self.electron = embedded_mol.nelectron
             local_ks: dft.rks.RKS = scf.RKS(embedded_mol)
         else:
-            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
-                self.localized_system.beta_active_MO_inds
-            )
-            self.electron = embedded_mol.nelectron
             local_ks: dft.uks.UKS = scf.UKS(embedded_mol)
 
         local_ks.max_memory = self.max_ram_memory
@@ -1028,8 +1064,8 @@ class NbedDriver:
             result["classical_energy"] = classical_no_nuc + e_nuc
             logger.debug(f"Classical energy: {result['classical_energy']}")
 
-            result["e_rhf"] = result["scf"].e_tot + classical_no_nuc
-            logger.info(f"RHF energy: {result['e_rhf']}")
+            result["e_hf"] = result["scf"].e_tot + classical_no_nuc
+            logger.info(f"RHF energy: {result['e_hf']}")
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
