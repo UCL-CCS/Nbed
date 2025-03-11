@@ -353,6 +353,8 @@ class NbedDriver:
             )
             self.electron = embedded_mol.nelectron
             local_hf: scf.uhf.UHF = scf.UHF(embedded_mol)
+        logger.debug(f"{embedded_mol.nelectron=}")
+        logger.debug(f"{embedded_mol.spin=}")
 
         if self.run_qmmm:
             logger.debug("QM/MM: running local SCF in presence of point charges.")
@@ -1015,53 +1017,35 @@ class NbedDriver:
                 logger.debug("Performing virtual localization.")
                 result["scf"] = self.localized_system.localize_virtual(result["scf"])
 
-            result["e_rhf"] = (
-                result["scf"].e_tot
-                + self.e_env
-                + self.two_e_cross
-                - result["correction"]
-                - result["beta_correction"]
-            )
-            logger.info(f"RHF energy: {result['e_rhf']}")
-
-            # classical energy
-            result["classical_energy"] = (
+            classical_no_nuc = (
                 self.e_env
                 + self.two_e_cross
-                + e_nuc
                 - result["correction"]
                 - result["beta_correction"]
             )
+
+            # classical energy
+            result["classical_energy"] = classical_no_nuc + e_nuc
             logger.debug(f"Classical energy: {result['classical_energy']}")
+
+            result["e_rhf"] = result["scf"].e_tot + classical_no_nuc
+            logger.info(f"RHF energy: {result['e_rhf']}")
 
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
                 logger.debug("Performing CCSD-in-DFT embedding.")
                 ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(result["scf"], frozen=None)
-                result["e_ccsd"] = (
-                    ccsd_emb.e_tot
-                    + self.e_env
-                    + self.two_e_cross
-                    - result["correction"]
-                    - result["beta_correction"]
-                )
+                result["e_ccsd"] = ccsd_emb.e_tot + classical_no_nuc
                 result["ccsd_emb"] = ccsd_emb.e_tot - e_nuc
-
                 logger.info(f"CCSD Energy {projector_name}:\t{result['e_ccsd']}")
 
             if self.run_fci_emb is True:
                 logger.debug("Performing FCI-in-DFT embedding.")
                 fci_emb = self._run_emb_FCI(result["scf"], frozen=None)
-                result["e_fci"] = (
-                    (fci_emb.e_tot)
-                    + self.e_env
-                    + self.two_e_cross
-                    - result["correction"]
-                    - result["beta_correction"]
-                )
+                result["e_fci"] = fci_emb.e_tot + classical_no_nuc
+                result["fci_emb"] = fci_emb.e_tot - e_nuc
                 logger.info(f"FCI Energy {projector_name}:\t{result['e_fci']}")
 
-                result["fci_emb"] = fci_emb.e_tot - e_nuc
             result["hf_emb"] = result["scf"].e_tot - e_nuc
             result["nuc"] = e_nuc
 
