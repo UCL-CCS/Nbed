@@ -208,6 +208,7 @@ class Localizer(ABC):
                                  makes sense
         """
         alpha, beta = self._localize()
+        s_ovlp = self._global_scf.get_ovlp()
 
         (
             self.active_MO_inds,
@@ -219,11 +220,15 @@ class Localizer(ABC):
 
         self.dm_active = self.c_active @ self.c_active.T
         self.dm_enviro = self.c_enviro @ self.c_enviro.T
+        self.ne_active = np.ceil(np.trace(self.dm_active @ s_ovlp))
+        self.ne_enviro = np.ceil(np.trace(self.dm_enviro @ s_ovlp))
 
         # For resticted methods
         if beta is None:
             self.dm_active *= 2.0
             self.dm_enviro *= 2.0
+            self.beta_ne_active = self.ne_active
+            self.beta_ne_enviro = self.ne_enviro
             self.beta_active_MO_inds = None
             self.beta_enviro_MO_inds = None
             self.beta_c_active = None
@@ -242,6 +247,8 @@ class Localizer(ABC):
 
             self.beta_dm_active = self.beta_c_active @ self.beta_c_active.T
             self.beta_dm_enviro = self.beta_c_enviro @ self.beta_c_enviro.T
+            self.beta_ne_act = np.ceil(np.trace(self.beta_dm_active @ s_ovlp))
+            self.beta_ne_env = np.ceil(np.trace(self.beta_dm_enviro @ s_ovlp))
 
         if check_values is True:
             self._check_values()
