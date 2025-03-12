@@ -7,6 +7,7 @@ from pyscf import gto, scf
 from nbed.localizers.base import Localizer
 from nbed.localizers.pyscf import PMLocalizer
 from nbed.localizers.spade import SPADELocalizer
+from nbed.localizers.ace import ACELocalizer
 
 xc_functional = "b3lyp"
 convergence = 1e-6
@@ -237,8 +238,28 @@ def test_cl_shell_numbers(global_rks, global_uks) -> None:
     unrestricted.localize_virtual(unrestricted._global_scf)
 
     assert restricted.shells == [12, 13]
-    assert restricted.shells == unrestricted.shells
+    assert restricted.shells == unrestricted.shells[0] == unrestricted.shells[1]
 
+def test_ace_localizer(global_rks, global_uks) -> None:
+    restricted = ACELocalizer(global_scf_list=[global_rks]*3, n_active_atoms=n_active_atoms).localize_path()
+    unrestricted = ACELocalizer(global_scf_list=[global_uks]*3, n_active_atoms=n_active_atoms).localize_path()
+
+    restricted_spade = SPADELocalizer(
+        global_rks,
+        n_active_atoms=n_active_atoms,
+    )
+
+    unrestricted_spade = SPADELocalizer(
+        global_uks,
+        n_active_atoms=n_active_atoms,
+    )
+    print(restricted_spade.enviro_selection_condition)
+    print(unrestricted_spade.enviro_selection_condition)
+    assert restricted == unrestricted
+    assert restricted[0] == restricted[1]
+    assert unrestricted[0] == unrestricted[1]
+    assert np.all(restricted[0] == np.argmax(restricted_spade.enviro_selection_condition[0][:-1] - restricted_spade.enviro_selection_condition[0][1:]))
+    assert np.all(unrestricted[0] == np.argmax(unrestricted_spade.enviro_selection_condition[0][:-1] - unrestricted_spade.enviro_selection_condition[0][1:]))
 
 if __name__ == "__main__":
     pass
