@@ -163,8 +163,6 @@ class NbedDriver:
             logger.debug("Closed shells, using restricted SCF.")
             self._restricted_scf = True
 
-        self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
-
         logger.debug("Driver initialisation complete.")
 
     def _build_mol(self) -> gto.mole:
