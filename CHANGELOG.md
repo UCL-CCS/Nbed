@@ -7,18 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## Fixed
+- `SPADELocalizer` now outputs whole c matrix when virtual localization is stopped early.
 
 ## Changed
 - 'nbed.scf.huzinaga_hf' and 'nbed.scf.huzinaga_rks' cmbined into 'nbed.scf.huzinaga_scf'
 - Poetry updated to `2.0.0`, with changes to `pyproject.toml`
 - Combined `scf/huzinaga_` HF and KS methods into `huzinaga_scf`
-- python version requirement changed to `>=3.9, <3.13`
+- python version requirement changed to `>=3.10, <3.13`
+- default python used in github actions is 3.10
+
 
 ## Added
 - `.pre-commit-config.yaml` added
+- added `ACELocalizer` which implements ace-of-spade method for multiple reaction geometries.
 
 ## Removed
 - `mol_plot.py` removed as not required for/by main uses of package
+- dropped support for Pennylane, as they are pinned to numpy <2
 
 ## [0.0.7]
 ### Changed
