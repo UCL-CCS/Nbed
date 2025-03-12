@@ -1087,3 +1087,4 @@ class NbedDriver:
             )
 
         logger.info("Embedding complete.")
+        return self
