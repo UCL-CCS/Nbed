@@ -8,10 +8,11 @@ from numbers import Number
 from pathlib import Path
 from typing import Dict, Union
 
-import pennylane as qml
+# import pennylane as qml
 from openfermion.ops.operators.qubit_operator import QubitOperator
 from openfermion.utils import count_qubits
-from pennylane import Identity, PauliX, PauliY, PauliZ
+
+# from pennylane import Identity, PauliX, PauliY, PauliZ
 from qiskit.quantum_info import SparsePauliOp
 from symmer.operators import PauliwordOp
 
@@ -176,34 +177,34 @@ class HamiltonianConverter:
         logger.debug("Openfermion QubitOperator created.")
         return operator
 
-    @cached_property
-    def pennylane(self) -> qml.Hamiltonian:
-        """Convert the intermediate representation to pennlyane Hamiltonian.
+    # @cached_property
+    # def pennylane(self) -> qml.Hamiltonian:
+    #     """Convert the intermediate representation to pennlyane Hamiltonian.
 
-        Returns:
-            qml.Hamiltonian: Hamiltonian pennylane object.
-        """
-        logger.debug("Converting to pennylane Hamiltonian.")
-        opdict = {"I": Identity, "X": PauliX, "Y": PauliY, "Z": PauliZ}
+    #     Returns:
+    #         qml.Hamiltonian: Hamiltonian pennylane object.
+    #     """
+    #     logger.debug("Converting to pennylane Hamiltonian.")
+    #     opdict = {"I": Identity, "X": PauliX, "Y": PauliY, "Z": PauliZ}
 
-        # Initialise the operator with the identity contribution
-        values = [v for v in self._intermediate.values()]
-        operators = []
+    #     # Initialise the operator with the identity contribution
+    #     values = [v for v in self._intermediate.values()]
+    #     operators = []
 
-        for op in self._intermediate.keys():
-            # Construct a list like [PauliX(0), PauliY(1), Identity(3)]
-            paulis = [opdict[pauli](pos) for pos, pauli in enumerate(op)]
+    #     for op in self._intermediate.keys():
+    #         # Construct a list like [PauliX(0), PauliY(1), Identity(3)]
+    #         paulis = [opdict[pauli](pos) for pos, pauli in enumerate(op)]
 
-            pauli_product = paulis[0]
-            for p in paulis[1:]:
-                pauli_product = pauli_product @ p
+    #         pauli_product = paulis[0]
+    #         for p in paulis[1:]:
+    #             pauli_product = pauli_product @ p
 
-            operators.append(pauli_product)
+    #         operators.append(pauli_product)
 
-        hamiltonian = qml.Hamiltonian(values, operators)
+    #     hamiltonian = qml.Hamiltonian(values, operators)
 
-        logger.debug("Pennylane Hamiltonian created.")
-        return hamiltonian
+    #     logger.debug("Pennylane Hamiltonian created.")
+    #     return hamiltonian
 
     @cached_property
     def qiskit(self) -> SparsePauliOp:
@@ -244,7 +245,7 @@ class HamiltonianConverter:
 
 def load_hamiltonian(
     filepath: Path, output: str
-) -> Union[QubitOperator, qml.Hamiltonian, SparsePauliOp, PauliwordOp]:
+) -> Union[QubitOperator, SparsePauliOp, PauliwordOp]:
     """Create a Hamiltonian from a file.
 
     Reads the input file and converts to the desired output format.
