@@ -73,8 +73,9 @@ class NbedDriver:
         mu_level_shift: Optional[float] = 1e6,
         run_ccsd_emb: Optional[bool] = False,
         run_fci_emb: Optional[bool] = False,
-        run_virtual_localization: Optional[bool] = True,
         run_dft_in_dft: Optional[bool] = False,
+        frozen_orbitals: list[int] | None = None,
+        run_virtual_localization: bool | None = True,
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
         unit: Optional[str] = "angstrom",
@@ -125,8 +126,9 @@ class NbedDriver:
         self.mu_level_shift = mu_level_shift
         self.run_ccsd_emb = run_ccsd_emb
         self.run_fci_emb = run_fci_emb
-        self.run_virtual_localization = run_virtual_localization
         self.run_dft_in_dft = run_dft_in_dft
+        self.frozen_orbitals = frozen_orbitals
+        self.run_virtual_localization = run_virtual_localization
         self.max_ram_memory = max_ram_memory
         self.pyscf_print_level = pyscf_print_level
         self.unit = unit
@@ -587,7 +589,7 @@ class NbedDriver:
 
             fci_scf = mcscf.CASSCF(
                 emb_pyscf_scf_rhf,
-                emb_pyscf_scf_rhf.mol.nelec,
+                emb_pyscf_scf_rhf.mol.nelec - len(frozen),
                 emb_pyscf_scf_rhf.mol.nao - len(frozen),
             )
             fci_scf.sort_mo(
@@ -902,13 +904,18 @@ class NbedDriver:
 
         return result
 
-    def embed(self, init_huzinaga_rhf_with_mu=False):
+    def embed(self, init_huzinaga_rhf_with_mu=False, n_mo_overwrite=None):
         """Run embedded scf calculation.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
         """
         logger.debug("Embedding molecule.")
+        if n_mo_overwrite is not None:
+            logger.debug(
+                "Setting n_mo_overwrite with value from embed args %s", n_mo_overwrite
+            )
+            self.n_mo_overwrite = n_mo_overwrite
 
         e_nuc = self._global_ks.energy_nuc()
 
@@ -1029,7 +1036,9 @@ class NbedDriver:
             # Calculate ccsd or fci energy
             if self.run_ccsd_emb is True:
                 logger.debug("Performing CCSD-in-DFT embedding.")
-                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(result["scf"], frozen=None)
+                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(
+                    result["scf"], frozen=self.frozen_orbitals
+                )
                 result["e_ccsd"] = (
                     ccsd_emb.e_tot
                     + self.e_env
@@ -1043,7 +1052,7 @@ class NbedDriver:
 
             if self.run_fci_emb is True:
                 logger.debug("Performing FCI-in-DFT embedding.")
-                fci_emb = self._run_emb_FCI(result["scf"], frozen=None)
+                fci_emb = self._run_emb_FCI(result["scf"], frozen=self.frozen_orbitals)
                 result["e_fci"] = (
                     (fci_emb.e_tot)
                     + self.e_env
