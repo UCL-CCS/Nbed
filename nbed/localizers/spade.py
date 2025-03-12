@@ -1,7 +1,6 @@
 """SPADE Localizer Class."""
 
 import logging
-from typing import Tuple
 
 import numpy as np
 from pyscf import gto, scf
@@ -41,24 +40,66 @@ class SPADELocalizer(Localizer):
         global_scf: gto.Mole,
         n_active_atoms: int,
         max_shells: int = 4,
+        n_mo_overwrite: tuple[int, int] | None = None,
     ):
         """Initialize SPADE Localizer object."""
+        self.max_shells = max_shells
+        self.n_mo_overwrite = (None, None) if n_mo_overwrite is None else n_mo_overwrite
+        self.shells = None
+        self.singular_values = None
+        self.enviro_selection_condition = None
+
         super().__init__(
             global_scf,
             n_active_atoms,
         )
-        self.max_shells = max_shells
-        self.shells = None
-        self.singular_values = None
+
+    def _localize(
+        self,
+    ) -> tuple[tuple, tuple | None]:
+        """Localise orbitals using SPADE.
+
+        Returns:
+            active_MO_inds (np.array): 1D array of active occupied MO indices
+            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
+            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
+            c_enviro (np.array): C matrix of localized occupied ennironment MOs
+            c_loc_occ (np.array): full C matrix of localized occupied MOs
+        """
+        if self._restricted:
+            logger.debug("Running SPADE for only one spin.")
+            alpha = self._localize_spin(
+                self._global_scf.mo_coeff,
+                self._global_scf.mo_occ,
+                self.n_mo_overwrite[0],
+            )
+            beta = None
+        else:
+            alpha = self._localize_spin(
+                self._global_scf.mo_coeff[0],
+                self._global_scf.mo_occ[0],
+                self.n_mo_overwrite[0],
+            )
+            beta = self._localize_spin(
+                self._global_scf.mo_coeff[1],
+                self._global_scf.mo_occ[1],
+                self.n_mo_overwrite[1],
+            )
+
+        return (alpha, beta)
 
     def _localize_spin(
-        self, c_matrix: np.ndarray, occupancy: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        self,
+        c_matrix: np.ndarray,
+        occupancy: np.ndarray,
+        n_mo_overwrite: int | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Localize orbitals of one spin using SPADE.
 
         Args:
             c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
             occupancy (np.ndarray): Occupancy of orbitals.
+            n_mo_overwrite (int): Number of molecular orbitals to use in active region. Overwrite SVD based value.
 
         Returns:
             np.ndarray: Localized C matrix of occupied orbitals.
@@ -70,6 +111,7 @@ class SPADELocalizer(Localizer):
 
         n_occupied_orbitals = np.count_nonzero(occupancy)
         occupied_orbitals = c_matrix[:, :n_occupied_orbitals]
+        logger.debug(f"{n_occupied_orbitals} occupied AOs.")
 
         n_act_aos = self._global_scf.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_aos} active AOs.")
@@ -91,9 +133,13 @@ class SPADELocalizer(Localizer):
         # Prevents an error with argmax
         if len(sigma) == 1:
             n_act_mos = 1
+        elif n_mo_overwrite is not None and len(sigma) > n_mo_overwrite:
+            logger.debug(f"Enforcing use of {n_mo_overwrite} MOs")
+            n_act_mos = n_mo_overwrite
         else:
             value_diffs = sigma[:-1] - sigma[1:]
             n_act_mos = np.argmax(value_diffs) + 1
+
         n_env_mos = n_occupied_orbitals - n_act_mos
         logger.debug(f"{n_act_mos} active MOs.")
         logger.debug(f"{n_env_mos} environment MOs.")
@@ -108,7 +154,13 @@ class SPADELocalizer(Localizer):
         c_loc_occ = occupied_orbitals @ right_vectors.T
 
         # storing condition used to select env system
-        self.enviro_selection_condition = sigma
+        if self.enviro_selection_condition is None:
+            self.enviro_selection_condition = (sigma, np.zeros(len(sigma)))
+        else:
+            self.enviro_selection_condition = (
+                self.enviro_selection_condition[0],
+                sigma,
+            )
 
         return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
 
@@ -138,27 +190,68 @@ class SPADELocalizer(Localizer):
         n_act_proj_aos = projected_mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_proj_aos=}")
 
-        projected_overlap = projected_mf.get_ovlp(embedded_scf.mol)[
+        self.projected_overlap = projected_mf.get_ovlp(embedded_scf.mol)[
             :n_act_proj_aos, :n_act_proj_aos
         ]
-        overlap_two_basis = gto.intor_cross(
+        self.overlap_two_basis = gto.intor_cross(
             "int1e_ovlp_sph", embedded_scf.mol, projected_mol
         )[:n_act_proj_aos, :]
+        self.n_act_proj_aos = n_act_proj_aos
 
         if self._restricted:
-            occ = embedded_scf.mo_occ
-            effective_virt = embedded_scf.mo_coeff[:, occ == 0]
-        else:
-            occ = np.array([embedded_scf.mo_occ[0], embedded_scf.mo_occ[1]])
-            effective_virt = np.array(
-                [embedded_scf.mo_coeff[i][:, occ[i] == 0] for i in [0, 1]]
+            localised_virts = self._localize_virtual_spin(
+                embedded_scf.mo_occ, embedded_scf.mo_coeff, embedded_scf.get_fock()
             )
+            embedded_scf.mo_coeff = localised_virts[0]
+            self.shells = localised_virts[1]
+            self.singular_values = localised_virts[2]
+        else:
+            localised_virts_alpha = self._localize_virtual_spin(
+                embedded_scf.mo_occ[0],
+                embedded_scf.mo_coeff[0],
+                embedded_scf.get_fock()[0],
+            )
+            localised_virts_beta = self._localize_virtual_spin(
+                embedded_scf.mo_occ[1],
+                embedded_scf.mo_coeff[1],
+                embedded_scf.get_fock()[1],
+            )
+            embedded_scf.mo_coeff[0] = localised_virts_alpha[0]
+            embedded_scf.mo_coeff[1] = localised_virts_beta[0]
 
+            self.shells = (localised_virts_alpha[1], localised_virts_beta[1])
+            self.singular_values = (localised_virts_alpha[2], localised_virts_beta[2])
+
+        logger.debug("Completed Concentric Localization.")
+        logger.debug(f"{self.shells=}")
+        logger.debug(f"{self.singular_values=}")
+        return embedded_scf
+
+    def _localize_virtual_spin(self, occ, mo_coeff, fock_operator) -> np.ndarray:
+        """Run concentric localization for each spin separately.
+
+        NOTE: These cant be done together as the number of occupied orbitals may be different between the two spins.
+
+        Args:
+            occ (np.ndarry): MO occupancy
+            mo_coeff (np.ndarry): MO coefficient matrix
+            fock_operator (np.ndarray): Fock operator for one spin
+
+        Returns:
+            np.ndarray: The update MO coefficient matrix
+        """
+        logger.debug("Running concentric localiztion for single spin.")
+
+        effective_virt = mo_coeff[:, occ == 0]
         logger.debug(f"N effective virtuals: {effective_virt.shape}")
 
-        left = np.linalg.inv(projected_overlap) @ overlap_two_basis @ effective_virt
+        left = (
+            np.linalg.inv(self.projected_overlap)
+            @ self.overlap_two_basis
+            @ effective_virt
+        )
         _, sigma, right_vectors = np.linalg.svd(
-            np.swapaxes(left, -1, -2) @ overlap_two_basis @ effective_virt
+            np.swapaxes(left, -1, -2) @ self.overlap_two_basis @ effective_virt
         )
         logger.debug(f"Singular values: {sigma}")
 
@@ -166,19 +259,11 @@ class SPADELocalizer(Localizer):
         singular_values = []
         singular_values.append(sigma)
 
-        if self._restricted:
-            c_total = embedded_scf.mo_coeff[:, occ > 0]
-        else:
-            sigma = np.min(sigma, axis=0)
-            c_total = np.array(
-                [
-                    embedded_scf.mo_coeff[0][:, occ[0] > 0],
-                    embedded_scf.mo_coeff[1][:, occ[1] > 0],
-                ]
-            )
-        logger.debug(f"Initial {c_total.shape=} (nocc)")
+        c_total = mo_coeff[:, occ > 0]
 
-        shell_size = np.sum(sigma[:n_act_proj_aos] >= 1e-15)
+        logger.debug(f"Initial {c_total.shape=} (nocc)")
+        logger.debug(f"{self.n_act_proj_aos=}")
+        shell_size = np.sum(sigma[: self.n_act_proj_aos] >= 1e-15)
         logger.debug(f"{shell_size=}")
 
         right_vectors = np.swapaxes(right_vectors, -1, -2)
@@ -195,8 +280,8 @@ class SPADELocalizer(Localizer):
         c_total = np.concatenate((c_total, c_ispan), axis=-1)
 
         # keep track of the number of orbitals in each shell
-        self.shells = []
-        self.shells.append(c_total.shape[-1])
+        shells = []
+        shells.append(c_total.shape[-1])
         logger.debug("Created 0th shell.")
 
         if v_ker.shape[-1] == 0:
@@ -204,75 +289,76 @@ class SPADELocalizer(Localizer):
             logger.debug(
                 "This is expected for molecules with majority active MOs occupied."
             )
-            return
         elif v_ker.shape[-1] == 1:
             logger.debug(
                 "Kernel is 1 for 0th shell, ending CL as cannot perform SVD of vector."
             )
             c_total = np.concatenate((c_total, c_iker), axis=-1)
-            self.shells.append(c_total.shape[-1])
-            return
+            shells.append(c_total.shape[-1])
+        else:
+            # why use the overlap for the first shell and then the fock for the rest?
+            for ishell in range(1, self.max_shells + 1):
+                logger.debug("Beginning Concentric Localization Iteration")
+                logger.debug(f"Shell {ishell}.")
 
-        fock_operator = embedded_scf.get_fock()
-        # why use the overlap for the first shell and then the fock for the rest?
+                logger.debug(
+                    f"{c_total.shape=}, {fock_operator.shape=}, {c_iker.shape=}"
+                )
+                _, sigma, right_vectors = np.linalg.svd(
+                    np.swapaxes(c_total, -1, -2) @ fock_operator @ c_iker
+                )
+                logger.debug(f"Singular values: {sigma}")
+                singular_values.append(sigma)
+                logger.debug(f"{right_vectors.shape=}")
 
-        for ishell in range(1, self.max_shells + 1):
-            logger.debug("Beginning Concentric Localization Iteration")
-            logger.debug(f"Shell {ishell}.")
+                shell_size = np.sum(sigma[: self.n_act_proj_aos] >= 1e-15)
+                logger.debug(f"{shell_size=}")
+                if shell_size == 0:
+                    logger.debug("Empty shell %s, ending CL.", ishell)
+                    c_total = np.concatenate((c_total, c_iker), axis=-1)
+                    break
 
-            logger.debug(f"{c_total.shape=}, {fock_operator.shape=}, {c_iker.shape=}")
-            _, sigma, right_vectors = np.linalg.svd(
-                np.swapaxes(c_total, -1, -2) @ fock_operator @ c_iker
-            )
-            logger.debug(f"Singular values: {sigma}")
-            singular_values.append(sigma)
-            if not self._restricted:
-                sigma = np.min(sigma, axis=0)
-            logger.debug(f"{right_vectors.shape=}")
+                right_vectors = np.swapaxes(right_vectors, -1, -2)
+                v_span, v_ker = np.split(
+                    right_vectors, [shell_size], axis=-1
+                )  # 0 but instability
 
-            shell_size = np.sum(sigma[:n_act_proj_aos] >= 1e-15)
-            logger.debug(f"{shell_size=}")
-            if shell_size == 0:
-                logger.debug("Empty shell, ending CL.")
-                break
+                logger.debug(f"{v_span.shape=}")
+                logger.debug(f"{v_ker.shape=}")
 
-            right_vectors = np.swapaxes(right_vectors, -1, -2)
-            v_span, v_ker = np.split(
-                right_vectors, [shell_size], axis=-1
-            )  # 0 but instability
+                # span must be done first as both need to use old c_iker
+                c_ispan = c_iker @ v_span
+                c_total = np.concatenate((c_total, c_ispan), axis=-1)
+                shells.append(c_total.shape[-1])
 
-            logger.debug(f"{v_span.shape=}")
-            logger.debug(f"{v_ker.shape=}")
-
-            # span must be done first as both need to use old c_iker
-            c_ispan = c_iker @ v_span
-            c_total = np.concatenate((c_total, c_ispan), axis=-1)
-            self.shells.append(c_total.shape[-1])
-
-            if v_ker.shape[-1] >= 1:
-                logger.debug("Kernel dimension is greater than 1, continuing CL.")
-                # in-place update
-                c_iker = c_iker @ v_ker
-
-                if v_ker.shape[-1] == 1:
+                if v_ker.shape[-1] > 1:
+                    logger.debug("Kernel dimension is greater than 1, continuing CL.")
+                    # in-place update
+                    c_iker = c_iker @ v_ker
+                elif v_ker.shape[-1] == 1:
+                    c_iker = c_iker @ v_ker
                     logger.debug(
-                        "Kernel is 1, ending CL as cannot perform SVD of vector."
+                        "Kernel is 1, ending CL as cannot perform SVD of vector.",
                     )
                     c_total = np.concatenate((c_total, c_iker), axis=-1)
-                    self.shells.append(c_total.shape[-1])
+                    shells.append(c_total.shape[-1])
                     break
-            else:
-                # This means that all virtual orbitals have been included.
-                logger.debug("No kernel, ending CL.")
-                break
+                else:
+                    logger.debug(
+                        "Ending Concentric Localization - All virtual MOs localized."
+                    )
+                    break
 
-        logger.debug(f"Shell indices: {self.shells}")
+                if ishell >= self.max_shells:
+                    logger.debug("Max shells reached, not localizing further virtuals.")
+                    c_total = np.concatenate((c_total, c_iker), axis=-1)
+                    shells.append(c_total.shape[-1])
+                    break
 
-        self.singular_values = singular_values
+        logger.debug(f"Shell indices: {shells}")
 
-        if self._restricted:
-            embedded_scf.mo_coeff = c_total  # <- is there any issue with using half of the cmatrix in localized form?
-        else:
-            embedded_scf.mo_coeff[0] = c_total[0]
-            embedded_scf.mo_coeff[1] = c_total[1]
-        logger.debug("Completed Concentric Localization.")
+        mo_coeff = c_total
+
+        logger.debug(f"{mo_coeff, shells, singular_values}")
+
+        return mo_coeff, shells, singular_values
