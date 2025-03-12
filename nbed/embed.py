@@ -102,7 +102,7 @@ def nbed(
         max_hf_cycles=max_hf_cycles,
         max_dft_cycles=max_dft_cycles,
         force_unrestricted=unrestricted,
-    )
+    ).embed()
     if savefile is not None:
         data_directory = Path(savefile).absolute()
         data_directory.mkdir(parents=True, exist_ok=True)

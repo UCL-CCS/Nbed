@@ -64,5 +64,5 @@ def restricted_driver():
         "run_fci_emb": False,
     }
 
-    driver = NbedDriver(**args)
+    driver = NbedDriver(**args).embed()
     return driver

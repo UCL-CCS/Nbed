@@ -15,24 +15,36 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def mu_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "mu"
-    return NbedDriver(**driver_args)
+    return NbedDriver(**driver_args).embed()
 
 @pytest.fixture
 def mu_unrestricted_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "mu"
     driver_args["force_unrestricted"] = True
-    return NbedDriver(**driver_args)
+    return NbedDriver(**driver_args).embed()
 
 @pytest.fixture
 def huz_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "huzinaga"
-    return NbedDriver(**driver_args)
+    return NbedDriver(**driver_args).embed()
 
 @pytest.fixture
 def huz_unrestricted_driver(driver_args) -> NbedDriver:
     driver_args["projector"] = "huzinaga"
     driver_args["force_unrestricted"] = True
-    return NbedDriver(**driver_args)
+    return NbedDriver(**driver_args).embed()
+
+def test_driver_manual_embed_call(driver_args) -> None:
+    driver = NbedDriver(**driver_args)
+        assert driver.localized_system is None
+        assert driver.two_e_cross is None
+        assert driver.dft_potential is None
+        assert driver.electron is None
+        assert driver.v_emb is None
+        assert driver._mu is None
+        assert driver._huzinaga is None
+        assert driver._mu is None
+        assert driver._huzinaga is None
 
 def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:
     assert mu_driver._mu is not {} and mu_driver._huzinaga is None
@@ -125,10 +137,10 @@ def test_n_active_atoms_validation(water_filepath) -> None:
     error_msg = "Invalid number of active atoms. Choose a number from 1 to 2."
 
     with pytest.raises(NbedConfigError, match=error_msg):
-        NbedDriver(n_active_atoms=0, **args)
+        NbedDriver(n_active_atoms=0, **args).embed()
 
     with pytest.raises(NbedConfigError, match=error_msg):
-        NbedDriver(n_active_atoms=3, **args)
+        NbedDriver(n_active_atoms=3, **args).embed()
 
 
 def test_subsystem_dft(water_filepath) -> None:
@@ -145,7 +157,7 @@ def test_subsystem_dft(water_filepath) -> None:
         "run_fci_emb": False,
     }
 
-    driver = NbedDriver(**args)
+    driver = NbedDriver(**args).embed()
 
     energy_DFT_components = (
         driver.e_act
@@ -181,7 +193,7 @@ def test_subsystem_dft_spin_consistency(water_filepath) -> None:
         convergence=args["convergence"],
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
-    )
+    ).embed()
 
     unrestricted_driver = NbedDriver(
         geometry=args["geometry"],
@@ -194,7 +206,7 @@ def test_subsystem_dft_spin_consistency(water_filepath) -> None:
         run_ccsd_emb=args["run_ccsd_emb"],
         run_fci_emb=args["run_fci_emb"],
         force_unrestricted=True,
-    )
+    ).embed()
     # Could be problems with caching here
 
     assert isclose(restricted_driver.e_act, unrestricted_driver.e_act)
@@ -224,7 +236,7 @@ def test_incorrect_geometry_path() -> None:
 
     with pytest.raises(RuntimeError, match="Unsupported atom symbol .*"):
         # match will match with any printed error message
-        NbedDriver(**args)
+        NbedDriver(**args).embed()
 
 
 if __name__ == "__main__":
