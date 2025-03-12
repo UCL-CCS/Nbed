@@ -36,15 +36,15 @@ def huz_unrestricted_driver(driver_args) -> NbedDriver:
 
 def test_driver_manual_embed_call(driver_args) -> None:
     driver = NbedDriver(**driver_args)
-        assert driver.localized_system is None
-        assert driver.two_e_cross is None
-        assert driver.dft_potential is None
-        assert driver.electron is None
-        assert driver.v_emb is None
-        assert driver._mu is None
-        assert driver._huzinaga is None
-        assert driver._mu is None
-        assert driver._huzinaga is None
+    assert driver.localized_system is None
+    assert driver.two_e_cross is None
+    assert driver.dft_potential is None
+    assert driver.electron is None
+    assert driver.v_emb is None
+    assert driver._mu is None
+    assert driver._huzinaga is None
+    assert driver._mu is None
+    assert driver._huzinaga is None
 
 def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:
     assert mu_driver._mu is not {} and mu_driver._huzinaga is None
