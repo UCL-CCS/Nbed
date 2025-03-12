@@ -220,20 +220,21 @@ class Localizer(ABC):
 
         self.dm_active = self.c_active @ self.c_active.T
         self.dm_enviro = self.c_enviro @ self.c_enviro.T
-        self.ne_active = np.ceil(np.trace(self.dm_active @ s_ovlp))
-        self.ne_enviro = np.ceil(np.trace(self.dm_enviro @ s_ovlp))
+        self.ne_active = int(np.ceil(np.trace(self.dm_active @ s_ovlp)))
+        self.ne_enviro = int(np.ceil(np.trace(self.dm_enviro @ s_ovlp)))
 
         # For resticted methods
         if beta is None:
+            logger.debug("No beta spin term from localizer.")
             self.dm_active *= 2.0
             self.dm_enviro *= 2.0
             self.beta_ne_active = self.ne_active
             self.beta_ne_enviro = self.ne_enviro
-            self.beta_active_MO_inds = None
-            self.beta_enviro_MO_inds = None
-            self.beta_c_active = None
-            self.beta_c_enviro = None
-            self._beta_c_loc_occ = None
+            self.beta_active_MO_inds = self.active_MO_inds
+            self.beta_enviro_MO_inds = self.enviro_MO_inds
+            self.beta_c_active = self.c_active
+            self.beta_c_enviro = self.c_enviro
+            self._beta_c_loc_occ = self._c_loc_occ
             self.beta_dm_active = np.zeros(self.dm_active.shape)
             self.beta_dm_enviro = np.zeros(self.dm_enviro.shape)
         else:
@@ -247,8 +248,8 @@ class Localizer(ABC):
 
             self.beta_dm_active = self.beta_c_active @ self.beta_c_active.T
             self.beta_dm_enviro = self.beta_c_enviro @ self.beta_c_enviro.T
-            self.beta_ne_act = np.ceil(np.trace(self.beta_dm_active @ s_ovlp))
-            self.beta_ne_env = np.ceil(np.trace(self.beta_dm_enviro @ s_ovlp))
+            self.beta_ne_active = int(np.ceil(np.trace(self.beta_dm_active @ s_ovlp)))
+            self.beta_ne_enviro = int(np.ceil(np.trace(self.beta_dm_enviro @ s_ovlp)))
 
         if check_values is True:
             self._check_values()
@@ -259,3 +260,9 @@ class Localizer(ABC):
         logger.debug(f"beta_active_MO_inds: {self.beta_active_MO_inds}")
         logger.debug(f"enviro_MO_inds: {self.enviro_MO_inds}")
         logger.debug(f"beta_enviro_MO_inds: {self.beta_enviro_MO_inds}")
+        logger.debug(
+            f"Number of active electrons; {self.ne_active}, {self.beta_ne_active}"
+        )
+        logger.debug(
+            f"Number of environment electrons; {self.ne_enviro}, {self.beta_ne_enviro}"
+        )

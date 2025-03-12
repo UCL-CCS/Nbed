@@ -136,6 +136,7 @@ class NbedDriver:
         self.n_mo_overwrite = n_mo_overwrite
         self.max_hf_cycles = max_hf_cycles
         self.max_dft_cycles = max_dft_cycles
+        self.force_unrestricted = force_unrestricted
         self.run_qmmm = run_qmmm
         self.mm_coords = mm_coords
         self.mm_charges = mm_charges
@@ -330,11 +331,9 @@ class NbedDriver:
     def _build_local_mol(self) -> gto.Mole:
         """Build a molecule with the correct charge and spin for the localized system."""
         if os.path.exists(self.geometry):
-            with open(self.geometry) as f:
-                geometry = f.read()
-                geometry = geometry.splitlines()
+            geometry = self.geometry
         elif isinstance(self.geometry, str):
-            geometry = self.geometry.splitlines()
+            geometry = self.geometry.splitlines()[3:]
         else:
             logger.error("Geometry is not existing file or string.")
             raise ValueError("Geometry is not existing file or string.")
@@ -343,14 +342,7 @@ class NbedDriver:
         # local_geometry = local_geometry[3:3+self.n_active_atoms]
         # local_geometry = "\n".join(local_geometry)
 
-        embedded_mol: gto.Mole = gto.Mole(
-            atom=self.geometry[3:],
-            basis=self.basis,
-            charge=self.charge,
-            unit=self.unit,
-            spin=self.spin,
-            symmetry=self.symmetry,
-        ).build()
+        embedded_mol: gto.Mole = self._build_mol()
 
         old_nelectron = embedded_mol.nelectron - self.charge
         logger.debug(f"{old_nelectron} electrons in active atoms")
@@ -390,12 +382,12 @@ class NbedDriver:
 
         embedded_mol = self._build_local_mol()
 
-        if self.localized_system.beta_dm_active is None:
-            logger.debug("Localized system has no beta component, using RHF.")
-            local_hf: scf.rhf.RHF = scf.RHF(embedded_mol)
-        else:
+        if self.localized_system.beta_dm_active is not None or self.force_unrestricted:
             logger.debug("Localized system has beta component, using UHF.")
             local_hf: scf.uhf.UHF = scf.UHF(embedded_mol)
+        else:
+            logger.debug("Localized system has no beta component, using RHF.")
+            local_hf: scf.rhf.RHF = scf.RHF(embedded_mol)
 
         if self.run_qmmm:
             logger.debug("QM/MM: running local SCF in presence of point charges.")
@@ -568,7 +560,7 @@ class NbedDriver:
         s_mat = self._global_ks.get_ovlp()
         env_projector_alpha = s_mat @ self.localized_system.dm_enviro @ s_mat
 
-        if self._restricted_scf:
+        if self.active_restricted:
             env_projector = env_projector_alpha
 
         else:
@@ -701,7 +693,7 @@ class NbedDriver:
         """
         logger.debug("Starting Huzinaga embedding method.")
         # We need to run our own SCF method here to update the potential.
-        if self._restricted_scf:
+        if isinstance(active_scf, (scf.hf.RHF, dft.rks.RKS)):
             total_enviro_dm = self.localized_system.dm_enviro
         else:
             total_enviro_dm = np.array(
@@ -769,6 +761,12 @@ class NbedDriver:
             embedded_rhf (StreamObject): Returns input, but with environment orbitals deleted
         """
         logger.debug("Deleting environment for spin.")
+        logger.debug(f"{method=}")
+        logger.debug(f"{n_env_mo=}")
+        logger.debug(f"{mo_coeff.shape=}")
+        logger.debug(f"{mo_energy=}")
+        logger.debug(f"{mo_occ=}")
+        logger.debug(f"{environment_projector.shape=}")
 
         if method == "huzinaga":
             overlap = np.einsum(
@@ -805,7 +803,9 @@ class NbedDriver:
         logger.debug("Spin environment deleted.")
         return active_mo_coeff, active_mo_energy, active_mo_occ
 
-    def _delete_environment(self, method: str, scf: StreamObject) -> StreamObject:
+    def _delete_environment(
+        self, method: str, embedded_scf: StreamObject
+    ) -> StreamObject:
         """Remove enironment orbit from embedded rhf object.
 
         This function removes (in fact deletes completely) the molecular orbitals
@@ -820,17 +820,19 @@ class NbedDriver:
         """
         logger.debug("Deleting environment from SCF object.")
 
-        if self._restricted_scf:
+        if isinstance(embedded_scf, (scf.hf.RHF, dft.rks.RKS)):
             n_env_mos = len(self.localized_system.enviro_MO_inds)
-            scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
-                method,
-                n_env_mos,
-                scf.mo_coeff,
-                scf.mo_energy,
-                scf.mo_occ,
-                self._env_projector,
+            embedded_scf.mo_coeff, embedded_scf.mo_energy, embedded_scf.mo_occ = (
+                self._delete_spin_environment(
+                    method,
+                    n_env_mos,
+                    embedded_scf.mo_coeff,
+                    embedded_scf.mo_energy,
+                    embedded_scf.mo_occ,
+                    self._env_projector,
+                )
             )
-        else:
+        elif isinstance(embedded_scf, (scf.uhf.UHF, dft.uks.UKS)):
             alpha_n_env_mos = len(self.localized_system.enviro_MO_inds)
             beta_n_env_mos = len(self.localized_system.beta_enviro_MO_inds)
             mo_coeff = np.array([None, None])
@@ -843,27 +845,27 @@ class NbedDriver:
             ) = self._delete_spin_environment(
                 method,
                 alpha_n_env_mos,
-                scf.mo_coeff[0],
-                scf.mo_energy[0],
-                scf.mo_occ[0],
+                embedded_scf.mo_coeff[0],
+                embedded_scf.mo_energy[0],
+                embedded_scf.mo_occ[0],
                 self._env_projector[0],
             )
             (mo_coeff[1], mo_energy[1], mo_occ[1]) = self._delete_spin_environment(
                 method,
                 beta_n_env_mos,
-                scf.mo_coeff[1],
-                scf.mo_energy[1],
-                scf.mo_occ[1],
+                embedded_scf.mo_coeff[1],
+                embedded_scf.mo_energy[1],
+                embedded_scf.mo_occ[1],
                 self._env_projector[1],
             )
 
             # Need to do it this way or there are broadcasting issues
-            scf.mo_coeff = mo_coeff  # np.array([mo_coeff[0], mo_coeff[1]])
-            scf.mo_energy = mo_energy  # np.array([mo_energy[0], mo_energy[1]])
-            scf.mo_occ = mo_occ  # np.array([mo_occ[0], mo_occ[1]])
+            embedded_scf.mo_coeff = mo_coeff  # np.array([mo_coeff[0], mo_coeff[1]])
+            embedded_scf.mo_energy = mo_energy  # np.array([mo_energy[0], mo_energy[1]])
+            embedded_scf.mo_occ = mo_occ  # np.array([mo_occ[0], mo_occ[1]])
 
         logger.debug("Environment deleted.")
-        return scf
+        return embedded_scf
 
     def _dft_in_dft(self, xc_func: str, embedding_method: Callable):
         """Return energy of DFT in DFT embedding.
@@ -965,8 +967,11 @@ class NbedDriver:
         self._subsystem_dft()
         logger.debug("Getting global DFT potential to optimize embedded calc in.")
 
+        local_hf = self._init_local_hf()
+        self.active_restricted = isinstance(local_hf, (scf.hf.RHF, dft.rks.RKS))
+
         total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
-        if not self._restricted_scf:
+        if not self.active_restricted:
             logger.debug("Adding beta spin density matrix")
             total_dm += (
                 self.localized_system.beta_dm_active
@@ -977,7 +982,7 @@ class NbedDriver:
         logger.debug(f"{total_dm.shape=}")
         logger.debug(f"{g_act_and_env.shape=}")
 
-        if self._restricted_scf:
+        if self.active_restricted:
             g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
         else:
             g_act = self._global_ks.get_veff(
@@ -988,6 +993,7 @@ class NbedDriver:
             )
         dft_potential = g_act_and_env - g_act
 
+        logger.debug(f"{dft_potential.shape=}")
         logger.info(f"DFT potential average {np.mean(dft_potential)}.")
 
         # The order of these is important for
@@ -1015,8 +1021,6 @@ class NbedDriver:
             elif projector_name == "huzinaga":
                 embedding_method = self._huzinaga_embed
 
-            local_hf = self._init_local_hf()
-
             if projector_name == "huzinaga" and init_huzinaga_rhf_with_mu:
                 dmat_initial_guess = (self._mu["scf"].make_rdm1(),)
                 result["scf"], result["v_emb"] = embedding_method(
@@ -1034,7 +1038,7 @@ class NbedDriver:
             logger.info(f"V emb mean {projector_name}: {np.mean(result['v_emb'])}")
 
             # calculate correction
-            if self._restricted_scf:
+            if self.active_restricted:
                 result["correction"] = np.einsum(
                     "ij,ij", result["v_emb"], self.localized_system.dm_active
                 )

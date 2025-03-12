@@ -3,7 +3,7 @@
 import logging
 
 import numpy as np
-from pyscf import gto, scf
+from pyscf import dft, gto, scf
 from pyscf.lib import StreamObject
 from scipy import linalg
 
@@ -179,6 +179,8 @@ class SPADELocalizer(Localizer):
             StreamObject: Fully Localized SCF object.
         """
         logger.debug("Localising virtual orbital spin with concentric localization.")
+        self._embedded_restricted = isinstance(embedded_scf, (scf.hf.RHF, dft.rks.RKS))
+        logger.debug(f"Embedded scf is restricted: {self._embedded_restricted}")
 
         logger.debug("Creating projected molecule object.")
         projected_mol = gto.mole.Mole()
@@ -186,7 +188,14 @@ class SPADELocalizer(Localizer):
         projected_mol.basis = embedded_scf.mol.basis  # can be anything
         projected_mol.charge = embedded_scf.mol.charge
         projected_mol.spin = embedded_scf.mol.spin
-        projected_mf = scf.RKS(projected_mol)
+
+        if (
+            projected_mol.charge == 0 and projected_mol.spin == 0
+        ) and self._embedded_restricted:
+            projected_mf = scf.RKS(projected_mol)
+        else:
+            projected_mf = scf.UKS(projected_mol)
+
         n_act_proj_aos = projected_mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_proj_aos=}")
 
@@ -198,7 +207,7 @@ class SPADELocalizer(Localizer):
         )[:n_act_proj_aos, :]
         self.n_act_proj_aos = n_act_proj_aos
 
-        if self._restricted:
+        if self._embedded_restricted:
             localised_virts = self._localize_virtual_spin(
                 embedded_scf.mo_occ, embedded_scf.mo_coeff, embedded_scf.get_fock()
             )

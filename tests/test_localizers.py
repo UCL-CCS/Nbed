@@ -120,11 +120,15 @@ def test_PM_mo_indices(global_rks, global_uks) -> None:
         occ_cutoff=occ_cutoff,
         virt_cutoff=virt_cutoff,
     )
-    assert restricted_loc_system.beta_active_MO_inds is None
-    assert restricted_loc_system.beta_enviro_MO_inds is None
-    assert restricted_loc_system.beta_c_active is None
-    assert restricted_loc_system.beta_c_enviro is None
-    assert restricted_loc_system._beta_c_loc_occ is None
+    assert np.all(
+        restricted_loc_system.active_MO_inds
+        == restricted_loc_system.beta_active_MO_inds
+    )
+    assert np.all(
+        restricted_loc_system.enviro_MO_inds
+        == restricted_loc_system.beta_enviro_MO_inds
+    )
+    assert np.all(restricted_loc_system._c_loc_occ == restricted_loc_system._beta_c_loc_occ)
 
     unrestricted_loc_system = PMLocalizer(
         global_uks,
@@ -153,11 +157,15 @@ def test_SPADE_mo_indices(global_rks, global_uks) -> None:
         global_rks,
         n_active_atoms=n_active_atoms,
     )
-    assert restricted_loc_system.beta_active_MO_inds is None
-    assert restricted_loc_system.beta_enviro_MO_inds is None
-    assert restricted_loc_system.beta_c_active is None
-    assert restricted_loc_system.beta_c_enviro is None
-    assert restricted_loc_system._beta_c_loc_occ is None
+    assert np.all(
+        restricted_loc_system.active_MO_inds
+        == restricted_loc_system.beta_active_MO_inds
+    )
+    assert np.all(
+        restricted_loc_system.enviro_MO_inds
+        == restricted_loc_system.beta_enviro_MO_inds
+    )
+    assert np.all(restricted_loc_system._c_loc_occ == restricted_loc_system._beta_c_loc_occ)
 
     unrestricted_loc_system = SPADELocalizer(
         global_uks,
@@ -266,7 +274,7 @@ def test_spade_spins_match(global_rks, global_uks) -> None:
     )
 
     # assert loc_system.active_MO_inds
-    assert restricted.beta_active_MO_inds is None
+    assert np.all(restricted.active_MO_inds == restricted.beta_active_MO_inds)
     assert np.all(unrestricted.active_MO_inds == unrestricted.beta_active_MO_inds)
     assert np.all(restricted.active_MO_inds == unrestricted.active_MO_inds)
 
@@ -291,6 +299,7 @@ def test_cl_changes_orbitals(acetonitrile_filepath, driver_args):
     driver_args["geometry"] = str(acetonitrile_filepath)
     driver_args["n_active_atoms"] = 1
     driver_args["basis"] = "6-31G"
+    driver_args["force_unrestricted"] = True
 
     from nbed.driver import NbedDriver
 
@@ -302,7 +311,10 @@ def test_cl_changes_orbitals(acetonitrile_filepath, driver_args):
     virt.embed()
     virt_mos = virt.embedded_scf.mo_coeff
 
-    assert np.any(virt_mos != novirt_mos)
+    assert virt_mos[0].shape == novirt_mos[0].shape == (33,27)
+    assert virt_mos[1].shape == novirt_mos[1].shape == (33,27)
+    assert np.allclose(virt_mos[0], novirt_mos[0]) is False
+    assert np.allclose(virt_mos[1], novirt_mos[1]) is False
 
 def test_ace_of_spade() -> None:
     # add a test for restricted/unrestricted outputs

@@ -86,23 +86,35 @@ def huzinaga_scf(
         conv_flag (bool): Flag to indicate whether SCF has converged or not
     """
     logger.debug("Initializising Huzinaga HF calculation")
+    logger.debug(f"{type(scf_method)=}")
+    logger.debug(f"{dft_potential=}")
+    logger.debug(f"{dm_environment=}")
+    logger.debug(f"{dm_conv_tol=}")
+    logger.debug(f"{(dm_initial_guess is None)=}")
+
     s_mat = scf_method.get_ovlp()
+    logger.debug(f"{s_mat.shape=}")
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
     adiis = diis.DIIS() if use_DIIS else None
 
     # there are many more unrestricted types than restricted
-    unrestricted = not isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
+    unrestricted = isinstance(scf_method, (scf.uhf.UHF, dft.uks.UKS))
+    logger.debug(f"{unrestricted=}")
 
     if unrestricted and dm_environment.ndim != 3:
         raise ValueError(
             "Unrestricted calculation requires stacked dm_environment shape (2xMxM)."
         )
+    elif not unrestricted and dm_environment.ndim == 3:
+        # The environment density matrix has beta=alpha for restricted.
+        dm_environment = 2 * dm_environment[0, :, :]
 
     if unrestricted:
         dm_env_S = np.array([dm_environment[0] @ s_mat, dm_environment[1] @ s_mat])
     else:
         dm_env_S = dm_environment @ s_mat
+    logger.debug(f"{dm_env_S.shape=}")
 
     # Create an initial dm if needed.
     if dm_initial_guess is None:
@@ -122,6 +134,7 @@ def huzinaga_scf(
             fds = fock @ dm_env_S
             # Cant use T as restricted with spin has split DFT potential
             huzinaga_op_std = -0.5 * (fds + np.swapaxes(fds, -1, -2))
+        logger.debug(f"{huzinaga_op_std.shape=}")
 
         fock += huzinaga_op_std
         # Create the orthogonal fock operator
@@ -182,13 +195,14 @@ def huzinaga_scf(
             scf_energy = np.einsum("...ij,...ji->...", hamiltonian, density_matrix)
         else:
             raise TypeError("Cannot run Huzinaga SCF with type %s", type(scf_method))
-
+        logger.debug(f"{scf_energy=}")
         # check convergence
         # use max difference so that this works for unrestricted
         run_diff = np.max(np.abs(scf_energy - scf_energy_prev))
         norm_dm_diff = np.max(
             np.linalg.norm(density_matrix - dm_mat_old, axis=(-2, -1))
         )
+        logger.debug(f"{run_diff=}")
 
         if (run_diff < scf_method.conv_tol) and (norm_dm_diff < dm_conv_tol):
             conv_flag = True
