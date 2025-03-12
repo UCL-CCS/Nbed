@@ -80,6 +80,7 @@ class NbedDriver:
         unit: Optional[str] = "angstrom",
         occupied_threshold: Optional[float] = 0.95,
         virtual_threshold: Optional[float] = 0.95,
+        n_mo_overwrite: tuple[int, int] | None = None,
         max_shells: Optional[int] = 4,
         init_huzinaga_rhf_with_mu: bool = False,
         max_hf_cycles: int = 50,
@@ -132,6 +133,7 @@ class NbedDriver:
         self.occupied_threshold = occupied_threshold
         self.virtual_threshold = virtual_threshold
         self.max_shells = max_shells
+        self.n_mo_overwrite = n_mo_overwrite
         self.max_hf_cycles = max_hf_cycles
         self.max_dft_cycles = max_dft_cycles
         self.run_qmmm = run_qmmm
@@ -292,26 +294,38 @@ class NbedDriver:
         """Run the localizer class."""
         logger.debug(f"Getting localized system using {self.localization}.")
 
-        localizers = {
-            "spade": SPADELocalizer,
-            "boys": BOYSLocalizer,
-            "ibo": IBOLocalizer,
-            "pipek-mezey": PMLocalizer,
-        }
+        match self.localization:
+            case "spade":
+                localizer = SPADELocalizer
+                kwargs = {
+                    "max_shells": self.max_shells,
+                    "n_mo_overwrite": self.n_mo_overwrite,
+                }
+            case "boys":
+                localizer = BOYSLocalizer
+                kwargs = {
+                    "occ_cutoff": self.occupied_threshold,
+                    "virt_cutoff": self.virtual_threshold,
+                }
+            case "ibo":
+                localizer = IBOLocalizer
+                kwargs = {
+                    "occ_cutoff": self.occupied_threshold,
+                    "virt_cutoff": self.virtual_threshold,
+                }
+            case "pipek-mezey":
+                localizer = PMLocalizer
+                kwargs = {
+                    "occ_cutoff": self.occupied_threshold,
+                    "virt_cutoff": self.virtual_threshold,
+                }
 
-        if self.localization == "spade":
-            localized_system = localizers[self.localization](
-                self._global_ks,
-                self.n_active_atoms,
-                max_shells=self.max_shells,
-            )
-        else:
-            localized_system = localizers[self.localization](
-                self._global_ks,
-                self.n_active_atoms,
-                occ_cutoff=self.occupied_threshold,
-                virt_cutoff=self.virtual_threshold,
-            )
+        logger.debug(f"{kwargs=}")
+        localized_system = localizer(
+            self._global_ks,
+            self.n_active_atoms,
+            **kwargs,
+        )
         return localized_system
 
     def _init_local_hf(self) -> Union[scf.uhf.UHF, scf.rhf.RHF]:
