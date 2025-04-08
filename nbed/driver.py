@@ -17,7 +17,8 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .scf import energy_elec, huzinaga_scf
+from .scf import energy_elec
+from .scf.huzinaga_hf import huzinaga_HF
 
 # Create the Logger
 logger = logging.getLogger(__name__)
@@ -166,78 +167,6 @@ class NbedDriver:
 
         logger.debug("Driver initialisation complete.")
 
-    def _localize(self):
-        """Run the localizer class."""
-        logger.debug(f"Getting localized system using {self.localization}.")
-
-        match self.localization:
-            case "spade":
-                localizer = SPADELocalizer
-                kwargs = {
-                    "max_shells": self.max_shells,
-                    "n_mo_overwrite": self.n_mo_overwrite,
-                }
-            case "boys":
-                localizer = BOYSLocalizer
-                kwargs = {
-                    "occ_cutoff": self.occupied_threshold,
-                    "virt_cutoff": self.virtual_threshold,
-                }
-            case "ibo":
-                localizer = IBOLocalizer
-                kwargs = {
-                    "occ_cutoff": self.occupied_threshold,
-                    "virt_cutoff": self.virtual_threshold,
-                }
-            case "pipek-mezey":
-                localizer = PMLocalizer
-                kwargs = {
-                    "occ_cutoff": self.occupied_threshold,
-                    "virt_cutoff": self.virtual_threshold,
-                }
-
-        logger.debug(f"{kwargs=}")
-        localized_system = localizer(
-            self._global_ks,
-            self.n_active_atoms,
-            **kwargs,
-        )
-        return localized_system
-
-    def _build_mol(self) -> gto.mole:
-        """Function to build PySCF molecule.
-
-        Returns:
-            full_mol (gto.mol): built PySCF molecule object
-        """
-        logger.debug("Constructing molecule.")
-        if os.path.exists(self.geometry):
-            # geometry is an xyz file
-            full_mol = gto.Mole(
-                atom=self.geometry,
-                basis=self.basis,
-                charge=self.charge,
-                unit=self.unit,
-                spin=self.spin,
-                symmetry=self.symmetry,
-            ).build()
-        else:
-            logger.info(
-                "Input geometry is not an existing file. Assumng raw xyz input."
-            )
-            logger.info("Input geometry: %s", self.geometry)
-            # geometry is raw xyz string
-            full_mol = gto.Mole(
-                atom=self.geometry[3:],
-                basis=self.basis,
-                charge=self.charge,
-                unit=self.unit,
-                spin=self.spin,
-                symmetry=self.symmetry,
-            ).build()
-        logger.debug("Molecule built.")
-        return full_mol
-
     @cached_property
     def _global_hf(self) -> StreamObject:
         """Run full system Hartree-Fock."""
@@ -328,16 +257,80 @@ class NbedDriver:
             )
         logger.debug("Number of active atoms valid.")
 
+    def _localize(self):
+        """Run the localizer class."""
+        logger.debug(f"Getting localized system using {self.localization}.")
+
+        match self.localization:
+            case "spade":
+                localizer = SPADELocalizer
+                kwargs = {
+                    "max_shells": self.max_shells,
+                    "n_mo_overwrite": self.n_mo_overwrite,
+                }
+            case "boys":
+                localizer = BOYSLocalizer
+                kwargs = {
+                    "occ_cutoff": self.occupied_threshold,
+                    "virt_cutoff": self.virtual_threshold,
+                }
+            case "ibo":
+                localizer = IBOLocalizer
+                kwargs = {
+                    "occ_cutoff": self.occupied_threshold,
+                    "virt_cutoff": self.virtual_threshold,
+                }
+            case "pipek-mezey":
+                localizer = PMLocalizer
+                kwargs = {
+                    "occ_cutoff": self.occupied_threshold,
+                    "virt_cutoff": self.virtual_threshold,
+                }
+
+        logger.debug(f"{kwargs=}")
+        localized_system = localizer(
+            self._global_ks,
+            self.n_active_atoms,
+            **kwargs,
+        )
+        return localized_system
+
+    def _build_mol(self) -> gto.mole:
+        """Function to build PySCF molecule.
+
+        Returns:
+            full_mol (gto.mol): built PySCF molecule object
+        """
+        logger.debug("Constructing molecule.")
+        if os.path.exists(self.geometry):
+            # geometry is an xyz file
+            full_mol = gto.Mole(
+                atom=self.geometry,
+                basis=self.basis,
+                charge=self.charge,
+                unit=self.unit,
+                spin=self.spin,
+                symmetry=self.symmetry,
+            ).build()
+        else:
+            logger.info(
+                "Input geometry is not an existing file. Assumng raw xyz input."
+            )
+            logger.info("Input geometry: %s", self.geometry)
+            # geometry is raw xyz string
+            full_mol = gto.Mole(
+                atom=self.geometry[3:],
+                basis=self.basis,
+                charge=self.charge,
+                unit=self.unit,
+                spin=self.spin,
+                symmetry=self.symmetry,
+            ).build()
+        logger.debug("Molecule built.")
+        return full_mol
+
     def _build_local_mol(self) -> gto.Mole:
         """Build a molecule with the correct charge and spin for the localized system."""
-        if os.path.exists(self.geometry):
-            geometry = self.geometry
-        elif isinstance(self.geometry, str):
-            geometry = self.geometry.splitlines()[3:]
-        else:
-            logger.error("Geometry is not existing file or string.")
-            raise ValueError("Geometry is not existing file or string.")
-
         # logger.debug(f"{local_geometry=}")
         # local_geometry = local_geometry[3:3+self.n_active_atoms]
         # local_geometry = "\n".join(local_geometry)
@@ -695,6 +688,8 @@ class NbedDriver:
         # We need to run our own SCF method here to update the potential.
         if isinstance(active_scf, (scf.hf.RHF, dft.rks.RKS)):
             total_enviro_dm = self.localized_system.dm_enviro
+            if self.localized_system.beta_dm_enviro is not None:
+                raise NbedConfigError("Huzinaga embed is not using beta dms")
         else:
             total_enviro_dm = np.array(
                 [self.localized_system.dm_enviro, self.localized_system.beta_dm_enviro]
@@ -706,7 +701,7 @@ class NbedDriver:
             dm_active_embedded,
             huzinaga_op_std,
             huz_scf_conv_flag,
-        ) = huzinaga_scf(
+        ) = huzinaga_HF(
             active_scf,
             dft_potential,
             total_enviro_dm,
@@ -813,7 +808,7 @@ class NbedDriver:
 
         Args:
             method (str): The localization method used to embed the system. 'huzinaga' or 'mu'.
-            scf (StreamObject): The embedded SCF object.
+            embedded_scf (StreamObject): The embedded SCF object.
 
         Returns:
             StreamObject: Returns input, but with environment orbitals deleted.
@@ -947,29 +942,7 @@ class NbedDriver:
 
         return result
 
-    def embed(self, init_huzinaga_rhf_with_mu: bool = False):
-        """Run embedded scf calculation.
-
-        Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
-        This is done when object is initialized.
-        """
-        logger.debug("Embedding molecule.")
-        e_nuc = self._global_ks.energy_nuc()
-
-        logger.debug("Localising")
-        self.localized_system = self._localize()
-
-        logger.info("Indices of embedded electrons:")
-        logger.info(self.localized_system.active_MO_inds)
-        logger.info(self.localized_system.enviro_MO_inds)
-
-        # Run subsystem DFT (calls localized rks)
-        self._subsystem_dft()
-        logger.debug("Getting global DFT potential to optimize embedded calc in.")
-
-        local_hf = self._init_local_hf()
-        self.active_restricted = isinstance(local_hf, (scf.hf.RHF, dft.rks.RKS))
-
+    def _calculate_dft_embedding_potential(self):
         total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
         if not self.active_restricted:
             logger.debug("Adding beta spin density matrix")
@@ -995,9 +968,32 @@ class NbedDriver:
 
         logger.debug(f"{dft_potential.shape=}")
         logger.info(f"DFT potential average {np.mean(dft_potential)}.")
+        return dft_potential
 
-        # The order of these is important for
-        # initializing huzinaga with mu
+    def embed(self, init_huzinaga_rhf_with_mu: bool = False):
+        """Run embedded scf calculation.
+
+        Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
+        This is done when object is initialized.
+        """
+        logger.debug("Embedding molecule.")
+        e_nuc = self._global_ks.energy_nuc()
+
+        logger.debug("Localising")
+        self.localized_system = self._localize()
+
+        logger.info("Indices of embedded electrons:")
+        logger.info(self.localized_system.active_MO_inds)
+        logger.info(self.localized_system.enviro_MO_inds)
+
+        # Run subsystem DFT (calls localized rks)
+        self._subsystem_dft()
+        logger.debug("Getting global DFT potential to optimize embedded calc in.")
+
+        local_hf = self._init_local_hf()
+        self.active_restricted = isinstance(local_hf, (scf.hf.RHF, dft.rks.RKS))
+
+        dft_potential = self._calculate_dft_embedding_potential()
 
         embedding_methods_to_run = []
         if self.projector in ["both", "mu"] or init_huzinaga_rhf_with_mu:
