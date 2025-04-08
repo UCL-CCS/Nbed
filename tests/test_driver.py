@@ -93,6 +93,7 @@ def test_driver_standard_xyz_string_input(restricted_driver) -> None:
 
     assert isinstance(restricted_driver.embedded_scf, StreamObject)
     assert isclose(restricted_driver.classical_energy, -3.5867934952241356)
+    assert restricted_driver.embedded_scf.mo_coeff.shape == (7,6)
     assert np.allclose(
         restricted_driver.embedded_scf.mo_coeff,
         np.array([
