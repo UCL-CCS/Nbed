@@ -108,7 +108,8 @@ def huzinaga_scf(
         )
     elif not unrestricted and dm_environment.ndim == 3:
         # The environment density matrix has beta=alpha for restricted.
-        dm_environment = 2 * dm_environment[0, :, :]
+        logger.debug("")
+        dm_environment = dm_environment[0, :, :] + dm_environment[1, :, :]
 
     if unrestricted:
         dm_env_S = np.array([dm_environment[0] @ s_mat, dm_environment[1] @ s_mat])
