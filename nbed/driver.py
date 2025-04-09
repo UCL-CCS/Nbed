@@ -89,6 +89,7 @@ class NbedDriver:
         mm_coords: Optional[list] = None,
         mm_charges: Optional[list] = None,
         mm_radii: Optional[list] = None,
+        run_embed=True,
     ):
         """Initialise class."""
         logger.debug("Initialising driver.")
@@ -154,14 +155,15 @@ class NbedDriver:
         if force_unrestricted:
             logger.debug("Forcing unrestricted SCF")
             self._restricted_scf = False
-        elif self.charge % 2 == 1:
+        elif self.spin % 2 == 1:
             logger.debug("Open shells, using unrestricted SCF.")
             self._restricted_scf = False
         else:
             logger.debug("Closed shells, using restricted SCF.")
             self._restricted_scf = True
 
-        self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
+        if run_embed:
+            self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
 
         logger.debug("Driver initialisation complete.")
 
@@ -324,6 +326,8 @@ class NbedDriver:
         """
         logger.debug("Constructing localised RHF object.")
         embedded_mol: gto.Mole = self._build_mol()
+        embedded_mol.spin = 0
+        # embedded_mol.charge = 0
 
         # overwrite total number of electrons to only include active system
         if self._restricted_scf:
@@ -608,6 +612,7 @@ class NbedDriver:
         v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
         hcore_std = localized_scf.get_hcore()
         if isinstance(localized_scf, (scf.uhf.UHF, dft.uks.UKS)):
+            logger.debug("Unrestricted SCF, doubling hcore")
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
 
             localized_scf.get_hcore = (
@@ -618,6 +623,7 @@ class NbedDriver:
         else:
             logger.error(f"Invalid scf object of type {type(localized_scf)}.")
             raise NbedConfigError("Invalid scf object.")
+        logger.debug(f"{localized_scf.get_hcore().shape=}")
 
         localized_scf.kernel()
         logger.info(
