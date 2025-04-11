@@ -75,14 +75,15 @@ class SPADELocalizer(Localizer):
             )
             beta = None
         else:
+            total_occupation = np.sum(self._global_scf.mo_occ, axis=0)
             alpha = self._localize_spin(
                 self._global_scf.mo_coeff[0],
-                self._global_scf.mo_occ[0],
+                total_occupation,
                 self.n_mo_overwrite[0],
             )
             beta = self._localize_spin(
                 self._global_scf.mo_coeff[1],
-                self._global_scf.mo_occ[1],
+                total_occupation,
                 self.n_mo_overwrite[1],
             )
 
@@ -207,6 +208,7 @@ class SPADELocalizer(Localizer):
             self.shells = localised_virts[1]
             self.singular_values = localised_virts[2]
         else:
+            logger.debug(f"{embedded_scf.mo_occ=}")
             localised_virts_alpha = self._localize_virtual_spin(
                 embedded_scf.mo_occ[0],
                 embedded_scf.mo_coeff[0],
@@ -243,6 +245,8 @@ class SPADELocalizer(Localizer):
         """
         logger.debug("Running concentric localiztion for single spin.")
 
+        logger.debug(f"{mo_coeff.shape=}")
+        logger.debug(f"{occ.shape=}")
         effective_virt = mo_coeff[:, occ == 0]
         logger.debug(f"N effective virtuals: {effective_virt.shape}")
 
