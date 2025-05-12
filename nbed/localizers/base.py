@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 from typing import Tuple, Union
 
 import numpy as np
+from pyscf import dft, scf
 from pyscf.lib import StreamObject
-from pyscf.scf.hf import RHF
 
 from ..exceptions import NbedLocalizerError
 
@@ -56,7 +56,8 @@ class Localizer(ABC):
 
         self._global_scf = global_scf
         self._n_active_atoms = n_active_atoms
-        self._restricted = isinstance(self._global_scf, RHF)
+        self._restricted = isinstance(self._global_scf, (scf.rhf.RHF, dft.rks.RKS))
+        logger.debug(f"Global scf: {type(global_scf)}")
 
         # Run the localization procedure
         self.run()

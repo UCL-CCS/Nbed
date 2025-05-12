@@ -13,6 +13,9 @@ from nbed.driver import NbedDriver
 def water_filepath() -> Path:
     return Path("tests/molecules/water.xyz").absolute()
 
+@pytest.fixture(scope="module")
+def pfoa_filepath() -> Path:
+    return Path("tests/molecules/pfoa.xyz").absolute()
 
 @pytest.fixture(scope="module")
 def water_mol(water_filepath) -> gto.Mole:

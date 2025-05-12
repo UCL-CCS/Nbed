@@ -297,7 +297,7 @@ class SPADELocalizer(Localizer):
             shells.append(c_total.shape[-1])
         else:
             # why use the overlap for the first shell and then the fock for the rest?
-            for ishell in range(1, self.max_shells + 1):
+            for ishell in range(0, self.max_shells):
                 logger.debug("Beginning Concentric Localization Iteration")
                 logger.debug(f"Shell {ishell}.")
 
