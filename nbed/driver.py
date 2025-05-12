@@ -1006,7 +1006,7 @@ class NbedDriver:
                     result["scf"],
                     self.n_active_atoms,
                     max_shells=self.max_shells,
-                ).localize_virtual()
+                ).localize_virtual(self._restricted_scf)
 
             result["e_rhf"] = (
                 result["scf"].e_tot

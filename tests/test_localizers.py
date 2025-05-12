@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 from pyscf import gto, scf
 
-from nbed.localizers.base import Localizer
-from nbed.localizers.pyscf import PMLocalizer
-from nbed.localizers.spade import SPADELocalizer
+from nbed.localizers.occupied.base import OccupiedLocalizer
+from nbed.localizers.occupied.pyscf import PMLocalizer
+from nbed.localizers.occupied.spade import SPADELocalizer
 from nbed.localizers.ace import ACELocalizer
 
 xc_functional = "b3lyp"
@@ -53,10 +53,9 @@ def global_uks(molecule) -> scf.UKS:
 def test_base_localizer(global_rks) -> None:
     """Check the base class can be instantiated."""
     with pytest.raises(TypeError) as excinfo:
-        Localizer(global_rks, n_active_atoms=n_active_atoms)
+        OccupiedLocalizer(global_rks, n_active_atoms=n_active_atoms)
 
     assert "_localize_spin" in str(excinfo.value)
-    assert "localize_virtual" in str(excinfo.value)
 
 
 def test_PM_arguments(global_rks) -> None:

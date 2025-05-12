@@ -9,7 +9,7 @@ from pyscf.lib import StreamObject
 logger = logging.getLogger(__name__)
 
 
-class ConcentricLocalization:
+class ConcentricLocalizer:
     """Class to localize virtual orbitals using concentric localization.
 
     Attributes:
@@ -48,7 +48,7 @@ class ConcentricLocalization:
         self.shells = None
         self.singular_values = None
 
-    def localize_virtual(self) -> StreamObject:
+    def localize_virtual(self, restricted: bool) -> StreamObject:
         """Localise virtual (unoccupied) obitals using concentric localization.
 
         [1] D. Claudino and N. J. Mayhall, "Simple and Efficient Truncation of Virtual
@@ -57,7 +57,7 @@ class ConcentricLocalization:
         doi: 10.1021/ACS.JCTC.9B00682.
 
         Args:
-            embedded_scf (StreamObject): SCF object with occupied orbitals localized.
+            restricted (bool): Whether the SCF is restricted or unrestricted.
 
         Returns:
             StreamObject: Fully Localized SCF object.
@@ -84,7 +84,7 @@ class ConcentricLocalization:
         )[:n_act_proj_aos, :]
         self.n_act_proj_aos = n_act_proj_aos
 
-        if self._restricted:
+        if restricted:
             localised_virts = self._localize_virtual_spin(
                 embedded_scf.mo_occ, embedded_scf.mo_coeff, embedded_scf.get_fock()
             )
