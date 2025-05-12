@@ -12,6 +12,7 @@ from pyscf.lib import StreamObject
 from nbed.exceptions import NbedConfigError
 from nbed.localizers import (
     BOYSLocalizer,
+    ConcentricLocalizer,
     IBOLocalizer,
     PMLocalizer,
     SPADELocalizer,
@@ -1000,7 +1001,12 @@ class NbedDriver:
             # TODO correlation energy correction???
             if self.run_virtual_localization is True:
                 logger.debug("Performing virtual localization.")
-                result["scf"] = self.localized_system.localize_virtual(result["scf"])
+                # result["scf"] = self.localized_system.localize_virtual(result["scf"])
+                result["scf"] = ConcentricLocalizer(
+                    result["scf"],
+                    self.n_active_atoms,
+                    max_shells=self.max_shells,
+                ).localize_virtual()
 
             result["e_rhf"] = (
                 result["scf"].e_tot

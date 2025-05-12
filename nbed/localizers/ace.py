@@ -9,7 +9,7 @@ import numpy as np
 from pyscf import dft, lib, scf
 from scipy.optimize import curve_fit, minimize
 
-from nbed.localizers.spade import SPADELocalizer
+from nbed.localizers.occupied.spade import SPADELocalizer
 
 logger = logging.getLogger(__name__)
 

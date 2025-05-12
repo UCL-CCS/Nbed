@@ -9,12 +9,12 @@ from pyscf import lo
 from pyscf.lib import StreamObject
 from pyscf.lo import vvo
 
-from .base import Localizer
+from .base import OccupiedLocalizer
 
 logger = logging.getLogger(__name__)
 
 
-class PySCFLocalizer(Localizer, ABC):
+class PySCFLocalizer(OccupiedLocalizer, ABC):
     """Object used to localise molecular orbitals (MOs) using PySCF localization functions.
 
     Running localization returns active and environment systems.
