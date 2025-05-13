@@ -1,37 +1,18 @@
-nbed.localizers package
-=======================
+nbed.localizers
+===============
 
-Submodules
-----------
+Occupied
+--------
 
-nbed.localizers.occupied.base module
----------------------------
-
-.. automodule:: nbed.localizers.occupied.base
+.. automodule:: nbed.localizers.occupied
    :members:
    :undoc-members:
    :show-inheritance:
 
-nbed.localizers.pyscf module
-----------------------------
+Virtual
+-------
 
-.. automodule:: nbed.localizers.pyscf
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-nbed.localizers.spade module
-----------------------------
-
-.. automodule:: nbed.localizers.spade
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: nbed.localizers
+.. automodule:: nbed.localizers.virtual
    :members:
    :undoc-members:
    :show-inheritance:
