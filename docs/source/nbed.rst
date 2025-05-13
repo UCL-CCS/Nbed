@@ -7,6 +7,7 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
+   nbed
    nbed.localizers
    nbed.scf
 
