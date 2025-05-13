@@ -6,10 +6,12 @@ import numpy as np
 from pyscf import gto, scf
 from pyscf.lib import StreamObject
 
+from .base import BaseVirtualLocalizer
+
 logger = logging.getLogger(__name__)
 
 
-class ConcentricLocalizer:
+class ConcentricLocalizer(BaseVirtualLocalizer):
     """Class to localize virtual orbitals using concentric localization.
 
     Attributes:
@@ -39,9 +41,9 @@ class ConcentricLocalizer:
             n_active_atoms (int): Number of active atoms in the system.
             max_shells (int): Maximum number of shells to localize.
         """
-        self.embedded_scf = embedded_scf
-        self.max_shells = max_shells
+        super().__init__(embedded_scf, n_active_atoms)
         self._n_active_atoms = n_active_atoms
+        self.max_shells = max_shells
         self.projected_overlap = None
         self.overlap_two_basis = None
         self.n_act_proj_aos = None
