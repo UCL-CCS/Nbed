@@ -41,7 +41,7 @@ class ConcentricLocalizer(BaseVirtualLocalizer):
             n_active_atoms (int): Number of active atoms in the system.
             max_shells (int): Maximum number of shells to localize.
         """
-        super().__init__(embedded_scf, n_active_atoms)
+        super().__init__(embedded_scf)
         self._n_active_atoms = n_active_atoms
         self.max_shells = max_shells
         self.projected_overlap = None
