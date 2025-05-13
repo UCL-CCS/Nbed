@@ -4,10 +4,10 @@ nbed.localizers package
 Submodules
 ----------
 
-nbed.localizers.base module
+nbed.localizers.occupied.base module
 ---------------------------
 
-.. automodule:: nbed.localizers.base
+.. automodule:: nbed.localizers.occupied.base
    :members:
    :undoc-members:
    :show-inheritance:

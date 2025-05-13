@@ -4,9 +4,8 @@ import numpy as np
 import pytest
 from pyscf import gto, scf
 
-from nbed.localizers.base import Localizer
-from nbed.localizers.pyscf import PMLocalizer
-from nbed.localizers.spade import SPADELocalizer
+from nbed.localizers.occupied import OccupiedLocalizer, PMLocalizer, SPADELocalizer
+from nbed.localizers.virtual import ConcentricLocalizer
 from nbed.localizers.ace import ACELocalizer
 
 xc_functional = "b3lyp"
@@ -53,10 +52,9 @@ def global_uks(molecule) -> scf.UKS:
 def test_base_localizer(global_rks) -> None:
     """Check the base class can be instantiated."""
     with pytest.raises(TypeError) as excinfo:
-        Localizer(global_rks, n_active_atoms=n_active_atoms)
+        OccupiedLocalizer(global_rks, n_active_atoms=n_active_atoms)
 
     assert "_localize_spin" in str(excinfo.value)
-    assert "localize_virtual" in str(excinfo.value)
 
 
 def test_PM_arguments(global_rks) -> None:
@@ -225,20 +223,22 @@ def test_spade_spins_match(global_rks, global_uks) -> None:
 
 
 def test_cl_shell_numbers(global_rks, global_uks) -> None:
-    restricted = SPADELocalizer(
+    restricted_occ = SPADELocalizer(
         global_rks,
         n_active_atoms=n_active_atoms,
     )
-    restricted.localize_virtual(restricted._global_scf)
+    restricted_virt = ConcentricLocalizer(restricted_occ._global_scf, n_active_atoms=n_active_atoms)
+    restricted_virt.localize_virtual(restricted = restricted_occ._restricted)
 
-    unrestricted = SPADELocalizer(
+    unrestricted_occ = SPADELocalizer(
         global_uks,
         n_active_atoms=n_active_atoms,
     )
-    unrestricted.localize_virtual(unrestricted._global_scf)
+    unrestricted_virt = ConcentricLocalizer(unrestricted_occ._global_scf, n_active_atoms=n_active_atoms)
+    unrestricted_virt.localize_virtual(restricted = unrestricted_occ._restricted)
 
-    assert restricted.shells == [12, 13]
-    assert restricted.shells == unrestricted.shells[0] == unrestricted.shells[1]
+    assert restricted_virt.shells == [12, 13]
+    assert restricted_virt.shells == unrestricted_virt.shells[0] == unrestricted_virt.shells[1]
 
 def test_ace_localizer(global_rks, global_uks) -> None:
     restricted = ACELocalizer(global_scf_list=[global_rks]*3, n_active_atoms=n_active_atoms).localize_path()
