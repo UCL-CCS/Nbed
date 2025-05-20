@@ -4,18 +4,16 @@ import logging
 import warnings
 from functools import cached_property
 from numbers import Number
-from typing import Optional, Tuple
 
 import numpy as np
 import openfermion.transforms as of_transforms
+from numpy.typing import NDArray
 from openfermion import (
-    FermionOperator,
     InteractionOperator,
     QubitOperator,
     count_qubits,
 )
 from openfermion.config import EQ_TOLERANCE
-from openfermion.transforms import jordan_wigner
 from pyscf import ao2mo, dft, scf
 from pyscf.lib import StreamObject
 from symmer.operators import IndependentOp, PauliwordOp, QuantumState
@@ -32,8 +30,8 @@ class HamiltonianBuilder:
     def __init__(
         self,
         scf_method: StreamObject,
-        constant_e_shift: Optional[float] = 0,
-        transform: Optional[str] = "jordan_wigner",
+        constant_e_shift: float = 0,
+        transform: str = "jordan_wigner",
         auto_freeze_core: bool = False,
         n_frozen_core: int = 0,
         n_frozen_virt: int = 0,
@@ -70,7 +68,7 @@ class HamiltonianBuilder:
             raise HamiltonianBuilderError("occupancy dimension error")
 
     @property
-    def _one_body_integrals(self) -> np.ndarray:
+    def _one_body_integrals(self) -> NDArray:
         """Get the one electron integrals."""
         logger.debug("Calculating one body integrals.")
         c_matrix_active = self.scf_method.mo_coeff
@@ -115,7 +113,7 @@ class HamiltonianBuilder:
         return one_body_integrals
 
     @property
-    def _two_body_integrals(self) -> np.ndarray:
+    def _two_body_integrals(self) -> NDArray:
         """Get the two electron integrals."""
         logger.debug("Calculating two body integrals.")
         c_matrix_active = self.scf_method.mo_coeff
@@ -165,7 +163,9 @@ class HamiltonianBuilder:
             # Copy this 4 times so that we have the same number as
             # the unrestricted case
             # Openfermion uses physicist notation whereas pyscf uses chemists
-            two_body_integrals = [np.asarray(eri.transpose(0, 2, 3, 1), order="C")] * 4
+            two_body_integrals = np.array(
+                [np.asarray(eri.transpose(0, 2, 3, 1), order="C")] * 4
+            )
 
         two_body_integrals = np.array(two_body_integrals)
 
@@ -176,15 +176,15 @@ class HamiltonianBuilder:
     def _reduced_orbitals(
         self,
         qubit_reduction: int,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[NDArray, NDArray]:
         """Find the orbitals which correspond to the active space and core.
 
         Args:
             qubit_reduction (int): Number of qubits to reduce by.
 
         Returns:
-            active_indices (np.ndarray): Indices of active orbitals.
-            core_indices (np.ndarray): Indices of core orbitals.
+            active_indices (NDArray): Indices of active orbitals.
+            core_indices (NDArray): Indices of core orbitals.
         """
         logger.debug("Finding active space.")
         logger.debug(f"Reducing by {qubit_reduction} qubits.")
@@ -241,17 +241,17 @@ class HamiltonianBuilder:
         return core_indices, active_indices
 
     def _spinorb_from_spatial(
-        self, one_body_integrals: np.ndarray, two_body_integrals: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        self, one_body_integrals: NDArray, two_body_integrals: NDArray
+    ) -> tuple[NDArray, NDArray]:
         """Convert spatial integrals to spin-orbital integrals.
 
         Args:
-            one_body_integrals (np.ndarray): One-electron integrals in physicist notation.
-            two_body_integrals (np.ndarray): Two-electron integrals in physicist notation.
+            one_body_integrals (NDArray): One-electron integrals in physicist notation.
+            two_body_integrals (NDArray): Two-electron integrals in physicist notation.
 
         Returns:
-            one_body_coefficients (np.ndarray): One-electron coefficients in spinorb form.
-            two_body_coefficients (np.ndarray): Two-electron coefficients in spinorb form.
+            one_body_coefficients (NDArray): One-electron coefficients in spinorb form.
+            two_body_coefficients (NDArray): Two-electron coefficients in spinorb form.
 
         """
         logger.debug("Converting to spin-orbital coefficients.")
@@ -410,7 +410,7 @@ class HamiltonianBuilder:
         """Qubit tapering and frozen core reduction."""
         if isinstance(self.scf_method.mo_occ[0], Number):
             mo_energy = self.scf_method.mo_energy
-        elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
+        elif isinstance(self.scf_method.mo_occ[0], NDArray):
             mo_energy = self.scf_method.mo_energy[0]
         else:
             raise ValueError("occupancy dimension error")
@@ -469,25 +469,6 @@ def array_to_dict_nonzero_indices(arr, tol=1e-10):
     where_nonzero = np.where(~np.isclose(arr, 0, atol=tol))
     nonzero_indices = list(zip(*where_nonzero))
     return dict(zip(nonzero_indices, arr[where_nonzero]))
-
-
-def fermion_to_qubit_operator(
-    fermionic_operator: FermionOperator, n_qubits: int = None
-):
-    """Function to convert from fermion operators to qubit operators.
-
-    Note: see `openfermion.transforms` for different fermion to qubit mappings
-
-    Args:
-        fermionic_operator (FermionOperator): any fermionic operator (openfermion)
-        n_qubits (int): number of qubits (or spin orbitals)
-
-    Returns:
-        qubit_operator (PauliwordOp): qubit operator of fermonic operator (under certain mapping)
-    """
-    mapping = jordan_wigner
-    qubit_operator = mapping(fermionic_operator)
-    return PauliwordOp.from_openfermion(qubit_operator, n_qubits)
 
 
 def to_openfermion(pwop: PauliwordOp) -> QubitOperator:

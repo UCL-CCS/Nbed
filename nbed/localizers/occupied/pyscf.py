@@ -2,7 +2,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 from pyscf import lo
@@ -88,7 +88,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
 
     def _localize_spin(
         self, c_matrix: np.ndarray, occupancy: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Localize orbitals of one spin using PySCF.
 
         Args:

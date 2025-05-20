@@ -3,7 +3,7 @@
 import logging
 import os
 from functools import cached_property
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 from pyscf import cc, dft, fci, gto, qmmm, scf
@@ -396,7 +396,7 @@ class NbedDriver:
         def _ks_components(
             ks_system: StreamObject,
             subsystem_dm: np.ndarray,
-        ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
+        ) -> tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
             For a given density matrix this function returns the electronic energy, exchange correlation energy and
@@ -532,7 +532,7 @@ class NbedDriver:
         self,
         emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
         frozen: Optional[list] = None,
-    ) -> Tuple[cc.CCSD, float]:
+    ) -> tuple[cc.CCSD, float]:
         """Function run CCSD on embedded restricted Hartree Fock object.
 
         Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
@@ -596,7 +596,7 @@ class NbedDriver:
 
     def _mu_embed(
         self, localized_scf: StreamObject, dft_potential: np.ndarray
-    ) -> Tuple[StreamObject, np.ndarray]:
+    ) -> tuple[StreamObject, np.ndarray]:
         """Embed using the Mu-shift projector.
 
         Args:
@@ -638,7 +638,7 @@ class NbedDriver:
         active_scf: StreamObject,
         dft_potential: np.ndarray,
         dmat_initial_guess: Optional[np.ndarray] = None,
-    ) -> Tuple[StreamObject, np.ndarray]:
+    ) -> tuple[StreamObject, np.ndarray]:
         """Embed using Huzinaga projector.
 
         Args:
@@ -702,7 +702,7 @@ class NbedDriver:
         mo_energy: np.ndarray,
         mo_occ: np.ndarray,
         environment_projector: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Remove enironment orbit from embedded rhf object.
 
         This function removes (in fact deletes completely) the molecular orbitals

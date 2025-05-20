@@ -37,7 +37,3 @@ class BaseVirtualLocalizer(ABC):
             gto.Mole: Localized SCF object.
         """
         pass
-
-    def mutual_information_truncation(self, mutual_information) -> StreamObject:
-        """Truncate the Virtual Space using the mutual infromation."""
-        pass
