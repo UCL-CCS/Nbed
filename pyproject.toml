@@ -6,7 +6,7 @@ authors = [
     {name= "Michael Williams de la Bastida", email= "michael.williams.20@ucl.ac.uk"},
     {name= "Alexis Ralli",  email= "alexis.ralli.18@ucl.ac.uk"}
 ]
-requires-python = ">=3.10, <3.13"
+requires-python = ">=3.10, <4"
 dependencies = [
     "openfermion (>=1.1.0, <2.0.0)",
     "PyYAML (>=6.0.0, <7.0.0)",

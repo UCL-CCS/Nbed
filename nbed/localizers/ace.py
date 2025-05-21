@@ -31,8 +31,6 @@ class ACELocalizer:
     def localize_path(self) -> tuple[int, int]:
         """Find the number of MOs to use over the reaction coordinates.
 
-        NOTE: Only returns one number for both spins.
-
         Returns:
             tuple(int,int): Number of molecular orbitals for spin alpha, beta.
         """

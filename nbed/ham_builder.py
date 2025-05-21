@@ -378,6 +378,7 @@ class HamiltonianBuilder:
         one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
             one_body_integrals, two_body_integrals
         )
+
         logger.debug(f"{one_body_coefficients.shape=}")
         logger.debug(f"{two_body_coefficients.shape=}")
         logger.debug("Building interaction operator.")
