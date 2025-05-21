@@ -33,6 +33,8 @@ class ACELocalizer:
 
         Returns:
             tuple(int,int): Number of molecular orbitals for spin alpha, beta.
+
+        Note: For restricted systems, a tuple of (equal) values is still given.
         """
         logger.debug("Running ACE of SPADE across reaction coordinates.")
         localized_systems = []
@@ -54,6 +56,7 @@ class ACELocalizer:
             error_string = f"SCF object of type {type(scf_object)} cannot be used."
             logger.error(error_string)
             raise TypeError(error_string)
+        logger.debug("ACE-of-SPADE Complete: %s", (alpha, beta))
         return (alpha, beta)
 
     def localize_spin(self, singular_values) -> int:
@@ -98,6 +101,6 @@ class ACELocalizer:
         mean_max = np.mean(max_vals)
         # we want to round to the nearesrt 1, we cam do this with int(val+0.5)
         nmo = mean_max + np.argwhere(diff_i_max == np.int64(0)) + 0.5
-        nmo = int(nmo)
+        nmo = int(nmo) + 1
         logger.debug(f"Using {nmo} Molecular Orbitals")
         return nmo
