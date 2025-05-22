@@ -28,6 +28,9 @@ class ACELocalizer:
         self.n_active_atoms = n_active_atoms
         self.max_shells = max_shells
 
+        if len({gscf.mo_coeff.shape for gscf in global_scf_list}) != 1:
+            raise ValueError("Global SCF inputs must have the same mo_coeff shape.")
+
     def localize_path(self) -> tuple[int, int]:
         """Find the number of MOs to use over the reaction coordinates.
 
@@ -44,7 +47,8 @@ class ACELocalizer:
 
         # only does restricted atm
         singular_values = [loc.enviro_selection_condition for loc in localized_systems]
-        logger.debug(f"{singular_values=}")
+        logger.debug("Singular Values")
+        logger.debug(singular_values)
 
         if isinstance(scf_object, (scf.hf.RHF, dft.rks.RKS)):
             alpha = self.localize_spin([s[0] for s in singular_values])
