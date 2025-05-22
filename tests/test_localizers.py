@@ -247,19 +247,21 @@ def test_ace_localizer(global_rks, global_uks) -> None:
     restricted_spade = SPADELocalizer(
         global_rks,
         n_active_atoms=n_active_atoms,
+        n_mo_overwrite=restricted,
     )
 
     unrestricted_spade = SPADELocalizer(
         global_uks,
         n_active_atoms=n_active_atoms,
+        n_mo_overwrite=unrestricted,
     )
     print(restricted_spade.enviro_selection_condition)
     print(unrestricted_spade.enviro_selection_condition)
-    assert restricted == unrestricted
+    assert restricted == unrestricted == (3,3)
     assert restricted[0] == restricted[1]
     assert unrestricted[0] == unrestricted[1]
-    assert np.all(restricted[0] == np.argmax(restricted_spade.enviro_selection_condition[0][:-1] - restricted_spade.enviro_selection_condition[0][1:]))
-    assert np.all(unrestricted[0] == np.argmax(unrestricted_spade.enviro_selection_condition[0][:-1] - unrestricted_spade.enviro_selection_condition[0][1:]))
+    assert np.all(restricted[0] -1 == np.argmax(restricted_spade.enviro_selection_condition[0][:-1] - restricted_spade.enviro_selection_condition[0][1:]))
+    assert np.all(unrestricted[0] -1 == np.argmax(unrestricted_spade.enviro_selection_condition[0][:-1] - unrestricted_spade.enviro_selection_condition[0][1:]))
 
 if __name__ == "__main__":
     pass

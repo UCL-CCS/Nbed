@@ -40,6 +40,7 @@ class NbedDriver:
         run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
         run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
         run_virtual_localization (bool): Whether or not to localize virtual orbitals.
+        n_mo_overwrite (tuple[None| int, None | int]): Optional overwrite values for occupied localizers.
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
@@ -75,6 +76,7 @@ class NbedDriver:
         run_ccsd_emb: Optional[bool] = False,
         run_fci_emb: Optional[bool] = False,
         run_virtual_localization: Optional[bool] = True,
+        n_mo_overwrite: tuple[None | int, None | int] = (None, None),
         run_dft_in_dft: Optional[bool] = False,
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
@@ -126,6 +128,7 @@ class NbedDriver:
         self.run_ccsd_emb = run_ccsd_emb
         self.run_fci_emb = run_fci_emb
         self.run_virtual_localization = run_virtual_localization
+        self.n_mo_overwrite = n_mo_overwrite
         self.run_dft_in_dft = run_dft_in_dft
         self.max_ram_memory = max_ram_memory
         self.pyscf_print_level = pyscf_print_level
@@ -306,6 +309,7 @@ class NbedDriver:
                 self._global_ks,
                 self.n_active_atoms,
                 max_shells=self.max_shells,
+                n_mo_overwrite=self.n_mo_overwrite,
             )
         else:
             localized_system = localizers[self.localization](

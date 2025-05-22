@@ -3,7 +3,7 @@
 import logging
 
 import numpy as np
-from pyscf import gto
+from pyscf import lib
 from scipy import linalg
 
 from .base import OccupiedLocalizer
@@ -36,7 +36,7 @@ class SPADELocalizer(OccupiedLocalizer):
 
     def __init__(
         self,
-        global_scf: gto.Mole,
+        global_scf: lib.StreamObject,
         n_active_atoms: int,
         max_shells: int = 4,
         n_mo_overwrite: tuple[int, int] | None = None,
@@ -110,6 +110,7 @@ class SPADELocalizer(OccupiedLocalizer):
 
         n_occupied_orbitals = np.count_nonzero(occupancy)
         occupied_orbitals = c_matrix[:, :n_occupied_orbitals]
+        logger.debug(f"{occupancy=}")
         logger.debug(f"{n_occupied_orbitals} occupied AOs.")
 
         n_act_aos = self._global_scf.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
@@ -132,7 +133,7 @@ class SPADELocalizer(OccupiedLocalizer):
         # Prevents an error with argmax
         if len(sigma) == 1:
             n_act_mos = 1
-        elif n_mo_overwrite is not None and len(sigma) > n_mo_overwrite:
+        elif n_mo_overwrite is not None and len(sigma) >= n_mo_overwrite:
             logger.debug(f"Enforcing use of {n_mo_overwrite} MOs")
             n_act_mos = n_mo_overwrite
         else:
