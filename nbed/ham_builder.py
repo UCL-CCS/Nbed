@@ -14,7 +14,7 @@ from openfermion import (
     count_qubits,
 )
 from openfermion.config import EQ_TOLERANCE
-from pyscf import ao2mo, dft, scf
+from pyscf import ao2mo, dft, lib, scf
 from pyscf.lib import StreamObject
 from symmer.operators import IndependentOp, PauliwordOp, QuantumState
 from symmer.projection import QubitTapering, S3Projection
@@ -173,72 +173,24 @@ class HamiltonianBuilder:
         logger.debug(f"{two_body_integrals.shape}")
         return two_body_integrals
 
-    def _reduced_orbitals(
-        self,
-        qubit_reduction: int,
-    ) -> tuple[NDArray, NDArray]:
-        """Find the orbitals which correspond to the active space and core.
+    def reduce_virtuals(self, n_frozen_virt: int) -> lib.StreamObject:
+        """Reduce the number of virtual orbitals.
 
         Args:
-            qubit_reduction (int): Number of qubits to reduce by.
-
-        Returns:
-            active_indices (NDArray): Indices of active orbitals.
-            core_indices (NDArray): Indices of core orbitals.
+            n_frozen_virt (int): Number of virtual orbitals to freeze.
         """
-        logger.debug("Finding active space.")
-        logger.debug(f"Reducing by {qubit_reduction} qubits.")
+        reduced_scf_method = self.scf_method.copy()
+        if n_frozen_virt <= 0:
+            logger.debug("No virtual orbital reduction.")
+            return reduced_scf_method
 
-        if type(qubit_reduction) is not int:
-            logger.error("Invalid qubit_reduction of type %s.", type(qubit_reduction))
-            raise HamiltonianBuilderError("qubit_reduction must be an Intger")
-        if qubit_reduction == 0:
-            logger.debug("No active space reduction required.")
-            if self._restricted:
-                return np.array([]), np.where(self.scf_method.mo_occ >= 0)[0]
-            else:
-                return (
-                    np.array([]),
-                    np.where(self.scf_method.mo_occ.sum(axis=0) >= 0)[0],
-                )
+        logger.debug(f"Reducing virtuals by {n_frozen_virt}.")
+        reduced_scf_method.mo_coeff[0] = self.scf_method.mo_coeff[0][:, :-n_frozen_virt]
+        reduced_scf_method.mo_coeff[1] = self.scf_method.mo_coeff[1][:, :-n_frozen_virt]
 
-        # +1 because each MO is 2 qubits for closed shell
-        orbital_reduction = (qubit_reduction + 1) // 2
+        self.scf_method.run()
 
-        occupation = self.scf_method.mo_occ
-        if not self._restricted:
-            occupation = occupation.sum(axis=0)
-        occupied = np.where(occupation > 0)[0]
-        virtual = np.where(occupation == 0)[0]
-
-        # find where the last occupied level is
-        logger.debug("Occupied orbitals %s.", occupied)
-        logger.debug("virtual orbitals %s.", virtual)
-
-        occupied_reduction = (
-            orbital_reduction * len(occupied)
-        ) // self._one_body_integrals.shape[-1]
-        virtual_reduction = orbital_reduction - occupied_reduction
-        logger.debug(f"Reducing occupied by {occupied_reduction} spatial orbitals.")
-        logger.debug(f"Reducing virtual by {virtual_reduction} spatial orbitals.")
-
-        core_indices = np.array([])
-        removed_virtual = np.array([])
-
-        if occupied_reduction > 0:
-            core_indices = occupied[:occupied_reduction]
-            occupied = occupied[occupied_reduction:]
-
-        # We want the MOs nearest the fermi level
-        if virtual_reduction > 0:
-            removed_virtual = virtual[-virtual_reduction:]
-            virtual = virtual[:-virtual_reduction]
-
-        active_indices = np.append(occupied, virtual)
-        logger.debug(f"Core indices {core_indices}.")
-        logger.debug(f"Active indices {active_indices}.")
-        logger.debug(f"Removed virtual indices {removed_virtual}.")
-        return core_indices, active_indices
+        return reduced_scf_method
 
     def _spinorb_from_spatial(
         self, one_body_integrals: NDArray, two_body_integrals: NDArray
@@ -371,6 +323,9 @@ class HamiltonianBuilder:
         """
         if taper is not None:
             logger.warning("Tapering is deprecated. Use the qubit_reduction_driver.")
+
+        if self.n_frozen_virt != 0:
+            self.scf_method = reduce_virtuals(self.scf_method, self.n_frozen_virt)
 
         logger.info("Building Hamiltonian")
         one_body_integrals = self._one_body_integrals
@@ -522,3 +477,36 @@ def to_openfermion(pwop: PauliwordOp) -> QubitOperator:
     for op in ops:
         open_f += op
     return open_f
+
+
+def reduce_virtuals(scf_method, n_frozen_virt: int) -> lib.StreamObject:
+    """Reduce the number of virtual orbitals.
+
+    Args:
+        scf_method (StreamObject): A PySCF scf object.
+        n_frozen_virt (int):  Number of virtual orbitals to freeze.
+
+    Return:
+        StreamObject: A new scf object with fewer virtual orbitals.
+    """
+    reduced_scf_method = scf_method.copy()
+    if n_frozen_virt <= 0:
+        logger.debug("No virtual orbital reduction.")
+        return reduced_scf_method
+    elif n_frozen_virt >= np.count_nonzero(reduced_scf_method.mo_occ):
+        logger.error("Attempting to reduce the virtual space by more than exist.")
+        raise ValueError("Atempting to reduce virtual space by more than exist.")
+
+    logger.debug(f"Reducing virtuals by {n_frozen_virt}.")
+
+    if isinstance(reduced_scf_method, (scf.uhf.UHF)):
+        print(reduced_scf_method.mo_coeff.shape)
+        print(reduced_scf_method.mo_coeff[:, :-n_frozen_virt])
+        reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :, :-n_frozen_virt]
+        reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:, :-n_frozen_virt]
+
+    elif isinstance(reduced_scf_method, (scf.hf.RHF, scf.rohf.ROHF)):
+        reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :-n_frozen_virt]
+        reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:-n_frozen_virt]
+
+    return reduced_scf_method

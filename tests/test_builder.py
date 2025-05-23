@@ -11,7 +11,7 @@ from pyscf.gto import Mole
 from pyscf.scf import RHF, UHF
 
 from nbed.driver import NbedDriver
-from nbed.ham_builder import HamiltonianBuilder
+from nbed.ham_builder import HamiltonianBuilder, reduce_virtuals
 
 logger = getLogger(__name__)
 
@@ -142,3 +142,18 @@ def test_unrestricted(charged_scf) -> None:
 
     logger.info(f"Ground state via diagonalisation: {diag}")
     assert np.isclose(e_fci, diag)
+
+def test_reduce_virtuals(restricted_scf, unrestricted_scf):
+    reduced_restricted = reduce_virtuals(restricted_scf, 1)
+    reduced_unrestricted = reduce_virtuals(unrestricted_scf, 1)
+
+    assert  reduced_restricted.mo_coeff.shape[-1] == reduced_unrestricted.mo_coeff.shape[-1] == 6
+    assert  np.all(reduced_restricted.mo_occ == np.sum(reduced_unrestricted.mo_occ, axis=0))
+
+    with pytest.raises(ValueError) as excinfo:
+        reduce_virtuals(restricted_scf, 7)
+
+    assert "more than exist" in str(excinfo)
+
+    assert np.all(restricted_scf.mo_coeff == reduce_virtuals(restricted_scf, 0).mo_coeff)
+    assert np.all(restricted_scf.mo_coeff == reduce_virtuals(restricted_scf, 0).mo_coeff)
