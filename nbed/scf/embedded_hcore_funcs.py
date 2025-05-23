@@ -1,12 +1,10 @@
 """Functions from PySCF that need to be tweeked to allow our hack of adding Vemb to Hcore."""
 
-from typing import Tuple
-
 import numpy as np
 from pyscf import ao2mo
 
 
-def energy_elec(mf, dm=None, h1e=None, vhf=None) -> Tuple[float, float]:
+def energy_elec(mf, dm=None, h1e=None, vhf=None) -> tuple[float, float]:
     """Electronic energy of Unrestricted Hartree-Fock.
 
     Note this function has side effects which cause mf.scf_summary updated.

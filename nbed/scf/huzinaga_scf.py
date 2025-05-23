@@ -1,7 +1,7 @@
 """Perform Huzinaga RHF with PySCF."""
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import scipy as sp
@@ -62,7 +62,7 @@ def huzinaga_scf(
     dm_conv_tol: float = 1e-6,
     dm_initial_guess: Optional[np.ndarray] = None,
     use_DIIS: Optional[np.ndarray] = True,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
     """Manual RHF calculation that is implemented using the huzinaga operator.
 
     Note this function uses lowdin (symmetric) orthogonalization only! (PySCF sometimes uses meta-lowdin and NAO). Also

@@ -8,14 +8,14 @@ import numpy as np
 from pyscf import dft, scf
 from pyscf.lib import StreamObject
 
-from ..exceptions import NbedLocalizerError
+from ...exceptions import NbedLocalizerError
 
 # from ..utils import restricted_float_percentage
 
 logger = logging.getLogger(__name__)
 
 
-class Localizer(ABC):
+class OccupiedLocalizer(ABC):
     """Object used to localise molecular orbitals (MOs) using different localization schemes.
 
     Running localization returns active and environment systems.
@@ -64,7 +64,7 @@ class Localizer(ABC):
 
     def _localize(
         self,
-    ) -> Tuple[Tuple, Union[Tuple, None]]:
+    ) -> tuple[Tuple, Union[Tuple, None]]:
         """Localise orbitals using SPADE.
 
         Returns:
@@ -92,7 +92,7 @@ class Localizer(ABC):
     @abstractmethod
     def _localize_spin(
         self, c_matrix: np.ndarray, occupancy: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Localize orbitals of one spin.
 
         Args:
@@ -101,21 +101,6 @@ class Localizer(ABC):
 
         Returns:
             np.ndarray: Localized C matrix of occupied orbitals.
-        """
-        pass
-
-    @abstractmethod
-    def localize_virtual(
-        self, local_scf: StreamObject, cutoff: Union[float, int]
-    ) -> StreamObject:
-        """Localise virtual (unoccupied) obitals.
-
-        Args:
-            local_scf (StreamObject): SCF object with occupied orbitals localized.
-            cutoff (float | int): Cutoff for localizing virtual orbitals.
-
-        Returns:
-            StreamObject: Fully Localized SCF object.
         """
         pass
 

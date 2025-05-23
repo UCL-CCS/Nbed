@@ -1,8 +1,5 @@
-nbed.scf package
-================
-
-Submodules
-----------
+SCF Functions
+=============
 
 nbed.scf.huzinaga\_scf module
 -----------------------------
@@ -16,14 +13,6 @@ nbed.scf.embedded\_hcore\_funcs module
 -----------------------------
 
 .. automodule:: nbed.scf.embedded_hcore_funcs
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: nbed.scf
    :members:
    :undoc-members:
    :show-inheritance:

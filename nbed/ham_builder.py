@@ -4,19 +4,17 @@ import logging
 import warnings
 from functools import cached_property
 from numbers import Number
-from typing import Optional, Tuple
 
 import numpy as np
 import openfermion.transforms as of_transforms
+from numpy.typing import NDArray
 from openfermion import (
-    FermionOperator,
     InteractionOperator,
     QubitOperator,
     count_qubits,
 )
 from openfermion.config import EQ_TOLERANCE
-from openfermion.transforms import jordan_wigner
-from pyscf import ao2mo, dft, scf
+from pyscf import ao2mo, dft, lib, scf
 from pyscf.lib import StreamObject
 from symmer.operators import IndependentOp, PauliwordOp, QuantumState
 from symmer.projection import QubitTapering, S3Projection
@@ -32,8 +30,8 @@ class HamiltonianBuilder:
     def __init__(
         self,
         scf_method: StreamObject,
-        constant_e_shift: Optional[float] = 0,
-        transform: Optional[str] = "jordan_wigner",
+        constant_e_shift: float = 0,
+        transform: str = "jordan_wigner",
         auto_freeze_core: bool = False,
         n_frozen_core: int = 0,
         n_frozen_virt: int = 0,
@@ -70,7 +68,7 @@ class HamiltonianBuilder:
             raise HamiltonianBuilderError("occupancy dimension error")
 
     @property
-    def _one_body_integrals(self) -> np.ndarray:
+    def _one_body_integrals(self) -> NDArray:
         """Get the one electron integrals."""
         logger.debug("Calculating one body integrals.")
         c_matrix_active = self.scf_method.mo_coeff
@@ -115,7 +113,7 @@ class HamiltonianBuilder:
         return one_body_integrals
 
     @property
-    def _two_body_integrals(self) -> np.ndarray:
+    def _two_body_integrals(self) -> NDArray:
         """Get the two electron integrals."""
         logger.debug("Calculating two body integrals.")
         c_matrix_active = self.scf_method.mo_coeff
@@ -165,7 +163,9 @@ class HamiltonianBuilder:
             # Copy this 4 times so that we have the same number as
             # the unrestricted case
             # Openfermion uses physicist notation whereas pyscf uses chemists
-            two_body_integrals = [np.asarray(eri.transpose(0, 2, 3, 1), order="C")] * 4
+            two_body_integrals = np.array(
+                [np.asarray(eri.transpose(0, 2, 3, 1), order="C")] * 4
+            )
 
         two_body_integrals = np.array(two_body_integrals)
 
@@ -173,85 +173,37 @@ class HamiltonianBuilder:
         logger.debug(f"{two_body_integrals.shape}")
         return two_body_integrals
 
-    def _reduced_orbitals(
-        self,
-        qubit_reduction: int,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Find the orbitals which correspond to the active space and core.
+    def reduce_virtuals(self, n_frozen_virt: int) -> lib.StreamObject:
+        """Reduce the number of virtual orbitals.
 
         Args:
-            qubit_reduction (int): Number of qubits to reduce by.
-
-        Returns:
-            active_indices (np.ndarray): Indices of active orbitals.
-            core_indices (np.ndarray): Indices of core orbitals.
+            n_frozen_virt (int): Number of virtual orbitals to freeze.
         """
-        logger.debug("Finding active space.")
-        logger.debug(f"Reducing by {qubit_reduction} qubits.")
+        reduced_scf_method = self.scf_method.copy()
+        if n_frozen_virt <= 0:
+            logger.debug("No virtual orbital reduction.")
+            return reduced_scf_method
 
-        if type(qubit_reduction) is not int:
-            logger.error("Invalid qubit_reduction of type %s.", type(qubit_reduction))
-            raise HamiltonianBuilderError("qubit_reduction must be an Intger")
-        if qubit_reduction == 0:
-            logger.debug("No active space reduction required.")
-            if self._restricted:
-                return np.array([]), np.where(self.scf_method.mo_occ >= 0)[0]
-            else:
-                return (
-                    np.array([]),
-                    np.where(self.scf_method.mo_occ.sum(axis=0) >= 0)[0],
-                )
+        logger.debug(f"Reducing virtuals by {n_frozen_virt}.")
+        reduced_scf_method.mo_coeff[0] = self.scf_method.mo_coeff[0][:, :-n_frozen_virt]
+        reduced_scf_method.mo_coeff[1] = self.scf_method.mo_coeff[1][:, :-n_frozen_virt]
 
-        # +1 because each MO is 2 qubits for closed shell
-        orbital_reduction = (qubit_reduction + 1) // 2
+        self.scf_method.run()
 
-        occupation = self.scf_method.mo_occ
-        if not self._restricted:
-            occupation = occupation.sum(axis=0)
-        occupied = np.where(occupation > 0)[0]
-        virtual = np.where(occupation == 0)[0]
-
-        # find where the last occupied level is
-        logger.debug("Occupied orbitals %s.", occupied)
-        logger.debug("virtual orbitals %s.", virtual)
-
-        occupied_reduction = (
-            orbital_reduction * len(occupied)
-        ) // self._one_body_integrals.shape[-1]
-        virtual_reduction = orbital_reduction - occupied_reduction
-        logger.debug(f"Reducing occupied by {occupied_reduction} spatial orbitals.")
-        logger.debug(f"Reducing virtual by {virtual_reduction} spatial orbitals.")
-
-        core_indices = np.array([])
-        removed_virtual = np.array([])
-
-        if occupied_reduction > 0:
-            core_indices = occupied[:occupied_reduction]
-            occupied = occupied[occupied_reduction:]
-
-        # We want the MOs nearest the fermi level
-        if virtual_reduction > 0:
-            removed_virtual = virtual[-virtual_reduction:]
-            virtual = virtual[:-virtual_reduction]
-
-        active_indices = np.append(occupied, virtual)
-        logger.debug(f"Core indices {core_indices}.")
-        logger.debug(f"Active indices {active_indices}.")
-        logger.debug(f"Removed virtual indices {removed_virtual}.")
-        return core_indices, active_indices
+        return reduced_scf_method
 
     def _spinorb_from_spatial(
-        self, one_body_integrals: np.ndarray, two_body_integrals: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        self, one_body_integrals: NDArray, two_body_integrals: NDArray
+    ) -> tuple[NDArray, NDArray]:
         """Convert spatial integrals to spin-orbital integrals.
 
         Args:
-            one_body_integrals (np.ndarray): One-electron integrals in physicist notation.
-            two_body_integrals (np.ndarray): Two-electron integrals in physicist notation.
+            one_body_integrals (NDArray): One-electron integrals in physicist notation.
+            two_body_integrals (NDArray): Two-electron integrals in physicist notation.
 
         Returns:
-            one_body_coefficients (np.ndarray): One-electron coefficients in spinorb form.
-            two_body_coefficients (np.ndarray): Two-electron coefficients in spinorb form.
+            one_body_coefficients (NDArray): One-electron coefficients in spinorb form.
+            two_body_coefficients (NDArray): Two-electron coefficients in spinorb form.
 
         """
         logger.debug("Converting to spin-orbital coefficients.")
@@ -372,12 +324,16 @@ class HamiltonianBuilder:
         if taper is not None:
             logger.warning("Tapering is deprecated. Use the qubit_reduction_driver.")
 
+        if self.n_frozen_virt != 0:
+            self.scf_method = reduce_virtuals(self.scf_method, self.n_frozen_virt)
+
         logger.info("Building Hamiltonian")
         one_body_integrals = self._one_body_integrals
         two_body_integrals = self._two_body_integrals
         one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
             one_body_integrals, two_body_integrals
         )
+
         logger.debug(f"{one_body_coefficients.shape=}")
         logger.debug(f"{two_body_coefficients.shape=}")
         logger.debug("Building interaction operator.")
@@ -410,7 +366,7 @@ class HamiltonianBuilder:
         """Qubit tapering and frozen core reduction."""
         if isinstance(self.scf_method.mo_occ[0], Number):
             mo_energy = self.scf_method.mo_energy
-        elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
+        elif isinstance(self.scf_method.mo_occ[0], NDArray):
             mo_energy = self.scf_method.mo_energy[0]
         else:
             raise ValueError("occupancy dimension error")
@@ -471,25 +427,6 @@ def array_to_dict_nonzero_indices(arr, tol=1e-10):
     return dict(zip(nonzero_indices, arr[where_nonzero]))
 
 
-def fermion_to_qubit_operator(
-    fermionic_operator: FermionOperator, n_qubits: int = None
-):
-    """Function to convert from fermion operators to qubit operators.
-
-    Note: see `openfermion.transforms` for different fermion to qubit mappings
-
-    Args:
-        fermionic_operator (FermionOperator): any fermionic operator (openfermion)
-        n_qubits (int): number of qubits (or spin orbitals)
-
-    Returns:
-        qubit_operator (PauliwordOp): qubit operator of fermonic operator (under certain mapping)
-    """
-    mapping = jordan_wigner
-    qubit_operator = mapping(fermionic_operator)
-    return PauliwordOp.from_openfermion(qubit_operator, n_qubits)
-
-
 def to_openfermion(pwop: PauliwordOp) -> QubitOperator:
     """Convert to OpenFermion Pauli operator representation.
 
@@ -540,3 +477,36 @@ def to_openfermion(pwop: PauliwordOp) -> QubitOperator:
     for op in ops:
         open_f += op
     return open_f
+
+
+def reduce_virtuals(scf_method, n_frozen_virt: int) -> lib.StreamObject:
+    """Reduce the number of virtual orbitals.
+
+    Args:
+        scf_method (StreamObject): A PySCF scf object.
+        n_frozen_virt (int):  Number of virtual orbitals to freeze.
+
+    Return:
+        StreamObject: A new scf object with fewer virtual orbitals.
+    """
+    reduced_scf_method = scf_method.copy()
+    if n_frozen_virt <= 0:
+        logger.debug("No virtual orbital reduction.")
+        return reduced_scf_method
+    elif n_frozen_virt >= np.count_nonzero(reduced_scf_method.mo_occ):
+        logger.error("Attempting to reduce the virtual space by more than exist.")
+        raise ValueError("Atempting to reduce virtual space by more than exist.")
+
+    logger.debug(f"Reducing virtuals by {n_frozen_virt}.")
+
+    if isinstance(reduced_scf_method, (scf.uhf.UHF)):
+        print(reduced_scf_method.mo_coeff.shape)
+        print(reduced_scf_method.mo_coeff[:, :-n_frozen_virt])
+        reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :, :-n_frozen_virt]
+        reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:, :-n_frozen_virt]
+
+    elif isinstance(reduced_scf_method, (scf.hf.RHF, scf.rohf.ROHF)):
+        reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :-n_frozen_virt]
+        reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:-n_frozen_virt]
+
+    return reduced_scf_method

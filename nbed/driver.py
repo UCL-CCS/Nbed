@@ -3,7 +3,7 @@
 import logging
 import os
 from functools import cached_property
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 from pyscf import cc, dft, fci, gto, qmmm, scf
@@ -12,6 +12,7 @@ from pyscf.lib import StreamObject
 from nbed.exceptions import NbedConfigError
 from nbed.localizers import (
     BOYSLocalizer,
+    ConcentricLocalizer,
     IBOLocalizer,
     PMLocalizer,
     SPADELocalizer,
@@ -39,6 +40,7 @@ class NbedDriver:
         run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
         run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
         run_virtual_localization (bool): Whether or not to localize virtual orbitals.
+        n_mo_overwrite (tuple[None| int, None | int]): Optional overwrite values for occupied localizers.
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
@@ -74,6 +76,7 @@ class NbedDriver:
         run_ccsd_emb: Optional[bool] = False,
         run_fci_emb: Optional[bool] = False,
         run_virtual_localization: Optional[bool] = True,
+        n_mo_overwrite: tuple[None | int, None | int] = (None, None),
         run_dft_in_dft: Optional[bool] = False,
         max_ram_memory: Optional[int] = 4000,
         pyscf_print_level: int = 1,
@@ -125,6 +128,7 @@ class NbedDriver:
         self.run_ccsd_emb = run_ccsd_emb
         self.run_fci_emb = run_fci_emb
         self.run_virtual_localization = run_virtual_localization
+        self.n_mo_overwrite = n_mo_overwrite
         self.run_dft_in_dft = run_dft_in_dft
         self.max_ram_memory = max_ram_memory
         self.pyscf_print_level = pyscf_print_level
@@ -305,6 +309,7 @@ class NbedDriver:
                 self._global_ks,
                 self.n_active_atoms,
                 max_shells=self.max_shells,
+                n_mo_overwrite=self.n_mo_overwrite,
             )
         else:
             localized_system = localizers[self.localization](
@@ -395,7 +400,7 @@ class NbedDriver:
         def _ks_components(
             ks_system: StreamObject,
             subsystem_dm: np.ndarray,
-        ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
+        ) -> tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
             For a given density matrix this function returns the electronic energy, exchange correlation energy and
@@ -531,7 +536,7 @@ class NbedDriver:
         self,
         emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
         frozen: Optional[list] = None,
-    ) -> Tuple[cc.CCSD, float]:
+    ) -> tuple[cc.CCSD, float]:
         """Function run CCSD on embedded restricted Hartree Fock object.
 
         Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
@@ -595,7 +600,7 @@ class NbedDriver:
 
     def _mu_embed(
         self, localized_scf: StreamObject, dft_potential: np.ndarray
-    ) -> Tuple[StreamObject, np.ndarray]:
+    ) -> tuple[StreamObject, np.ndarray]:
         """Embed using the Mu-shift projector.
 
         Args:
@@ -637,7 +642,7 @@ class NbedDriver:
         active_scf: StreamObject,
         dft_potential: np.ndarray,
         dmat_initial_guess: Optional[np.ndarray] = None,
-    ) -> Tuple[StreamObject, np.ndarray]:
+    ) -> tuple[StreamObject, np.ndarray]:
         """Embed using Huzinaga projector.
 
         Args:
@@ -701,7 +706,7 @@ class NbedDriver:
         mo_energy: np.ndarray,
         mo_occ: np.ndarray,
         environment_projector: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Remove enironment orbit from embedded rhf object.
 
         This function removes (in fact deletes completely) the molecular orbitals
@@ -1000,7 +1005,12 @@ class NbedDriver:
             # TODO correlation energy correction???
             if self.run_virtual_localization is True:
                 logger.debug("Performing virtual localization.")
-                result["scf"] = self.localized_system.localize_virtual(result["scf"])
+                # result["scf"] = self.localized_system.localize_virtual(result["scf"])
+                result["scf"] = ConcentricLocalizer(
+                    result["scf"],
+                    self.n_active_atoms,
+                    max_shells=self.max_shells,
+                ).localize_virtual(self._restricted_scf)
 
             result["e_rhf"] = (
                 result["scf"].e_tot

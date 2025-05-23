@@ -12,6 +12,12 @@ Welcome to Nbed's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   driver
+   builder
+   converter
+   localizers
+
+
 Indices and tables
 ==================
 
