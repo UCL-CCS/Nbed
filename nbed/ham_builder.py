@@ -366,7 +366,7 @@ class HamiltonianBuilder:
         """Qubit tapering and frozen core reduction."""
         if isinstance(self.scf_method.mo_occ[0], Number):
             mo_energy = self.scf_method.mo_energy
-        elif isinstance(self.scf_method.mo_occ[0], NDArray):
+        elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
             mo_energy = self.scf_method.mo_energy[0]
         else:
             raise ValueError("occupancy dimension error")
@@ -437,7 +437,7 @@ def to_openfermion(pwop: PauliwordOp) -> QubitOperator:
         open_f (QubitOperator): The QubitOperator representation of the PauliwordOp.
     """
 
-    def symplectic_to_of(symp_vec, coeff) -> str:
+    def symplectic_to_of(symp_vec, coeff) -> QubitOperator:
         """Returns string form of symplectic vector defined as (X | Z).
 
         Args:
