@@ -140,15 +140,14 @@ class HamiltonianBuilder:
                 "bbaa": (c_beta, c_beta, c_alpha, c_alpha),
             }
 
-            two_body_integrals = []
+            ints_list = []
             for spin in spin_options:
                 two_body_compressed = ao2mo.kernel(
                     self.scf_method.mol, spin_options[spin]
                 )
                 eri = ao2mo.restore(1, two_body_compressed, n_orbs_alpha)
-                two_body_integrals.append(
-                    np.asarray(eri.transpose(0, 2, 3, 1), order="C")
-                )
+                ints_list.append(np.asarray(eri.transpose(0, 2, 3, 1), order="C"))
+            two_body_integrals = np.stack(ints_list, axis=0)
 
         else:
             n_orbs = c_matrix_active.shape[1]
@@ -163,8 +162,8 @@ class HamiltonianBuilder:
             # Copy this 4 times so that we have the same number as
             # the unrestricted case
             # Openfermion uses physicist notation whereas pyscf uses chemists
-            two_body_integrals = np.array(
-                [np.asarray(eri.transpose(0, 2, 3, 1), order="C")] * 4
+            two_body_integrals = np.stack(
+                [np.asarray(eri.transpose(0, 2, 3, 1), order="C")] * 4, axis=0
             )
 
         two_body_integrals = np.array(two_body_integrals)
@@ -227,17 +226,21 @@ class HamiltonianBuilder:
                 for r in range(n_qubits // 2):
                     for s in range(n_qubits // 2):
                         # Same spin
+                        # aaaa
                         two_body_coefficients[2 * p, 2 * q, 2 * r, 2 * s] = (
                             two_body_integrals[0, p, q, r, s]
                         )
+                        # bbbb
                         two_body_coefficients[
                             2 * p + 1, 2 * q + 1, 2 * r + 1, 2 * s + 1
                         ] = two_body_integrals[1, p, q, r, s]
 
                         # Mixed spin in physicist
+                        # abba
                         two_body_coefficients[2 * p, 2 * q + 1, 2 * r + 1, 2 * s] = (
                             two_body_integrals[2, p, q, r, s]
                         )
+                        # baab
                         two_body_coefficients[2 * p + 1, 2 * q, 2 * r, 2 * s + 1] = (
                             two_body_integrals[3, p, q, r, s]
                         )
