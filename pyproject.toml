@@ -3,8 +3,8 @@ name = "nbed"
 version = "0.0.7"
 description = "Projection-based embedding methods for reducing quantum simulation resource requirements."
 authors = [
-    {name= "Michael Williams de la Bastida", email= "michael.williams.20@ucl.ac.uk"},
-    {name= "Alexis Ralli",  email= "alexis.ralli.18@ucl.ac.uk"}
+    { name = "Michael Williams de la Bastida", email = "michael.williams.20@ucl.ac.uk" },
+    { name = "Alexis Ralli", email = "alexis.ralli.18@ucl.ac.uk" },
 ]
 requires-python = ">=3.10, <4"
 dependencies = [
@@ -16,32 +16,36 @@ dependencies = [
     "numpy (>2.1.0, <3.0.0)",
 ]
 
-[tool.poetry.group.dev.dependencies]
-pre-commit = "^4.0.1"
-jupyter = "^1.0.0"
-pytest = ">=7.4.2"
-pandoc = "^2.3"
-poetry = "^2.0.0"
-pytest-cov = "^6.0.0"
-ruff = "^0.8.6"
-py3dmol = "^2.4.2"
-
-[tool.poetry.group.docs]
-optional = true
-
-[tool.poetry.group.docs.dependencies]
-nbsphinx = "^0.9.0"
-Sphinx = ">=5.0.0"
-sphinx-rtd-theme = ">=2.0.0"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
-
 [project.scripts]
 nbed = "nbed.embed:cli"
 
-# Ignore pytest warnings here
+[dependency-groups]
+dev = [
+    "pre-commit>=4.0.1,<5",
+    "jupyter>=1.0.0,<2",
+    "pytest>=7.4.2",
+    "pandoc~=2.3",
+    "poetry>=2.0.0,<3",
+    "pytest-cov>=6.0.0,<7",
+    "ruff>=0.8.6,<0.9",
+    "py3dmol>=2.4.2,<3",
+]
+docs = [
+    "nbsphinx>=0.9.0,<0.10",
+    "Sphinx>=5.0.0",
+    "sphinx-rtd-theme>=2.0.0",
+]
+
+[tool.uv]
+default-groups = [
+    "dev",
+    "docs",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [tool.pytest.ini_options]
 filterwarnings = [
     #H5py throws a custom deprecation warning about default file mode
