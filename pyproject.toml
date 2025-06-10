@@ -6,14 +6,14 @@ authors = [
     { name = "Michael Williams de la Bastida", email = "michael.williams.20@ucl.ac.uk" },
     { name = "Alexis Ralli", email = "alexis.ralli.18@ucl.ac.uk" },
 ]
-requires-python = ">=3.10, <4"
+requires-python = ">=3.11, <4"
 dependencies = [
     "openfermion (>=1.1.0, <2.0.0)",
     "PyYAML (>=6.0.0, <7.0.0)",
     "qiskit-nature (>=0.7.0,<1.0.0)",
     "symmer (>=0.0.7, <1.0.0)",
     "pyscf (>=2.3.0, <3.0.0)",
-    "numpy (>2.1.0, <3.0.0)",
+    "numpy (>2.0.0, <3.0.0)",
 ]
 
 [project.scripts]
@@ -23,17 +23,16 @@ nbed = "nbed.embed:cli"
 dev = [
     "pre-commit>=4.0.1,<5",
     "jupyter>=1.0.0,<2",
-    "pytest>=7.4.2",
-    "pandoc~=2.3",
+    "pytest>=7.4.2, <9",
     "poetry>=2.0.0,<3",
     "pytest-cov>=6.0.0,<7",
-    "ruff>=0.8.6,<0.9",
+    "ruff>=0.8,<1",
     "py3dmol>=2.4.2,<3",
 ]
 docs = [
     "nbsphinx>=0.9.0,<0.10",
-    "Sphinx>=5.0.0",
-    "sphinx-rtd-theme>=2.0.0",
+    "Sphinx>=5.0.0, <9",
+    "sphinx-rtd-theme>=2.0.0,<4",
 ]
 
 [tool.uv]
@@ -66,6 +65,6 @@ convention = "google"
 select = [
     "E4", "E7", "E9",
     "F",
-    "D", #pydocstyle (lets add this when we actually write docstrings)
+    "D", #pydocstyle
     "I", #isort
 ]
