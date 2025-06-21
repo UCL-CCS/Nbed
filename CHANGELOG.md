@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Fixed
 - `SPADELocalizer` now outputs whole c matrix when virtual localization is stopped early.
 - `ACELocalizer` was returning 1 too few moleucular orbitals.
+- Fixed a bug causing embedded FCI calculations to fail for open shell systems.
 
 ## Changed
 - 'nbed.scf.huzinaga_hf' and 'nbed.scf.huzinaga_rks' cmbined into 'nbed.scf.huzinaga_scf'
