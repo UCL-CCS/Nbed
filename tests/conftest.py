@@ -69,3 +69,24 @@ def restricted_driver():
 
     driver = NbedDriver(**args)
     return driver
+
+@pytest.fixture(scope="module")
+def unrestricted_driver():
+    water_xyz_raw = (
+        "3\n \nH\t0.2774\t0.8929\t0.2544\nO\t0\t0\t0\nH\t0.6068\t-0.2383\t-0.7169"
+    )
+    args = {
+        "geometry": water_xyz_raw,
+        "n_active_atoms": 2,
+        "basis": "STO-3G",
+        "xc_functional": "b3lyp",
+        "projector": "mu",
+        "localization": "spade",
+        "convergence": 1e-6,
+        "run_ccsd_emb": False,
+        "run_fci_emb": False,
+        "force_unrestricted": True,
+    }
+
+    driver = NbedDriver(**args)
+    return driver

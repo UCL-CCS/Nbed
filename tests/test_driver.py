@@ -34,6 +34,12 @@ def huz_unrestricted_driver(driver_args) -> NbedDriver:
     driver_args["force_unrestricted"] = True
     return NbedDriver(**driver_args)
 
+def test_embedded_fci(mu_driver, mu_unrestricted_driver, huz_driver, huz_unrestricted_driver):
+    assert(np.isclose(mu_driver._run_emb_FCI(mu_driver.embedded_scf).e_tot, -51.61379094995273))
+    assert(np.isclose(mu_unrestricted_driver._run_emb_FCI(mu_unrestricted_driver.embedded_scf).e_tot, -51.61379094995273))
+    assert(np.isclose(huz_driver._run_emb_FCI(huz_driver.embedded_scf).e_tot, -51.61379094995273))
+    assert(np.isclose(huz_unrestricted_driver._run_emb_FCI(huz_unrestricted_driver.embedded_scf).e_tot, -51.61379094995273))
+
 def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:
     assert mu_driver._mu is not {} and mu_driver._huzinaga is None
     assert huz_driver._huzinaga is not {} and huz_driver._mu is None
@@ -225,7 +231,6 @@ def test_incorrect_geometry_path() -> None:
     with pytest.raises(RuntimeError, match="Unsupported atom symbol .*"):
         # match will match with any printed error message
         NbedDriver(**args)
-
 
 if __name__ == "__main__":
     pass

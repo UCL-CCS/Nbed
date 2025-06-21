@@ -2,7 +2,7 @@
 
 import logging
 import os
-from functools import cached_property
+from functools import cached_property, reduce
 from typing import Callable, Optional, Union
 
 import numpy as np
@@ -594,7 +594,19 @@ class NbedDriver:
         fci_scf.conv_tol = self.convergence
         fci_scf.verbose = self.pyscf_print_level
         fci_scf.max_memory = self.max_ram_memory
-        fci_scf.run()
+
+        # For UHF, PySCF assumes that hcore is spinless and 2D
+        # Because we update hcore for embedding, we need to calculate our own h1e term.
+        if np.ndim(hcore := emb_pyscf_scf_rhf.get_hcore()) == 3:
+            mo = emb_pyscf_scf_rhf.mo_coeff
+            h1e = [
+                reduce(np.dot, (mo[0].T, hcore[0], mo[0])),
+                reduce(np.dot, (mo[1].T, hcore[1], mo[1])),
+            ]
+            fci_scf.kernel(h1e=h1e)
+        else:
+            # kernel function default value is passed in
+            fci_scf.kernel()
         logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
         return fci_scf
 
@@ -617,17 +629,7 @@ class NbedDriver:
         # which we need for different embedding potentials
         v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
         hcore_std = localized_scf.get_hcore()
-        if isinstance(localized_scf, (scf.uhf.UHF, dft.uks.UKS)):
-            localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
-
-            localized_scf.get_hcore = (
-                lambda *args: np.array([hcore_std, hcore_std]) + v_emb
-            )
-        elif isinstance(localized_scf, (scf.rhf.RHF, dft.rks.RKS)):
-            localized_scf.get_hcore = lambda *args: hcore_std + v_emb
-        else:
-            logger.error(f"Invalid scf object of type {type(localized_scf)}.")
-            raise NbedConfigError("Invalid scf object.")
+        localized_scf.get_hcore = lambda *args: hcore_std + v_emb
 
         localized_scf.kernel()
         logger.info(
@@ -1005,7 +1007,6 @@ class NbedDriver:
             # TODO correlation energy correction???
             if self.run_virtual_localization is True:
                 logger.debug("Performing virtual localization.")
-                # result["scf"] = self.localized_system.localize_virtual(result["scf"])
                 result["scf"] = ConcentricLocalizer(
                     result["scf"],
                     self.n_active_atoms,
