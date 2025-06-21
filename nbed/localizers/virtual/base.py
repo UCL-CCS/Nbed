@@ -6,7 +6,7 @@ from pyscf import gto
 from pyscf.lib import StreamObject
 
 
-class BaseVirtualLocalizer(ABC):
+class VirtualLocalizer(ABC):
     """Base class for virtual localizers.
 
     Args:
@@ -19,7 +19,7 @@ class BaseVirtualLocalizer(ABC):
     """
 
     def __init__(self, embedded_scf: StreamObject):
-        """Initialize BaseVirtualLocalizer.
+        """Initialize VirtualLocalizer.
 
         Args:
             embedded_scf (StreamObject): A pyscf SCF object.

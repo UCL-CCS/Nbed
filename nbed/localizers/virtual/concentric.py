@@ -6,12 +6,12 @@ import numpy as np
 from pyscf import gto, scf
 from pyscf.lib import StreamObject
 
-from .base import BaseVirtualLocalizer
+from .base import VirtualLocalizer
 
 logger = logging.getLogger(__name__)
 
 
-class ConcentricLocalizer(BaseVirtualLocalizer):
+class ConcentricLocalizer(VirtualLocalizer):
     """Class to localize virtual orbitals using concentric localization.
 
     Attributes:
