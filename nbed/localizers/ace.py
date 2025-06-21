@@ -9,13 +9,27 @@ import numpy as np
 from pyscf import dft, lib, scf
 from scipy.optimize import curve_fit, minimize
 
-from nbed.localizers.spade import SPADELocalizer
+from nbed.localizers.occupied.spade import SPADELocalizer
 
 logger = logging.getLogger(__name__)
 
 
 class ACELocalizer:
-    """Implements ACE of SPADE along coordinate path."""
+    """Implements ACE of SPADE along coordinate path.
+
+    Attributes:
+        global_scf_list (list[lib.StreamObject]): List of unlocalized PySCF method objects.
+        n_active_atoms (int): Number of active atoms.
+        max_shells (int): Maximum number of shells to use in SPADE localization.
+        n_mo_overwrite (tuple[int, int]): Number of MOs to overwrite for alpha and beta spins.
+        shells (list[int]): List of shell numbers.
+        singular_values (list[np.ndarray[float]]): Singular values from SPADE for each geometry.
+        enviro_selection_condition (list[np.ndarray[float]]): Environment selection condition for each geometry.
+
+    Methods:
+        localize_path: Find the number of MOs to use over the reaction coordinates.
+        localize_spin: Run ACE of SPADE for a single spin.
+    """
 
     def __init__(
         self,
@@ -23,18 +37,27 @@ class ACELocalizer:
         n_active_atoms: int,
         max_shells: int = 4,
     ):
-        """Initialize."""
+        """Initialize.
+
+        Args:
+            global_scf_list (list[lib.StreamObject]): List of unlocalized PySCF method objects.
+            n_active_atoms (int): Number of active atoms.
+            max_shells (int): Maximum number of shells to use in SPADE localization.
+        """
         self.global_scf_list = global_scf_list
         self.n_active_atoms = n_active_atoms
         self.max_shells = max_shells
 
+        if len({gscf.mo_coeff.shape for gscf in global_scf_list}) != 1:
+            raise ValueError("Global SCF inputs must have the same mo_coeff shape.")
+
     def localize_path(self) -> tuple[int, int]:
         """Find the number of MOs to use over the reaction coordinates.
 
-        NOTE: Only returns one number for both spins.
-
         Returns:
             tuple(int,int): Number of molecular orbitals for spin alpha, beta.
+
+        Note: For restricted systems, a tuple of (equal) values is still given.
         """
         logger.debug("Running ACE of SPADE across reaction coordinates.")
         localized_systems = []
@@ -44,7 +67,8 @@ class ACELocalizer:
 
         # only does restricted atm
         singular_values = [loc.enviro_selection_condition for loc in localized_systems]
-        logger.debug(f"{singular_values=}")
+        logger.debug("Singular Values")
+        logger.debug(singular_values)
 
         if isinstance(scf_object, (scf.hf.RHF, dft.rks.RKS)):
             alpha = self.localize_spin([s[0] for s in singular_values])
@@ -56,6 +80,7 @@ class ACELocalizer:
             error_string = f"SCF object of type {type(scf_object)} cannot be used."
             logger.error(error_string)
             raise TypeError(error_string)
+        logger.debug("ACE-of-SPADE Complete: %s", (alpha, beta))
         return (alpha, beta)
 
     def localize_spin(self, singular_values) -> int:
@@ -100,6 +125,6 @@ class ACELocalizer:
         mean_max = np.mean(max_vals)
         # we want to round to the nearesrt 1, we cam do this with int(val+0.5)
         nmo = mean_max + np.argwhere(diff_i_max == np.int64(0)) + 0.5
-        nmo = int(nmo)
+        nmo = int(nmo) + 1
         logger.debug(f"Using {nmo} Molecular Orbitals")
         return nmo
