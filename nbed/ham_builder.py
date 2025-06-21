@@ -503,8 +503,6 @@ def reduce_virtuals(scf_method, n_frozen_virt: int) -> lib.StreamObject:
     logger.debug(f"Reducing virtuals by {n_frozen_virt}.")
 
     if isinstance(reduced_scf_method, (scf.uhf.UHF)):
-        print(reduced_scf_method.mo_coeff.shape)
-        print(reduced_scf_method.mo_coeff[:, :-n_frozen_virt])
         reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :, :-n_frozen_virt]
         reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:, :-n_frozen_virt]
 
