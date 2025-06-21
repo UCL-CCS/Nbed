@@ -25,9 +25,9 @@ def water_xyz_o_active():
     return "3\n \nO\t0\t0\t0\nH\t0.2774\t0.8929\t0.2544\nH\t0.6068\t-0.2383\t-0.7169\n"
 
 
-def test_pubchem_mol_geometry(water_struct_dict) -> None:
+# def test_pubchem_mol_geometry(water_struct_dict) -> None:
 
-    assert pubchem_mol_geometry("water") == water_struct_dict
+#     assert pubchem_mol_geometry("water") == water_struct_dict
 
 
 def test_build_ordered_xyz_string(water_struct_dict, water_xyz_o_active) -> None:

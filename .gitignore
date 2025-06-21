@@ -4,6 +4,7 @@ data/
 
 # Notebook for development
 problem_solving.ipynb
+.development/
 
 # ignore locally defined structures
 molecular_structures/
