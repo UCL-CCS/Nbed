@@ -12,3 +12,5 @@ jobs:
         with:
           # Install a specific version of uv.
           version: "0.7.12"
+      - name: Instatall Dependencies
+        run: uv pip install -r pyproject.toml --all-extras

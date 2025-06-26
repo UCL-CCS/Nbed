@@ -3,7 +3,7 @@ on:
   workflow_call:
 
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -12,3 +12,7 @@ jobs:
         with:
           # Install a specific version of uv.
           version: "0.7.12"
+      - name: Check Pre-commits
+        run: |
+          pre-commit install
+          pre-commit run -a
