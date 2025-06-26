@@ -1,7 +1,6 @@
-name: Release CICD
+name: Test Publish
 on:
-  release:
-    types: [published]
+  workflow_call:
 jobs:
   build:
     uses: ./.github/workflows/build.yaml
@@ -24,10 +23,5 @@ jobs:
       run: |
         uv venv .venv/
         uv pip install -r pyproject.toml --all-extras
-    - name: Build
-      run: |
-        uv build
     - name: Publish to testpypi
-      run: poetry publish -r testpypi --skip-existing -u ${{secrets.PYPI_USERNAME}} -p ${{secrets.TESTPYPI_PASSWORD}}
-    - name: Publish to pypi
-      run: poetry publish -u ${{secrets.PYPI_USERNAME}} -p ${{secrets.PYPI_PASSWORD}}
+      run: uv publish dist/* -r testpypi --skip-existing -u ${{secrets.PYPI_USERNAME}} -p ${{secrets.TESTPYPI_PASSWORD}}

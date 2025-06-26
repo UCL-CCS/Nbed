@@ -12,11 +12,5 @@ on:
         description: 'Which branch to test?'
         required: true
 jobs:
-  build:
+  pr:
     uses: ./.github/workflows/build.yaml
-  lint:
-    needs: [build]
-    uses: ./.github/workflows/lint.yaml
-  test:
-    needs: [lint]
-    uses: ./.github/workflows/test.yaml
