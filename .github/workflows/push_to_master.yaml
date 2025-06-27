@@ -9,8 +9,5 @@ on:
         description: 'Branch to test'
         required: true
 jobs:
-  build:
+  push_master:
     uses: ./.github/workflows/build.yaml
-  lint:
-    needs: [build]
-    uses: ./.github/workflows/lint.yaml

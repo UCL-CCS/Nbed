@@ -1,0 +1,45 @@
+name: Test Publish
+on:
+  workflow_call:
+jobs:
+  test-publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        # Install a specific version of uv.
+        version: "0.7.12"
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+    - name: Build Binaries
+      run: |
+        uv venv .venv/
+        uv pip install -r pyproject.toml --all-extras
+        uv build
+    - name: Smoke test (wheel)
+      run: uv run --isolated --no-project -p 3.13 --with dist/*.whl tests/smoke_test.py
+    - name: Smoke test (source distribution)
+      run: uv run --isolated --no-project -p 3.13 --with dist/*.tar.gz tests/smoke_test.py
+    - name: Publish to testpypi
+      run: uv publish --trusted-publishing always --publish-url https://test.pypi.org/legacy/
+  publish:
+    runs-on: ubuntu-latest
+    needs: [test-publish]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        # Install a specific version of uv.
+        version: "0.7.12"
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+    - name: Build Binaries
+      run: |
+        uv venv .venv/
+        uv pip install -r pyproject.toml --all-extras
+        uv build
+    - name: Publish to testpypi
+      run: uv publish --trusted-publishing always

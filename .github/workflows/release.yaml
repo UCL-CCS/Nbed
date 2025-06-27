@@ -5,27 +5,5 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/build.yaml
-  lint:
-    needs: [build]
-    uses: ./.github/workflows/lint.yaml
   publish:
-    runs-on: ubuntu-latest
-    needs:
-      - build
-      - lint
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.10'
-      - name: Install poetry
-        run: pip install poetry
-      - name: Build
-        run: |
-          poetry config repositories.testpypi https://test.pypi.org/legacy/
-          poetry build
-      - name: Publish to testpypi
-        run: poetry publish -r testpypi --skip-existing -u ${{secrets.PYPI_USERNAME}} -p ${{secrets.TESTPYPI_PASSWORD}}
-      - name: Publish to pypi
-        run: poetry publish -u ${{secrets.PYPI_USERNAME}} -p ${{secrets.PYPI_PASSWORD}}
+    uses: ./.github/workflows/publish.yaml

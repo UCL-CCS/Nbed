@@ -1,14 +1,34 @@
-name: Set-Up
+name: Build
 on:
   workflow_call:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.12"
+          - "3.13"
     steps:
-      - uses: actions/checkout@v4
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          # Install a specific version of uv.
-          version: "0.7.12"
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        # Install a specific version of uv.
+        version: "0.7.12"
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+    - name: Install Dependencies
+      run: |
+        uv venv .venv/
+        uv pip install -r pyproject.toml --all-extras
+    - name: Check Pre-commits
+      run: |
+        uv run pre-commit install
+        uv run pre-commit run -a
+    - uses: actions/checkout@v4
+    - name: Run Pytest
+      run: uv run pytest
