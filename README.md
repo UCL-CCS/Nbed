@@ -3,13 +3,11 @@
 
 
 # Nbed
-
 This package implements projection-based embedding methods to reduce the size of a molecular Hamiltonain via embedding in DFT. Output qubit hamiltonains can be solved by a suitable quantum algorithm.
 
 Nbed uses PySCF as a backend for chemistry caluculations, which is not supported on Windows. Alternative chemistry backends are planned, however in the mean time this package will work only for Linux and MacOS.
 
 ## Documentation
-
 Full documentation is available at [https://nbed.readthedocs.io](https://nbed.readthedocs.io).
 
 ## Installation
@@ -20,21 +18,19 @@ The package is available on [PyPI](https://pypi.org/project/nbed/) and can be in
 ```
 pip install nbed
 ```
-### Poetry
 
-Development of Nbed uses the packaging and dependency manager Poetry, to install it from the command line run::
+### Dependencies
 
-    pip install poetry
-
+Development of Nbed uses the packaging and dependency manager uv, to install it from the command line run::
+```shell
+    pip install uv
+```
 with this installed, you can start working on the package by running:
+```shell
+    uv venv .venv/
+    uv pip install .
+```
 
-    poetry install
-
-which will create a virtual environment with the required dependencies.
-
-This virtual environment subsequently can be activated with:
-
-    poetry shell
 ## Use
 
 The package has three main interfaces, each to the same function `embed/nbed`.
@@ -121,38 +117,18 @@ from nbed import load_hamiltonian
 qham = load_hamiltonian(<path to hamiltonian JSON>, <output type>)
 ```
 
-## Structure
-
-```
-Nbed
-    docs_source
-    nbed
-    notebooks
-    logs
-    tests
-```
-### nbed
-
-Main functionality of the package.
+## Overview
 
 - `embed.py` - main functionality
 - `driver.py` - Class which carries out the algorithm. Main point of access for functionality.
 - `ham_converter.py` - class to convert between Hamiltonian formats as well as save to and read from JSON.
 - `ham_builder.py` - class to build Hamiltonians from quantum chemistry calculations.
 - `localizers/` - Classes which perform localization.
-- `mol_plot.py` - functions to plot the systems localised molecular orbitals.
 - `utils.py` - log settings and cli parsing.
 
-### Notebooks
+## Examples and Explainers
 This [folder](https://github.com/UCL-CCS/Nbed/tree/master/docs/source/notebooks) contains jupyter notebooks which explain the embedding procedure in detail, including relevant theory. Notebooks to replicate results presented in publications can also be found here.
 
-
-### Tests
-
-Contains all tests of the package. These can be run from the command line using `pytest`.
-
-### Logs
-Each time the package is initialised a new log will be started in the top level director at `Nbed/.nbed.log`.
 
 ## Development
 If you would like to contribute to this code base please first create an issue and a fork of the repo from which to make your pull request.
