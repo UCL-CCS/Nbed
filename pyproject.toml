@@ -1,6 +1,6 @@
 [project]
 name = "nbed"
-version = "0.0.7"
+version = "0.0.8"
 description = "Projection-based embedding methods for reducing quantum simulation resource requirements."
 authors = [
     { name = "Michael Williams de la Bastida", email = "michael.williams.20@ucl.ac.uk" },
