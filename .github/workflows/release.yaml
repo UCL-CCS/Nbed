@@ -6,28 +6,4 @@ jobs:
   build:
     uses: ./.github/workflows/build.yaml
   publish:
-    runs-on: ubuntu-latest
-    needs: [build]
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
-      with:
-        python-version: "3.13"
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
-      with:
-        # Install a specific version of uv.
-        version: "0.7.12"
-        enable-cache: true
-        cache-dependency-glob: "uv.lock"
-    - name: Install Dependencies
-      run: |
-        uv venv .venv/
-        uv pip install -r pyproject.toml --all-extras
-    - name: Build
-      run: |
-        uv build
-    - name: Publish to testpypi
-      run: poetry publish -r testpypi --skip-existing -u ${{secrets.PYPI_USERNAME}} -p ${{secrets.TESTPYPI_PASSWORD}}
-    - name: Publish to pypi
-      run: poetry publish -u ${{secrets.PYPI_USERNAME}} -p ${{secrets.PYPI_PASSWORD}}
+    uses: ./.github/workflows/publish.yaml
