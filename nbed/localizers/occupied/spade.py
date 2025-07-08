@@ -39,7 +39,7 @@ class SPADELocalizer(OccupiedLocalizer):
         global_scf: lib.StreamObject,
         n_active_atoms: int,
         max_shells: int = 4,
-        n_mo_overwrite: tuple[int, int] | None = None,
+        n_mo_overwrite: tuple[int | None, int | None] | None = None,
     ):
         """Initialize SPADE Localizer object."""
         self.max_shells = max_shells
@@ -135,10 +135,10 @@ class SPADELocalizer(OccupiedLocalizer):
             n_act_mos = 1
         elif n_mo_overwrite is not None and len(sigma) >= n_mo_overwrite:
             logger.debug(f"Enforcing use of {n_mo_overwrite} MOs")
-            n_act_mos = n_mo_overwrite
+            n_act_mos: int = n_mo_overwrite
         else:
             value_diffs = sigma[:-1] - sigma[1:]
-            n_act_mos = np.argmax(value_diffs) + 1
+            n_act_mos: int = np.argmax(value_diffs) + 1
 
         n_env_mos = n_occupied_orbitals - n_act_mos
         logger.debug(f"{n_act_mos} active MOs.")

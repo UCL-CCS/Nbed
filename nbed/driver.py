@@ -2,18 +2,9 @@
 
 import logging
 from functools import cached_property, reduce
-from typing import Annotated, Callable, Optional, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    Field,
-    FilePath,
-    NonNegativeInt,
-    PositiveFloat,
-    PositiveInt,
-)
 from pyscf import cc, dft, fci, gto, qmmm, scf
 from pyscf.lib import StreamObject
 
@@ -22,40 +13,23 @@ from nbed.localizers import (
     BOYSLocalizer,
     ConcentricLocalizer,
     IBOLocalizer,
+    OccupiedLocalizer,
     PMLocalizer,
     SPADELocalizer,
 )
 
+from .config import Localizer, NbedConfig
 from .scf import energy_elec, huzinaga_scf
-from .types import Localizer, Projector, XYZGeometry, validate_xyz_file
 
 # Create the Logger
 logger = logging.getLogger(__name__)
 
 
-class NbedDriver(BaseModel):
+class NbedDriver:
     """Function to return the embedding Qubit Hamiltonian.
 
     Args:
-        geometry (str): Path to .xyz file containing molecular geometry or raw xyz string.
-        n_active_atoms (int): The number of atoms to include in the active region.
-        basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
-        xc_functional (str): The name of an Exchange-Correlation functional to be used for DFT.
-        projector (str): Projector to screen out environment orbitals, One of 'mu' or 'huzinaga'.
-        localization (str): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
-        convergence (float): The convergence tolerance for energy calculations.
-        charge (int): Charge of molecular species
-        mu_level_shift (float): Level shift parameter to use for mu-projector.
-        run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
-        run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
-        run_virtual_localization (bool): Whether or not to localize virtual orbitals.
-        n_mo_overwrite (tuple[None| int, None | int]): Optional overwrite values for occupied localizers.
-        max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
-        pyscf_print_level (int): Amount of information PySCF prints
-        unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
-        max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
-        max_dft_cycles (int): max number of DFT iterations allowed in scf calc
-        init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
+        config (NbedConfig): A validated config model.
 
     Attributes:
         _global_fci (StreamObject): A Qubit Hamiltonian of some kind
@@ -69,61 +43,33 @@ class NbedDriver(BaseModel):
         classical_energy (float): environment correction energy to obtain total energy (for huzianga method)
     """
 
-    geometry: XYZGeometry | Annotated[FilePath, AfterValidator(validate_xyz_file)]
-    n_active_atoms: PositiveInt
-    basis: str
-    xc_functional: str
-    projector: Projector = Field(default=Projector.MU)
-    localization: Localizer = Field(default=Localizer.SPADE)
-    convergence: PositiveFloat = 1e-6
-    charge: NonNegativeInt = Field(default=0)
-    spin: NonNegativeInt = Field(default=0)
-    symmetry: bool = False
-    mu_level_shift: PositiveFloat = 1e6
-    run_ccsd_emb: bool = False
-    run_fci_emb: bool = False
-    run_virtual_localization: bool = True
-    n_mo_overwrite: tuple[None | NonNegativeInt, None | NonNegativeInt] = (None, None)
-    run_dft_in_dft: bool = False
-    max_ram_memory: PositiveInt = 4000
-    pyscf_print_level: int = 1
-    occupied_threshold: float = Field(default=0.95, gt=0, lt=1)
-    virtual_threshold: float = Field(default=0.95, gt=0, lt=1)
-    max_shells: PositiveInt = 4
-    init_huzinaga_rhf_with_mu: bool = False
-    max_hf_cycles: PositiveInt = Field(default=50)
-    max_dft_cycles: PositiveInt = Field(default=50)
-    force_unrestricted: bool = False
-    run_qmmm: bool = False
-    mm_coords: list | None = None
-    mm_charges: list | None = None
-    mm_radii: list | None = None
+    def __init__(self, config: NbedConfig):
+        """Initialise NbedDriver."""
+        self.config = config
+        self.localized_system: OccupiedLocalizer
+        self.two_e_cross: np.typing.NDArray
+        self.dft_potential: np.typing.NDArray
+        self.electron: int
+        self.v_emb: np.typing.NDArray
+        self._mu: dict
+        self._huzinaga: dict
 
-    def __post_init__(self):
-        """Post-init."""
-        self.localized_system = None
-        self.two_e_cross = None
-        self.dft_potential = None
-        self.electron = None
-        self.v_emb = None
-        self._mu = None
-        self._huzinaga = None
-
-        self._mu = None
-        self._huzinaga = None
-
-        # Seems needless to add it to config we don't use.
-        self.unit = "angstrom"
-
-        if self.force_unrestricted:
+        if config.force_unrestricted:
             logger.debug("Forcing unrestricted SCF")
             self._restricted_scf = False
-        elif self.charge % 2 == 1 or self.spin != 0:
+        elif self.config.charge % 2 == 1 or self.config.spin != 0:
             logger.debug("Open shells, using unrestricted SCF.")
             self._restricted_scf = False
         else:
             logger.debug("Closed shells, using restricted SCF.")
             self._restricted_scf = True
+
+        # if we have values for all three, assume we want to run qmmm
+        self.run_qmmm = None not in [
+            config.mm_charges,
+            config.mm_coords,
+            config.mm_radii,
+        ]
 
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
@@ -132,103 +78,95 @@ class NbedDriver(BaseModel):
             full_mol (gto.mol): built PySCF molecule object
         """
         logger.debug("Constructing molecule.")
-        if isinstance(self.geometry, FilePath):
-            # geometry is an xyz file
-            full_mol = gto.Mole(
-                atom=self.geometry,
-                basis=self.basis,
-                charge=self.charge,
-                unit=self.unit,
-                spin=self.spin,
-                symmetry=self.symmetry,
-            ).build()
-        elif isinstance(self.geometry, str):
-            logger.info(
-                "Input geometry is not an existing file. Assumng raw xyz input."
-            )
-            logger.info("Input geometry: %s", self.geometry)
-            # geometry is raw xyz string
-            full_mol = gto.Mole(
-                atom=self.geometry[3:],
-                basis=self.basis,
-                charge=self.charge,
-                unit=self.unit,
-                spin=self.spin,
-                symmetry=self.symmetry,
-            ).build()
+        logger.info("Input geometry: %s", self.config.geometry)
+        # geometry is raw xyz string
+        full_mol = gto.Mole(
+            atom=self.config.geometry[3:],
+            basis=self.config.basis,
+            charge=self.config.charge,
+            unit=self.config.unit,
+            spin=self.config.spin,
+        ).build()
         logger.debug("Molecule built.")
         return full_mol
 
     @cached_property
-    def _global_hf(self) -> StreamObject:
+    def _global_hf(self, **hf_kwargs) -> StreamObject:
         """Run full system Hartree-Fock."""
         logger.debug("Running full system HF.")
         mol_full = self._build_mol()
         # run Hartree-Fock
-        global_hf = scf.UHF(mol_full) if not self._restricted_scf else scf.RHF(mol_full)
-        global_hf.conv_tol = self.convergence
-        global_hf.max_memory = self.max_ram_memory
-        global_hf.verbose = self.pyscf_print_level
-        global_hf.max_cycle = self.max_hf_cycles
+        global_hf = (
+            scf.UHF(mol_full, **hf_kwargs)
+            if not self._restricted_scf
+            else scf.RHF(mol_full)
+        )
+        global_hf.conv_tol = self.config.convergence
+        global_hf.max_memory = self.config.max_ram_memory
+        global_hf.max_cycle = self.config.max_hf_cycles
         global_hf.kernel()
         logger.info(f"Global HF: {global_hf.e_tot}")
 
         return global_hf
 
     @cached_property
-    def _global_ccsd(self) -> StreamObject:
+    def _global_ccsd(self, **ccsd_kwargs) -> StreamObject:
         """Function to run full molecule CCSD calculation."""
         logger.debug("Running full system CC.")
         # run CCSD after HF
 
-        global_cc = cc.CCSD(self._global_hf)
-        global_cc.conv_tol = self.convergence
-        global_cc.verbose = self.pyscf_print_level
-        global_cc.max_memory = self.max_ram_memory
+        global_cc = cc.CCSD(self._global_hf, **ccsd_kwargs)
+        global_cc.conv_tol = self.config.convergence
+        global_cc.max_memory = self.config.max_ram_memory
         global_cc.run()
         logger.info(f"Global CCSD: {global_cc.e_tot}")
 
         return global_cc
 
     @cached_property
-    def _global_fci(self) -> StreamObject:
+    def _global_fci(self, **fci_kwargs) -> StreamObject:
         """Function to run full molecule FCI calculation.
 
         WARNING: FACTORIAL SCALING IN BASIS STATES!
         """
         logger.debug("Running full system FCI.")
         # run FCI after HF
-        global_fci = fci.FCI(self._global_hf)
-        global_fci.conv_tol = self.convergence
-        global_fci.verbose = self.pyscf_print_level
-        global_fci.max_memory = self.max_ram_memory
+        global_fci = fci.FCI(self._global_hf, **fci_kwargs)
+        global_fci.conv_tol = self.config.convergence
+        global_fci.max_memory = self.config.max_ram_memory
         global_fci.run()
         logger.info(f"Global FCI: {global_fci.e_tot}")
 
         return global_fci
 
     @cached_property
-    def _global_ks(self):
+    def _global_ks(self, **ks_kwargs) -> StreamObject:
         """Method to run full cheap molecule RKS DFT calculation.
 
         Note this is necessary to perform localization procedure.
         """
         logger.debug("Running full system KS DFT.")
         mol_full = self._build_mol()
-        global_ks = dft.RKS(mol_full) if self._restricted_scf else dft.UKS(mol_full)
+        global_ks = (
+            dft.RKS(mol_full, **ks_kwargs)
+            if self._restricted_scf
+            else dft.UKS(mol_full, **ks_kwargs)
+        )
         logger.debug(f"{type(global_ks)=}")
-        global_ks.conv_tol = self.convergence
-        global_ks.xc = self.xc_functional
-        global_ks.max_memory = self.max_ram_memory
-        global_ks.verbose = self.pyscf_print_level
-        global_ks.max_cycle = self.max_dft_cycles
+        global_ks.conv_tol = self.config.convergence
+        global_ks.xc = self.config.xc_functional
+        global_ks.max_memory = self.config.max_ram_memory
+        global_ks.max_cycle = self.config.max_dft_cycles
 
         if self.run_qmmm:
             logger.debug(
                 "QM/MM: running full system KS DFT in presence of point charges."
             )
             global_ks = qmmm.mm_charge(
-                global_ks, self.mm_coords, self.mm_charges, self.mm_radii
+                global_ks,
+                self.config.mm_coords,
+                self.config.mm_charges,
+                self.config.mm_radii,
             )
 
         global_ks.kernel()
@@ -239,32 +177,39 @@ class NbedDriver(BaseModel):
 
         return global_ks
 
-    def _localize(self):
+    def _localize(self) -> OccupiedLocalizer:
         """Run the localizer class."""
-        logger.debug(f"Getting localized system using {self.localization}.")
+        logger.debug(f"Getting localized system using {self.config.localization}.")
 
-        localizers = {
-            "spade": SPADELocalizer,
-            "boys": BOYSLocalizer,
-            "ibo": IBOLocalizer,
-            "pipek-mezey": PMLocalizer,
-        }
-
-        if self.localization == "spade":
-            localized_system = localizers[self.localization](
-                self._global_ks,
-                self.n_active_atoms,
-                max_shells=self.max_shells,
-                n_mo_overwrite=self.n_mo_overwrite,
-            )
-        else:
-            localized_system = localizers[self.localization](
-                self._global_ks,
-                self.n_active_atoms,
-                occ_cutoff=self.occupied_threshold,
-                virt_cutoff=self.virtual_threshold,
-            )
-        return localized_system
+        match self.config.localization:
+            case Localizer.SPADE:
+                return SPADELocalizer(
+                    self._global_ks,
+                    self.config.n_active_atoms,
+                    max_shells=self.config.max_shells,
+                    n_mo_overwrite=self.config.n_mo_overwrite,
+                )
+            case Localizer.BOYS:
+                return BOYSLocalizer(
+                    self._global_ks,
+                    self.config.n_active_atoms,
+                    occ_cutoff=self.config.occupied_threshold,
+                    virt_cutoff=self.config.virtual_threshold,
+                )
+            case Localizer.IBO:
+                return IBOLocalizer(
+                    self._global_ks,
+                    self.config.n_active_atoms,
+                    occ_cutoff=self.config.occupied_threshold,
+                    virt_cutoff=self.config.virtual_threshold,
+                )
+            case Localizer.PM:
+                return PMLocalizer(
+                    self._global_ks,
+                    self.config.n_active_atoms,
+                    occ_cutoff=self.config.occupied_threshold,
+                    virt_cutoff=self.config.virtual_threshold,
+                )
 
     def _init_local_hf(self) -> Union[scf.uhf.UHF, scf.rhf.RHF]:
         """Function to build embedded HF object for active subsystem.
@@ -279,30 +224,32 @@ class NbedDriver(BaseModel):
 
         # overwrite total number of electrons to only include active system
         if self._restricted_scf:
-            embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
+            embedded_mol.nelectron = 2 * len(self._localized_system.active_MO_inds)
             embedded_mol.spin = 0
-            self.electron = embedded_mol.nelectron
+            self._electron = embedded_mol.nelectron
             local_hf: scf.rhf.RHF = scf.RHF(embedded_mol)
         else:
-            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
-                self.localized_system.beta_active_MO_inds
+            embedded_mol.nelectron = len(self._localized_system.active_MO_inds) + len(
+                self._localized_system.beta_active_MO_inds
             )
-            embedded_mol.spin = len(self.localized_system.active_MO_inds) - len(
-                self.localized_system.beta_active_MO_inds
+            embedded_mol.spin = len(self._localized_system.active_MO_inds) - len(
+                self._localized_system.beta_active_MO_inds
             )
-            self.electron = embedded_mol.nelectron
+            self._electron = embedded_mol.nelectron
             local_hf: scf.uhf.UHF = scf.UHF(embedded_mol)
 
         if self.run_qmmm:
             logger.debug("QM/MM: running local SCF in presence of point charges.")
             local_hf = qmmm.mm_charge(
-                local_hf, self.mm_coords, self.mm_charges, self.mm_radii
+                local_hf,
+                self.config.mm_coords,
+                self.config.mm_charges,
+                self.config.mm_radii,
             )
 
-        local_hf.max_memory = self.max_ram_memory
-        local_hf.conv_tol = self.convergence
-        local_hf.verbose = self.pyscf_print_level
-        local_hf.max_cycle = self.max_hf_cycles
+        local_hf.max_memory = self.config.max_ram_memory
+        local_hf.conv_tol = self.config.convergence
+        local_hf.max_cycle = self.config.max_hf_cycles
 
         return local_hf
 
@@ -322,19 +269,18 @@ class NbedDriver(BaseModel):
 
         if self._restricted_scf:
             # overwrite total number of electrons to only include active system
-            embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
-            self.electron = embedded_mol.nelectron
+            embedded_mol.nelectron = 2 * len(self._localized_system.active_MO_inds)
+            self._electron = embedded_mol.nelectron
             local_ks: dft.rks.RKS = scf.RKS(embedded_mol)
         else:
-            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
-                self.localized_system.beta_active_MO_inds
+            embedded_mol.nelectron = len(self._localized_system.active_MO_inds) + len(
+                self._localized_system.beta_active_MO_inds
             )
-            self.electron = embedded_mol.nelectron
+            self._electron = embedded_mol.nelectron
             local_ks: dft.uks.UKS = scf.UKS(embedded_mol)
 
-        local_ks.max_memory = self.max_ram_memory
-        local_ks.conv_tol = self.convergence
-        local_ks.verbose = self.pyscf_print_level
+        local_ks.max_memory = self.config.max_ram_memory
+        local_ks.conv_tol = self.config.convergence
         local_ks.xc = xc_functional
 
         return local_ks
@@ -346,7 +292,7 @@ class NbedDriver(BaseModel):
         def _ks_components(
             ks_system: StreamObject,
             subsystem_dm: np.ndarray,
-        ) -> tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
+        ) -> tuple[float, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
 
             For a given density matrix this function returns the electronic energy, exchange correlation energy and
@@ -358,9 +304,9 @@ class NbedDriver(BaseModel):
 
 
             Returns:
-                Energy_elec (float): DFT energy defined by input density matrix
-                e_xc (float): exchange correlation energy defined by input density matrix
-                J_mat (np.ndarray): J_matrix defined by input density matrix
+                e_act (float): Active region energy.
+                two_e_term (npt.NDArray): Two electron potential term
+                j_mat (npt.NDArray): J_matrix defined by input density matrix
             """
             logger.debug("Finding subsystem RKS componenets.")
             # It seems that PySCF lumps J and K in the J array
@@ -399,14 +345,20 @@ class NbedDriver(BaseModel):
 
         if not self._restricted_scf:
             dm_act = np.array(
-                [self.localized_system.dm_active, self.localized_system.beta_dm_active]
+                [
+                    self._localized_system.dm_active,
+                    self._localized_system.beta_dm_active,
+                ]
             )
             dm_env = np.array(
-                [self.localized_system.dm_enviro, self.localized_system.beta_dm_enviro]
+                [
+                    self._localized_system.dm_enviro,
+                    self._localized_system.beta_dm_enviro,
+                ]
             )
         else:
-            dm_act = self.localized_system.dm_active
-            dm_env = self.localized_system.dm_enviro
+            dm_act = self._localized_system.dm_active
+            dm_env = self._localized_system.dm_enviro
 
         (e_act, two_e_act, j_act) = _ks_components(self._global_ks, dm_act)
         # logger.debug(e_act, alpha_e_xc_act)
@@ -417,12 +369,12 @@ class NbedDriver(BaseModel):
 
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
-        total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
+        total_dm = self._localized_system.dm_active + self._localized_system.dm_enviro
 
         if not self._restricted_scf:
             total_dm += (
-                self.localized_system.beta_dm_active
-                + self.localized_system.beta_dm_enviro
+                self._localized_system.beta_dm_active
+                + self._localized_system.beta_dm_enviro
             )
 
         two_e_term_total = self._global_ks.get_veff(dm=total_dm)
@@ -430,19 +382,19 @@ class NbedDriver(BaseModel):
 
         if self._restricted_scf:
             j_cross = 0.5 * (
-                np.einsum("ij,ij", self.localized_system.dm_active, j_env)
-                + np.einsum("ij,ij", self.localized_system.dm_enviro, j_act)
+                np.einsum("ij,ij", self._localized_system.dm_active, j_env)
+                + np.einsum("ij,ij", self._localized_system.dm_enviro, j_act)
             )
         else:
             j_cross = 0.5 * (
-                np.einsum("ij,ij", self.localized_system.dm_active, j_env[0])
-                + np.einsum("ij,ij", self.localized_system.dm_enviro, j_act[0])
-                + np.einsum("ij,ij", self.localized_system.dm_active, j_env[1])
-                + np.einsum("ij,ij", self.localized_system.dm_enviro, j_act[1])
-                + np.einsum("ij,ij", self.localized_system.beta_dm_active, j_env[1])
-                + np.einsum("ij,ij", self.localized_system.beta_dm_enviro, j_act[1])
-                + np.einsum("ij,ij", self.localized_system.beta_dm_active, j_env[0])
-                + np.einsum("ij,ij", self.localized_system.beta_dm_enviro, j_act[0])
+                np.einsum("ij,ij", self._localized_system.dm_active, j_env[0])
+                + np.einsum("ij,ij", self._localized_system.dm_enviro, j_act[0])
+                + np.einsum("ij,ij", self._localized_system.dm_active, j_env[1])
+                + np.einsum("ij,ij", self._localized_system.dm_enviro, j_act[1])
+                + np.einsum("ij,ij", self._localized_system.beta_dm_active, j_env[1])
+                + np.einsum("ij,ij", self._localized_system.beta_dm_enviro, j_act[1])
+                + np.einsum("ij,ij", self._localized_system.beta_dm_active, j_env[0])
+                + np.einsum("ij,ij", self._localized_system.beta_dm_enviro, j_act[0])
             )
         logger.debug(f"{j_cross=}")
 
@@ -467,13 +419,13 @@ class NbedDriver(BaseModel):
     def _env_projector(self) -> np.ndarray:
         """Return a projector onto the environment in orthogonal basis."""
         s_mat = self._global_ks.get_ovlp()
-        env_projector_alpha = s_mat @ self.localized_system.dm_enviro @ s_mat
+        env_projector_alpha = s_mat @ self._localized_system.dm_enviro @ s_mat
 
         if self._restricted_scf:
             env_projector = env_projector_alpha
 
         else:
-            env_projector_beta = s_mat @ self.localized_system.beta_dm_enviro @ s_mat
+            env_projector_beta = s_mat @ self._localized_system.beta_dm_enviro @ s_mat
             env_projector = np.array([env_projector_alpha, env_projector_beta])
 
         return env_projector
@@ -498,9 +450,8 @@ class NbedDriver(BaseModel):
         """
         logger.debug("Starting embedded CCSD calculation.")
         ccsd = cc.CCSD(emb_pyscf_scf_rhf, frozen=frozen)
-        ccsd.conv_tol = self.convergence
-        ccsd.max_memory = self.max_ram_memory
-        ccsd.verbose = self.pyscf_print_level
+        ccsd.conv_tol = self.config.convergence
+        ccsd.max_memory = self.config.max_ram_memory
 
         e_ccsd_corr, _, _ = ccsd.kernel()
         logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
@@ -537,9 +488,8 @@ class NbedDriver(BaseModel):
             fci_scf.sort_mo(
                 [i + 1 for i in range(emb_pyscf_scf_rhf.mol.nao) if i not in frozen]
             )
-        fci_scf.conv_tol = self.convergence
-        fci_scf.verbose = self.pyscf_print_level
-        fci_scf.max_memory = self.max_ram_memory
+        fci_scf.conv_tol = self.config.convergence
+        fci_scf.max_memory = self.config.max_ram_memory
 
         # For UHF, PySCF assumes that hcore is spinless and 2D
         # Because we update hcore for embedding, we need to calculate our own h1e term.
@@ -573,7 +523,7 @@ class NbedDriver(BaseModel):
 
         # Modify the energy_elec function to handle different h_cores
         # which we need for different embedding potentials
-        v_emb = (self.mu_level_shift * self._env_projector) + dft_potential
+        v_emb = (self.config.mu_level_shift * self._env_projector) + dft_potential
         hcore_std = localized_scf.get_hcore()
         localized_scf.get_hcore = lambda *args: hcore_std + v_emb
 
@@ -605,10 +555,13 @@ class NbedDriver(BaseModel):
         logger.debug("Starting Huzinaga embedding method.")
         # We need to run our own SCF method here to update the potential.
         if self._restricted_scf:
-            total_enviro_dm = self.localized_system.dm_enviro
+            total_enviro_dm = self._localized_system.dm_enviro
         else:
             total_enviro_dm = np.array(
-                [self.localized_system.dm_enviro, self.localized_system.beta_dm_enviro]
+                [
+                    self._localized_system.dm_enviro,
+                    self._localized_system.beta_dm_enviro,
+                ]
             )
 
         (
@@ -724,7 +677,7 @@ class NbedDriver(BaseModel):
         logger.debug("Deleting environment from SCF object.")
 
         if self._restricted_scf:
-            n_env_mos = len(self.localized_system.enviro_MO_inds)
+            n_env_mos = len(self._localized_system.enviro_MO_inds)
             scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
                 method,
                 n_env_mos,
@@ -734,8 +687,8 @@ class NbedDriver(BaseModel):
                 self._env_projector,
             )
         else:
-            alpha_n_env_mos = len(self.localized_system.enviro_MO_inds)
-            beta_n_env_mos = len(self.localized_system.beta_enviro_MO_inds)
+            alpha_n_env_mos = len(self._localized_system.enviro_MO_inds)
+            beta_n_env_mos = len(self._localized_system.beta_enviro_MO_inds)
             mo_coeff = np.array([None, None])
             mo_energy = np.array([None, None])
             mo_occ = np.array([None, None])
@@ -797,13 +750,13 @@ class NbedDriver(BaseModel):
             result["dft_correction"] = np.einsum(
                 "ij,ij",
                 result["v_emb_dft"][0],
-                (y_emb_alpha - self.localized_system.dm_active),
+                (y_emb_alpha - self._localized_system.dm_active),
             )
 
             result["dft_correction_beta"] = np.einsum(
                 "ij,ij",
                 result["v_emb_dft"][1],
-                (y_emb_beta - self.localized_system.beta_dm_active),
+                (y_emb_beta - self._localized_system.beta_dm_active),
             )
 
             veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
@@ -830,7 +783,7 @@ class NbedDriver(BaseModel):
             result["dft_correction"] = np.einsum(
                 "ij,ij",
                 result["v_emb_dft"],
-                (y_emb - self.localized_system.dm_active),
+                (y_emb - self._localized_system.dm_active),
             )
             veff = result["scf_dft"].get_veff(dm=y_emb)
             result["dft_correction_beta"] = 0
@@ -858,21 +811,21 @@ class NbedDriver(BaseModel):
 
         e_nuc = self._global_ks.energy_nuc()
 
-        self.localized_system = self._localize()
+        self._localized_system = self._localize()
         logger.info("Indices of embedded electrons:")
-        logger.info(self.localized_system.active_MO_inds)
-        logger.info(self.localized_system.enviro_MO_inds)
+        logger.info(self._localized_system.active_MO_inds)
+        logger.info(self._localized_system.enviro_MO_inds)
 
         # Run subsystem DFT (calls localized rks)
         self._subsystem_dft()
         logger.debug("Getting global DFT potential to optimize embedded calc in.")
 
-        total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
+        total_dm = self._localized_system.dm_active + self._localized_system.dm_enviro
         if not self._restricted_scf:
             logger.debug("Adding beta spin density matrix")
             total_dm += (
-                self.localized_system.beta_dm_active
-                + self.localized_system.beta_dm_enviro
+                self._localized_system.beta_dm_active
+                + self._localized_system.beta_dm_enviro
             )
 
         g_act_and_env = self._global_ks.get_veff(dm=total_dm)
@@ -880,12 +833,12 @@ class NbedDriver(BaseModel):
         logger.debug(f"{g_act_and_env.shape=}")
 
         if self._restricted_scf:
-            g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
+            g_act = self._global_ks.get_veff(dm=self._localized_system.dm_active)
         else:
             g_act = self._global_ks.get_veff(
                 dm=[
-                    self.localized_system.dm_active,
-                    self.localized_system.beta_dm_active,
+                    self._localized_system.dm_active,
+                    self._localized_system.beta_dm_active,
                 ]
             )
         dft_potential = g_act_and_env - g_act
@@ -896,15 +849,17 @@ class NbedDriver(BaseModel):
         # initializing huzinaga with mu
 
         embedding_methods_to_run = []
-        if self.projector in ["both", "mu"] or init_huzinaga_rhf_with_mu:
+        if self.config.projector in ["both", "mu"] or init_huzinaga_rhf_with_mu:
             embedding_methods_to_run.append("mu")
 
-        if self.projector in ["both", "huzinaga"]:
+        if self.config.projector in ["both", "huzinaga"]:
             embedding_methods_to_run.append("huzinaga")
 
-        if self.projector not in ["mu", "huzinaga", "both"]:
-            logger.error("Invalid projector specified %s.", self.projector)
-            raise NbedConfigError("Invalid projector specified %s.", self.projector)
+        if self.config.projector not in ["mu", "huzinaga", "both"]:
+            logger.error("Invalid projector specified %s.", self.config.projector)
+            raise NbedConfigError(
+                "Invalid projector specified %s.", self.config.projector
+            )
 
         logger.debug(f"Embedding methods to run: {embedding_methods_to_run}")
 
@@ -938,25 +893,25 @@ class NbedDriver(BaseModel):
             # calculate correction
             if self._restricted_scf:
                 result["correction"] = np.einsum(
-                    "ij,ij", result["v_emb"], self.localized_system.dm_active
+                    "ij,ij", result["v_emb"], self._localized_system.dm_active
                 )
                 result["beta_correction"] = 0
             else:
                 result["correction"] = np.einsum(
-                    "ij,ij", result["v_emb"][0], self.localized_system.dm_active
+                    "ij,ij", result["v_emb"][0], self._localized_system.dm_active
                 )
                 result["beta_correction"] = np.einsum(
-                    "ij,ij", result["v_emb"][1], self.localized_system.beta_dm_active
+                    "ij,ij", result["v_emb"][1], self._localized_system.beta_dm_active
                 )
 
             # Virtual localization
             # TODO correlation energy correction???
-            if self.run_virtual_localization is True:
+            if self.config.run_virtual_localization is True:
                 logger.debug("Performing virtual localization.")
                 result["scf"] = ConcentricLocalizer(
                     result["scf"],
-                    self.n_active_atoms,
-                    max_shells=self.max_shells,
+                    self.config.n_active_atoms,
+                    max_shells=self.config.max_shells,
                 ).localize_virtual(self._restricted_scf)
 
             result["e_rhf"] = (
@@ -979,7 +934,7 @@ class NbedDriver(BaseModel):
             logger.debug(f"Classical energy: {result['classical_energy']}")
 
             # Calculate ccsd or fci energy
-            if self.run_ccsd_emb is True:
+            if self.config.run_ccsd_emb is True:
                 logger.debug("Performing CCSD-in-DFT embedding.")
                 ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(result["scf"], frozen=None)
                 result["e_ccsd"] = (
@@ -993,7 +948,7 @@ class NbedDriver(BaseModel):
 
                 logger.info(f"CCSD Energy {projector_name}:\t{result['e_ccsd']}")
 
-            if self.run_fci_emb is True:
+            if self.config.run_fci_emb is True:
                 logger.debug("Performing FCI-in-DFT embedding.")
                 fci_emb = self._run_emb_FCI(result["scf"], frozen=None)
                 result["e_fci"] = (
@@ -1009,7 +964,7 @@ class NbedDriver(BaseModel):
             result["hf_emb"] = result["scf"].e_tot - e_nuc
             result["nuc"] = e_nuc
 
-            if self.run_dft_in_dft is True:
+            if self.config.run_dft_in_dft is True:
                 did = self._dft_in_dft(self._global_ks.xc, embedding_method)
                 result["e_dft_in_dft"] = did["e_rks"]
                 result["emb_dft"] = did["rks_e_elec"]
@@ -1019,23 +974,24 @@ class NbedDriver(BaseModel):
             elif projector_name == "huzinaga":
                 self._huzinaga = result
 
-        if self.projector == "mu":
-            self.embedded_scf = self._mu["scf"]
-            self.classical_energy = self._mu["classical_energy"]
-        elif self.projector == "huzinaga":
-            self.embedded_scf = self._huzinaga["scf"]
-            self.classical_energy = self._huzinaga["classical_energy"]
-        elif self.projector == "both":
-            logger.warning(
-                "Outputting both mu and huzinaga embedding results as tuple."
-            )
-            self.embedded_scf = (
-                self._mu["scf"],
-                self._huzinaga["scf"],
-            )
-            self.classical_energy = (
-                self._mu["classical_energy"],
-                self._huzinaga["classical_energy"],
-            )
+        match self.config.projector:
+            case "mu":
+                self.embedded_scf = self._mu["scf"]
+                self.classical_energy = self._mu["classical_energy"]
+            case "huzinaga" | "huz":
+                self.embedded_scf = self._huzinaga["scf"]
+                self.classical_energy = self._huzinaga["classical_energy"]
+            case "both":
+                logger.warning(
+                    "Outputting both mu and huzinaga embedding results as tuple."
+                )
+                self.embedded_scf = (
+                    self._mu["scf"],
+                    self._huzinaga["scf"],
+                )
+                self.classical_energy = (
+                    self._mu["classical_energy"],
+                    self._huzinaga["classical_energy"],
+                )
 
         logger.info("Embedding complete.")

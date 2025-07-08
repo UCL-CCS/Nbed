@@ -7,7 +7,7 @@ from pyscf import gto, scf
 from pyscf.lib import StreamObject
 
 from nbed.driver import NbedDriver
-
+from nbed.config import NbedConfig
 
 @pytest.fixture(scope="module")
 def water_filepath() -> Path:
@@ -36,8 +36,8 @@ def water_rhf(water_molecule) -> StreamObject:
 
 
 @pytest.fixture(scope="module")
-def driver_args(water_filepath) -> dict:
-    return {
+def nbed_config(water_filepath) -> NbedConfig:
+    args = {
         'geometry': water_filepath,
         'n_active_atoms': 2,
         'basis': 'STO-3G',
@@ -63,11 +63,11 @@ def driver_args(water_filepath) -> dict:
         'max_hf_cycles': 50,
         'max_dft_cycles': 50,
         'force_unrestricted': False,
-        'run_qmmm': False,
         'mm_coords': None,
         'mm_charges': None,
         'mm_radii': None
         }
+    return NbedConfig(**args)
 
 @pytest.fixture(scope="module")
 def restricted_driver():
@@ -86,7 +86,8 @@ def restricted_driver():
         "run_fci_emb": False,
     }
 
-    driver = NbedDriver(**args)
+    config = NbedConfig(**args)
+    driver = NbedDriver(config)
     return driver
 
 @pytest.fixture(scope="module")

@@ -107,7 +107,6 @@ def huzinaga_scf(
     # Create an initial dm if needed.
     if dm_initial_guess is None:
         fock = scf_method.get_hcore() + dft_potential
-        logger.debug(f"{fock.shape=}")
 
         if unrestricted:
             fds_alpha = fock[0] @ dm_env_S[0]
@@ -128,8 +127,6 @@ def huzinaga_scf(
         fock_ortho = s_neg_half @ fock @ s_neg_half
         mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
         mo_coeff_std = s_neg_half @ mo_coeff_ortho
-        logger.debug(f"{mo_energy.shape=}")
-        logger.debug(f"{mo_coeff_std.shape=}")
         mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
         dm_initial_guess = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
 
@@ -141,18 +138,15 @@ def huzinaga_scf(
         # build fock matrix
         vhf = scf_method.get_veff(dm=density_matrix)
         fock = scf_method.get_hcore() + dft_potential + vhf
-        logger.debug(f"{fock.shape=}")
 
         if unrestricted:
             fds_alpha = fock[0] @ dm_env_S[0]
             fds_beta = fock[1] @ dm_env_S[1]
-            logger.debug(f"{fds_alpha.shape=}, {fds_beta.shape=}")
             huzinaga_op_std = np.array(
                 [-(fds_alpha + fds_alpha.T), -(fds_beta + fds_beta.T)]
             )
         else:
             fds = fock @ dm_env_S
-            logger.debug(f"{fds.shape=}")
             huzinaga_op_std = -0.5 * (fds + np.swapaxes(fds, -1, -2))
         fock += huzinaga_op_std
 
