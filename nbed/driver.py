@@ -1,11 +1,19 @@
 """Module containg the NbedDriver Class."""
 
 import logging
-import os
 from functools import cached_property, reduce
-from typing import Callable, Optional, Union
+from typing import Annotated, Callable, Optional, Union
 
 import numpy as np
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    FilePath,
+    NonNegativeInt,
+    PositiveFloat,
+    PositiveInt,
+)
 from pyscf import cc, dft, fci, gto, qmmm, scf
 from pyscf.lib import StreamObject
 
@@ -19,12 +27,13 @@ from nbed.localizers import (
 )
 
 from .scf import energy_elec, huzinaga_scf
+from .types import Localizer, Projector, XYZGeometry, validate_xyz_file
 
 # Create the Logger
 logger = logging.getLogger(__name__)
 
 
-class NbedDriver:
+class NbedDriver(BaseModel):
     """Function to return the embedding Qubit Hamiltonian.
 
     Args:
@@ -60,90 +69,38 @@ class NbedDriver:
         classical_energy (float): environment correction energy to obtain total energy (for huzianga method)
     """
 
-    def __init__(
-        self,
-        geometry: str,
-        n_active_atoms: int,
-        basis: str,
-        xc_functional: str,
-        projector: str,
-        localization: Optional[str] = "spade",
-        convergence: Optional[float] = 1e-6,
-        charge: Optional[int] = 0,
-        spin: Optional[int] = 0,
-        symmetry: Optional[bool] = False,
-        mu_level_shift: Optional[float] = 1e6,
-        run_ccsd_emb: Optional[bool] = False,
-        run_fci_emb: Optional[bool] = False,
-        run_virtual_localization: Optional[bool] = True,
-        n_mo_overwrite: tuple[None | int, None | int] = (None, None),
-        run_dft_in_dft: Optional[bool] = False,
-        max_ram_memory: Optional[int] = 4000,
-        pyscf_print_level: int = 1,
-        unit: Optional[str] = "angstrom",
-        occupied_threshold: Optional[float] = 0.95,
-        virtual_threshold: Optional[float] = 0.95,
-        max_shells: Optional[int] = 4,
-        init_huzinaga_rhf_with_mu: bool = False,
-        max_hf_cycles: int = 50,
-        max_dft_cycles: int = 50,
-        force_unrestricted: Optional[bool] = False,
-        run_qmmm: Optional[bool] = False,
-        mm_coords: Optional[list] = None,
-        mm_charges: Optional[list] = None,
-        mm_radii: Optional[list] = None,
-    ):
-        """Initialise class."""
-        logger.debug("Initialising driver.")
-        config_valid = True
-        if projector not in ["mu", "huzinaga", "both"]:
-            logger.error(
-                "Invalid projector %s selected. Choose from 'mu' or 'huzinzaga'.",
-                projector,
-            )
-            config_valid = False
+    geometry: XYZGeometry | Annotated[FilePath, AfterValidator(validate_xyz_file)]
+    n_active_atoms: PositiveInt
+    basis: str
+    xc_functional: str
+    projector: Projector = Field(default=Projector.MU)
+    localization: Localizer = Field(default=Localizer.SPADE)
+    convergence: PositiveFloat = 1e-6
+    charge: NonNegativeInt = Field(default=0)
+    spin: NonNegativeInt = Field(default=0)
+    symmetry: bool = False
+    mu_level_shift: PositiveFloat = 1e6
+    run_ccsd_emb: bool = False
+    run_fci_emb: bool = False
+    run_virtual_localization: bool = True
+    n_mo_overwrite: tuple[None | NonNegativeInt, None | NonNegativeInt] = (None, None)
+    run_dft_in_dft: bool = False
+    max_ram_memory: PositiveInt = 4000
+    pyscf_print_level: int = 1
+    occupied_threshold: float = Field(default=0.95, gt=0, lt=1)
+    virtual_threshold: float = Field(default=0.95, gt=0, lt=1)
+    max_shells: PositiveInt = 4
+    init_huzinaga_rhf_with_mu: bool = False
+    max_hf_cycles: PositiveInt = Field(default=50)
+    max_dft_cycles: PositiveInt = Field(default=50)
+    force_unrestricted: bool = False
+    run_qmmm: bool = False
+    mm_coords: list | None = None
+    mm_charges: list | None = None
+    mm_radii: list | None = None
 
-        if localization not in ["spade", "ibo", "boys", "pipek-mezey"]:
-            logger.error(
-                "Invalid localization method %s. Choose from 'ibo','boys','pipek-mezey' or 'spade'.",
-                localization,
-            )
-            config_valid = False
-
-        if not config_valid:
-            logger.error("Invalid config.")
-            raise NbedConfigError("Invalid config.")
-
-        self.geometry = geometry
-        self.n_active_atoms = n_active_atoms
-        self.basis = basis.lower()
-        self.xc_functional = xc_functional.lower()
-        self.projector = projector.lower()
-        self.localization = localization.lower()
-        self.convergence = convergence
-        self.charge = charge
-        self.spin = spin
-        self.symmetry = symmetry
-        self.mu_level_shift = mu_level_shift
-        self.run_ccsd_emb = run_ccsd_emb
-        self.run_fci_emb = run_fci_emb
-        self.run_virtual_localization = run_virtual_localization
-        self.n_mo_overwrite = n_mo_overwrite
-        self.run_dft_in_dft = run_dft_in_dft
-        self.max_ram_memory = max_ram_memory
-        self.pyscf_print_level = pyscf_print_level
-        self.unit = unit
-        self.occupied_threshold = occupied_threshold
-        self.virtual_threshold = virtual_threshold
-        self.max_shells = max_shells
-        self.max_hf_cycles = max_hf_cycles
-        self.max_dft_cycles = max_dft_cycles
-        self.run_qmmm = run_qmmm
-        self.mm_coords = mm_coords
-        self.mm_charges = mm_charges
-        self.mm_radii = mm_radii
-
-        self._check_active_atoms()
+    def __post_init__(self):
+        """Post-init."""
         self.localized_system = None
         self.two_e_cross = None
         self.dft_potential = None
@@ -155,7 +112,10 @@ class NbedDriver:
         self._mu = None
         self._huzinaga = None
 
-        if force_unrestricted:
+        # Seems needless to add it to config we don't use.
+        self.unit = "angstrom"
+
+        if self.force_unrestricted:
             logger.debug("Forcing unrestricted SCF")
             self._restricted_scf = False
         elif self.charge % 2 == 1 or self.spin != 0:
@@ -165,10 +125,6 @@ class NbedDriver:
             logger.debug("Closed shells, using restricted SCF.")
             self._restricted_scf = True
 
-        self.embed(init_huzinaga_rhf_with_mu=init_huzinaga_rhf_with_mu)
-
-        logger.debug("Driver initialisation complete.")
-
     def _build_mol(self) -> gto.mole:
         """Function to build PySCF molecule.
 
@@ -176,7 +132,7 @@ class NbedDriver:
             full_mol (gto.mol): built PySCF molecule object
         """
         logger.debug("Constructing molecule.")
-        if os.path.exists(self.geometry):
+        if isinstance(self.geometry, FilePath):
             # geometry is an xyz file
             full_mol = gto.Mole(
                 atom=self.geometry,
@@ -186,7 +142,7 @@ class NbedDriver:
                 spin=self.spin,
                 symmetry=self.symmetry,
             ).build()
-        else:
+        elif isinstance(self.geometry, str):
             logger.info(
                 "Input geometry is not an existing file. Assumng raw xyz input."
             )
@@ -282,16 +238,6 @@ class NbedDriver:
             logger.warning("(cheap) global DFT calculation has NOT converged!")
 
         return global_ks
-
-    def _check_active_atoms(self) -> None:
-        """Check that the number of active atoms is valid."""
-        all_atoms = self._build_mol().natm
-        if self.n_active_atoms not in range(1, all_atoms):
-            logger.error("Invalid number of active atoms.")
-            raise NbedConfigError(
-                f"Invalid number of active atoms. Choose a number from 1 to {all_atoms-1}."
-            )
-        logger.debug("Number of active atoms valid.")
 
     def _localize(self):
         """Run the localizer class."""
