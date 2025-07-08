@@ -8,7 +8,6 @@ import numpy as np
 from pyscf import cc, dft, fci, gto, qmmm, scf
 from pyscf.lib import StreamObject
 
-from nbed.exceptions import NbedConfigError
 from nbed.localizers import (
     BOYSLocalizer,
     ConcentricLocalizer,
@@ -850,16 +849,12 @@ class NbedDriver:
 
         embedding_methods_to_run = []
         if self.config.projector in ["both", "mu"] or init_huzinaga_rhf_with_mu:
+            logger.debug("Queed $mu$-shift projector method.")
             embedding_methods_to_run.append("mu")
 
         if self.config.projector in ["both", "huzinaga"]:
+            logger.debug("Queued Huzinaga projector method.")
             embedding_methods_to_run.append("huzinaga")
-
-        if self.config.projector not in ["mu", "huzinaga", "both"]:
-            logger.error("Invalid projector specified %s.", self.config.projector)
-            raise NbedConfigError(
-                "Invalid projector specified %s.", self.config.projector
-            )
 
         logger.debug(f"Embedding methods to run: {embedding_methods_to_run}")
 
