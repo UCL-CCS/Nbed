@@ -21,7 +21,6 @@ def args(water_filepath) -> dict:
         "savefile": "save_tests/",
         "run_ccsd_emb": True,
         "run_fci_emb": True,
-        "qubits": None,
     }
 
 

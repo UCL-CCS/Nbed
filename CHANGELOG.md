@@ -5,13 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+### Added
+- `NbedConfig` pydantic model to validate user input.
+
 ## [0.0.8]
-## Fixed
+### Fixed
 - `SPADELocalizer` now outputs whole c matrix when virtual localization is stopped early.
 - `ACELocalizer` was returning 1 too few moleucular orbitals.
 - Fixed a bug causing embedded FCI calculations to fail for open shell systems.
 
-## Changed
+### Changed
 - 'nbed.scf.huzinaga_hf' and 'nbed.scf.huzinaga_rks' cmbined into 'nbed.scf.huzinaga_scf'
 - Combined `scf/huzinaga_` HF and KS methods into `huzinaga_scf`
 - python version requirement changed to `>=3.11, <4`
@@ -20,11 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localizers` now comprised of `occupied` and `virtual`, with `Localizer` now `OccupiedLocalizer`
 - concentric localization moved from `SPADELocalizer` to its own class `ConcentricLocalizer(VirtualLocalizer)`
 
-## Added
+### Added
 - `.pre-commit-config.yaml` added
 - added `ACELocalizer` which implements ace-of-spade method for multiple reaction geometries.
 
-## Removed
+### Removed
 - `mol_plot.py` removed as not required for/by main uses of package
 - dropped support for Pennylane, as they are pinned to numpy <2
 - Removed function to convert from fermionic hamiltonian to qubit hamiltonian, which was in `ham_builder.py`.

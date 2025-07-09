@@ -13,6 +13,7 @@ from openfermion.chem.pubchem import geometry_from_pubchem
 
 from nbed.ham_builder import HamiltonianBuilder
 
+from .config import Projector
 from .driver import NbedDriver
 
 logger = logging.getLogger(__name__)
@@ -268,12 +269,13 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
 
     # Would be a great place for a switch statemet when
     # dependencies catch up with python 3.10
-    if driver.projector == "both":
-        mu_qham, huz_qham = qham
-    elif driver.projector == "huzinaga":
-        mu_qham, huz_qham = None, qham
-    elif driver.projector == "mu":
-        mu_qham, huz_qham = qham, None
+    match driver.config.projector:
+        case Projector.BOTH:
+            mu_qham, huz_qham = qham
+        case Projector.HUZ:
+            mu_qham, huz_qham = None, qham
+        case Projector.MU:
+            mu_qham, huz_qham = qham, None
 
     print("".center(80, "*"))
     logger.info("".center(80, "*"))
@@ -285,7 +287,7 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
     print(f"global (cheap) DFT calculation {driver._global_ks.e_tot}")
     logger.info(f"global (cheap) DFT calculation {driver._global_ks.e_tot}")
 
-    if driver.projector in ["huzinaga", "both"]:
+    if driver.config.projector in [Projector.HUZ, Projector.BOTH]:
         print("".center(80, "*"))
         logger.info("".center(80, "*"))
         print("  Huzinaga calculation".center(20))
@@ -296,14 +298,14 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         logger.info(
             f"Total energy - active system at RHF level: {driver._huzinaga.get('e_rhf', default)}"
         )
-        if driver.run_ccsd_emb is True:
+        if driver.config.run_ccsd_emb is True:
             print(
                 f"Total energy - active system at CCSD level: {driver._huzinaga.get('e_ccsd', default)}"
             )
             logger.info(
                 f"Total energy - active system at CCSD level: {driver._huzinaga.get('e_ccsd', default)}"
             )
-        if driver.run_fci_emb is True:
+        if driver.config.run_fci_emb is True:
             print(
                 f"Total energy - active system at FCI level: {driver._huzinaga.get('e_fci', default)}"
             )
@@ -320,7 +322,7 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         print(f"number of qubits required: {count_qubits(huz_qham)}")
         logger.info(f"number of qubits required: {count_qubits(huz_qham)}")
 
-    if driver.projector in ["mu", "both"]:
+    if driver.config.projector in [Projector.MU, Projector.BOTH]:
         print("".center(80, "*"))
         logger.info("".center(80, "*"))
         print("  Mu shift calculation".center(20))
@@ -331,14 +333,14 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         logger.info(
             f"Total energy - active system at RHF level: {driver._mu.get('e_rhf', default)}"
         )
-        if driver.run_ccsd_emb is True:
+        if driver.config.run_ccsd_emb is True:
             print(
                 f"Total energy - active system at CCSD level: {driver._mu.get('e_ccsd', default)}"
             )
             logger.info(
                 f"Total energy - active system at CCSD level: {driver._mu.get('e_ccsd', default)}"
             )
-        if driver.run_fci_emb is True:
+        if driver.config.run_fci_emb is True:
             print(
                 f"Total energy - active system at FCI level: {driver._mu.get('e_fci', default)}"
             )
@@ -515,9 +517,9 @@ def save_ordered_xyz_file(
     xyz_string = build_ordered_xyz_string(struct_dict, active_atom_inds)
 
     if save_location is None:
-        save_location = os.getcwd()
+        save_location = Path(os.getcwd())
 
-    output_dir = os.path.join(save_location, "molecular_structures")
+    output_dir = os.path.join(str(save_location), "molecular_structures")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -526,4 +528,4 @@ def save_ordered_xyz_file(
     with open(xyz_file_path, "w") as outfile:
         outfile.write(xyz_string)
 
-    return xyz_file_path
+    return Path(xyz_file_path)

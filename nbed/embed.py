@@ -10,6 +10,7 @@ from openfermion.utils import save_operator
 from nbed.exceptions import NbedConfigError
 from nbed.ham_builder import HamiltonianBuilder
 
+from .config import NbedConfig
 from .driver import NbedDriver
 from .ham_converter import HamiltonianConverter
 from .utils import parse, print_summary
@@ -25,7 +26,6 @@ def nbed(
     projector: str,
     output: str,
     transform: str,
-    qubits: Optional[int] = None,
     localization: Optional[str] = "spade",
     convergence: Optional[float] = 1e-6,
     charge: Optional[int] = 0,
@@ -34,7 +34,6 @@ def nbed(
     run_ccsd_emb: Optional[bool] = False,
     run_fci_emb: Optional[bool] = False,
     max_ram_memory: Optional[int] = 4000,
-    pyscf_print_level: int = 1,
     savefile: Optional[Path] = None,
     unit: Optional[str] = "angstrom",
     occupied_threshold: Optional[float] = 0.95,
@@ -67,7 +66,6 @@ def nbed(
         max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
         pyscf_print_level (int): Amount of information PySCF prints
         savefile (str): Path to file to save output Hamiltonain to.
-        qubits (int): The number of qubits available for the output hamiltonian.
         unit (str): molecular geometry unit 'angstrom' or 'bohr'
         occupied_threshold (float): The occupancy threshold for localizing occupied orbitals.
         virtual_threshold (float): The occupancy threshold for localizing virtual orbitals.
@@ -81,7 +79,7 @@ def nbed(
     if projector == "both":
         raise NbedConfigError("Cannot use 'both' as value of projector.")
 
-    driver = NbedDriver(
+    config = NbedConfig(
         geometry=geometry,
         n_active_atoms=n_active_atoms,
         basis=basis,
@@ -95,7 +93,6 @@ def nbed(
         run_ccsd_emb=run_ccsd_emb,
         run_fci_emb=run_fci_emb,
         max_ram_memory=max_ram_memory,
-        pyscf_print_level=pyscf_print_level,
         unit=unit,
         occupied_threshold=occupied_threshold,
         virtual_threshold=virtual_threshold,
@@ -103,6 +100,8 @@ def nbed(
         max_dft_cycles=max_dft_cycles,
         force_unrestricted=unrestricted,
     )
+    driver = NbedDriver(config)
+    driver.embed()
     if savefile is not None:
         data_directory = Path(savefile).absolute()
         data_directory.mkdir(parents=True, exist_ok=True)
