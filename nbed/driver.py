@@ -848,17 +848,19 @@ class NbedDriver:
         # The order of these is important for
         # initializing huzinaga with mu
 
-        embedding_methods_to_run = []
-        if (
-            self.config.projector in [Projector.MU, Projector.BOTH]
-            or init_huzinaga_rhf_with_mu
-        ):
-            logger.debug("Queued $mu$-shift projector method.")
-            embedding_methods_to_run.append("mu")
-
-        if self.config.projector in [Projector.HUZ, Projector.BOTH]:
-            logger.debug("Queued Huzinaga projector method.")
-            embedding_methods_to_run.append("huzinaga")
+        embedding_methods_to_run: list[str]
+        match self.config.projector:
+            case Projector.MU:
+                embedding_methods_to_run = ["mu"]
+            case Projector.HUZ:
+                if init_huzinaga_rhf_with_mu:
+                    embedding_methods_to_run = ["mu", "huzinaga"]
+                else:
+                    embedding_methods_to_run = ["huzinaga"]
+            case Projector.BOTH:
+                embedding_methods_to_run = ["mu", "huzinaga"]
+            case _:
+                logger.warning("Projector did not match valid case.")
 
         logger.debug(f"Embedding methods to run: {embedding_methods_to_run}")
 
