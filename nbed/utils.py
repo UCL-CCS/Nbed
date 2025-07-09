@@ -322,7 +322,7 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
         print(f"number of qubits required: {count_qubits(huz_qham)}")
         logger.info(f"number of qubits required: {count_qubits(huz_qham)}")
 
-    if driver.config.projector in ["mu", "both"]:
+    if driver.config.projector in [Projector.MU, Projector.BOTH]:
         print("".center(80, "*"))
         logger.info("".center(80, "*"))
         print("  Mu shift calculation".center(20))
