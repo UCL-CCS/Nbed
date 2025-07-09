@@ -721,7 +721,7 @@ class NbedDriver:
         logger.debug("Environment deleted.")
         return scf
 
-    def _dft_in_dft(self, xc_func: str, embedding_method: Callable):
+    def _dft_in_dft(self, xc_func: str, embedding_method: Callable) -> dict:
         """Return energy of DFT in DFT embedding.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
@@ -732,7 +732,7 @@ class NbedDriver:
             embedding_method (callable): Embedding method to use (mu or huzinaga).
 
         Returns:
-            float: Energy of DFT in embedding.
+            dict: DFT-in-DFT embedding results.
         """
         result = {}
         e_nuc = self._global_ks.energy_nuc()
@@ -801,7 +801,7 @@ class NbedDriver:
 
         return result
 
-    def embed(self, init_huzinaga_rhf_with_mu=False):
+    def embed(self, init_huzinaga_rhf_with_mu: bool = False) -> None:
         """Run embedded scf calculation.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
@@ -970,7 +970,8 @@ class NbedDriver:
                 result["e_dft_in_dft"] = did["e_rks"]
                 result["emb_dft"] = did["rks_e_elec"]
 
-            logger.debug(f"{projector_name=}")
+            logger.debug(f"Found result for {projector_name}")
+            logger.debug(result)
             if projector_name == "mu":
                 self._mu = result
             elif projector_name == "huzinaga":
