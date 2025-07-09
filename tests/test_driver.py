@@ -9,21 +9,21 @@ from pyscf.lib.misc import StreamObject
 
 from nbed.driver import NbedDriver
 from nbed.exceptions import NbedConfigError
-from nbed.config import NbedConfig
+from nbed.config import NbedConfig, Projector
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def mu_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = "mu"
+    nbed_config.projector = Projector.MU
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
 
 @pytest.fixture
 def mu_unrestricted_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = "mu"
+    nbed_config.projector = Projector.MU
     nbed_config.force_unrestricted = True
     driver = NbedDriver(nbed_config)
     driver.embed()
@@ -31,14 +31,14 @@ def mu_unrestricted_driver(nbed_config) -> NbedDriver:
 
 @pytest.fixture
 def huz_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = "huzinaga"
+    nbed_config.projector = Projector.HUZ
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
 
 @pytest.fixture
 def huz_unrestricted_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = "huzinaga"
+    nbed_config.projector = Projector.HUZ
     nbed_config.force_unrestricted = True
     driver = NbedDriver(nbed_config)
     driver.embed()
@@ -88,32 +88,29 @@ def test_incorrect_geometry_path() -> None:
     """Test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
     molecule = "THIS/IS/NOT/AN/XYZ/FILE"
 
-    config = NbedConfig(
-        geometry= molecule,
-        n_active_atoms= 1,
-        basis= "STO-3G",
-        xc_functional= "b3lyp5",
-        projector= "mu",
-        localization= "spade",
-        convergence= 1e-6,
-        run_ccsd_emb= True,
-        run_fci_emb= True,
-    )
 
     with pytest.raises(ValidationError):
+        config = NbedConfig(
+            geometry= molecule,
+            n_active_atoms= 1,
+            basis= "STO-3G",
+            xc_functional= "b3lyp5",
+            projector= "mu",
+            localization= "spade",
+            convergence= 1e-6,
+            run_ccsd_emb= True,
+            run_fci_emb= True,
+        )
         # match will match with any printed error message
-        driver = NbedDriver(config)
-        driver.embed()
 
-
-def test_driver_standard_xyz_string_input(restricted_driver) -> None:
+def test_driver_standard_xyz_string_input(mu_driver) -> None:
     """test to check driver works... raw xyz string given"""
 
-    assert isinstance(restricted_driver.embedded_scf, StreamObject)
-    assert isclose(restricted_driver.classical_energy, -3.5867934952241356)
-    assert restricted_driver.embedded_scf.mo_coeff.shape == (7,6)
+    assert isinstance(mu_driver.embedded_scf, StreamObject)
+    assert isclose(mu_driver.classical_energy, -3.5867934952241356)
+    assert mu_driver.embedded_scf.mo_coeff.shape == (7,6)
     assert np.allclose(
-        restricted_driver.embedded_scf.mo_coeff,
+        mu_driver.embedded_scf.mo_coeff,
         np.array(
             [
                 [-3.88142342e-03,  3.02684557e-01,  4.52415720e-01, -1.27601032e-05,    1.13974737e+00,  5.86125955e-02],
@@ -168,8 +165,8 @@ def test_subsystem_dft_spin_consistency(water_filepath) -> None:
         run_fci_emb= True,
     )
 
-    restricted_driver = NbedDriver(config)
-    restricted_driver.embed()
+    mu_driver = NbedDriver(config)
+    mu_driver.embed()
 
     unrestricted_config = NbedConfig(
         geometry= str(water_filepath),
@@ -187,34 +184,13 @@ def test_subsystem_dft_spin_consistency(water_filepath) -> None:
     unrestricted_driver.embed()
     # Could be problems with caching here
 
-    assert isclose(restricted_driver.e_act, unrestricted_driver.e_act)
-    assert isclose(restricted_driver.e_env, unrestricted_driver.e_env)
-    assert isclose(restricted_driver.two_e_cross, unrestricted_driver.two_e_cross)
+    assert isclose(mu_driver.e_act, unrestricted_driver.e_act)
+    assert isclose(mu_driver.e_env, unrestricted_driver.e_env)
+    assert isclose(mu_driver.two_e_cross, unrestricted_driver.two_e_cross)
     assert isclose(
-        restricted_driver.classical_energy, unrestricted_driver.classical_energy
+        mu_driver.classical_energy, unrestricted_driver.classical_energy
     )
 
-
-def test_incorrect_geometry_path() -> None:
-    """test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
-
-    molecule = "THIS/IS/NOT/AN/XYZ/FILE"
-
-    config = NbedConfig(
-        geometry= molecule,
-        n_active_atoms= 1,
-        basis= "STO-3G",
-        xc_functional= "b3lyp5",
-        projector= "mu",
-        localization= "spade",
-        convergence= 1e-6,
-        run_ccsd_emb= True,
-        run_fci_emb= True,
-    )
-
-    with pytest.raises(ValidationError):
-        # match will match with any printed error message
-        NbedDriver(config)
 
 if __name__ == "__main__":
     pass

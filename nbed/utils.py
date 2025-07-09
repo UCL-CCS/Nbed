@@ -269,7 +269,7 @@ def print_summary(driver: NbedDriver, transform: str, fci: bool = False) -> None
 
     # Would be a great place for a switch statemet when
     # dependencies catch up with python 3.10
-    match driver.case.projector:
+    match driver.config.projector:
         case Projector.BOTH:
             mu_qham, huz_qham = qham
         case Projector.HUZ:

@@ -17,7 +17,7 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .config import Localizer, NbedConfig
+from .config import Localizer, NbedConfig, Projector
 from .scf import energy_elec, huzinaga_scf
 
 # Create the Logger
@@ -44,14 +44,16 @@ class NbedDriver:
 
     def __init__(self, config: NbedConfig):
         """Initialise NbedDriver."""
+        logger.debug("Initialising NbedDriver with config:")
+        logger.debug(config.model_dump_json())
         self.config = config
         self.localized_system: OccupiedLocalizer
         self.two_e_cross: np.typing.NDArray
         self.dft_potential: np.typing.NDArray
         self.electron: int
         self.v_emb: np.typing.NDArray
-        self._mu: dict
-        self._huzinaga: dict
+        self._mu: dict = None
+        self._huzinaga: dict = None
 
         if config.force_unrestricted:
             logger.debug("Forcing unrestricted SCF")
@@ -848,11 +850,14 @@ class NbedDriver:
         # initializing huzinaga with mu
 
         embedding_methods_to_run = []
-        if self.config.projector in ["both", "mu"] or init_huzinaga_rhf_with_mu:
-            logger.debug("Queed $mu$-shift projector method.")
+        if (
+            self.config.projector in [Projector.MU, Projector.BOTH]
+            or init_huzinaga_rhf_with_mu
+        ):
+            logger.debug("Queued $mu$-shift projector method.")
             embedding_methods_to_run.append("mu")
 
-        if self.config.projector in ["both", "huzinaga"]:
+        if self.config.projector in [Projector.HUZ, Projector.BOTH]:
             logger.debug("Queued Huzinaga projector method.")
             embedding_methods_to_run.append("huzinaga")
 
@@ -964,19 +969,20 @@ class NbedDriver:
                 result["e_dft_in_dft"] = did["e_rks"]
                 result["emb_dft"] = did["rks_e_elec"]
 
+            logger.debug(f"{projector_name=}")
             if projector_name == "mu":
                 self._mu = result
             elif projector_name == "huzinaga":
                 self._huzinaga = result
 
         match self.config.projector:
-            case "mu":
+            case Projector.MU:
                 self.embedded_scf = self._mu["scf"]
                 self.classical_energy = self._mu["classical_energy"]
-            case "huzinaga" | "huz":
+            case Projector.HUZ:
                 self.embedded_scf = self._huzinaga["scf"]
                 self.classical_energy = self._huzinaga["classical_energy"]
-            case "both":
+            case Projector.BOTH:
                 logger.warning(
                     "Outputting both mu and huzinaga embedding results as tuple."
                 )
@@ -988,5 +994,8 @@ class NbedDriver:
                     self._mu["classical_energy"],
                     self._huzinaga["classical_energy"],
                 )
+            case _:
+                logger.debug("Projector did not match any know case.")
+                logger.warning("Not assigning embedded_scf or classial_energy")
 
         logger.info("Embedding complete.")
