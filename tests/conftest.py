@@ -88,6 +88,7 @@ def restricted_driver():
 
     config = NbedConfig(**args)
     driver = NbedDriver(config)
+    driver.embed()
     return driver
 
 @pytest.fixture(scope="module")
@@ -107,6 +108,7 @@ def unrestricted_driver():
         "run_fci_emb": False,
         "force_unrestricted": True,
     }
-
-    driver = NbedDriver(**args)
+    config = NbedConfig(**args)
+    driver = NbedDriver(config)
+    driver.embed()
     return driver

@@ -103,14 +103,14 @@ def test_incorrect_geometry_path() -> None:
         )
         # match will match with any printed error message
 
-def test_driver_standard_xyz_string_input(mu_driver) -> None:
+def test_driver_standard_xyz_string_input(restricted_driver) -> None:
     """test to check driver works... raw xyz string given"""
 
-    assert isinstance(mu_driver.embedded_scf, StreamObject)
-    assert isclose(mu_driver.classical_energy, -3.5867934952241356)
-    assert mu_driver.embedded_scf.mo_coeff.shape == (7,6)
+    assert isinstance(restricted_driver.embedded_scf, StreamObject)
+    assert isclose(restricted_driver.classical_energy, -3.5867934952241356)
+    assert restricted_driver.embedded_scf.mo_coeff.shape == (7,6)
     assert np.allclose(
-        mu_driver.embedded_scf.mo_coeff,
+        restricted_driver.embedded_scf.mo_coeff,
         np.array(
             [
                 [-3.88142342e-03,  3.02684557e-01,  4.52415720e-01, -1.27601032e-05,    1.13974737e+00,  5.86125955e-02],
