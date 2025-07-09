@@ -39,7 +39,6 @@ class NbedDriver:
         molecular_ham (InteractionOperator): molecular Hamiltonian for active subsystem (projection using mu shift operator)
         classical_energy (float): environment correction energy to obtain total energy (for mu shift method)
         molecular_ham (InteractionOperator): molecular Hamiltonian for active subsystem (projection using huzianga operator)
-        classical_energy (float): environment correction energy to obtain total energy (for huzianga method)
     """
 
     def __init__(self, config: NbedConfig):
@@ -79,7 +78,7 @@ class NbedDriver:
             full_mol (gto.mol): built PySCF molecule object
         """
         logger.debug("Constructing molecule.")
-        logger.info("Input geometry: %s", self.config.geometry)
+        logger.info("Molecule input geometry: %s", self.config.geometry)
         # geometry is raw xyz string
         full_mol = gto.Mole(
             atom=self.config.geometry[3:],
@@ -225,16 +224,16 @@ class NbedDriver:
 
         # overwrite total number of electrons to only include active system
         if self._restricted_scf:
-            embedded_mol.nelectron = 2 * len(self._localized_system.active_MO_inds)
+            embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
             embedded_mol.spin = 0
             self._electron = embedded_mol.nelectron
             local_hf: scf.rhf.RHF = scf.RHF(embedded_mol)
         else:
-            embedded_mol.nelectron = len(self._localized_system.active_MO_inds) + len(
-                self._localized_system.beta_active_MO_inds
+            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
+                self.localized_system.beta_active_MO_inds
             )
-            embedded_mol.spin = len(self._localized_system.active_MO_inds) - len(
-                self._localized_system.beta_active_MO_inds
+            embedded_mol.spin = len(self.localized_system.active_MO_inds) - len(
+                self.localized_system.beta_active_MO_inds
             )
             self._electron = embedded_mol.nelectron
             local_hf: scf.uhf.UHF = scf.UHF(embedded_mol)
@@ -270,12 +269,12 @@ class NbedDriver:
 
         if self._restricted_scf:
             # overwrite total number of electrons to only include active system
-            embedded_mol.nelectron = 2 * len(self._localized_system.active_MO_inds)
+            embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
             self._electron = embedded_mol.nelectron
             local_ks: dft.rks.RKS = scf.RKS(embedded_mol)
         else:
-            embedded_mol.nelectron = len(self._localized_system.active_MO_inds) + len(
-                self._localized_system.beta_active_MO_inds
+            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
+                self.localized_system.beta_active_MO_inds
             )
             self._electron = embedded_mol.nelectron
             local_ks: dft.uks.UKS = scf.UKS(embedded_mol)
@@ -291,7 +290,7 @@ class NbedDriver:
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _ks_components(
-            ks_system: StreamObject,
+            ks_system: dft.KohnShamDFT,
             subsystem_dm: np.ndarray,
         ) -> tuple[float, np.ndarray, np.ndarray]:
             """Calculate the components of subsystem energy from a RKS DFT calculation.
@@ -300,7 +299,7 @@ class NbedDriver:
             J,K, V_xc matrices.
 
             Args:
-                ks_system (StreamObject): PySCF Kohn-Sham object
+                ks_system (pyscf.dft.KohnShamDFT): PySCF Kohn-Sham object
                 subsystem_dm (np.ndarray): density matrix (to calculate all matrices from)
 
 
@@ -347,19 +346,19 @@ class NbedDriver:
         if not self._restricted_scf:
             dm_act = np.array(
                 [
-                    self._localized_system.dm_active,
-                    self._localized_system.beta_dm_active,
+                    self.localized_system.dm_active,
+                    self.localized_system.beta_dm_active,
                 ]
             )
             dm_env = np.array(
                 [
-                    self._localized_system.dm_enviro,
-                    self._localized_system.beta_dm_enviro,
+                    self.localized_system.dm_enviro,
+                    self.localized_system.beta_dm_enviro,
                 ]
             )
         else:
-            dm_act = self._localized_system.dm_active
-            dm_env = self._localized_system.dm_enviro
+            dm_act = self.localized_system.dm_active
+            dm_env = self.localized_system.dm_enviro
 
         (e_act, two_e_act, j_act) = _ks_components(self._global_ks, dm_act)
         # logger.debug(e_act, alpha_e_xc_act)
@@ -370,12 +369,12 @@ class NbedDriver:
 
         # Computing cross subsystem terms
         logger.debug("Calculating two electron cross subsystem energy.")
-        total_dm = self._localized_system.dm_active + self._localized_system.dm_enviro
+        total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
 
         if not self._restricted_scf:
             total_dm += (
-                self._localized_system.beta_dm_active
-                + self._localized_system.beta_dm_enviro
+                self.localized_system.beta_dm_active
+                + self.localized_system.beta_dm_enviro
             )
 
         two_e_term_total = self._global_ks.get_veff(dm=total_dm)
@@ -383,19 +382,19 @@ class NbedDriver:
 
         if self._restricted_scf:
             j_cross = 0.5 * (
-                np.einsum("ij,ij", self._localized_system.dm_active, j_env)
-                + np.einsum("ij,ij", self._localized_system.dm_enviro, j_act)
+                np.einsum("ij,ij", self.localized_system.dm_active, j_env)
+                + np.einsum("ij,ij", self.localized_system.dm_enviro, j_act)
             )
         else:
             j_cross = 0.5 * (
-                np.einsum("ij,ij", self._localized_system.dm_active, j_env[0])
-                + np.einsum("ij,ij", self._localized_system.dm_enviro, j_act[0])
-                + np.einsum("ij,ij", self._localized_system.dm_active, j_env[1])
-                + np.einsum("ij,ij", self._localized_system.dm_enviro, j_act[1])
-                + np.einsum("ij,ij", self._localized_system.beta_dm_active, j_env[1])
-                + np.einsum("ij,ij", self._localized_system.beta_dm_enviro, j_act[1])
-                + np.einsum("ij,ij", self._localized_system.beta_dm_active, j_env[0])
-                + np.einsum("ij,ij", self._localized_system.beta_dm_enviro, j_act[0])
+                np.einsum("ij,ij", self.localized_system.dm_active, j_env[0])
+                + np.einsum("ij,ij", self.localized_system.dm_enviro, j_act[0])
+                + np.einsum("ij,ij", self.localized_system.dm_active, j_env[1])
+                + np.einsum("ij,ij", self.localized_system.dm_enviro, j_act[1])
+                + np.einsum("ij,ij", self.localized_system.beta_dm_active, j_env[1])
+                + np.einsum("ij,ij", self.localized_system.beta_dm_enviro, j_act[1])
+                + np.einsum("ij,ij", self.localized_system.beta_dm_active, j_env[0])
+                + np.einsum("ij,ij", self.localized_system.beta_dm_enviro, j_act[0])
             )
         logger.debug(f"{j_cross=}")
 
@@ -420,13 +419,13 @@ class NbedDriver:
     def _env_projector(self) -> np.ndarray:
         """Return a projector onto the environment in orthogonal basis."""
         s_mat = self._global_ks.get_ovlp()
-        env_projector_alpha = s_mat @ self._localized_system.dm_enviro @ s_mat
+        env_projector_alpha = s_mat @ self.localized_system.dm_enviro @ s_mat
 
         if self._restricted_scf:
             env_projector = env_projector_alpha
 
         else:
-            env_projector_beta = s_mat @ self._localized_system.beta_dm_enviro @ s_mat
+            env_projector_beta = s_mat @ self.localized_system.beta_dm_enviro @ s_mat
             env_projector = np.array([env_projector_alpha, env_projector_beta])
 
         return env_projector
@@ -556,12 +555,12 @@ class NbedDriver:
         logger.debug("Starting Huzinaga embedding method.")
         # We need to run our own SCF method here to update the potential.
         if self._restricted_scf:
-            total_enviro_dm = self._localized_system.dm_enviro
+            total_enviro_dm = self.localized_system.dm_enviro
         else:
             total_enviro_dm = np.array(
                 [
-                    self._localized_system.dm_enviro,
-                    self._localized_system.beta_dm_enviro,
+                    self.localized_system.dm_enviro,
+                    self.localized_system.beta_dm_enviro,
                 ]
             )
 
@@ -678,7 +677,7 @@ class NbedDriver:
         logger.debug("Deleting environment from SCF object.")
 
         if self._restricted_scf:
-            n_env_mos = len(self._localized_system.enviro_MO_inds)
+            n_env_mos = len(self.localized_system.enviro_MO_inds)
             scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
                 method,
                 n_env_mos,
@@ -688,8 +687,8 @@ class NbedDriver:
                 self._env_projector,
             )
         else:
-            alpha_n_env_mos = len(self._localized_system.enviro_MO_inds)
-            beta_n_env_mos = len(self._localized_system.beta_enviro_MO_inds)
+            alpha_n_env_mos = len(self.localized_system.enviro_MO_inds)
+            beta_n_env_mos = len(self.localized_system.beta_enviro_MO_inds)
             mo_coeff = np.array([None, None])
             mo_energy = np.array([None, None])
             mo_occ = np.array([None, None])
@@ -751,13 +750,13 @@ class NbedDriver:
             result["dft_correction"] = np.einsum(
                 "ij,ij",
                 result["v_emb_dft"][0],
-                (y_emb_alpha - self._localized_system.dm_active),
+                (y_emb_alpha - self.localized_system.dm_active),
             )
 
             result["dft_correction_beta"] = np.einsum(
                 "ij,ij",
                 result["v_emb_dft"][1],
-                (y_emb_beta - self._localized_system.beta_dm_active),
+                (y_emb_beta - self.localized_system.beta_dm_active),
             )
 
             veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
@@ -784,7 +783,7 @@ class NbedDriver:
             result["dft_correction"] = np.einsum(
                 "ij,ij",
                 result["v_emb_dft"],
-                (y_emb - self._localized_system.dm_active),
+                (y_emb - self.localized_system.dm_active),
             )
             veff = result["scf_dft"].get_veff(dm=y_emb)
             result["dft_correction_beta"] = 0
@@ -812,21 +811,21 @@ class NbedDriver:
 
         e_nuc = self._global_ks.energy_nuc()
 
-        self._localized_system = self._localize()
+        self.localized_system = self._localize()
         logger.info("Indices of embedded electrons:")
-        logger.info(self._localized_system.active_MO_inds)
-        logger.info(self._localized_system.enviro_MO_inds)
+        logger.info(self.localized_system.active_MO_inds)
+        logger.info(self.localized_system.enviro_MO_inds)
 
         # Run subsystem DFT (calls localized rks)
         self._subsystem_dft()
         logger.debug("Getting global DFT potential to optimize embedded calc in.")
 
-        total_dm = self._localized_system.dm_active + self._localized_system.dm_enviro
+        total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
         if not self._restricted_scf:
             logger.debug("Adding beta spin density matrix")
             total_dm += (
-                self._localized_system.beta_dm_active
-                + self._localized_system.beta_dm_enviro
+                self.localized_system.beta_dm_active
+                + self.localized_system.beta_dm_enviro
             )
 
         g_act_and_env = self._global_ks.get_veff(dm=total_dm)
@@ -834,12 +833,12 @@ class NbedDriver:
         logger.debug(f"{g_act_and_env.shape=}")
 
         if self._restricted_scf:
-            g_act = self._global_ks.get_veff(dm=self._localized_system.dm_active)
+            g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
         else:
             g_act = self._global_ks.get_veff(
                 dm=[
-                    self._localized_system.dm_active,
-                    self._localized_system.beta_dm_active,
+                    self.localized_system.dm_active,
+                    self.localized_system.beta_dm_active,
                 ]
             )
         dft_potential = g_act_and_env - g_act
@@ -893,15 +892,15 @@ class NbedDriver:
             # calculate correction
             if self._restricted_scf:
                 result["correction"] = np.einsum(
-                    "ij,ij", result["v_emb"], self._localized_system.dm_active
+                    "ij,ij", result["v_emb"], self.localized_system.dm_active
                 )
                 result["beta_correction"] = 0
             else:
                 result["correction"] = np.einsum(
-                    "ij,ij", result["v_emb"][0], self._localized_system.dm_active
+                    "ij,ij", result["v_emb"][0], self.localized_system.dm_active
                 )
                 result["beta_correction"] = np.einsum(
-                    "ij,ij", result["v_emb"][1], self._localized_system.beta_dm_active
+                    "ij,ij", result["v_emb"][1], self.localized_system.beta_dm_active
                 )
 
             # Virtual localization
