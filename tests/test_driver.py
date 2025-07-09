@@ -44,10 +44,17 @@ def huz_unrestricted_driver(nbed_config) -> NbedDriver:
     driver.embed()
     return driver
 
-def test_embedded_fci(mu_driver, mu_unrestricted_driver, huz_driver, huz_unrestricted_driver):
-    assert(np.isclose(mu_driver._run_emb_FCI(mu_driver.embedded_scf).e_tot, -51.61379094995273))
-    assert(np.isclose(mu_unrestricted_driver._run_emb_FCI(mu_unrestricted_driver.embedded_scf).e_tot, -51.61379094995273))
+def test_embedded_fci(nbed_config, mu_driver, mu_unrestricted_driver, huz_driver, huz_unrestricted_driver):
+    assert(np.isclose(mu_driver._run_emb_FCI(mu_driver.embedded_scf).e_tot, -62.261794716560416))
+    assert(np.isclose(mu_unrestricted_driver._run_emb_FCI(mu_unrestricted_driver.embedded_scf).e_tot, -62.261794716560416))
+    nbed_config.projector = Projector.HUZ
+    nbed_config.n_active_atoms=1
+    huz_driver = NbedDriver(nbed_config)
+    huz_driver.embed()
     assert(np.isclose(huz_driver._run_emb_FCI(huz_driver.embedded_scf).e_tot, -51.61379094995273))
+    nbed_config.force_unrestricted = True
+    huz_unrestricted_driver = NbedDriver(nbed_config)
+    huz_unrestricted_driver.embed()
     assert(np.isclose(huz_unrestricted_driver._run_emb_FCI(huz_unrestricted_driver.embedded_scf).e_tot, -51.61379094995273))
 
 def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:
