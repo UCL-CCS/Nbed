@@ -10,6 +10,7 @@ Major refactor, with several breaking changes!
 
 ### Added
 - `NbedConfig` pydantic model to validate user input.
+- `savefile` config option used to save driver output to json file.
 
 ### Removed
 - `HamiltonianConverter` removed.
@@ -17,6 +18,7 @@ Major refactor, with several breaking changes!
 
 ### Changed
 - CLI tool now expects a path to a config `.json` file which matches the `NbedConfig` model.
+- `NbedDriver` automatically calls `HamiltonianBuilder.build()`, adding output to results as `second_quantised`.
 
 ## [0.0.8]
 ### Fixed
