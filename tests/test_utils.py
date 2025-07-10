@@ -6,7 +6,6 @@ import pytest
 
 from nbed.utils import (
     build_ordered_xyz_string,
-    pubchem_mol_geometry,
     save_ordered_xyz_file,
 )
 

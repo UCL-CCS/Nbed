@@ -18,6 +18,7 @@ from nbed.localizers import (
 )
 
 from .config import LocalizerEnum, NbedConfig, ProjectorEnum
+from .ham_builder import HamiltonianBuilder
 from .scf import energy_elec, huzinaga_scf
 
 # Create the Logger
@@ -974,6 +975,10 @@ class NbedDriver:
                 did = self._dft_in_dft(self._global_ks.xc, embedding_method)
                 result["e_dft_in_dft"] = did["e_rks"]
                 result["emb_dft"] = did["rks_e_elec"]
+
+            # Build second quantised Hamiltonian
+            hb = HamiltonianBuilder(result["scf"], result["classical_energy"])
+            result["second_quantised"] = hb.build()
 
             logger.debug(f"Found result for {projector_name}")
             logger.debug(result)
