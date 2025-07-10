@@ -8,6 +8,7 @@ from pydantic import (
     BaseModel,
     BeforeValidator,
     Field,
+    FilePath,
     NonNegativeInt,
     PositiveFloat,
     PositiveInt,
@@ -78,7 +79,7 @@ class NbedConfig(BaseModel):
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
         max_dft_cycles (int): max number of DFT iterations allowed in scf calc
         init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
-        savefile (str | Path):
+        savefile (FilePath): Location of file to save output to.
     """
 
     geometry: Annotated[XYZGeometry, BeforeValidator(validate_xyz_file)]
@@ -92,6 +93,9 @@ class NbedConfig(BaseModel):
     spin: NonNegativeInt = Field(default=0)
     unit: str = "angstrom"
     symmetry: bool = False
+
+    savefile: FilePath | None = None
+    transform: str | None = None
 
     run_ccsd_emb: bool = False
     run_fci_emb: bool = False

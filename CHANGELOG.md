@@ -6,8 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+Major refactor, with several breaking changes!
+
 ### Added
 - `NbedConfig` pydantic model to validate user input.
+
+### Removed
+- `HamiltonianConverter` removed.
+- All functions relating to generating qubit hamiltonians have been removed from `HamiltonianBuilder`, this now only handles creating a second quantised hamiltonian.
+
+### Changed
+- CLI tool now expects a path to a config `.json` file which matches the `NbedConfig` model.
 
 ## [0.0.8]
 ### Fixed

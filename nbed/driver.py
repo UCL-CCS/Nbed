@@ -99,7 +99,7 @@ class NbedDriver:
         global_hf = (
             scf.UHF(mol_full, **hf_kwargs)
             if not self._restricted_scf
-            else scf.RHF(mol_full)
+            else scf.RHF(mol_full, **hf_kwargs)
         )
         global_hf.conv_tol = self.config.convergence
         global_hf.max_memory = self.config.max_ram_memory

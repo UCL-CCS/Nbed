@@ -1,163 +1,37 @@
 """Main embedding functionality."""
 
 import logging
-from datetime import datetime
-from pathlib import Path
-from typing import Optional
-
-from openfermion.utils import save_operator
-
-from nbed.exceptions import NbedConfigError
-from nbed.ham_builder import HamiltonianBuilder
 
 from .config import NbedConfig
 from .driver import NbedDriver
-from .utils import parse, print_summary
+from .utils import parse
 
 logger = logging.getLogger(__name__)
 
 
 def nbed(
-    geometry: str,
-    n_active_atoms: int,
-    basis: str,
-    xc_functional: str,
-    projector: str,
-    localization: str,
-    transform:str,
-    convergence: Optional[float] = 1e-6,
-    charge: Optional[int] = 0,
-    spin: Optional[int] = 0,
-    mu_level_shift: Optional[float] = 1e6,
-    run_ccsd_emb: Optional[bool] = False,
-    run_fci_emb: Optional[bool] = False,
-    max_ram_memory: Optional[int] = 4000,
-    savefile: Optional[Path] = None,
-    unit: Optional[str] = "angstrom",
-    occupied_threshold: Optional[float] = 0.95,
-    virtual_threshold: Optional[float] = 0.95,
-    max_hf_cycles: int = 50,
-    max_dft_cycles: int = 50,
-    unrestricted: Optional[bool] = False,
-    config: Optional[NbedConfig] = None,
+    config: NbedConfig,
 ):
     """Import interface for the nbed package.
 
-    This functin first the NbedDriver class to create a second quantized hamiltonian
-    using configuration provided. Then it calls the HamiltonianConverter class to
-    apply a transformation to a qubit hamiltonian and output the desired backend object.
+    This function calls the NbedDriver class to create a second quantized hamiltonian
+    using configuration provided.
 
     Args:
-        geometry (str): Path to .xyz file containing molecular geometry or raw xyz string.
-        n_active_atoms (int): The number of atoms to include in the active region.
-        basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
-        xc_functional (str): The name of an Exchange-Correlation functional to be used for DFT.
-        projector (str): Type of projector to use in embedding. One of "mu" or "huzinaga".
-        output (str): The name of the quantum backend to output a qubit hamiltonian object for.
-        transform (str): Qubit transform to be applied to the Hamiltonian.
-        localization (str): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
-        convergence (float): The convergence tolerance for energy calculations.
-        charge (int): Charge of molecule
-        spin (int): Spin of the molecule
-        mu_level_shift (float): Level shift parameter to use for mu-projector.
-        run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
-        run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
-        max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
-        pyscf_print_level (int): Amount of information PySCF prints
-        savefile (str): Path to file to save output Hamiltonain to.
-        unit (str): molecular geometry unit 'angstrom' or 'bohr'
-        occupied_threshold (float): The occupancy threshold for localizing occupied orbitals.
-        virtual_threshold (float): The occupancy threshold for localizing virtual orbitals.
-        max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
-        max_dft_cycles (int): max number of DFT iterations allowed in scf calc
-        unrestricted (bool): Whether to force unrestricted calculation.
+        config (NbedConfig): A validated config model, overwrites other input.
 
     Returns:
         object: A qubit hamiltonian object which can be used in the quantum backend specified by 'output'.
     """
-    if projector == "both":
-        raise NbedConfigError("Cannot use 'both' as value of projector.")
-
-    if config is None:
-        config = NbedConfig(
-            geometry=geometry,
-            n_active_atoms=n_active_atoms,
-            basis=basis,
-            xc_functional=xc_functional,
-            projector=projector,
-            localization=localization,
-            convergence=convergence,
-            charge=charge,
-            spin=spin,
-            mu_level_shift=mu_level_shift,
-            run_ccsd_emb=run_ccsd_emb,
-            run_fci_emb=run_fci_emb,
-            max_ram_memory=max_ram_memory,
-            unit=unit,
-            occupied_threshold=occupied_threshold,
-            virtual_threshold=virtual_threshold,
-            max_hf_cycles=max_hf_cycles,
-            max_dft_cycles=max_dft_cycles,
-            force_unrestricted=unrestricted,
-        )
-    else:
-        logger.info("Using input NbedConfig, ignoring other parameters.")
-
-    _run(config, transform, savefile)
-
-
-def _run(config: NbedConfig, transform: Optional[str]="jordan_wigner", savefile: Optional[str] = None):
     driver = NbedDriver(config)
     driver.embed()
-
-    if savefile is not None:
-        data_directory = Path(savefile).absolute()
-        data_directory.mkdir(parents=True, exist_ok=True)
-        data_directory = str(data_directory)
-
-    # Needed for 'both' projector
-    if isinstance(driver.embedded_scf, tuple):
-        hamiltonians = ()
-        for scf, e_classical in zip(driver.embedded_scf, driver.classical_energy):
-            qham = HamiltonianBuilder(
-                scf_method=scf,
-                constant_e_shift=e_classical,
-                transform=transform,
-            ).build()
-
-            if savefile is not None:
-                # because we'll have two in quick succession
-                file_name = f"Nbed_{datetime.now()}"
-                save_operator(
-                    qham,
-                    file_name,
-                    data_directory,
-                )
-
-            hamiltonians += (qham,)
-    else:
-        qham = HamiltonianBuilder(
-            scf_method=driver.embedded_scf,
-            constant_e_shift=driver.classical_energy,
-            transform=transform,
-        ).build()
-
-        if savefile is not None:
-            file_name = f"Nbed_{datetime.now()}"
-            save_operator(
-                qham,
-                file_name,
-                data_directory,
-            )
-
-    print_summary(driver, transform, fci=False)
-    return hamiltonians
+    return driver
 
 
 def cli() -> None:
     """CLI Interface."""
-    config, transform, savefile = parse()
-    _run(config, transform, savefile)
+    config = parse()
+    nbed(config)
 
 
 if __name__ == "__main__":

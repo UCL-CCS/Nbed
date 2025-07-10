@@ -1,23 +1,16 @@
 """Class to build qubit Hamiltonians from scf object."""
 
 import logging
-import warnings
-from functools import cached_property
 from numbers import Number
 
 import numpy as np
-import openfermion.transforms as of_transforms
 from numpy.typing import NDArray
 from openfermion import (
-    InteractionOperator,
     QubitOperator,
-    count_qubits,
 )
 from openfermion.config import EQ_TOLERANCE
 from pyscf import ao2mo, dft, lib, scf
 from pyscf.lib import StreamObject
-from symmer.operators import IndependentOp, PauliwordOp, QuantumState
-from symmer.projection import QubitTapering, S3Projection
 
 from nbed.exceptions import HamiltonianBuilderError
 
@@ -249,7 +242,6 @@ class HamiltonianBuilder:
         Returns:
             (npt.NDArray, npt.NDArray): The one and two body spinorb coefficients
         """
-
         if self.n_frozen_virt != 0:
             self.scf_method = reduce_virtuals(self.scf_method, self.n_frozen_virt)
 
@@ -263,7 +255,8 @@ class HamiltonianBuilder:
         logger.debug(f"{one_body_coefficients.shape=}")
         logger.debug(f"{two_body_coefficients.shape=}")
 
-        return self.constant_e_shift, one_body_coefficients, 0.5*two_body_coefficients
+        return self.constant_e_shift, one_body_coefficients, 0.5 * two_body_coefficients
+
 
 def reduce_virtuals(scf_method, n_frozen_virt: int) -> lib.StreamObject:
     """Reduce the number of virtual orbitals.
