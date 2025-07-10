@@ -1,23 +1,13 @@
 """Class to build qubit Hamiltonians from scf object."""
 
 import logging
-import warnings
-from functools import cached_property
 from numbers import Number
 
 import numpy as np
-import openfermion.transforms as of_transforms
 from numpy.typing import NDArray
-from openfermion import (
-    InteractionOperator,
-    QubitOperator,
-    count_qubits,
-)
 from openfermion.config import EQ_TOLERANCE
 from pyscf import ao2mo, dft, lib, scf
 from pyscf.lib import StreamObject
-from symmer.operators import IndependentOp, PauliwordOp, QuantumState
-from symmer.projection import QubitTapering, S3Projection
 
 from nbed.exceptions import HamiltonianBuilderError
 
@@ -31,8 +21,6 @@ class HamiltonianBuilder:
         self,
         scf_method: StreamObject,
         constant_e_shift: float = 0,
-        transform: str = "jordan_wigner",
-        auto_freeze_core: bool = False,
         n_frozen_core: int = 0,
         n_frozen_virt: int = 0,
     ) -> None:
@@ -50,14 +38,9 @@ class HamiltonianBuilder:
         logger.debug(type(scf_method))
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
-        self.transform = transform
-        self.auto_freeze_core = auto_freeze_core
         self.n_frozen_core = n_frozen_core
         self.n_frozen_virt = n_frozen_virt
         self._restricted = isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
-        # self.occupancy = (
-        #     self.scf_method.mo_occ
-        # )  # if self._restricted else self.scf_method.mo_occ.sum(axis=1)
         if isinstance(self.scf_method.mo_occ[0], Number):
             self.occupancy = self.scf_method.mo_occ
         elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
@@ -172,25 +155,6 @@ class HamiltonianBuilder:
         logger.debug(f"{two_body_integrals.shape}")
         return two_body_integrals
 
-    def reduce_virtuals(self, n_frozen_virt: int) -> lib.StreamObject:
-        """Reduce the number of virtual orbitals.
-
-        Args:
-            n_frozen_virt (int): Number of virtual orbitals to freeze.
-        """
-        reduced_scf_method = self.scf_method.copy()
-        if n_frozen_virt <= 0:
-            logger.debug("No virtual orbital reduction.")
-            return reduced_scf_method
-
-        logger.debug(f"Reducing virtuals by {n_frozen_virt}.")
-        reduced_scf_method.mo_coeff[0] = self.scf_method.mo_coeff[0][:, :-n_frozen_virt]
-        reduced_scf_method.mo_coeff[1] = self.scf_method.mo_coeff[1][:, :-n_frozen_virt]
-
-        self.scf_method.run()
-
-        return reduced_scf_method
-
     def _spinorb_from_spatial(
         self, one_body_integrals: NDArray, two_body_integrals: NDArray
     ) -> tuple[NDArray, NDArray]:
@@ -251,59 +215,9 @@ class HamiltonianBuilder:
 
         return one_body_coefficients, two_body_coefficients
 
-    @staticmethod
-    def _qubit_transform(transform: str, intop: InteractionOperator) -> QubitOperator:
-        """Transform second quantised hamiltonain to qubit Hamiltonian.
-
-        Args:
-            transform: Transformation to apply to the Hamiltonian.
-            intop: InteractionOperator to transform.
-
-        Returns:
-            QubitOperator: Transformed qubit Hamiltonian.
-        """
-        logger.debug(f"Transforming to qubit Hamiltonian using {transform} transform.")
-        if transform is None or hasattr(of_transforms, transform) is False:
-            raise HamiltonianBuilderError(
-                "Invalid transform. Please use a transform from `openfermion.transforms`."
-            )
-
-        transform = getattr(of_transforms, transform)
-
-        try:
-            qubit_hamiltonain: QubitOperator = transform(intop)
-        except TypeError:
-            logger.error(
-                "Transform selected is not a valid InteractionOperator transform."
-            )
-            raise HamiltonianBuilderError(
-                "Transform selected is not a valid InteractionOperator transform."
-            )
-
-        if type(qubit_hamiltonain) is not QubitOperator:
-            raise HamiltonianBuilderError(
-                "Transform selected must output a QubitOperator."
-            )
-
-        logger.debug("Qubit Hamiltonian constructed.")
-        return qubit_hamiltonain
-
-    def get_hartree_fock_state(self):
-        """Returns the Hartree-Fock state |1,...,1,0,...,0>."""
-        logger.debug(f"{self.occupancy=}")
-        electrons = self.occupancy.sum()
-        virtuals = (2 * self.occupancy.shape[-1]) - self.occupancy.sum()
-        logger.debug(f"{electrons=} {virtuals=}")
-        hf_state = np.hstack((np.ones(int(electrons)), np.zeros(int(virtuals)))).astype(
-            int
-        )
-        logger.debug(f"{hf_state=}")
-        return QuantumState(hf_state)
-
     def build(
         self,
-        taper: bool = False,
-    ) -> QubitOperator:
+    ) -> tuple[float, NDArray, NDArray]:
         """Returns second quantized fermionic molecular Hamiltonian.
 
         constant_e_shift is a constant energy addition... in this code this will be the classical embedding energy
@@ -322,11 +236,8 @@ class HamiltonianBuilder:
             active_indices (List[int]): Indices of active orbitals.
 
         Returns:
-            molecular_hamiltonian (QubitOperator): Qubit Hamiltonian for molecular system.
+            (float, npt.NDArray, npt.NDArray): The one and two body spinorb coefficients
         """
-        if taper is not None:
-            logger.warning("Tapering is deprecated. Use the qubit_reduction_driver.")
-
         if self.n_frozen_virt != 0:
             self.scf_method = reduce_virtuals(self.scf_method, self.n_frozen_virt)
 
@@ -339,147 +250,8 @@ class HamiltonianBuilder:
 
         logger.debug(f"{one_body_coefficients.shape=}")
         logger.debug(f"{two_body_coefficients.shape=}")
-        logger.debug("Building interaction operator.")
-        molecular_hamiltonian = InteractionOperator(
-            self.constant_e_shift,
-            one_body_coefficients,
-            0.5 * two_body_coefficients,
-        )
-        logger.debug(f"{count_qubits(molecular_hamiltonian)} qubits in Hamiltonian.")
-        qham = self._qubit_transform(self.transform, molecular_hamiltonian)
-        if taper:
-            # for legacy compatibility (recommended usage is via the qubit_reduction_driver)
-            logger.debug("Converting to Symmer PauliWordOp")
-            pwop = PauliwordOp.from_openfermion(qham)
-            logger.debug("Creating reference state.")
-            hf_state = self.get_hartree_fock_state()
-            logger.debug("Running QubitTapering")
-            pwop = QubitTapering(pwop).taper_it(ref_state=hf_state)
-            qham = to_openfermion(pwop)
-            logger.debug("Symmer functions complete.")
-        return qham
 
-    @cached_property
-    def H(self) -> PauliwordOp:
-        """The full, untapered, unfrozen Hamiltonian."""
-        return PauliwordOp.from_openfermion(self.build())
-
-    @cached_property
-    def qubit_reduction_driver(self) -> S3Projection:
-        """Qubit tapering and frozen core reduction."""
-        if isinstance(self.scf_method.mo_occ[0], Number):
-            mo_energy = self.scf_method.mo_energy
-        elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
-            mo_energy = self.scf_method.mo_energy[0]
-        else:
-            raise ValueError("occupancy dimension error")
-        occ_energy = mo_energy[: self.scf_method.mol.nelec[0]]
-        nao = mo_energy.shape[0]
-        hf_state = self.get_hartree_fock_state()
-        if self.auto_freeze_core:
-            if self.n_frozen_core != 0:
-                warnings.warn(
-                    f"Auto freezing core: will overwrite n_frozen_core={self.n_frozen_core}"
-                )
-            self.n_frozen_core = np.count_nonzero(
-                occ_energy < np.mean(occ_energy) - np.std(occ_energy)
-            )
-        # index the frozen orbitals positions:
-        frozen_spatial_orbital_indices = np.append(
-            np.argsort(self.scf_method.mo_energy[0])[: self.n_frozen_core],
-            np.argsort(self.scf_method.mo_energy[0])[nao - self.n_frozen_virt :],
-        )
-        frozen_spin_orbital_indices = np.sort(
-            np.append(
-                2 * frozen_spatial_orbital_indices,
-                2 * frozen_spatial_orbital_indices + 1,
-            )
-        )
-        frozen_Z_block = np.eye(nao * 2, dtype=bool)[frozen_spin_orbital_indices]
-        # build the symplectic matrix:
-        frozen_symp = np.hstack(
-            [np.zeros_like(frozen_Z_block, dtype=bool), frozen_Z_block]
-        )
-        stab_symp = np.vstack(
-            [frozen_symp, IndependentOp.symmetry_generators(self.H).symp_matrix]
-        )
-        # Stabilizer SubSpace (S3) projection object contains the stabilizers for the frozen core AND tapering:
-        s3_proj = S3Projection(IndependentOp(stab_symp))
-        s3_proj.stabilizers.update_sector(hf_state)
-        return s3_proj
-
-    def reduce(self, operator: PauliwordOp = None) -> PauliwordOp:
-        """Perform qubit reduction over the input operator.
-
-        If None set, then will take the full molecular Hamiltonian.
-        """
-        if operator is None:
-            operator = self.H
-        if isinstance(operator, PauliwordOp):
-            return self.qubit_reduction_driver.perform_projection(operator)
-        elif isinstance(operator, QuantumState):
-            return self.qubit_reduction_driver._project_state(operator)
-        else:
-            raise ValueError("Unrecognised input, must be PauliwordOp or QuantumState.")
-
-
-def array_to_dict_nonzero_indices(arr, tol=1e-10):
-    """Convert an array to a dict for the non-zero indices."""
-    where_nonzero = np.where(~np.isclose(arr, 0, atol=tol))
-    nonzero_indices = list(zip(*where_nonzero))
-    return dict(zip(nonzero_indices, arr[where_nonzero]))
-
-
-def to_openfermion(pwop: PauliwordOp) -> QubitOperator:
-    """Convert to OpenFermion Pauli operator representation.
-
-    Args:
-        pwop (PauliwordOp): The PauliwordOp to convert.
-
-    Returns:
-        open_f (QubitOperator): The QubitOperator representation of the PauliwordOp.
-    """
-
-    def symplectic_to_of(symp_vec, coeff) -> QubitOperator:
-        """Returns string form of symplectic vector defined as (X | Z).
-
-        Args:
-            symp_vec (array): symplectic Pauliword array
-            coeff (float): coefficient of the Pauliword
-
-        Returns:
-            Pword_string (str): String version of symplectic array
-        """
-        n_qubits = len(symp_vec) // 2
-
-        X_block = symp_vec[:n_qubits]
-        Z_block = symp_vec[n_qubits:]
-
-        Y_loc = np.logical_and(X_block, Z_block)
-        X_loc = np.logical_xor(Y_loc, X_block)
-        Z_loc = np.logical_xor(Y_loc, Z_block)
-
-        char_aray = np.array(list("I" * n_qubits), dtype=str)
-
-        char_aray[Y_loc] = "Y"
-        char_aray[X_loc] = "X"
-        char_aray[Z_loc] = "Z"
-
-        indices = np.array(range(n_qubits), dtype=str)
-        char_aray = np.char.add(char_aray, indices)[np.where(char_aray != "I")[0]]
-
-        Pword_string = " ".join(char_aray)
-
-        return QubitOperator(Pword_string, coeff)
-
-    open_f = QubitOperator()
-    ops = [
-        symplectic_to_of(P_sym, coeff)
-        for P_sym, coeff in zip(pwop.symp_matrix, pwop.coeff_vec)
-    ]
-    for op in ops:
-        open_f += op
-    return open_f
+        return self.constant_e_shift, one_body_coefficients, 0.5 * two_body_coefficients
 
 
 def reduce_virtuals(scf_method, n_frozen_virt: int) -> lib.StreamObject:

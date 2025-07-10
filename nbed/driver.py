@@ -2,6 +2,7 @@
 
 import logging
 from functools import cached_property, reduce
+from json import dump as jdump
 from typing import Callable, Optional, Union
 
 import numpy as np
@@ -17,7 +18,8 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .config import Localizer, NbedConfig, Projector
+from .config import LocalizerEnum, NbedConfig, ProjectorEnum
+from .ham_builder import HamiltonianBuilder
 from .scf import energy_elec, huzinaga_scf
 
 # Create the Logger
@@ -99,7 +101,7 @@ class NbedDriver:
         global_hf = (
             scf.UHF(mol_full, **hf_kwargs)
             if not self._restricted_scf
-            else scf.RHF(mol_full)
+            else scf.RHF(mol_full, **hf_kwargs)
         )
         global_hf.conv_tol = self.config.convergence
         global_hf.max_memory = self.config.max_ram_memory
@@ -182,28 +184,28 @@ class NbedDriver:
         logger.debug(f"Getting localized system using {self.config.localization}.")
 
         match self.config.localization:
-            case Localizer.SPADE:
+            case LocalizerEnum.SPADE:
                 return SPADELocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     max_shells=self.config.max_shells,
                     n_mo_overwrite=self.config.n_mo_overwrite,
                 )
-            case Localizer.BOYS:
+            case LocalizerEnum.BOYS:
                 return BOYSLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     occ_cutoff=self.config.occupied_threshold,
                     virt_cutoff=self.config.virtual_threshold,
                 )
-            case Localizer.IBO:
+            case LocalizerEnum.IBO:
                 return IBOLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     occ_cutoff=self.config.occupied_threshold,
                     virt_cutoff=self.config.virtual_threshold,
                 )
-            case Localizer.PM:
+            case LocalizerEnum.PM:
                 return PMLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
@@ -801,13 +803,18 @@ class NbedDriver:
 
         return result
 
-    def embed(self, init_huzinaga_rhf_with_mu: bool = False) -> None:
+    def embed(self, init_huzinaga_rhf_with_mu=False, n_mo_overwrite=None):
         """Run embedded scf calculation.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
         """
         logger.debug("Embedding molecule.")
+        if n_mo_overwrite is not None:
+            logger.debug(
+                "Setting n_mo_overwrite with value from embed args %s", n_mo_overwrite
+            )
+            self.n_mo_overwrite = n_mo_overwrite
 
         e_nuc = self._global_ks.energy_nuc()
 
@@ -850,14 +857,14 @@ class NbedDriver:
 
         embedding_methods_to_run: list[str]
         match self.config.projector:
-            case Projector.MU:
+            case ProjectorEnum.MU:
                 embedding_methods_to_run = ["mu"]
-            case Projector.HUZ:
+            case ProjectorEnum.HUZ:
                 if init_huzinaga_rhf_with_mu:
                     embedding_methods_to_run = ["mu", "huzinaga"]
                 else:
                     embedding_methods_to_run = ["huzinaga"]
-            case Projector.BOTH:
+            case ProjectorEnum.BOTH:
                 embedding_methods_to_run = ["mu", "huzinaga"]
             case _:
                 logger.warning("Projector did not match valid case.")
@@ -937,7 +944,7 @@ class NbedDriver:
             # Calculate ccsd or fci energy
             if self.config.run_ccsd_emb is True:
                 logger.debug("Performing CCSD-in-DFT embedding.")
-                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(result["scf"], frozen=None)
+                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(result["scf"])
                 result["e_ccsd"] = (
                     ccsd_emb.e_tot
                     + self.e_env
@@ -951,7 +958,7 @@ class NbedDriver:
 
             if self.config.run_fci_emb is True:
                 logger.debug("Performing FCI-in-DFT embedding.")
-                fci_emb = self._run_emb_FCI(result["scf"], frozen=None)
+                fci_emb = self._run_emb_FCI(result["scf"])
                 result["e_fci"] = (
                     (fci_emb.e_tot)
                     + self.e_env
@@ -970,6 +977,10 @@ class NbedDriver:
                 result["e_dft_in_dft"] = did["e_rks"]
                 result["emb_dft"] = did["rks_e_elec"]
 
+            # Build second quantised Hamiltonian
+            hb = HamiltonianBuilder(result["scf"], result["classical_energy"])
+            result["second_quantised"] = hb.build()
+
             logger.debug(f"Found result for {projector_name}")
             logger.debug(result)
             if projector_name == "mu":
@@ -978,13 +989,13 @@ class NbedDriver:
                 self._huzinaga = result
 
         match self.config.projector:
-            case Projector.MU:
+            case ProjectorEnum.MU:
                 self.embedded_scf = self._mu["scf"]
                 self.classical_energy = self._mu["classical_energy"]
-            case Projector.HUZ:
+            case ProjectorEnum.HUZ:
                 self.embedded_scf = self._huzinaga["scf"]
                 self.classical_energy = self._huzinaga["classical_energy"]
-            case Projector.BOTH:
+            case ProjectorEnum.BOTH:
                 logger.warning(
                     "Outputting both mu and huzinaga embedding results as tuple."
                 )
@@ -999,5 +1010,10 @@ class NbedDriver:
             case _:
                 logger.debug("Projector did not match any know case.")
                 logger.warning("Not assigning embedded_scf or classial_energy")
+
+        if filename := self.config.savefile is not None:
+            logger.debug("Saving results to file %s", filename)
+            with open(filename, "w") as f:
+                jdump({"mu": self._mu, "huzinaga": self._huzinaga}, f)
 
         logger.info("Embedding complete.")

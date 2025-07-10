@@ -1,21 +1,26 @@
 """Custom Types and Enums."""
 
+import logging
 import os
 from enum import Enum
+from pathlib import Path
 from typing import Annotated, Any
 
 from pydantic import (
     BaseModel,
     BeforeValidator,
     Field,
+    FilePath,
     NonNegativeInt,
     PositiveFloat,
     PositiveInt,
     TypeAdapter,
 )
 
+logger = logging.getLogger(__name__)
 
-class Projector(Enum):
+
+class ProjectorEnum(Enum):
     """Implemented Projectors."""
 
     MU = "mu"
@@ -23,7 +28,7 @@ class Projector(Enum):
     BOTH = "both"
 
 
-class Localizer(Enum):
+class LocalizerEnum(Enum):
     """Implemented Occupied Localizers."""
 
     SPADE = "spade"
@@ -46,13 +51,19 @@ def validate_xyz_file(maybe_xyz: Any) -> str:
     Returns:
         str: an XYZ geometry string.
     """
-    if os.path.exists(maybe_xyz):
-        with open(maybe_xyz) as file:
-            content = file.read()
-        TypeAdapter(XYZGeometry).validate_strings(content)
-        return content
-    else:
-        return maybe_xyz
+    match maybe_xyz:
+        case str() | Path():
+            if os.path.exists(maybe_xyz):
+                with open(maybe_xyz) as file:
+                    content = file.read()
+                logger.debug("File content %s", content)
+                TypeAdapter(XYZGeometry).validate_strings(content)
+                return content
+            else:
+                logger.debug("Input geometry does not match existing file")
+                return str(maybe_xyz)
+        case _:
+            return maybe_xyz
 
 
 class NbedConfig(BaseModel):
@@ -78,33 +89,40 @@ class NbedConfig(BaseModel):
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
         max_dft_cycles (int): max number of DFT iterations allowed in scf calc
         init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
+        savefile (FilePath): Location of file to save output to.
     """
 
     geometry: Annotated[XYZGeometry, BeforeValidator(validate_xyz_file)]
     n_active_atoms: PositiveInt
     basis: str
     xc_functional: str
-    projector: Projector = Field(default=Projector.MU)
-    localization: Localizer = Field(default=Localizer.SPADE)
+    projector: ProjectorEnum = Field(default=ProjectorEnum.MU)
+    localization: LocalizerEnum = Field(default=LocalizerEnum.SPADE)
     convergence: PositiveFloat = 1e-6
     charge: NonNegativeInt = Field(default=0)
     spin: NonNegativeInt = Field(default=0)
     unit: str = "angstrom"
     symmetry: bool = False
-    mu_level_shift: PositiveFloat = 1e6
+
+    savefile: FilePath | None = None
+
     run_ccsd_emb: bool = False
     run_fci_emb: bool = False
     run_virtual_localization: bool = True
     run_dft_in_dft: bool = False
+
+    mm_coords: list | None = None
+    mm_charges: list | None = None
+    mm_radii: list | None = None
+
     n_mo_overwrite: tuple[None | NonNegativeInt, None | NonNegativeInt] = (None, None)
-    max_ram_memory: PositiveInt = 4000
+    mu_level_shift: PositiveFloat = 1e6
     occupied_threshold: float = Field(default=0.95, gt=0, lt=1)
     virtual_threshold: float = Field(default=0.95, gt=0, lt=1)
     max_shells: PositiveInt = 4
     init_huzinaga_rhf_with_mu: bool = False
+    force_unrestricted: bool = False
+
+    max_ram_memory: PositiveInt = 4000
     max_hf_cycles: PositiveInt = Field(default=50)
     max_dft_cycles: PositiveInt = Field(default=50)
-    force_unrestricted: bool = False
-    mm_coords: list | None = None
-    mm_charges: list | None = None
-    mm_radii: list | None = None

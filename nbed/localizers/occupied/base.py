@@ -10,8 +10,6 @@ from pyscf.lib import StreamObject
 
 from ...exceptions import NbedLocalizerError
 
-# from ..utils import restricted_float_percentage
-
 logger = logging.getLogger(__name__)
 
 
@@ -48,7 +46,7 @@ class OccupiedLocalizer(ABC):
         n_active_atoms: int,
     ):
         """Initialise class."""
-        logger.debug("Initialising Localizer.")
+        logger.debug("Initialising LocalizerEnum.")
         if global_scf.mo_coeff is None:
             logger.debug("SCF method not initialised, running now...")
             global_scf.run()

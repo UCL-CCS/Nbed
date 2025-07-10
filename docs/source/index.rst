@@ -5,17 +5,22 @@
 
 .. uncomment and add to toctree when ready
 .. notebooks/A Scalable Approach to Quantum Simulation via Projection-based Embedding
-Welcome to Nbed's documentation!
-================================
+Nbed
+====
+
+
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
+   embed
    driver
+   config
    builder
-   converter
    localizers
+   scf
+   utils
 
 
 Indices and tables

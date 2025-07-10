@@ -6,6 +6,8 @@ import numpy as np
 import pytest
 import scipy as sp
 from openfermion import count_qubits, get_sparse_operator
+from openfermion.ops import InteractionOperator
+from openfermion.transforms.opconversions import jordan_wigner
 from pyscf.fci import FCI
 from pyscf.gto import Mole
 from pyscf.scf import RHF, UHF
@@ -42,69 +44,43 @@ def unrestricted_scf(uncharged_mol):
 
 @pytest.fixture
 def rbuilder(restricted_scf):
-    return HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
+    return HamiltonianBuilder(restricted_scf, 0).build()
 
 
 @pytest.fixture
 def ubuilder(unrestricted_scf):
-    return HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
+    return HamiltonianBuilder(unrestricted_scf, 0).build()
 
 
-def test_restricted_energy(restricted_scf, rbuilder) -> None:
-    """
-    Use the full system to check that output hamiltonian diagonalises to fci value for a restricted calculation.
-    """
-
-
-@pytest.fixture
-def unrestricted_scf(uncharged_mol):
-    uhf = UHF(uncharged_mol)
-    uhf.kernel()
-    return uhf
-
-
-@pytest.fixture
-def rbuilder(restricted_scf):
-    return HamiltonianBuilder(restricted_scf, 0, "jordan_wigner")
-
-
-@pytest.fixture
-def ubuilder(unrestricted_scf):
-    return HamiltonianBuilder(unrestricted_scf, 0, "jordan_wigner")
-
-
-def test_restricted(restricted_scf, rbuilder) -> None:
+def test_restricted_groundstate(restricted_scf, rbuilder) -> None:
     """Use the full system to check that output hamiltonian diagonalises to fci value for a restricted calculation."""
     e_fci = FCI(restricted_scf).kernel()[0] - restricted_scf.energy_nuc()
 
     logger.info(f"FCI energy of unrestricted driver test: {e_fci}")
 
-    ham = rbuilder.build(taper=False)
-    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=1, which="SA")
-    logger.info(f"Ground state via diagonalisation (without tapering): {diag}")
+    const, ones, twos = rbuilder
+    intop = InteractionOperator(const, ones, twos)
+    qham = jordan_wigner(intop)
+
+    assert count_qubits(qham) == 14
+    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(qham), k=1, which="SA")
+    logger.info(f"Ground state via diagonalisation: {diag}")
     assert np.isclose(e_fci, diag)
 
-    tapered_ham = rbuilder.build(taper=True)
-    tdiag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(tapered_ham), k=1, which="SA")
-    logger.info(f"Ground state via diagonalisation (with tapering): {tdiag}")
-    assert np.isclose(e_fci, tdiag)
+def test_unrestricted_groundstate(unrestricted_scf, ubuilder) -> None:
+    """Use the full system to check that output hamiltonian diagonalises to fci value for a restricted calculation."""
+    e_fci = FCI(unrestricted_scf).kernel()[0] - unrestricted_scf.energy_nuc()
 
+    logger.info(f"FCI energy of unrestricted driver test: {e_fci}")
 
-def test_qubit_number_match(rbuilder, ubuilder) -> None:
-    """Check that the qubit hamiltonian is working as expected."""
-    # We're still constructing qubit hamiltonians that double the size for restricted systems!
+    const, ones, twos = ubuilder
+    intop = InteractionOperator(const, ones, twos)
+    qham = jordan_wigner(intop)
 
-    rham = rbuilder.build(taper=False)
-    assert count_qubits(rham) == 14
-    uham = ubuilder.build(taper=False)
-    assert count_qubits(uham) == 14
-
-
-def test_taper(rbuilder, ubuilder) -> None:
-    rham = rbuilder.build(taper=True)
-    assert count_qubits(rham) == 10
-    uham = ubuilder.build(taper=True)
-    assert count_qubits(uham) == 10
+    assert count_qubits(qham) == 14
+    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(qham), k=1, which="SA")
+    logger.info(f"Ground state via diagonalisation: {diag}")
+    assert np.isclose(e_fci, diag)
 
 
 @pytest.fixture
@@ -125,22 +101,22 @@ def charged_scf(charged_mol):
     return rhf
 
 
-def test_unrestricted(charged_scf) -> None:
+def test_unrestricted_charged_groundstate(charged_scf) -> None:
     """Check the output hamiltonian diagonalises to fci value for an unrestricted calculation with spin and charge."""
     e_fci = FCI(charged_scf).kernel()[0] - charged_scf.energy_nuc()
 
     logger.info(f"FCI energy of unrestricted driver test: {e_fci}")
 
-    builder = HamiltonianBuilder(charged_scf, 0, "jordan_wigner")
-    ham = builder.build(taper=False)
-    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(ham), k=2, which="SA")
+    builder = HamiltonianBuilder(charged_scf)
+    const, ones, twos = builder.build()
+    intop = InteractionOperator(const, ones, twos)
+    qham = jordan_wigner(intop)
 
-    print(diag)
-    # Ground state for this charge is 2nd eigenstate
-    diag = diag[1]
+    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(qham), k=2, which="SA")
 
     logger.info(f"Ground state via diagonalisation: {diag}")
-    assert np.isclose(e_fci, diag)
+    # Ground state for this charge is 2nd eigenstate
+    assert np.isclose(e_fci, diag[1])
 
 def test_reduce_virtuals(restricted_scf, unrestricted_scf):
     reduced_restricted = reduce_virtuals(restricted_scf, 1)

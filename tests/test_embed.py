@@ -1,33 +1,20 @@
 """File to contain tests of the embed.py script."""
 
-import pytest
-from openfermion import QubitOperator
-
 from nbed.embed import nbed
+from nbed.driver import NbedDriver
+import json
 
-
-@pytest.fixture
-def args(water_filepath) -> dict:
-    return {
-        "geometry": str(water_filepath),
-        "n_active_atoms": 1,
-        "basis": "STO-3G",
-        "xc_functional": "b3lyp",
-        "projector": "mu",
-        "localization": "spade",
-        "transform": "jordan_wigner",
-        "output": "openfermion",
-        "convergence": 1e-6,
-        "savefile": "save_tests/",
-        "run_ccsd_emb": True,
-        "run_fci_emb": True,
-    }
-
-
-def test_nbed_openfermion(args) -> None:
+def test_config_input(nbed_config) -> None:
     """Test nbed"""
-    assert isinstance(nbed(**args), QubitOperator)
+    assert isinstance(nbed(nbed_config), NbedDriver)
 
+def test_file_input(config_file) -> None:
+    assert isinstance(nbed(config_file), NbedDriver)
+
+def test_args_input(config_file) -> None:
+    with open(config_file) as f:
+        args = json.load(f)
+    assert isinstance(nbed(**args), NbedDriver)
 
 if __name__ == "__main__":
     pass

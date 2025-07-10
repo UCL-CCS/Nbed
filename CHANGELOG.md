@@ -6,8 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+Major refactor, with several breaking changes!
+
 ### Added
 - `NbedConfig` pydantic model to validate user input.
+- `savefile` config option used to save driver output to json file.
+
+### Removed
+- `HamiltonianConverter` removed.
+- All functions relating to generating qubit hamiltonians have been removed from `HamiltonianBuilder`, this now only handles creating a second quantised hamiltonian.
+
+### Changed
+- CLI tool now expects a path to a config `.json` file which matches the `NbedConfig` model.
+- `NbedDriver` automatically calls `HamiltonianBuilder.build()`, adding output to results as `second_quantised`.
 
 ## [0.0.8]
 ### Fixed
@@ -16,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed a bug causing embedded FCI calculations to fail for open shell systems.
 
 ### Changed
-- 'nbed.scf.huzinaga_hf' and 'nbed.scf.huzinaga_rks' cmbined into 'nbed.scf.huzinaga_scf'
+- 'nbed.scf.huzinaga_hf' and 'nbed.scf.huzinaga_rks' combined into 'nbed.scf.huzinaga_scf'
 - Combined `scf/huzinaga_` HF and KS methods into `huzinaga_scf`
 - python version requirement changed to `>=3.11, <4`
 - default python used in github actions is 3.10
