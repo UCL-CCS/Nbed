@@ -59,18 +59,6 @@ def parse():
         type=str,
         help="Path to a config file. Overwrites other arguments.",
     )
-    parser.add_argument(
-        "--transform",
-        required=False,
-        type=str,
-        help="Fermion to Qubit encoding to use e.g.'Jordan-Wigner', 'Bravyi-Kitaev' ",
-    )
-    parser.add_argument(
-        "--savefile",
-        "-s",
-        type=str,
-        help="Path to save file.",
-    )
     logger.debug("Parsing CLI arguments.")
     args = parser.parse_args()
 
@@ -86,7 +74,7 @@ def parse():
         logger.error("Could not validate input data against NbedConfig model.")
         logger.error(e)
 
-    return config, args["transform"], args["savefile"]
+    return config
 
 
 def pubchem_mol_geometry(molecule_name) -> dict:
