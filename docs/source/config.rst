@@ -13,7 +13,8 @@ Example Configuration File
 
 For the command-line interface to Nbed, you'll need to provide a path to a config file. This should contain a Json dictionary of input values.
 
-..... code-block:: json
+.. code-block:: json
+
    {
    "geometry":"1\\n\\nH\\t0.0\\t0.0\\t0.0",
    "n_active_atoms":1,
@@ -47,7 +48,7 @@ For the command-line interface to Nbed, you'll need to provide a path to a confi
 
 More generally, the config file needs to match the Pydantic model used to validate config. The Json schema below shows the general form.
 
-....... code-block:: json
+.. code-block:: json
    {'$defs': {'Localizer': {'description': 'Implemented Occupied Localizers.',
       'enum': ['spade', 'boys', 'ibo', 'pm'],
       'title': 'Localizer',
