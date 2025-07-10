@@ -3,7 +3,7 @@
 
 
 # Nbed
-This package implements projection-based embedding methods to reduce the size of a molecular Hamiltonain via embedding in DFT. Output qubit hamiltonains can be solved by a suitable quantum algorithm.
+This package implements projection-based embedding methods to reduce the size of a molecular Hamiltonain via embedding in DFT.
 
 Nbed uses PySCF as a backend for chemistry caluculations, which is not supported on Windows. Alternative chemistry backends are planned, however in the mean time this package will work only for Linux and MacOS.
 
@@ -48,74 +48,55 @@ nbed(...)
 This function will output a qubit Hamiltonian suitable for the backend specified by the `output` argument.
 
 ### Command Line Interface
-Installing this package also exposes a command line tool `nbed`, which can be used in two ways. Firstly, you can provide a YAML config file.
+Installing this package also exposes a command line tool `nbed`, which can be used in two ways. Firstly, you can provide a JSON config file.
 
 ```
-nbed --config <path to .yaml>
+nbed --config <path to .json>
 ```
 
-Your YAML config file should look something like this (which is taken from the `tests` folder):
+Your JSON config file should look something like this (which is taken from the `tests` folder):
 
-```
----
-nbed:
-  geometry: tests/molecules/water.xyz
-  n_active_atoms: 3
-  basis: STO-3G
-  xc_functional: b3lyp
-  output: openfermion
-  projector: huzinaga
-  localization: spade
-  convergence: !!float 1e-9
-  savefile: data/savefile.json
-  transform: jordan_wigner
-  run_ccsd_emb: True
-  run_fci_emb: True
-  unit: angstrom
-```
-
-Alternatively you can provide each of the components to the command line.
-
-```
-nbed --geometry tests/molecules/water.xyz --active_atoms 2 --convergence 1e-6 --qubits 8 --basis STO-3G--xc b3lyp --output openfermion --localization spade --savefile data/savefile.json
-```
-
-The options for `output` and `localization` can be seen in the command help.
-
-```
-nbed --help
+```JSON
+{
+  "geometry":"3\n\nO   0.0000  0.000  0.115\nH   0.0000  0.754  -0.459\nH   0.0000  -0.754  -0.459",
+  "n_active_atoms":2,
+  "basis":"STO-3G",
+  "xc_functional":"b3lyp",
+  "projector":"mu",
+  "localization":"spade",
+  "convergence":1e-6,
+  "charge":0,
+  "spin":0,
+  "unit":"angstrom",
+  "symmetry":false,
+  "mu_level_shift":1000000.0,
+  "run_ccsd_emb":false,
+  "run_fci_emb":false,
+  "run_dft_in_dft":false,
+  "run_virtual_localization":true,
+  "n_mo_overwrite":[null,null],
+  "max_ram_memory":4000,
+  "occupied_threshold":0.95,
+  "virtual_threshold":0.95,
+  "max_shells":4,
+  "init_huzinaga_rhf_with_mu":false,
+  "max_hf_cycles":50,
+  "max_dft_cycles":50,
+  "force_unrestricted":false,
+  "mm_coords":null,
+  "mm_charges":null,
+  "mm_radii":null,
+}
 ```
 
 #### Reference Values
 
-Additionally, to output a CCSD reference value for the whole system energy, add a line to the yaml file when using `--config`
 
-```
----
-nbed:
-  ...
-  ccsd: true
 
-```
+## Save Output
 
-or use the the `--ccsd` flag when inputing values manually.
+By including the `savefile` item in your config file or giving a `savefile` argument to the function, you can specify the path to a location where you'd like to save a JSON file containing the output of Nbed.
 
-```
-nbed --config <path to config file> -
-```
-
-## Save a Hamiltonian for later
-
-By including the `--savefile` flag or `savefile` item in your config file or giving a `savefile` argument to the function, you can specify the path to a location where you'd like to save a JSON file containing a description of the qubit Hamiltonian.
-
-Once you have a saved Hamiltonian you can use the `nbed.load_hamiltonian` function to create a python object of the desired type.
-
-```
-from nbed import load_hamiltonian
-...
-
-qham = load_hamiltonian(<path to hamiltonian JSON>, <output type>)
-```
 
 ## Overview
 
@@ -129,6 +110,7 @@ qham = load_hamiltonian(<path to hamiltonian JSON>, <output type>)
 ## Examples and Explainers
 This [folder](https://github.com/UCL-CCS/Nbed/tree/master/docs/source/notebooks) contains jupyter notebooks which explain the embedding procedure in detail, including relevant theory. Notebooks to replicate results presented in publications can also be found here.
 
-
 ## Development
-If you would like to contribute to this code base please first create an issue and a fork of the repo from which to make your pull request.
+If you would like to contribute to this codebase please first create an issue describing your feature request or bug. We'll be happy to help.
+
+If you have made changes yourself, make sure to fork the repo and open your PR from there.

@@ -9,13 +9,16 @@ Welcome to Nbed's documentation!
 ================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
+   embed
    driver
+   config
    builder
-   converter
    localizers
+   scf
+   utils
 
 
 Indices and tables

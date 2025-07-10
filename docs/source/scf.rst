@@ -1,16 +1,16 @@
 SCF Functions
 =============
 
-nbed.scf.huzinaga\_scf module
------------------------------
+Huzinaga SCF Methods
+--------------------
 
 .. automodule:: nbed.scf.huzinaga_scf
    :members:
    :undoc-members:
    :show-inheritance:
 
-nbed.scf.embedded\_hcore\_funcs module
------------------------------
+Embedded hcore Functions
+------------------------
 
 .. automodule:: nbed.scf.embedded_hcore_funcs
    :members:

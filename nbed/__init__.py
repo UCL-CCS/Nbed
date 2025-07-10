@@ -3,6 +3,6 @@
 from .embed import nbed
 from .utils import setup_logs
 
-__all__ = ["nbed", "load_hamiltonian"]
+__all__ = ["nbed"]
 
 setup_logs()
