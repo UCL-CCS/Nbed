@@ -942,9 +942,7 @@ class NbedDriver:
             # Calculate ccsd or fci energy
             if self.config.run_ccsd_emb is True:
                 logger.debug("Performing CCSD-in-DFT embedding.")
-                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(
-                    result["scf"], frozen=self.frozen_orbitals
-                )
+                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(result["scf"])
                 result["e_ccsd"] = (
                     ccsd_emb.e_tot
                     + self.e_env
@@ -958,7 +956,7 @@ class NbedDriver:
 
             if self.config.run_fci_emb is True:
                 logger.debug("Performing FCI-in-DFT embedding.")
-                fci_emb = self._run_emb_FCI(result["scf"], frozen=self.frozen_orbitals)
+                fci_emb = self._run_emb_FCI(result["scf"])
                 result["e_fci"] = (
                     (fci_emb.e_tot)
                     + self.e_env
