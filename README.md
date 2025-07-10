@@ -120,8 +120,8 @@ qham = load_hamiltonian(<path to hamiltonian JSON>, <output type>)
 ## Overview
 
 - `embed.py` - main functionality
+- `config.py` - Data validation model of configuration needed to run Nbed.
 - `driver.py` - Class which carries out the algorithm. Main point of access for functionality.
-- `ham_converter.py` - class to convert between Hamiltonian formats as well as save to and read from JSON.
 - `ham_builder.py` - class to build Hamiltonians from quantum chemistry calculations.
 - `localizers/` - Classes which perform localization.
 - `utils.py` - log settings and cli parsing.

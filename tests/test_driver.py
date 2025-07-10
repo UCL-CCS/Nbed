@@ -8,8 +8,7 @@ from numpy import isclose
 from pyscf.lib.misc import StreamObject
 
 from nbed.driver import NbedDriver
-from nbed.exceptions import NbedConfigError
-from nbed.config import NbedConfig, Projector
+from nbed.config import NbedConfig, ProjectorEnum
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)

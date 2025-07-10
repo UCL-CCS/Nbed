@@ -5,9 +5,6 @@ from numbers import Number
 
 import numpy as np
 from numpy.typing import NDArray
-from openfermion import (
-    QubitOperator,
-)
 from openfermion.config import EQ_TOLERANCE
 from pyscf import ao2mo, dft, lib, scf
 from pyscf.lib import StreamObject
@@ -41,10 +38,9 @@ class HamiltonianBuilder:
         logger.debug(type(scf_method))
         self.scf_method = scf_method
         self.constant_e_shift = constant_e_shift
+        self.n_frozen_core = n_frozen_core
+        self.n_frozen_virt = n_frozen_virt
         self._restricted = isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
-        # self.occupancy = (
-        #     self.scf_method.mo_occ
-        # )  # if self._restricted else self.scf_method.mo_occ.sum(axis=1)
         if isinstance(self.scf_method.mo_occ[0], Number):
             self.occupancy = self.scf_method.mo_occ
         elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
@@ -221,7 +217,7 @@ class HamiltonianBuilder:
 
     def build(
         self,
-    ) -> QubitOperator:
+    ) -> tuple[float, NDArray, NDArray]:
         """Returns second quantized fermionic molecular Hamiltonian.
 
         constant_e_shift is a constant energy addition... in this code this will be the classical embedding energy
@@ -240,7 +236,7 @@ class HamiltonianBuilder:
             active_indices (List[int]): Indices of active orbitals.
 
         Returns:
-            (npt.NDArray, npt.NDArray): The one and two body spinorb coefficients
+            (float, npt.NDArray, npt.NDArray): The one and two body spinorb coefficients
         """
         if self.n_frozen_virt != 0:
             self.scf_method = reduce_virtuals(self.scf_method, self.n_frozen_virt)
