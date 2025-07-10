@@ -2,6 +2,7 @@
 
 import logging
 from functools import cached_property, reduce
+from json import dump as jdump
 from typing import Callable, Optional, Union
 
 import numpy as np
@@ -1009,5 +1010,10 @@ class NbedDriver:
             case _:
                 logger.debug("Projector did not match any know case.")
                 logger.warning("Not assigning embedded_scf or classial_energy")
+
+        if filename := self.config.savefile is not None:
+            logger.debug("Saving results to file %s", filename)
+            with open(filename, "w") as f:
+                jdump({"mu": self._mu, "huzinaga": self._huzinaga}, f)
 
         logger.info("Embedding complete.")
