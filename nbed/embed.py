@@ -12,7 +12,6 @@ from nbed.ham_builder import HamiltonianBuilder
 
 from .config import NbedConfig
 from .driver import NbedDriver
-from .ham_converter import HamiltonianConverter
 from .utils import parse, print_summary
 
 logger = logging.getLogger(__name__)
@@ -24,9 +23,8 @@ def nbed(
     basis: str,
     xc_functional: str,
     projector: str,
-    output: str,
-    transform: str,
-    localization: Optional[str] = "spade",
+    localization: str,
+    transform:str,
     convergence: Optional[float] = 1e-6,
     charge: Optional[int] = 0,
     spin: Optional[int] = 0,
@@ -41,6 +39,7 @@ def nbed(
     max_hf_cycles: int = 50,
     max_dft_cycles: int = 50,
     unrestricted: Optional[bool] = False,
+    config: Optional[NbedConfig] = None,
 ):
     """Import interface for the nbed package.
 
@@ -79,29 +78,38 @@ def nbed(
     if projector == "both":
         raise NbedConfigError("Cannot use 'both' as value of projector.")
 
-    config = NbedConfig(
-        geometry=geometry,
-        n_active_atoms=n_active_atoms,
-        basis=basis,
-        xc_functional=xc_functional,
-        projector=projector,
-        localization=localization,
-        convergence=convergence,
-        charge=charge,
-        spin=spin,
-        mu_level_shift=mu_level_shift,
-        run_ccsd_emb=run_ccsd_emb,
-        run_fci_emb=run_fci_emb,
-        max_ram_memory=max_ram_memory,
-        unit=unit,
-        occupied_threshold=occupied_threshold,
-        virtual_threshold=virtual_threshold,
-        max_hf_cycles=max_hf_cycles,
-        max_dft_cycles=max_dft_cycles,
-        force_unrestricted=unrestricted,
-    )
+    if config is None:
+        config = NbedConfig(
+            geometry=geometry,
+            n_active_atoms=n_active_atoms,
+            basis=basis,
+            xc_functional=xc_functional,
+            projector=projector,
+            localization=localization,
+            convergence=convergence,
+            charge=charge,
+            spin=spin,
+            mu_level_shift=mu_level_shift,
+            run_ccsd_emb=run_ccsd_emb,
+            run_fci_emb=run_fci_emb,
+            max_ram_memory=max_ram_memory,
+            unit=unit,
+            occupied_threshold=occupied_threshold,
+            virtual_threshold=virtual_threshold,
+            max_hf_cycles=max_hf_cycles,
+            max_dft_cycles=max_dft_cycles,
+            force_unrestricted=unrestricted,
+        )
+    else:
+        logger.info("Using input NbedConfig, ignoring other parameters.")
+
+    _run(config, transform, savefile)
+
+
+def _run(config: NbedConfig, transform: Optional[str]="jordan_wigner", savefile: Optional[str] = None):
     driver = NbedDriver(config)
     driver.embed()
+
     if savefile is not None:
         data_directory = Path(savefile).absolute()
         data_directory.mkdir(parents=True, exist_ok=True)
@@ -110,15 +118,12 @@ def nbed(
     # Needed for 'both' projector
     if isinstance(driver.embedded_scf, tuple):
         hamiltonians = ()
-        for scf, e_classical in zip(driver.embedded_scf, driver.e_classical):
+        for scf, e_classical in zip(driver.embedded_scf, driver.classical_energy):
             qham = HamiltonianBuilder(
                 scf_method=scf,
-                constant_e_shift=driver.classical_energy,
+                constant_e_shift=e_classical,
                 transform=transform,
             ).build()
-
-            converter = HamiltonianConverter(qham)
-            qham = getattr(converter, output.lower(), qham)
 
             if savefile is not None:
                 # because we'll have two in quick succession
@@ -137,17 +142,13 @@ def nbed(
             transform=transform,
         ).build()
 
-        converter = HamiltonianConverter(qham)
-        qham = getattr(converter, output.lower(), qham)
-        hamiltonians = qham
-
-    if savefile is not None:
-        file_name = f"Nbed_{datetime.now()}"
-        save_operator(
-            qham,
-            file_name,
-            data_directory,
-        )
+        if savefile is not None:
+            file_name = f"Nbed_{datetime.now()}"
+            save_operator(
+                qham,
+                file_name,
+                data_directory,
+            )
 
     print_summary(driver, transform, fci=False)
     return hamiltonians
@@ -155,26 +156,8 @@ def nbed(
 
 def cli() -> None:
     """CLI Interface."""
-    args = parse()
-    nbed(
-        geometry=args["geometry"],
-        n_active_atoms=args["n_active_atoms"],
-        basis=args["basis"],
-        xc_functional=args["xc_functional"],
-        projector=args["projector"],
-        localization=args["localization"],
-        transform=args["transform"],
-        output=args["output"],
-        convergence=args["convergence"],
-        savefile=args["savefile"],
-        run_ccsd_emb=args["run_ccsd_emb"],
-        run_fci_emb=args["run_ccsd_emb"],
-        unit=args["unit"],
-        occupied_threshold=args["occupied_threshold"],
-        virtual_threshold=args["virtual_threshold"],
-        max_hf_cycles=args["max_hf_cycles"],
-        max_dft_cycles=args["max_dft_cycles"],
-    )
+    config, transform, savefile = parse()
+    _run(config, transform, savefile)
 
 
 if __name__ == "__main__":

@@ -16,14 +16,14 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def mu_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = Projector.MU
+    nbed_config.projector = ProjectorEnum.MU
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
 
 @pytest.fixture
 def mu_unrestricted_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = Projector.MU
+    nbed_config.projector = ProjectorEnum.MU
     nbed_config.force_unrestricted = True
     driver = NbedDriver(nbed_config)
     driver.embed()
@@ -31,14 +31,14 @@ def mu_unrestricted_driver(nbed_config) -> NbedDriver:
 
 @pytest.fixture
 def huz_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = Projector.HUZ
+    nbed_config.projector = ProjectorEnum.HUZ
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
 
 @pytest.fixture
 def huz_unrestricted_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = Projector.HUZ
+    nbed_config.projector = ProjectorEnum.HUZ
     nbed_config.force_unrestricted = True
     driver = NbedDriver(nbed_config)
     driver.embed()
@@ -47,7 +47,7 @@ def huz_unrestricted_driver(nbed_config) -> NbedDriver:
 def test_embedded_fci(nbed_config, mu_driver, mu_unrestricted_driver, huz_driver, huz_unrestricted_driver):
     assert(np.isclose(mu_driver._run_emb_FCI(mu_driver.embedded_scf).e_tot, -62.261794716560416))
     assert(np.isclose(mu_unrestricted_driver._run_emb_FCI(mu_unrestricted_driver.embedded_scf).e_tot, -62.261794716560416))
-    nbed_config.projector = Projector.HUZ
+    nbed_config.projector = ProjectorEnum.HUZ
     nbed_config.n_active_atoms=1
     huz_driver = NbedDriver(nbed_config)
     huz_driver.embed()

@@ -19,12 +19,6 @@ class NbedLocalizerError(Exception):
     pass
 
 
-class HamiltonianConverterError(Exception):
-    """Base Exception class."""
-
-    pass
-
-
 class HamiltonianBuilderError(Exception):
     """Base Exception class."""
 

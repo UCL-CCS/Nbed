@@ -17,7 +17,7 @@ from nbed.localizers import (
     SPADELocalizer,
 )
 
-from .config import Localizer, NbedConfig, Projector
+from .config import LocalizerEnum, NbedConfig, ProjectorEnum
 from .scf import energy_elec, huzinaga_scf
 
 # Create the Logger
@@ -182,28 +182,28 @@ class NbedDriver:
         logger.debug(f"Getting localized system using {self.config.localization}.")
 
         match self.config.localization:
-            case Localizer.SPADE:
+            case LocalizerEnum.SPADE:
                 return SPADELocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     max_shells=self.config.max_shells,
                     n_mo_overwrite=self.config.n_mo_overwrite,
                 )
-            case Localizer.BOYS:
+            case LocalizerEnum.BOYS:
                 return BOYSLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     occ_cutoff=self.config.occupied_threshold,
                     virt_cutoff=self.config.virtual_threshold,
                 )
-            case Localizer.IBO:
+            case LocalizerEnum.IBO:
                 return IBOLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     occ_cutoff=self.config.occupied_threshold,
                     virt_cutoff=self.config.virtual_threshold,
                 )
-            case Localizer.PM:
+            case LocalizerEnum.PM:
                 return PMLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
@@ -855,14 +855,14 @@ class NbedDriver:
 
         embedding_methods_to_run: list[str]
         match self.config.projector:
-            case Projector.MU:
+            case ProjectorEnum.MU:
                 embedding_methods_to_run = ["mu"]
-            case Projector.HUZ:
+            case ProjectorEnum.HUZ:
                 if init_huzinaga_rhf_with_mu:
                     embedding_methods_to_run = ["mu", "huzinaga"]
                 else:
                     embedding_methods_to_run = ["huzinaga"]
-            case Projector.BOTH:
+            case ProjectorEnum.BOTH:
                 embedding_methods_to_run = ["mu", "huzinaga"]
             case _:
                 logger.warning("Projector did not match valid case.")
@@ -983,13 +983,13 @@ class NbedDriver:
                 self._huzinaga = result
 
         match self.config.projector:
-            case Projector.MU:
+            case ProjectorEnum.MU:
                 self.embedded_scf = self._mu["scf"]
                 self.classical_energy = self._mu["classical_energy"]
-            case Projector.HUZ:
+            case ProjectorEnum.HUZ:
                 self.embedded_scf = self._huzinaga["scf"]
                 self.classical_energy = self._huzinaga["classical_energy"]
-            case Projector.BOTH:
+            case ProjectorEnum.BOTH:
                 logger.warning(
                     "Outputting both mu and huzinaga embedding results as tuple."
                 )

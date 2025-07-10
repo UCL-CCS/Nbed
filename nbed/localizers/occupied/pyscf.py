@@ -53,7 +53,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
     ):
-        """Initialize PySCF Localizer."""
+        """Initialize PySCF LocalizerEnum."""
         self.occ_cutoff = self._valid_threshold(occ_cutoff)
         self.virt_cutoff = self._valid_threshold(virt_cutoff)
         super().__init__(
@@ -289,7 +289,7 @@ class PMLocalizer(PySCFLocalizer):
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
     ):
-        """Initialize Localizer."""
+        """Initialize LocalizerEnum."""
         super().__init__(
             global_scf,
             n_active_atoms,
@@ -352,7 +352,7 @@ class BOYSLocalizer(PySCFLocalizer):
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
     ):
-        """Initialize Localizer."""
+        """Initialize LocalizerEnum."""
         super().__init__(
             global_scf,
             n_active_atoms,
@@ -406,7 +406,7 @@ class IBOLocalizer(PySCFLocalizer):
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
     ):
-        """Initialise Localizer."""
+        """Initialise LocalizerEnum."""
         super().__init__(
             global_scf,
             n_active_atoms,
