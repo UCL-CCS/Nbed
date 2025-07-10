@@ -25,7 +25,7 @@ Major refactor, with several breaking changes!
 - Fixed a bug causing embedded FCI calculations to fail for open shell systems.
 
 ### Changed
-- 'nbed.scf.huzinaga_hf' and 'nbed.scf.huzinaga_rks' cmbined into 'nbed.scf.huzinaga_scf'
+- 'nbed.scf.huzinaga_hf' and 'nbed.scf.huzinaga_rks' combined into 'nbed.scf.huzinaga_scf'
 - Combined `scf/huzinaga_` HF and KS methods into `huzinaga_scf`
 - python version requirement changed to `>=3.11, <4`
 - default python used in github actions is 3.10
