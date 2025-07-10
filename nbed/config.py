@@ -95,7 +95,6 @@ class NbedConfig(BaseModel):
     symmetry: bool = False
 
     savefile: FilePath | None = None
-    transform: str | None = None
 
     run_ccsd_emb: bool = False
     run_fci_emb: bool = False
