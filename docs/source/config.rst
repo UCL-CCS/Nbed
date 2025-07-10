@@ -3,11 +3,6 @@ Configuration
 
 Input data is validated against a Pydantic model, in the `NbedConfig` class. This is then passed to the `NbedDriver`.
 
-.. automodule:: nbed.config
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Example Configuration File
 ==========================
 
@@ -46,99 +41,10 @@ For the command-line interface to Nbed, you'll need to provide a path to a confi
    "mm_radii":null
    }
 
-More generally, the config file needs to match the Pydantic model used to validate config. The Json schema below shows the general form.
+Config Model
+============
 
-.. code-block:: json
-   {'$defs': {'Localizer': {'description': 'Implemented Occupied Localizers.',
-      'enum': ['spade', 'boys', 'ibo', 'pm'],
-      'title': 'Localizer',
-      'type': 'string'},
-   'Projector': {'description': 'Implemented Projectors.',
-      'enum': ['mu', 'huzinaga', 'both'],
-      'title': 'Projector',
-      'type': 'string'}},
-   'description': "Config for Nbed.\n\nArgs:\n    geometry (str): Path to .xyz file containing molecular geometry or raw xyz string.\n    n_active_atoms (int): The number of atoms to include in the active region.\n    basis (str): The name of an atomic orbital basis set to use for chemistry calculations.\n    xc_functional (str): The name of an Exchange-Correlation functional to be used for DFT.\n    projector (str): Projector to screen out environment orbitals, One of 'mu' or 'huzinaga'.\n    localization (str): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.\n    convergence (float): The convergence tolerance for energy calculations.\n    charge (int): Charge of molecular species\n    mu_level_shift (float): Level shift parameter to use for mu-projector.\n    run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.\n    run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.\n    run_virtual_localization (bool): Whether or not to localize virtual orbitals.\n    n_mo_overwrite (tuple[None| int, None | int]): Optional overwrite values for occupied localizers.\n    max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation\n    pyscf_print_level (int): Amount of information PySCF prints\n    unit (str): molecular geometry unit 'Angstrom' or 'Bohr'\n    max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)\n    max_dft_cycles (int): max number of DFT iterations allowed in scf calc\n    init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)",
-   'properties': {'geometry': {'pattern': '^\\d+\n\\s?\n(?:\\w(?:\\s+\\-?\\d\\.\\d+){3}\n?)*',
-      'title': 'Geometry',
-      'type': 'string'},
-   'n_active_atoms': {'exclusiveMinimum': 0,
-      'title': 'N Active Atoms',
-      'type': 'integer'},
-   'basis': {'title': 'Basis', 'type': 'string'},
-   'xc_functional': {'title': 'Xc Functional', 'type': 'string'},
-   'projector': {'$ref': '#/$defs/Projector', 'default': 'mu'},
-   'localization': {'$ref': '#/$defs/Localizer', 'default': 'spade'},
-   'convergence': {'default': 1e-06,
-      'exclusiveMinimum': 0,
-      'title': 'Convergence',
-      'type': 'number'},
-   'charge': {'default': 0, 'minimum': 0, 'title': 'Charge', 'type': 'integer'},
-   'spin': {'default': 0, 'minimum': 0, 'title': 'Spin', 'type': 'integer'},
-   'unit': {'default': 'angstrom', 'title': 'Unit', 'type': 'string'},
-   'symmetry': {'default': False, 'title': 'Symmetry', 'type': 'boolean'},
-   'mu_level_shift': {'default': 1000000.0,
-      'exclusiveMinimum': 0,
-      'title': 'Mu Level Shift',
-      'type': 'number'},
-   'run_ccsd_emb': {'default': False,
-      'title': 'Run Ccsd Emb',
-      'type': 'boolean'},
-   'run_fci_emb': {'default': False, 'title': 'Run Fci Emb', 'type': 'boolean'},
-   'run_virtual_localization': {'default': True,
-      'title': 'Run Virtual Localization',
-      'type': 'boolean'},
-   'run_dft_in_dft': {'default': False,
-      'title': 'Run Dft In Dft',
-      'type': 'boolean'},
-   'n_mo_overwrite': {'default': [None, None],
-      'maxItems': 2,
-      'minItems': 2,
-      'prefixItems': [{'anyOf': [{'minimum': 0, 'type': 'integer'},
-         {'type': 'null'}]},
-      {'anyOf': [{'minimum': 0, 'type': 'integer'}, {'type': 'null'}]}],
-      'title': 'N Mo Overwrite',
-      'type': 'array'},
-   'max_ram_memory': {'default': 4000,
-      'exclusiveMinimum': 0,
-      'title': 'Max Ram Memory',
-      'type': 'integer'},
-   'occupied_threshold': {'default': 0.95,
-      'exclusiveMaximum': 1,
-      'exclusiveMinimum': 0,
-      'title': 'Occupied Threshold',
-      'type': 'number'},
-   'virtual_threshold': {'default': 0.95,
-      'exclusiveMaximum': 1,
-      'exclusiveMinimum': 0,
-      'title': 'Virtual Threshold',
-      'type': 'number'},
-   'max_shells': {'default': 4,
-      'exclusiveMinimum': 0,
-      'title': 'Max Shells',
-      'type': 'integer'},
-   'init_huzinaga_rhf_with_mu': {'default': False,
-      'title': 'Init Huzinaga Rhf With Mu',
-      'type': 'boolean'},
-   'max_hf_cycles': {'default': 50,
-      'exclusiveMinimum': 0,
-      'title': 'Max Hf Cycles',
-      'type': 'integer'},
-   'max_dft_cycles': {'default': 50,
-      'exclusiveMinimum': 0,
-      'title': 'Max Dft Cycles',
-      'type': 'integer'},
-   'force_unrestricted': {'default': False,
-      'title': 'Force Unrestricted',
-      'type': 'boolean'},
-   'mm_coords': {'anyOf': [{'items': {}, 'type': 'array'}, {'type': 'null'}],
-      'default': None,
-      'title': 'Mm Coords'},
-   'mm_charges': {'anyOf': [{'items': {}, 'type': 'array'}, {'type': 'null'}],
-      'default': None,
-      'title': 'Mm Charges'},
-   'mm_radii': {'anyOf': [{'items': {}, 'type': 'array'}, {'type': 'null'}],
-      'default': None,
-      'title': 'Mm Radii'}},
-   'required': ['geometry', 'n_active_atoms', 'basis', 'xc_functional'],
-   'title': 'NbedConfig',
-   'type': 'object'}
+.. automodule:: nbed.config
+   :members:
+   :undoc-members:
+   :show-inheritance:

@@ -1,6 +1,9 @@
 SCF Functions
 =============
 
+To use the Huzinaga projector with Projection-based embedding,
+it's necessary to make some changes to Hartree-Fock and Kohn-Sham SCF functions.
+
 Huzinaga SCF Methods
 --------------------
 
