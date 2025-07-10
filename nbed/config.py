@@ -1,7 +1,9 @@
 """Custom Types and Enums."""
 
+import logging
 import os
 from enum import Enum
+from pathlib import Path
 from typing import Annotated, Any
 
 from pydantic import (
@@ -14,6 +16,8 @@ from pydantic import (
     PositiveInt,
     TypeAdapter,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectorEnum(Enum):
@@ -47,13 +51,19 @@ def validate_xyz_file(maybe_xyz: Any) -> str:
     Returns:
         str: an XYZ geometry string.
     """
-    if os.path.exists(maybe_xyz):
-        with open(maybe_xyz) as file:
-            content = file.read()
-        TypeAdapter(XYZGeometry).validate_strings(content)
-        return content
-    else:
-        return maybe_xyz
+    match maybe_xyz:
+        case str() | Path():
+            if os.path.exists(maybe_xyz):
+                with open(maybe_xyz) as file:
+                    content = file.read()
+                logger.debug("File content %s", content)
+                TypeAdapter(XYZGeometry).validate_strings(content)
+                return content
+            else:
+                logger.debug("Input geometry does not match existing file")
+                return str(maybe_xyz)
+        case _:
+            return maybe_xyz
 
 
 class NbedConfig(BaseModel):

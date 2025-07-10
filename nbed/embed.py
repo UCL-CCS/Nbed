@@ -2,6 +2,7 @@
 
 import json
 import logging
+from pathlib import Path
 
 from pydantic import FilePath
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def nbed(
-    config: NbedConfig | FilePath | None = None,
+    config: NbedConfig | str | None = None,
     **config_kwargs,
 ):
     """Import interface for the nbed package.
@@ -31,17 +32,20 @@ def nbed(
     match config:
         case NbedConfig():
             logger.info("Using validated config.")
-        case FilePath():
+        case str() | Path():
             logger.info("Using config file %s", config)
-            with open(config) as f:
+            with open(FilePath(config)) as f:
                 logger.info("Validating config from file.")
-                config = NbedConfig(json.loads(f))
+                data = json.load(f)
+                config = NbedConfig(**data)
         case None:
             logger.info("Validating config from passed arguments.")
+            logger.debug(f"{config_kwargs=}")
             config = NbedConfig(**config_kwargs)
         case _:
             logger.warning("Unknown input to config argument will be ignored.")
             logger.debug(f"{config=}")
+            logger.debug(f"{config_kwargs=}")
             config = NbedConfig(**config_kwargs)
 
     driver = NbedDriver(config)
