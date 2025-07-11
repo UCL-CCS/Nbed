@@ -219,7 +219,7 @@ class NbedDriver:
         Returns:
             local_hf (scf.uhf.UHF or scf.rhf.RHF): embedded Hartree-Fock object.
         """
-        logger.debug("Constructing localised ROHF object.")
+        logger.debug("Constructing localised RHF object.")
         embedded_mol: gto.Mole = self._build_mol()
 
         # overwrite total number of electrons to only include active system
@@ -437,7 +437,7 @@ class NbedDriver:
     ) -> tuple[cc.CCSD, float]:
         """Function run CCSD on embedded restricted Hartree Fock object.
 
-        Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
+        Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
         (see get_embedded_rhf method)
 
         Args:
@@ -464,7 +464,7 @@ class NbedDriver:
     ) -> fci.FCI:
         """Function run FCI on embedded restricted Hartree Fock object.
 
-        Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
+        Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
         (see get_embedded_rhf method)
 
         Args:
@@ -845,7 +845,7 @@ class NbedDriver:
                 - result["correction"]
                 - result["beta_correction"]
             )
-            logger.info(f"ROHF energy: {result['e_rhf']}")
+            logger.info(f"RHF energy: {result['e_rhf']}")
 
             # classical energy
             result["classical_energy"] = (
@@ -942,7 +942,7 @@ def run_emb_fci(
 ) -> fci.FCI:
     """Function run FCI on embedded restricted Hartree Fock object.
 
-    Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
+    Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
     (see get_embedded_rhf method)
 
     Args:

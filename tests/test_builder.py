@@ -10,7 +10,7 @@ from openfermion.ops import InteractionOperator
 from openfermion.transforms.opconversions import jordan_wigner
 from pyscf.fci import FCI
 from pyscf.gto import Mole
-from pyscf.scf import ROHF, UHF
+from pyscf.scf import RHF, UHF
 
 from nbed.ham_builder import HamiltonianBuilder, reduce_virtuals
 
@@ -30,7 +30,7 @@ def uncharged_mol(water_filepath) -> dict:
 
 @pytest.fixture
 def restricted_scf(uncharged_mol):
-    rhf = ROHF(uncharged_mol)
+    rhf = RHF(uncharged_mol)
     rhf.kernel()
     return rhf
 
