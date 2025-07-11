@@ -810,8 +810,9 @@ class NbedDriver:
     ) -> None:
         """Run embedded scf calculation.
 
-        Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
-        This is done when object is initialized.
+        Args:
+            init_huzinaga_rhf_with_mu (bool): Will run mu-shift projector even when input projector='huzinaga'.
+            n_mo_overwrite (tuple[int, int]): Enforces a specific number of MOs are included in the active region. Used for ACE-of-SPADE reaction path localization.
         """
         logger.debug("Embedding molecule.")
         if n_mo_overwrite is not None and n_mo_overwrite != (None, None):
