@@ -54,17 +54,15 @@ class NbedDriver:
         self._mu: dict = None
         self._huzinaga: dict = None
 
-        self._restricted_scf = not config.force_unrestricted
-
-        # if config.force_unrestricted:
-        #     logger.debug("Forcing unrestricted SCF")
-        #     self._restricted_scf = False
-        # elif self.config.charge % 2 == 1 or self.config.spin != 0:
-        #     logger.debug("Open shells, using unrestricted SCF.")
-        #     self._restricted_scf = False
-        # else:
-        #     logger.debug("Closed shells, using restricted SCF.")
-        #     self._restricted_scf = True
+        if config.force_unrestricted:
+            logger.debug("Forcing unrestricted SCF")
+            self._restricted_scf = False
+        elif self.config.charge % 2 == 1 or self.config.spin != 0:
+            logger.debug("Open shells, using unrestricted SCF.")
+            self._restricted_scf = False
+        else:
+            logger.debug("Closed shells, using restricted SCF.")
+            self._restricted_scf = True
 
         # if we have values for all three, assume we want to run qmmm
         self.run_qmmm = None not in [
