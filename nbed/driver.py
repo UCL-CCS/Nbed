@@ -189,7 +189,7 @@ class NbedDriver:
                     self._global_ks,
                     self.config.n_active_atoms,
                     max_shells=self.config.max_shells,
-                    n_mo_overwrite=self.config.n_mo_overwrite,
+                    n_mo_overwrite=self.n_mo_overwrite,
                 )
             case LocalizerEnum.BOYS:
                 return BOYSLocalizer(
@@ -803,18 +803,25 @@ class NbedDriver:
 
         return result
 
-    def embed(self, init_huzinaga_rhf_with_mu=False, n_mo_overwrite=None):
+    def embed(
+        self,
+        init_huzinaga_rhf_with_mu: bool = False,
+        n_mo_overwrite: tuple[int | None, int | None] = (None, None),
+    ) -> None:
         """Run embedded scf calculation.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
         """
         logger.debug("Embedding molecule.")
-        if n_mo_overwrite is not None:
+        if n_mo_overwrite is not None and n_mo_overwrite != (None, None):
             logger.debug(
                 "Setting n_mo_overwrite with value from embed args %s", n_mo_overwrite
             )
             self.n_mo_overwrite = n_mo_overwrite
+        else:
+            logger.debug("Setting n_mo_overwrite with value from config.")
+            self.n_mo_overwrite = self.config.n_mo_overwrite
 
         e_nuc = self._global_ks.energy_nuc()
 
@@ -854,7 +861,6 @@ class NbedDriver:
 
         # The order of these is important for
         # initializing huzinaga with mu
-
         projection_methods_to_run: list[str]
         match self.config.projector:
             case ProjectorEnum.MU:
