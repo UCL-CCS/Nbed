@@ -432,7 +432,7 @@ class NbedDriver:
 
         return env_projector
 
-    def _run_emb_CCSD(
+    def _run_emb_ccsd(
         self,
         emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
         frozen: Optional[list] = None,
@@ -459,7 +459,7 @@ class NbedDriver:
         logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
         return ccsd, e_ccsd_corr
 
-    def _run_emb_FCI(
+    def _run_emb_fci(
         self,
         emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
         frozen: Optional[list] = None,
@@ -951,7 +951,7 @@ class NbedDriver:
             # Calculate ccsd or fci energy
             if self.config.run_ccsd_emb is True:
                 logger.debug("Performing CCSD-in-DFT embedding.")
-                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(result["scf"])
+                ccsd_emb, e_ccsd_corr = self._run_emb_ccsd(result["scf"])
                 result["e_ccsd"] = (
                     ccsd_emb.e_tot
                     + self.e_env
@@ -965,7 +965,7 @@ class NbedDriver:
 
             if self.config.run_fci_emb is True:
                 logger.debug("Performing FCI-in-DFT embedding.")
-                fci_emb = self._run_emb_FCI(result["scf"])
+                fci_emb = self._run_emb_fci(result["scf"])
                 result["e_fci"] = (
                     (fci_emb.e_tot)
                     + self.e_env
