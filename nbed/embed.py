@@ -13,6 +13,29 @@ from .utils import parse
 logger = logging.getLogger(__name__)
 
 
+def overwrite_config_kwargs(config: NbedConfig, **config_kwargs) -> NbedConfig:
+    """Overwrites config values with key-words and revalidates.
+
+    Args:
+        config (NbedConfig): A config model.
+        config_kwargs (dict): Any possible key-word arguments.
+
+    Returns:
+        NbedConfig: A validated config model.
+
+    Raises:
+        ValidationError: If key-word arguments provided are not part of model.
+    """
+    if config_kwargs != {}:
+        logger.info("Overwriting select field with additonal config.")
+        config_dict = config.model_dump()
+        for k, v in config_kwargs.items():
+            config_dict[k] = v
+        return NbedConfig(**config_dict)
+    else:
+        return config
+
+
 def nbed(
     config: NbedConfig | str | None = None,
     **config_kwargs,
@@ -29,15 +52,20 @@ def nbed(
     Returns:
         NbedDriver: An embedded driver.
     """
+    logger.info(f"Running Nbed with:\n\tconfig\t{config}\n\tkeywords\t{config_kwargs}")
     match config:
         case NbedConfig():
             logger.info("Using validated config.")
+            config = overwrite_config_kwargs(config, **config_kwargs)
+
         case str() | Path():
             logger.info("Using config file %s", config)
+            logger.info("Validating config from file.")
             with open(FilePath(config)) as f:
-                logger.info("Validating config from file.")
                 data = json.load(f)
-                config = NbedConfig(**data)
+            config = NbedConfig(**data)
+            config = overwrite_config_kwargs(config, **config_kwargs)
+
         case None:
             logger.info("Validating config from passed arguments.")
             logger.debug(f"{config_kwargs=}")

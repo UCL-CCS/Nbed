@@ -169,7 +169,7 @@ def huzinaga_scf(
             scf_energy = calculate_ks_energy(
                 scf_method, dft_potential, density_matrix, huzinaga_op_std
             )
-        elif isinstance(scf_method, (scf.hf.RHF, scf.uhf.UHF)):
+        elif isinstance(scf_method, (scf.rhf.RHF, scf.uhf.UHF)):
             hamiltonian = (
                 scf_method.get_hcore() + dft_potential + 0.5 * vhf + huzinaga_op_std
             )

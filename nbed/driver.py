@@ -3,7 +3,7 @@
 import logging
 from functools import cached_property, reduce
 from json import dump as jdump
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 from pyscf import cc, dft, fci, gto, qmmm, scf
@@ -50,9 +50,7 @@ class NbedDriver:
         self.config = config
         self.localized_system: OccupiedLocalizer
         self.two_e_cross: np.typing.NDArray
-        self.dft_potential: np.typing.NDArray
         self.electron: int
-        self.v_emb: np.typing.NDArray
         self._mu: dict = None
         self._huzinaga: dict = None
 
@@ -101,7 +99,7 @@ class NbedDriver:
         global_hf = (
             scf.UHF(mol_full, **hf_kwargs)
             if not self._restricted_scf
-            else scf.RHF(mol_full, **hf_kwargs)
+            else scf.rhf.RHF(mol_full, **hf_kwargs)
         )
         global_hf.conv_tol = self.config.convergence
         global_hf.max_memory = self.config.max_ram_memory
@@ -189,7 +187,7 @@ class NbedDriver:
                     self._global_ks,
                     self.config.n_active_atoms,
                     max_shells=self.config.max_shells,
-                    n_mo_overwrite=self.config.n_mo_overwrite,
+                    n_mo_overwrite=self.n_mo_overwrite,
                 )
             case LocalizerEnum.BOYS:
                 return BOYSLocalizer(
@@ -229,7 +227,7 @@ class NbedDriver:
             embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
             embedded_mol.spin = 0
             self._electron = embedded_mol.nelectron
-            local_hf: scf.rhf.RHF = scf.RHF(embedded_mol)
+            local_hf: scf.rhf.RHF = scf.rhf.RHF(embedded_mol)
         else:
             embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
                 self.localized_system.beta_active_MO_inds
@@ -432,9 +430,9 @@ class NbedDriver:
 
         return env_projector
 
-    def _run_emb_CCSD(
+    def _run_emb_ccsd(
         self,
-        emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
+        emb_pyscf_scf_rhf: Union[scf.rhf.RHF, scf.UHF],
         frozen: Optional[list] = None,
     ) -> tuple[cc.CCSD, float]:
         """Function run CCSD on embedded restricted Hartree Fock object.
@@ -443,7 +441,7 @@ class NbedDriver:
         (see get_embedded_rhf method)
 
         Args:
-            emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
+            emb_pyscf_scf_rhf (scf.rhf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
             frozen (List): A path to an .xyz file describing molecular geometry.
 
         Returns:
@@ -459,9 +457,9 @@ class NbedDriver:
         logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
         return ccsd, e_ccsd_corr
 
-    def _run_emb_FCI(
+    def _run_emb_fci(
         self,
-        emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
+        emb_pyscf_scf_rhf: Union[scf.rhf.RHF, scf.UHF],
         frozen: Optional[list] = None,
     ) -> fci.FCI:
         """Function run FCI on embedded restricted Hartree Fock object.
@@ -470,84 +468,60 @@ class NbedDriver:
         (see get_embedded_rhf method)
 
         Args:
-            emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
+            emb_pyscf_scf_rhf (scf.rhf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
             frozen (List): A path to an .xyz file describing moleclar geometry.
 
         Returns:
             fci_scf (fci.FCI): PySCF FCI object
         """
-        logger.debug("Starting embedded FCI calculation.")
-        if frozen is None:
-            fci_scf = fci.FCI(emb_pyscf_scf_rhf)
-        else:
-            from pyscf import mcscf
-
-            fci_scf = mcscf.CASSCF(
-                emb_pyscf_scf_rhf,
-                emb_pyscf_scf_rhf.mol.nelec,
-                emb_pyscf_scf_rhf.mol.nao - len(frozen),
-            )
-            fci_scf.sort_mo(
-                [i + 1 for i in range(emb_pyscf_scf_rhf.mol.nao) if i not in frozen]
-            )
-        fci_scf.conv_tol = self.config.convergence
-        fci_scf.max_memory = self.config.max_ram_memory
-
-        # For UHF, PySCF assumes that hcore is spinless and 2D
-        # Because we update hcore for embedding, we need to calculate our own h1e term.
-        if np.ndim(hcore := emb_pyscf_scf_rhf.get_hcore()) == 3:
-            mo = emb_pyscf_scf_rhf.mo_coeff
-            h1e = [
-                reduce(np.dot, (mo[0].T, hcore[0], mo[0])),
-                reduce(np.dot, (mo[1].T, hcore[1], mo[1])),
-            ]
-            fci_scf.kernel(h1e=h1e)
-        else:
-            # kernel function default value is passed in
-            fci_scf.kernel()
-        logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
-        return fci_scf
+        return run_emb_fci(
+            emb_pyscf_scf_rhf,
+            frozen,
+            self.config.convergence,
+            self.config.max_ram_memory,
+        )
 
     def _mu_embed(
-        self, localized_scf: StreamObject, dft_potential: np.ndarray
+        self, localized_scf: StreamObject, embedding_potential: np.ndarray
     ) -> tuple[StreamObject, np.ndarray]:
         """Embed using the Mu-shift projector.
 
         Args:
             localized_scf (StreamObject): A PySCF scf method with the correct number of electrons for the active region.
-            dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
+            embedding_potential (np.ndarray): Potential calculated from two electron terms in dft.
 
         Returns:
             np.ndarray: Matrix form of the embedding potential.
             StreamObject: The embedded scf object.
         """
-        logger.debug("Running embedded scf calculation.")
+        logger.debug("Running mu embedded scf calculation.")
 
         # Modify the energy_elec function to handle different h_cores
         # which we need for different embedding potentials
-        v_emb = (self.config.mu_level_shift * self._env_projector) + dft_potential
+        v_emb = (self.config.mu_level_shift * self._env_projector) + embedding_potential
         hcore_std = localized_scf.get_hcore()
+        logger.debug(f"initial hcore shape {hcore_std.shape}")
         localized_scf.get_hcore = lambda *args: hcore_std + v_emb
+        logger.debug(f"embedded hcore shape {hcore_std.shape}")
 
         localized_scf.kernel()
         logger.info(
             f"Embedded scf energy MU_SHIFT: {localized_scf.e_tot}, converged: {localized_scf.converged}"
         )
-        self.v_emb = v_emb
 
         return localized_scf, v_emb
 
     def _huzinaga_embed(
         self,
         active_scf: StreamObject,
-        dft_potential: np.ndarray,
+        embedding_potential: np.ndarray,
         dmat_initial_guess: Optional[np.ndarray] = None,
     ) -> tuple[StreamObject, np.ndarray]:
         """Embed using Huzinaga projector.
 
         Args:
             active_scf (StreamObject): A PySCF scf method with the correct number of electrons for the active region.
-            dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
+            embedding_potential (np.ndarray): Potential calculated from two electron terms in dft.
             dmat_initial_guess (bool): If True, use the initial guess for the density matrix.
 
         Returns:
@@ -565,7 +539,6 @@ class NbedDriver:
                     self.localized_system.beta_dm_enviro,
                 ]
             )
-
         (
             c_active_embedded,
             mo_embedded_energy,
@@ -574,7 +547,7 @@ class NbedDriver:
             huz_scf_conv_flag,
         ) = huzinaga_scf(
             active_scf,
-            dft_potential,
+            embedding_potential,
             total_enviro_dm,
             dm_conv_tol=1e-6,
             dm_initial_guess=dmat_initial_guess,
@@ -585,7 +558,7 @@ class NbedDriver:
         # write results to pyscf object
         logger.debug("Writing results to PySCF object.")
         hcore_std = active_scf.get_hcore()
-        v_emb = huzinaga_op_std + dft_potential
+        v_emb = huzinaga_op_std + embedding_potential
         active_scf.get_hcore = lambda *args: hcore_std + v_emb
 
         if not self._restricted_scf:
@@ -723,98 +696,41 @@ class NbedDriver:
         logger.debug("Environment deleted.")
         return scf
 
-    def _dft_in_dft(self, xc_func: str, embedding_method: Callable) -> dict:
+    def _dft_in_dft(self, projection_method: ProjectorEnum) -> dict:
         """Return energy of DFT in DFT embedding.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
 
         Args:
-            xc_func (str): XC functional to use in active region.
-            embedding_method (callable): Embedding method to use (mu or huzinaga).
+            driver (NbedDriver): A driver object.
+            projection_method (callable): Embedding method to use (mu or huzinaga).
 
         Returns:
             dict: DFT-in-DFT embedding results.
         """
-        result = {}
-        e_nuc = self._global_ks.energy_nuc()
+        return dft_in_dft(self, projection_method)
 
-        local_rks_same_functional = self._init_local_ks(xc_func)
-        hcore_std = local_rks_same_functional.get_hcore()
-        result["scf_dft"], result["v_emb_dft"] = embedding_method(
-            local_rks_same_functional, self.dft_potential
-        )
-
-        if not self._restricted_scf:
-            y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
-
-            # calculate correction
-            result["dft_correction"] = np.einsum(
-                "ij,ij",
-                result["v_emb_dft"][0],
-                (y_emb_alpha - self.localized_system.dm_active),
-            )
-
-            result["dft_correction_beta"] = np.einsum(
-                "ij,ij",
-                result["v_emb_dft"][1],
-                (y_emb_beta - self.localized_system.beta_dm_active),
-            )
-
-            veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
-
-            rks_e_elec = (
-                veff.exc
-                + veff.ecoul
-                + np.einsum(
-                    "ij,ij",
-                    hcore_std,
-                    y_emb_alpha,
-                )
-                + np.einsum(
-                    "ij,ij",
-                    hcore_std,
-                    y_emb_beta,
-                )
-            )
-
-        else:
-            y_emb = result["scf_dft"].make_rdm1()
-
-            # calculate correction
-            result["dft_correction"] = np.einsum(
-                "ij,ij",
-                result["v_emb_dft"],
-                (y_emb - self.localized_system.dm_active),
-            )
-            veff = result["scf_dft"].get_veff(dm=y_emb)
-            result["dft_correction_beta"] = 0
-            rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
-
-        result["e_rks"] = (
-            rks_e_elec
-            + self.e_env
-            + self.two_e_cross
-            + result["dft_correction"]
-            + result["dft_correction_beta"]
-            + e_nuc
-        )
-        result["rks_e_elec"] = rks_e_elec
-
-        return result
-
-    def embed(self, init_huzinaga_rhf_with_mu=False, n_mo_overwrite=None):
+    def embed(
+        self,
+        init_huzinaga_rhf_with_mu: bool = False,
+        n_mo_overwrite: tuple[int | None, int | None] = (None, None),
+    ) -> None:
         """Run embedded scf calculation.
 
-        Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
-        This is done when object is initialized.
+        Args:
+            init_huzinaga_rhf_with_mu (bool): Will run mu-shift projector even when input projector='huzinaga'.
+            n_mo_overwrite (tuple[int, int]): Enforces a specific number of MOs are included in the active region. Used for ACE-of-SPADE reaction path localization.
         """
         logger.debug("Embedding molecule.")
-        if n_mo_overwrite is not None:
+        if n_mo_overwrite is not None and n_mo_overwrite != (None, None):
             logger.debug(
                 "Setting n_mo_overwrite with value from embed args %s", n_mo_overwrite
             )
             self.n_mo_overwrite = n_mo_overwrite
+        else:
+            logger.debug("Setting n_mo_overwrite with value from config.")
+            self.n_mo_overwrite = self.config.n_mo_overwrite
 
         e_nuc = self._global_ks.energy_nuc()
 
@@ -848,48 +764,48 @@ class NbedDriver:
                     self.localized_system.beta_dm_active,
                 ]
             )
-        dft_potential = g_act_and_env - g_act
+        embedding_potential = g_act_and_env - g_act
+        self.embedding_potential = embedding_potential
 
-        logger.info(f"DFT potential average {np.mean(dft_potential)}.")
+        logger.info(f"DFT potential average {np.mean(embedding_potential)}.")
 
         # The order of these is important for
         # initializing huzinaga with mu
-
-        embedding_methods_to_run: list[str]
+        projection_methods_to_run: list[str]
         match self.config.projector:
             case ProjectorEnum.MU:
-                embedding_methods_to_run = ["mu"]
+                projection_methods_to_run = ["mu"]
             case ProjectorEnum.HUZ:
                 if init_huzinaga_rhf_with_mu:
-                    embedding_methods_to_run = ["mu", "huzinaga"]
+                    projection_methods_to_run = ["mu", "huzinaga"]
                 else:
-                    embedding_methods_to_run = ["huzinaga"]
+                    projection_methods_to_run = ["huzinaga"]
             case ProjectorEnum.BOTH:
-                embedding_methods_to_run = ["mu", "huzinaga"]
+                projection_methods_to_run = ["mu", "huzinaga"]
             case _:
                 logger.warning("Projector did not match valid case.")
 
-        logger.debug(f"Embedding methods to run: {embedding_methods_to_run}")
+        logger.debug(f"Embedding methods to run: {projection_methods_to_run}")
 
-        for projector_name in embedding_methods_to_run:
+        for projector_name in projection_methods_to_run:
             result = {}
             logger.debug(f"Runnning embedding with {projector_name} projector.")
 
             if projector_name == "mu":
-                embedding_method = self._mu_embed
+                projection_method = self._mu_embed
             elif projector_name == "huzinaga":
-                embedding_method = self._huzinaga_embed
+                projection_method = self._huzinaga_embed
 
             local_hf = self._init_local_hf()
 
             if projector_name == "huzinaga" and init_huzinaga_rhf_with_mu:
                 dmat_initial_guess = (self._mu["scf"].make_rdm1(),)
-                result["scf"], result["v_emb"] = embedding_method(
-                    local_hf, dft_potential, dmat_initial_guess
+                result["scf"], result["v_emb"] = projection_method(
+                    local_hf, embedding_potential, dmat_initial_guess
                 )
             else:
-                result["scf"], result["v_emb"] = embedding_method(
-                    local_hf, dft_potential
+                result["scf"], result["v_emb"] = projection_method(
+                    local_hf, embedding_potential
                 )
 
             result["mo_energies_emb_pre_del"] = result["scf"].mo_energy
@@ -944,7 +860,7 @@ class NbedDriver:
             # Calculate ccsd or fci energy
             if self.config.run_ccsd_emb is True:
                 logger.debug("Performing CCSD-in-DFT embedding.")
-                ccsd_emb, e_ccsd_corr = self._run_emb_CCSD(result["scf"])
+                ccsd_emb, e_ccsd_corr = self._run_emb_ccsd(result["scf"])
                 result["e_ccsd"] = (
                     ccsd_emb.e_tot
                     + self.e_env
@@ -958,7 +874,7 @@ class NbedDriver:
 
             if self.config.run_fci_emb is True:
                 logger.debug("Performing FCI-in-DFT embedding.")
-                fci_emb = self._run_emb_FCI(result["scf"])
+                fci_emb = self._run_emb_fci(result["scf"])
                 result["e_fci"] = (
                     (fci_emb.e_tot)
                     + self.e_env
@@ -973,9 +889,8 @@ class NbedDriver:
             result["nuc"] = e_nuc
 
             if self.config.run_dft_in_dft is True:
-                did = self._dft_in_dft(self._global_ks.xc, embedding_method)
-                result["e_dft_in_dft"] = did["e_rks"]
-                result["emb_dft"] = did["rks_e_elec"]
+                did = self._dft_in_dft(ProjectorEnum(projector_name))
+                result.update(did)
 
             # Build second quantised Hamiltonian
             hb = HamiltonianBuilder(result["scf"], result["classical_energy"])
@@ -1017,3 +932,145 @@ class NbedDriver:
                 jdump({"mu": self._mu, "huzinaga": self._huzinaga}, f)
 
         logger.info("Embedding complete.")
+
+
+def run_emb_fci(
+    emb_pyscf_scf_rhf: Union[scf.rhf.RHF, scf.UHF],
+    frozen: Optional[list] = None,
+    convergence: Optional[float] = None,
+    max_ram_memory: Optional[int] = None,
+) -> fci.FCI:
+    """Function run FCI on embedded restricted Hartree Fock object.
+
+    Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
+    (see get_embedded_rhf method)
+
+    Args:
+        emb_pyscf_scf_rhf (scf.rhf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
+        frozen (List): A path to an .xyz file describing moleclar geometry.
+        convergence (float): convergence tolerance.
+        max_ram_memory (int): Maximum memory allocation for FCI.
+
+    Returns:
+        fci_scf (fci.FCI): PySCF FCI object
+    """
+    logger.debug("Starting embedded FCI calculation.")
+    if frozen is None:
+        fci_scf = fci.FCI(emb_pyscf_scf_rhf)
+    else:
+        from pyscf import mcscf
+
+        fci_scf = mcscf.CASSCF(
+            emb_pyscf_scf_rhf,
+            emb_pyscf_scf_rhf.mol.nelec,
+            emb_pyscf_scf_rhf.mol.nao - len(frozen),
+        )
+        fci_scf.sort_mo(
+            [i + 1 for i in range(emb_pyscf_scf_rhf.mol.nao) if i not in frozen]
+        )
+    if convergence is not None:
+        fci_scf.conv_tol = convergence
+    if max_ram_memory is not None:
+        fci_scf.max_memory = max_ram_memory
+
+    # For UHF, PySCF assumes that hcore is spinless and 2D
+    # Because we update hcore for embedding, we need to calculate our own h1e term.
+    if np.ndim(hcore := emb_pyscf_scf_rhf.get_hcore()) == 3:
+        mo = emb_pyscf_scf_rhf.mo_coeff
+        h1e = [
+            reduce(np.dot, (mo[0].T, hcore[0], mo[0])),
+            reduce(np.dot, (mo[1].T, hcore[1], mo[1])),
+        ]
+        fci_scf.kernel(h1e=h1e)
+    else:
+        # kernel function default value is passed in
+        fci_scf.kernel()
+    logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
+    return fci_scf
+
+
+def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorEnum) -> dict:
+    """Return energy of DFT in DFT embedding.
+
+    Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
+    This is done when object is initialized.
+
+    Args:
+        driver (NbedDriver): A driver object.
+        projection_method (callable): Embedding method to use (mu or huzinaga).
+
+    Returns:
+        dict: DFT-in-DFT embedding results.
+    """
+    result = {}
+    e_nuc = driver._global_ks.energy_nuc()
+
+    local_rks_same_functional = driver._init_local_ks(driver._global_ks.xc)
+    hcore_std = local_rks_same_functional.get_hcore()
+    match projection_method:
+        case ProjectorEnum.MU:
+            result["scf_dft"], result["v_emb_dft"] = driver._mu_embed(
+                local_rks_same_functional, driver.embedding_potential
+            )
+        case ProjectorEnum.HUZ:
+            result["scf_dft"], result["v_emb_dft"] = driver._huzinaga_embed(
+                local_rks_same_functional, driver.embedding_potential
+            )
+
+    if not driver._restricted_scf:
+        y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
+
+        # calculate correction
+        result["dft_correction"] = np.einsum(
+            "ij,ij",
+            result["v_emb_dft"][0],
+            (y_emb_alpha - driver.localized_system.dm_active),
+        )
+
+        result["dft_correction_beta"] = np.einsum(
+            "ij,ij",
+            result["v_emb_dft"][1],
+            (y_emb_beta - driver.localized_system.beta_dm_active),
+        )
+
+        veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
+
+        rks_e_elec = (
+            veff.exc
+            + veff.ecoul
+            + np.einsum(
+                "ij,ij",
+                hcore_std,
+                y_emb_alpha,
+            )
+            + np.einsum(
+                "ij,ij",
+                hcore_std,
+                y_emb_beta,
+            )
+        )
+
+    else:
+        y_emb = result["scf_dft"].make_rdm1()
+
+        # calculate correction
+        result["dft_correction"] = np.einsum(
+            "ij,ij",
+            result["v_emb_dft"],
+            (y_emb - driver.localized_system.dm_active),
+        )
+        veff = result["scf_dft"].get_veff(dm=y_emb)
+        result["dft_correction_beta"] = 0
+        rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
+
+    result["e_dft_in_dft"] = (
+        rks_e_elec
+        + driver.e_env
+        + driver.two_e_cross
+        + result["dft_correction"]
+        + result["dft_correction_beta"]
+        + e_nuc
+    )
+    result["emb_dft"] = rks_e_elec
+
+    return result
