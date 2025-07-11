@@ -43,6 +43,9 @@ def huz_unrestricted_driver(nbed_config) -> NbedDriver:
     driver.embed()
     return driver
 
+def test_restricted_dft_in_dft(mu_driver, huz_driver):
+    assert np.isclose(mu_driver[""])
+
 def test_embedded_fci(nbed_config, mu_driver, mu_unrestricted_driver, huz_driver, huz_unrestricted_driver):
     assert(np.isclose(mu_driver._run_emb_FCI(mu_driver.embedded_scf).e_tot, -62.261794716560416))
     assert(np.isclose(mu_unrestricted_driver._run_emb_FCI(mu_unrestricted_driver.embedded_scf).e_tot, -62.261794716560416))

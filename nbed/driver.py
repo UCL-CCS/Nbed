@@ -3,7 +3,7 @@
 import logging
 from functools import cached_property, reduce
 from json import dump as jdump
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 from pyscf import cc, dft, fci, gto, qmmm, scf
@@ -50,9 +50,7 @@ class NbedDriver:
         self.config = config
         self.localized_system: OccupiedLocalizer
         self.two_e_cross: np.typing.NDArray
-        self.dft_potential: np.typing.NDArray
         self.electron: int
-        self.v_emb: np.typing.NDArray
         self._mu: dict = None
         self._huzinaga: dict = None
 
@@ -476,37 +474,12 @@ class NbedDriver:
         Returns:
             fci_scf (fci.FCI): PySCF FCI object
         """
-        logger.debug("Starting embedded FCI calculation.")
-        if frozen is None:
-            fci_scf = fci.FCI(emb_pyscf_scf_rhf)
-        else:
-            from pyscf import mcscf
-
-            fci_scf = mcscf.CASSCF(
-                emb_pyscf_scf_rhf,
-                emb_pyscf_scf_rhf.mol.nelec,
-                emb_pyscf_scf_rhf.mol.nao - len(frozen),
-            )
-            fci_scf.sort_mo(
-                [i + 1 for i in range(emb_pyscf_scf_rhf.mol.nao) if i not in frozen]
-            )
-        fci_scf.conv_tol = self.config.convergence
-        fci_scf.max_memory = self.config.max_ram_memory
-
-        # For UHF, PySCF assumes that hcore is spinless and 2D
-        # Because we update hcore for embedding, we need to calculate our own h1e term.
-        if np.ndim(hcore := emb_pyscf_scf_rhf.get_hcore()) == 3:
-            mo = emb_pyscf_scf_rhf.mo_coeff
-            h1e = [
-                reduce(np.dot, (mo[0].T, hcore[0], mo[0])),
-                reduce(np.dot, (mo[1].T, hcore[1], mo[1])),
-            ]
-            fci_scf.kernel(h1e=h1e)
-        else:
-            # kernel function default value is passed in
-            fci_scf.kernel()
-        logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
-        return fci_scf
+        return run_emb_fci(
+            emb_pyscf_scf_rhf,
+            frozen,
+            self.config.convergence,
+            self.config.max_ram_memory,
+        )
 
     def _mu_embed(
         self, localized_scf: StreamObject, dft_potential: np.ndarray
@@ -533,7 +506,6 @@ class NbedDriver:
         logger.info(
             f"Embedded scf energy MU_SHIFT: {localized_scf.e_tot}, converged: {localized_scf.converged}"
         )
-        self.v_emb = v_emb
 
         return localized_scf, v_emb
 
@@ -723,14 +695,16 @@ class NbedDriver:
         logger.debug("Environment deleted.")
         return scf
 
-    def _dft_in_dft(self, xc_func: str, projection_method: Callable) -> dict:
+    def _dft_in_dft(
+        self, dft_potential: np.typing.NDArray, projection_method: ProjectorEnum
+    ) -> dict:
         """Return energy of DFT in DFT embedding.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
 
         Args:
-            xc_func (str): XC functional to use in active region.
+            dft_potential (NDArray): DFT Embedding potential
             projection_method (callable): Embedding method to use (mu or huzinaga).
 
         Returns:
@@ -739,11 +713,17 @@ class NbedDriver:
         result = {}
         e_nuc = self._global_ks.energy_nuc()
 
-        local_rks_same_functional = self._init_local_ks(xc_func)
+        local_rks_same_functional = self._init_local_ks(self._global_ks.xc)
         hcore_std = local_rks_same_functional.get_hcore()
-        result["scf_dft"], result["v_emb_dft"] = projection_method(
-            local_rks_same_functional, self.dft_potential
-        )
+        match projection_method:
+            case ProjectorEnum.MU:
+                result["scf_dft"], result["v_emb_dft"] = self._mu_embed(
+                    local_rks_same_functional, dft_potential
+                )
+            case ProjectorEnum.HUZ:
+                result["scf_dft"], result["v_emb_dft"] = self._huzinaga_embed(
+                    local_rks_same_functional, dft_potential
+                )
 
         if not self._restricted_scf:
             y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
@@ -791,7 +771,7 @@ class NbedDriver:
             result["dft_correction_beta"] = 0
             rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
 
-        result["e_rks"] = (
+        result["e_dft_in_dft"] = (
             rks_e_elec
             + self.e_env
             + self.two_e_cross
@@ -799,7 +779,7 @@ class NbedDriver:
             + result["dft_correction_beta"]
             + e_nuc
         )
-        result["rks_e_elec"] = rks_e_elec
+        result["emb_dft"] = rks_e_elec
 
         return result
 
@@ -980,9 +960,8 @@ class NbedDriver:
             result["nuc"] = e_nuc
 
             if self.config.run_dft_in_dft is True:
-                did = self._dft_in_dft(self._global_ks.xc, projection_method)
-                result["e_dft_in_dft"] = did["e_rks"]
-                result["emb_dft"] = did["rks_e_elec"]
+                did = self._dft_in_dft(dft_potential, ProjectorEnum(projector_name))
+                result.update(did)
 
             # Build second quantised Hamiltonian
             hb = HamiltonianBuilder(result["scf"], result["classical_energy"])
@@ -1024,3 +1003,58 @@ class NbedDriver:
                 jdump({"mu": self._mu, "huzinaga": self._huzinaga}, f)
 
         logger.info("Embedding complete.")
+
+
+def run_emb_fci(
+    emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
+    frozen: Optional[list] = None,
+    convergence: Optional[float] = None,
+    max_ram_memory: Optional[int] = None,
+) -> fci.FCI:
+    """Function run FCI on embedded restricted Hartree Fock object.
+
+    Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
+    (see get_embedded_rhf method)
+
+    Args:
+        emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
+        frozen (List): A path to an .xyz file describing moleclar geometry.
+        convergence (float): convergence tolerance.
+        max_ram_memory (int): Maximum memory allocation for FCI.
+
+    Returns:
+        fci_scf (fci.FCI): PySCF FCI object
+    """
+    logger.debug("Starting embedded FCI calculation.")
+    if frozen is None:
+        fci_scf = fci.FCI(emb_pyscf_scf_rhf)
+    else:
+        from pyscf import mcscf
+
+        fci_scf = mcscf.CASSCF(
+            emb_pyscf_scf_rhf,
+            emb_pyscf_scf_rhf.mol.nelec,
+            emb_pyscf_scf_rhf.mol.nao - len(frozen),
+        )
+        fci_scf.sort_mo(
+            [i + 1 for i in range(emb_pyscf_scf_rhf.mol.nao) if i not in frozen]
+        )
+    if convergence is not None:
+        fci_scf.conv_tol = convergence
+    if max_ram_memory is not None:
+        fci_scf.max_memory = max_ram_memory
+
+    # For UHF, PySCF assumes that hcore is spinless and 2D
+    # Because we update hcore for embedding, we need to calculate our own h1e term.
+    if np.ndim(hcore := emb_pyscf_scf_rhf.get_hcore()) == 3:
+        mo = emb_pyscf_scf_rhf.mo_coeff
+        h1e = [
+            reduce(np.dot, (mo[0].T, hcore[0], mo[0])),
+            reduce(np.dot, (mo[1].T, hcore[1], mo[1])),
+        ]
+        fci_scf.kernel(h1e=h1e)
+    else:
+        # kernel function default value is passed in
+        fci_scf.kernel()
+    logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
+    return fci_scf
