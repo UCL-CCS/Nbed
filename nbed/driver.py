@@ -482,13 +482,13 @@ class NbedDriver:
         )
 
     def _mu_embed(
-        self, localized_scf: StreamObject, dft_potential: np.ndarray
+        self, localized_scf: StreamObject, embedding_potential: np.ndarray
     ) -> tuple[StreamObject, np.ndarray]:
         """Embed using the Mu-shift projector.
 
         Args:
             localized_scf (StreamObject): A PySCF scf method with the correct number of electrons for the active region.
-            dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
+            embedding_potential (np.ndarray): Potential calculated from two electron terms in dft.
 
         Returns:
             np.ndarray: Matrix form of the embedding potential.
@@ -498,7 +498,7 @@ class NbedDriver:
 
         # Modify the energy_elec function to handle different h_cores
         # which we need for different embedding potentials
-        v_emb = (self.config.mu_level_shift * self._env_projector) + dft_potential
+        v_emb = (self.config.mu_level_shift * self._env_projector) + embedding_potential
         hcore_std = localized_scf.get_hcore()
         localized_scf.get_hcore = lambda *args: hcore_std + v_emb
 
@@ -512,14 +512,14 @@ class NbedDriver:
     def _huzinaga_embed(
         self,
         active_scf: StreamObject,
-        dft_potential: np.ndarray,
+        embedding_potential: np.ndarray,
         dmat_initial_guess: Optional[np.ndarray] = None,
     ) -> tuple[StreamObject, np.ndarray]:
         """Embed using Huzinaga projector.
 
         Args:
             active_scf (StreamObject): A PySCF scf method with the correct number of electrons for the active region.
-            dft_potential (np.ndarray): Potential calculated from two electron terms in dft.
+            embedding_potential (np.ndarray): Potential calculated from two electron terms in dft.
             dmat_initial_guess (bool): If True, use the initial guess for the density matrix.
 
         Returns:
@@ -546,7 +546,7 @@ class NbedDriver:
             huz_scf_conv_flag,
         ) = huzinaga_scf(
             active_scf,
-            dft_potential,
+            embedding_potential,
             total_enviro_dm,
             dm_conv_tol=1e-6,
             dm_initial_guess=dmat_initial_guess,
@@ -557,7 +557,7 @@ class NbedDriver:
         # write results to pyscf object
         logger.debug("Writing results to PySCF object.")
         hcore_std = active_scf.get_hcore()
-        v_emb = huzinaga_op_std + dft_potential
+        v_emb = huzinaga_op_std + embedding_potential
         active_scf.get_hcore = lambda *args: hcore_std + v_emb
 
         if not self._restricted_scf:
@@ -695,93 +695,20 @@ class NbedDriver:
         logger.debug("Environment deleted.")
         return scf
 
-    def _dft_in_dft(
-        self, dft_potential: np.typing.NDArray, projection_method: ProjectorEnum
-    ) -> dict:
+    def _dft_in_dft(self, projection_method: ProjectorEnum) -> dict:
         """Return energy of DFT in DFT embedding.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
         This is done when object is initialized.
 
         Args:
-            dft_potential (NDArray): DFT Embedding potential
+            driver (NbedDriver): A driver object.
             projection_method (callable): Embedding method to use (mu or huzinaga).
 
         Returns:
             dict: DFT-in-DFT embedding results.
         """
-        result = {}
-        e_nuc = self._global_ks.energy_nuc()
-
-        local_rks_same_functional = self._init_local_ks(self._global_ks.xc)
-        hcore_std = local_rks_same_functional.get_hcore()
-        match projection_method:
-            case ProjectorEnum.MU:
-                result["scf_dft"], result["v_emb_dft"] = self._mu_embed(
-                    local_rks_same_functional, dft_potential
-                )
-            case ProjectorEnum.HUZ:
-                result["scf_dft"], result["v_emb_dft"] = self._huzinaga_embed(
-                    local_rks_same_functional, dft_potential
-                )
-
-        if not self._restricted_scf:
-            y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
-
-            # calculate correction
-            result["dft_correction"] = np.einsum(
-                "ij,ij",
-                result["v_emb_dft"][0],
-                (y_emb_alpha - self.localized_system.dm_active),
-            )
-
-            result["dft_correction_beta"] = np.einsum(
-                "ij,ij",
-                result["v_emb_dft"][1],
-                (y_emb_beta - self.localized_system.beta_dm_active),
-            )
-
-            veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
-
-            rks_e_elec = (
-                veff.exc
-                + veff.ecoul
-                + np.einsum(
-                    "ij,ij",
-                    hcore_std,
-                    y_emb_alpha,
-                )
-                + np.einsum(
-                    "ij,ij",
-                    hcore_std,
-                    y_emb_beta,
-                )
-            )
-
-        else:
-            y_emb = result["scf_dft"].make_rdm1()
-
-            # calculate correction
-            result["dft_correction"] = np.einsum(
-                "ij,ij",
-                result["v_emb_dft"],
-                (y_emb - self.localized_system.dm_active),
-            )
-            veff = result["scf_dft"].get_veff(dm=y_emb)
-            result["dft_correction_beta"] = 0
-            rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
-
-        result["e_dft_in_dft"] = (
-            rks_e_elec
-            + self.e_env
-            + self.two_e_cross
-            + result["dft_correction"]
-            + result["dft_correction_beta"]
-            + e_nuc
-        )
-        result["emb_dft"] = rks_e_elec
-
-        return result
+        return dft_in_dft(self, projection_method)
 
     def embed(
         self,
@@ -836,9 +763,10 @@ class NbedDriver:
                     self.localized_system.beta_dm_active,
                 ]
             )
-        dft_potential = g_act_and_env - g_act
+        embedding_potential = g_act_and_env - g_act
+        self.embedding_potential = embedding_potential
 
-        logger.info(f"DFT potential average {np.mean(dft_potential)}.")
+        logger.info(f"DFT potential average {np.mean(embedding_potential)}.")
 
         # The order of these is important for
         # initializing huzinaga with mu
@@ -872,11 +800,11 @@ class NbedDriver:
             if projector_name == "huzinaga" and init_huzinaga_rhf_with_mu:
                 dmat_initial_guess = (self._mu["scf"].make_rdm1(),)
                 result["scf"], result["v_emb"] = projection_method(
-                    local_hf, dft_potential, dmat_initial_guess
+                    local_hf, embedding_potential, dmat_initial_guess
                 )
             else:
                 result["scf"], result["v_emb"] = projection_method(
-                    local_hf, dft_potential
+                    local_hf, embedding_potential
                 )
 
             result["mo_energies_emb_pre_del"] = result["scf"].mo_energy
@@ -960,7 +888,7 @@ class NbedDriver:
             result["nuc"] = e_nuc
 
             if self.config.run_dft_in_dft is True:
-                did = self._dft_in_dft(dft_potential, ProjectorEnum(projector_name))
+                did = self._dft_in_dft(ProjectorEnum(projector_name))
                 result.update(did)
 
             # Build second quantised Hamiltonian
@@ -1058,3 +986,90 @@ def run_emb_fci(
         fci_scf.kernel()
     logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
     return fci_scf
+
+
+def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorEnum) -> dict:
+    """Return energy of DFT in DFT embedding.
+
+    Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
+    This is done when object is initialized.
+
+    Args:
+        driver (NbedDriver): A driver object.
+        projection_method (callable): Embedding method to use (mu or huzinaga).
+
+    Returns:
+        dict: DFT-in-DFT embedding results.
+    """
+    result = {}
+    e_nuc = driver._global_ks.energy_nuc()
+
+    local_rks_same_functional = driver._init_local_ks(driver._global_ks.xc)
+    hcore_std = local_rks_same_functional.get_hcore()
+    match projection_method:
+        case ProjectorEnum.MU:
+            result["scf_dft"], result["v_emb_dft"] = driver._mu_embed(
+                local_rks_same_functional, driver.embedding_potential
+            )
+        case ProjectorEnum.HUZ:
+            result["scf_dft"], result["v_emb_dft"] = driver._huzinaga_embed(
+                local_rks_same_functional, driver.embedding_potential
+            )
+
+    if not driver._restricted_scf:
+        y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
+
+        # calculate correction
+        result["dft_correction"] = np.einsum(
+            "ij,ij",
+            result["v_emb_dft"][0],
+            (y_emb_alpha - driver.localized_system.dm_active),
+        )
+
+        result["dft_correction_beta"] = np.einsum(
+            "ij,ij",
+            result["v_emb_dft"][1],
+            (y_emb_beta - driver.localized_system.beta_dm_active),
+        )
+
+        veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
+
+        rks_e_elec = (
+            veff.exc
+            + veff.ecoul
+            + np.einsum(
+                "ij,ij",
+                hcore_std,
+                y_emb_alpha,
+            )
+            + np.einsum(
+                "ij,ij",
+                hcore_std,
+                y_emb_beta,
+            )
+        )
+
+    else:
+        y_emb = result["scf_dft"].make_rdm1()
+
+        # calculate correction
+        result["dft_correction"] = np.einsum(
+            "ij,ij",
+            result["v_emb_dft"],
+            (y_emb - driver.localized_system.dm_active),
+        )
+        veff = result["scf_dft"].get_veff(dm=y_emb)
+        result["dft_correction_beta"] = 0
+        rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
+
+    result["e_dft_in_dft"] = (
+        rks_e_elec
+        + driver.e_env
+        + driver.two_e_cross
+        + result["dft_correction"]
+        + result["dft_correction_beta"]
+        + e_nuc
+    )
+    result["emb_dft"] = rks_e_elec
+
+    return result
