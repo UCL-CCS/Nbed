@@ -723,7 +723,7 @@ class NbedDriver:
         logger.debug("Environment deleted.")
         return scf
 
-    def _dft_in_dft(self, xc_func: str, embedding_method: Callable) -> dict:
+    def _dft_in_dft(self, xc_func: str, projection_method: Callable) -> dict:
         """Return energy of DFT in DFT embedding.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
@@ -731,7 +731,7 @@ class NbedDriver:
 
         Args:
             xc_func (str): XC functional to use in active region.
-            embedding_method (callable): Embedding method to use (mu or huzinaga).
+            projection_method (callable): Embedding method to use (mu or huzinaga).
 
         Returns:
             dict: DFT-in-DFT embedding results.
@@ -741,7 +741,7 @@ class NbedDriver:
 
         local_rks_same_functional = self._init_local_ks(xc_func)
         hcore_std = local_rks_same_functional.get_hcore()
-        result["scf_dft"], result["v_emb_dft"] = embedding_method(
+        result["scf_dft"], result["v_emb_dft"] = projection_method(
             local_rks_same_functional, self.dft_potential
         )
 
@@ -855,40 +855,40 @@ class NbedDriver:
         # The order of these is important for
         # initializing huzinaga with mu
 
-        embedding_methods_to_run: list[str]
+        projection_methods_to_run: list[str]
         match self.config.projector:
             case ProjectorEnum.MU:
-                embedding_methods_to_run = ["mu"]
+                projection_methods_to_run = ["mu"]
             case ProjectorEnum.HUZ:
                 if init_huzinaga_rhf_with_mu:
-                    embedding_methods_to_run = ["mu", "huzinaga"]
+                    projection_methods_to_run = ["mu", "huzinaga"]
                 else:
-                    embedding_methods_to_run = ["huzinaga"]
+                    projection_methods_to_run = ["huzinaga"]
             case ProjectorEnum.BOTH:
-                embedding_methods_to_run = ["mu", "huzinaga"]
+                projection_methods_to_run = ["mu", "huzinaga"]
             case _:
                 logger.warning("Projector did not match valid case.")
 
-        logger.debug(f"Embedding methods to run: {embedding_methods_to_run}")
+        logger.debug(f"Embedding methods to run: {projection_methods_to_run}")
 
-        for projector_name in embedding_methods_to_run:
+        for projector_name in projection_methods_to_run:
             result = {}
             logger.debug(f"Runnning embedding with {projector_name} projector.")
 
             if projector_name == "mu":
-                embedding_method = self._mu_embed
+                projection_method = self._mu_embed
             elif projector_name == "huzinaga":
-                embedding_method = self._huzinaga_embed
+                projection_method = self._huzinaga_embed
 
             local_hf = self._init_local_hf()
 
             if projector_name == "huzinaga" and init_huzinaga_rhf_with_mu:
                 dmat_initial_guess = (self._mu["scf"].make_rdm1(),)
-                result["scf"], result["v_emb"] = embedding_method(
+                result["scf"], result["v_emb"] = projection_method(
                     local_hf, dft_potential, dmat_initial_guess
                 )
             else:
-                result["scf"], result["v_emb"] = embedding_method(
+                result["scf"], result["v_emb"] = projection_method(
                     local_hf, dft_potential
                 )
 
@@ -973,7 +973,7 @@ class NbedDriver:
             result["nuc"] = e_nuc
 
             if self.config.run_dft_in_dft is True:
-                did = self._dft_in_dft(self._global_ks.xc, embedding_method)
+                did = self._dft_in_dft(self._global_ks.xc, projection_method)
                 result["e_dft_in_dft"] = did["e_rks"]
                 result["emb_dft"] = did["rks_e_elec"]
 
