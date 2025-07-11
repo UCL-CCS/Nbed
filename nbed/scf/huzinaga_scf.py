@@ -1,4 +1,4 @@
-"""Perform Huzinaga RHF with PySCF."""
+"""Perform Huzinaga ROHF with PySCF."""
 
 import logging
 from typing import Optional
@@ -26,7 +26,7 @@ def calculate_hf_energy(
     Returns:
         float: Hartree-fock energy
     """
-    # Find RHF energy
+    # Find ROHF energy
     hamiltonian = scf_method.get_hcore() + dft_potential + 0.5 * vhf + huzinaga_op_std
     return np.einsum("...ij,...ji->...", hamiltonian, density_matrix)
 
@@ -169,7 +169,7 @@ def huzinaga_scf(
             scf_energy = calculate_ks_energy(
                 scf_method, dft_potential, density_matrix, huzinaga_op_std
             )
-        elif isinstance(scf_method, (scf.hf.RHF, scf.uhf.UHF)):
+        elif isinstance(scf_method, (scf.rhf.RHF, scf.uhf.UHF)):
             hamiltonian = (
                 scf_method.get_hcore() + dft_potential + 0.5 * vhf + huzinaga_op_std
             )

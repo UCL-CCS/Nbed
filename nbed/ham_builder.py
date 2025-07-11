@@ -278,7 +278,7 @@ def reduce_virtuals(scf_method, n_frozen_virt: int) -> lib.StreamObject:
         reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :, :-n_frozen_virt]
         reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:, :-n_frozen_virt]
 
-    elif isinstance(reduced_scf_method, (scf.hf.RHF, scf.rohf.ROHF)):
+    elif isinstance(reduced_scf_method, (scf.hf.RHF)):
         reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :-n_frozen_virt]
         reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:-n_frozen_virt]
 

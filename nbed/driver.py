@@ -54,15 +54,17 @@ class NbedDriver:
         self._mu: dict = None
         self._huzinaga: dict = None
 
-        if config.force_unrestricted:
-            logger.debug("Forcing unrestricted SCF")
-            self._restricted_scf = False
-        elif self.config.charge % 2 == 1 or self.config.spin != 0:
-            logger.debug("Open shells, using unrestricted SCF.")
-            self._restricted_scf = False
-        else:
-            logger.debug("Closed shells, using restricted SCF.")
-            self._restricted_scf = True
+        self._restricted_scf = not config.force_unrestricted
+
+        # if config.force_unrestricted:
+        #     logger.debug("Forcing unrestricted SCF")
+        #     self._restricted_scf = False
+        # elif self.config.charge % 2 == 1 or self.config.spin != 0:
+        #     logger.debug("Open shells, using unrestricted SCF.")
+        #     self._restricted_scf = False
+        # else:
+        #     logger.debug("Closed shells, using restricted SCF.")
+        #     self._restricted_scf = True
 
         # if we have values for all three, assume we want to run qmmm
         self.run_qmmm = None not in [
@@ -99,7 +101,7 @@ class NbedDriver:
         global_hf = (
             scf.UHF(mol_full, **hf_kwargs)
             if not self._restricted_scf
-            else scf.RHF(mol_full, **hf_kwargs)
+            else scf.rhf.RHF(mol_full, **hf_kwargs)
         )
         global_hf.conv_tol = self.config.convergence
         global_hf.max_memory = self.config.max_ram_memory
@@ -219,7 +221,7 @@ class NbedDriver:
         Returns:
             local_hf (scf.uhf.UHF or scf.rhf.RHF): embedded Hartree-Fock object.
         """
-        logger.debug("Constructing localised RHF object.")
+        logger.debug("Constructing localised ROHF object.")
         embedded_mol: gto.Mole = self._build_mol()
 
         # overwrite total number of electrons to only include active system
@@ -227,7 +229,7 @@ class NbedDriver:
             embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
             embedded_mol.spin = 0
             self._electron = embedded_mol.nelectron
-            local_hf: scf.rhf.RHF = scf.RHF(embedded_mol)
+            local_hf: scf.rhf.RHF = scf.rhf.RHF(embedded_mol)
         else:
             embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
                 self.localized_system.beta_active_MO_inds
@@ -432,16 +434,16 @@ class NbedDriver:
 
     def _run_emb_ccsd(
         self,
-        emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
+        emb_pyscf_scf_rhf: Union[scf.rhf.RHF, scf.UHF],
         frozen: Optional[list] = None,
     ) -> tuple[cc.CCSD, float]:
         """Function run CCSD on embedded restricted Hartree Fock object.
 
-        Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
+        Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
         (see get_embedded_rhf method)
 
         Args:
-            emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
+            emb_pyscf_scf_rhf (scf.rhf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
             frozen (List): A path to an .xyz file describing molecular geometry.
 
         Returns:
@@ -459,16 +461,16 @@ class NbedDriver:
 
     def _run_emb_fci(
         self,
-        emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
+        emb_pyscf_scf_rhf: Union[scf.rhf.RHF, scf.UHF],
         frozen: Optional[list] = None,
     ) -> fci.FCI:
         """Function run FCI on embedded restricted Hartree Fock object.
 
-        Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
+        Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
         (see get_embedded_rhf method)
 
         Args:
-            emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
+            emb_pyscf_scf_rhf (scf.rhf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
             frozen (List): A path to an .xyz file describing moleclar geometry.
 
         Returns:
@@ -494,13 +496,15 @@ class NbedDriver:
             np.ndarray: Matrix form of the embedding potential.
             StreamObject: The embedded scf object.
         """
-        logger.debug("Running embedded scf calculation.")
+        logger.debug("Running mu embedded scf calculation.")
 
         # Modify the energy_elec function to handle different h_cores
         # which we need for different embedding potentials
         v_emb = (self.config.mu_level_shift * self._env_projector) + embedding_potential
         hcore_std = localized_scf.get_hcore()
+        logger.debug(f"initial hcore shape {hcore_std.shape}")
         localized_scf.get_hcore = lambda *args: hcore_std + v_emb
+        logger.debug(f"embedded hcore shape {hcore_std.shape}")
 
         localized_scf.kernel()
         logger.info(
@@ -537,7 +541,6 @@ class NbedDriver:
                     self.localized_system.beta_dm_enviro,
                 ]
             )
-
         (
             c_active_embedded,
             mo_embedded_energy,
@@ -844,7 +847,7 @@ class NbedDriver:
                 - result["correction"]
                 - result["beta_correction"]
             )
-            logger.info(f"RHF energy: {result['e_rhf']}")
+            logger.info(f"ROHF energy: {result['e_rhf']}")
 
             # classical energy
             result["classical_energy"] = (
@@ -934,18 +937,18 @@ class NbedDriver:
 
 
 def run_emb_fci(
-    emb_pyscf_scf_rhf: Union[scf.RHF, scf.UHF],
+    emb_pyscf_scf_rhf: Union[scf.rhf.RHF, scf.UHF],
     frozen: Optional[list] = None,
     convergence: Optional[float] = None,
     max_ram_memory: Optional[int] = None,
 ) -> fci.FCI:
     """Function run FCI on embedded restricted Hartree Fock object.
 
-    Note emb_pyscf_scf_rhf is RHF object for the active embedded subsystem (defined in localized basis)
+    Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
     (see get_embedded_rhf method)
 
     Args:
-        emb_pyscf_scf_rhf (scf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
+        emb_pyscf_scf_rhf (scf.rhf.RHF): PySCF restricted Hartree Fock object of active embedded subsystem
         frozen (List): A path to an .xyz file describing moleclar geometry.
         convergence (float): convergence tolerance.
         max_ram_memory (int): Maximum memory allocation for FCI.

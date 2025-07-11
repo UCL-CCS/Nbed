@@ -88,7 +88,7 @@ class NbedConfig(BaseModel):
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
         max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
         max_dft_cycles (int): max number of DFT iterations allowed in scf calc
-        init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
+        init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga ROHF with mu shift result (for developers only)
         savefile (FilePath): Location of file to save output to.
     """
 

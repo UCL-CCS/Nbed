@@ -70,7 +70,7 @@ class ACELocalizer:
         logger.debug("Singular Values")
         logger.debug(singular_values)
 
-        if isinstance(scf_object, (scf.hf.RHF, dft.rks.RKS)):
+        if isinstance(scf_object, (scf.rhf.RHF, dft.rks.RKS)):
             alpha = self.localize_spin([s[0] for s in singular_values])
             beta = alpha
         elif isinstance(scf_object, (scf.uhf.UHF, dft.uks.UKS)):

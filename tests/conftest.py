@@ -34,7 +34,7 @@ def water_mol(water_filepath) -> gto.Mole:
 
 @pytest.fixture(scope="module")
 def water_rhf(water_molecule) -> StreamObject:
-    rhf = scf.RHF(water_molecule)
+    rhf = scf.rhf.RHF(water_molecule)
     rhf.kernel()
     return rhf
 
