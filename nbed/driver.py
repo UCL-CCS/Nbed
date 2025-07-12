@@ -1,7 +1,7 @@
 """Module containg the NbedDriver Class."""
 
 import logging
-from functools import cached_property, reduce
+from functools import cached_property
 from json import dump as jdump
 from typing import Optional, Union
 
@@ -20,7 +20,9 @@ from nbed.localizers import (
 
 from .config import LocalizerEnum, NbedConfig, ProjectorEnum
 from .ham_builder import HamiltonianBuilder
-from .scf import energy_elec, huzinaga_scf
+from .scf import energy_elec
+from .scf.huzinaga_hf import huzinaga_HF
+from .scf.huzinaga_ks import huzinaga_KS
 
 # Create the Logger
 logger = logging.getLogger(__name__)
@@ -54,15 +56,16 @@ class NbedDriver:
         self._mu: dict = None
         self._huzinaga: dict = None
 
-        if config.force_unrestricted:
-            logger.debug("Forcing unrestricted SCF")
-            self._restricted_scf = False
-        elif self.config.charge % 2 == 1 or self.config.spin != 0:
-            logger.debug("Open shells, using unrestricted SCF.")
-            self._restricted_scf = False
-        else:
-            logger.debug("Closed shells, using restricted SCF.")
-            self._restricted_scf = True
+        self._restricted_scf = True
+        # if config.force_unrestricted:
+        #     logger.debug("Forcing unrestricted SCF")
+        #     self._restricted_scf = False
+        # elif self.config.charge % 2 == 1 or self.config.spin != 0:
+        #     logger.debug("Open shells, using unrestricted SCF.")
+        #     self._restricted_scf = False
+        # else:
+        #     logger.debug("Closed shells, using restricted SCF.")
+        #     self._restricted_scf = True
 
         # if we have values for all three, assume we want to run qmmm
         self.run_qmmm = None not in [
@@ -97,9 +100,9 @@ class NbedDriver:
         mol_full = self._build_mol()
         # run Hartree-Fock
         global_hf = (
-            scf.UHF(mol_full, **hf_kwargs)
-            if not self._restricted_scf
-            else scf.rhf.RHF(mol_full, **hf_kwargs)
+            scf.ROHF(mol_full, **hf_kwargs)
+            if self._restricted_scf
+            else scf.UHF(mol_full, **hf_kwargs)
         )
         global_hf.conv_tol = self.config.convergence
         global_hf.max_memory = self.config.max_ram_memory
@@ -148,7 +151,7 @@ class NbedDriver:
         logger.debug("Running full system KS DFT.")
         mol_full = self._build_mol()
         global_ks = (
-            dft.RKS(mol_full, **ks_kwargs)
+            dft.ROKS(mol_full, **ks_kwargs)
             if self._restricted_scf
             else dft.UKS(mol_full, **ks_kwargs)
         )
@@ -499,10 +502,12 @@ class NbedDriver:
         # Modify the energy_elec function to handle different h_cores
         # which we need for different embedding potentials
         v_emb = (self.config.mu_level_shift * self._env_projector) + embedding_potential
-        hcore_std = localized_scf.get_hcore()
-        logger.debug(f"initial hcore shape {hcore_std.shape}")
-        localized_scf.get_hcore = lambda *args: hcore_std + v_emb
-        logger.debug(f"embedded hcore shape {hcore_std.shape}")
+        logger.debug(f"{self._env_projector.shape=}")
+        logger.debug(f"{embedding_potential.shape=}")
+        hcore_std = localized_scf.get_hcore
+        logger.debug(f"{hcore_std().shape=}")
+        localized_scf.get_hcore = lambda *args: hcore_std(*args) + v_emb
+        logger.debug(f"embedded hcore shape {localized_scf.get_hcore().shape}")
 
         localized_scf.kernel()
         logger.info(
@@ -530,7 +535,7 @@ class NbedDriver:
         """
         logger.debug("Starting Huzinaga embedding method.")
         # We need to run our own SCF method here to update the potential.
-        if self._restricted_scf:
+        if self.localized_system.beta_dm_enviro is None:
             total_enviro_dm = self.localized_system.dm_enviro
         else:
             total_enviro_dm = np.array(
@@ -539,14 +544,21 @@ class NbedDriver:
                     self.localized_system.beta_dm_enviro,
                 ]
             )
+
+        localized_scf = active_scf
+        if isinstance(localized_scf, (dft.rks.RKS, dft.uks.UKS)):
+            huz_method = huzinaga_KS
+        elif isinstance(localized_scf, (scf.rhf.RHF, scf.uhf.UHF)):
+            huz_method = huzinaga_HF
+
         (
             c_active_embedded,
             mo_embedded_energy,
             dm_active_embedded,
             huzinaga_op_std,
             huz_scf_conv_flag,
-        ) = huzinaga_scf(
-            active_scf,
+        ) = huz_method(
+            localized_scf,
             embedding_potential,
             total_enviro_dm,
             dm_conv_tol=1e-6,
@@ -755,14 +767,16 @@ class NbedDriver:
         logger.debug(f"{total_dm.shape=}")
         logger.debug(f"{g_act_and_env.shape=}")
 
-        if self._restricted_scf:
+        if self.localized_system.beta_dm_active is None:
             g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
         else:
             g_act = self._global_ks.get_veff(
-                dm=[
-                    self.localized_system.dm_active,
-                    self.localized_system.beta_dm_active,
-                ]
+                dm=np.array(
+                    [
+                        self.localized_system.dm_active,
+                        self.localized_system.beta_dm_active,
+                    ]
+                )
             )
         embedding_potential = g_act_and_env - g_act
         self.embedding_potential = embedding_potential
@@ -975,16 +989,8 @@ def run_emb_fci(
 
     # For UHF, PySCF assumes that hcore is spinless and 2D
     # Because we update hcore for embedding, we need to calculate our own h1e term.
-    if np.ndim(hcore := emb_pyscf_scf_rhf.get_hcore()) == 3:
-        mo = emb_pyscf_scf_rhf.mo_coeff
-        h1e = [
-            reduce(np.dot, (mo[0].T, hcore[0], mo[0])),
-            reduce(np.dot, (mo[1].T, hcore[1], mo[1])),
-        ]
-        fci_scf.kernel(h1e=h1e)
-    else:
-        # kernel function default value is passed in
-        fci_scf.kernel()
+    # kernel function default value is passed in
+    fci_scf.kernel()
     logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
     return fci_scf
 
