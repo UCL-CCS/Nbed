@@ -27,11 +27,8 @@ class VirtualLocalizer(ABC):
         self.embedded_scf = embedded_scf
 
     @abstractmethod
-    def localize_virtual(self, restricted: bool) -> gto.Mole:
+    def localize_virtual(self) -> gto.Mole:
         """Localize virtual orbitals.
-
-        Args:
-            restricted (bool): Whether the SCF is restricted or unrestricted.
 
         Returns:
             gto.Mole: Localized SCF object.

@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from typing import Tuple, Union
 
 import numpy as np
-from pyscf import dft, scf
 from pyscf.lib import StreamObject
 
 from ...exceptions import NbedLocalizerError
@@ -54,7 +53,10 @@ class OccupiedLocalizer(ABC):
 
         self._global_scf = global_scf
         self._n_active_atoms = n_active_atoms
-        self._restricted = isinstance(self._global_scf, (scf.rhf.RHF, dft.rks.RKS))
+        if global_scf.mo_coeff.ndim == 2:
+            self.spinless = True
+        else:
+            self.spinless = False
         logger.debug(f"Global scf: {type(global_scf)}")
 
         # Run the localization procedure
@@ -72,7 +74,7 @@ class OccupiedLocalizer(ABC):
             c_enviro (np.array): C matrix of localized occupied ennironment MOs
             c_loc_occ (np.array): full C matrix of localized occupied MOs
         """
-        if self._restricted:
+        if self.spinless:
             alpha = self._localize_spin(
                 self._global_scf.mo_coeff, self._global_scf.mo_occ
             )
@@ -112,7 +114,7 @@ class OccupiedLocalizer(ABC):
         """
         logger.debug("Running localizer sense check.")
         warn_flag = False
-        if self._restricted is False:
+        if self.spinless is False:
             logger.debug("Checking spin does not affect localization.")
             active_number_match = (
                 self.active_MO_inds.shape == self.beta_active_MO_inds.shape
@@ -136,7 +138,7 @@ class OccupiedLocalizer(ABC):
         logger.debug("Checking density matrix partition.")
         dm_localised_full_system = self._c_loc_occ @ self._c_loc_occ.conj().T
         dm_sum = self.dm_active + self.dm_enviro
-        if self._restricted is True:
+        if self.spinless:
             # In a restricted system we have two electrons per orbital
             density_match = np.allclose(2 * dm_localised_full_system, dm_sum)
             logger.debug(f"Restricted {density_match=}")
@@ -163,7 +165,7 @@ class OccupiedLocalizer(ABC):
         n_active_electrons = np.trace(self.dm_active @ s_ovlp)
         n_enviro_electrons = np.trace(self.dm_enviro @ s_ovlp)
 
-        if self._restricted is False:
+        if self.spinless is False:
             n_active_electrons += np.trace(self.beta_dm_active @ s_ovlp)
             n_enviro_electrons += np.trace(self.beta_dm_enviro @ s_ovlp)
 
@@ -212,8 +214,8 @@ class OccupiedLocalizer(ABC):
             self.beta_c_active = None
             self.beta_c_enviro = None
             self._beta_c_loc_occ = None
-            self.beta_dm_active = np.zeros(self.dm_active.shape)
-            self.beta_dm_enviro = np.zeros(self.dm_enviro.shape)
+            self.beta_dm_active = None
+            self.beta_dm_enviro = None
         else:
             (
                 self.beta_active_MO_inds,
@@ -231,7 +233,16 @@ class OccupiedLocalizer(ABC):
 
         logger.debug("Localization complete.")
         logger.debug("Localized orbitals:")
-        logger.debug(f"active_MO_inds: {self.active_MO_inds}")
-        logger.debug(f"beta_active_MO_inds: {self.beta_active_MO_inds}")
-        logger.debug(f"enviro_MO_inds: {self.enviro_MO_inds}")
-        logger.debug(f"beta_enviro_MO_inds: {self.beta_enviro_MO_inds}")
+        logger.debug("Alpha spin")
+        logger.debug(f"{self.active_MO_inds=}")
+        logger.debug(f"{self.enviro_MO_inds=}")
+        logger.debug(f"{self.c_active.shape=}")
+        logger.debug(f"{self.c_enviro.shape=}")
+        logger.debug(f"{self._c_loc_occ.shape=}")
+        logger.debug("Beta spin")
+        logger.debug(f"{self.beta_active_MO_inds=}")
+        logger.debug(f"{self.beta_enviro_MO_inds=}")
+        if beta is not None:
+            logger.debug(f"{self.beta_c_enviro.shape=}")
+            logger.debug(f"{self.beta_c_active.shape=}")
+            logger.debug(f"{self._beta_c_loc_occ.shape=}")

@@ -50,16 +50,13 @@ class ConcentricLocalizer(VirtualLocalizer):
         self.shells = None
         self.singular_values = None
 
-    def localize_virtual(self, restricted: bool) -> StreamObject:
+    def localize_virtual(self) -> StreamObject:
         """Localise virtual (unoccupied) obitals using concentric localization.
 
         [1] D. Claudino and N. J. Mayhall, "Simple and Efficient Truncation of Virtual
         Spaces in Embedded Wave Functions via Concentric Localization", Journal of Chemical
         Theory and Computation, vol. 15, no. 11, pp. 6085-6096, Nov. 2019,
         doi: 10.1021/ACS.JCTC.9B00682.
-
-        Args:
-            restricted (bool): Whether the SCF is restricted or unrestricted.
 
         Returns:
             StreamObject: Fully Localized SCF object.
@@ -75,7 +72,7 @@ class ConcentricLocalizer(VirtualLocalizer):
         projected_mol.charge = embedded_scf.mol.charge
         projected_mol.spin = embedded_scf.mol.spin
         projected_mol.build()
-        projected_mf = scf.RKS(projected_mol)
+        projected_mf = scf.UKS(projected_mol)
         n_act_proj_aos = projected_mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_proj_aos=}")
 
@@ -87,7 +84,9 @@ class ConcentricLocalizer(VirtualLocalizer):
         )[:n_act_proj_aos, :]
         self.n_act_proj_aos = n_act_proj_aos
 
-        if restricted:
+        spinless = embedded_scf.mo_coeff.ndim == 2
+
+        if spinless:
             localised_virts = self._localize_virtual_spin(
                 embedded_scf.mo_occ, embedded_scf.mo_coeff, embedded_scf.get_fock()
             )
@@ -105,8 +104,9 @@ class ConcentricLocalizer(VirtualLocalizer):
                 embedded_scf.mo_coeff[1],
                 embedded_scf.get_fock()[1],
             )
-            embedded_scf.mo_coeff[0] = localised_virts_alpha[0]
-            embedded_scf.mo_coeff[1] = localised_virts_beta[0]
+            embedded_scf.mo_coeff = np.array(
+                [localised_virts_alpha[0], localised_virts_beta[0]]
+            )
 
             self.shells = (localised_virts_alpha[1], localised_virts_beta[1])
             self.singular_values = (localised_virts_alpha[2], localised_virts_beta[2])
