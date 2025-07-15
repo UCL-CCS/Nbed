@@ -29,6 +29,27 @@ def huz_driver(nbed_config) -> NbedDriver:
     driver.embed()
     return driver
 
+def test_global_ks(mu_driver):
+    result = mu_driver._global_hf()
+    assert np.isclose(result.e_tot, np.float64(-74.96099960129165))
+    assert np.allclose(result.energy_elec(), (np.float64(-84.24671382296947), np.float64(38.288162980954326)))
+
+def test_global_hf(mu_driver):
+    result = mu_driver._global_hf()
+    assert np.isclose(result.energy_nuc(), np.float64(9.285714221677825))
+    assert np.isclose(result.e_tot, -74.96099960129165)
+    assert np.allclose(result.energy_elec(), (np.float64(-84.24671382296947), np.float64(38.288174841671974)))
+
+
+def test_global_ccsd(mu_driver):
+    result = mu_driver._global_ccsd()
+    assert np.isclose(result.e_tot, -75.0090124134578)
+    assert np.isclose(result.e_corr, -0.04801281045273269)
+
+def test_global_fci(mu_driver):
+    result = mu_driver._global_ccsd()
+    assert np.isclose(result.e_tot, np.float64(-75.00912605315143))
+
 
 def test_restricted_dft_in_dft(mu_driver, huz_driver):
     mu_did = mu_driver._dft_in_dft(ProjectorEnum.MU)

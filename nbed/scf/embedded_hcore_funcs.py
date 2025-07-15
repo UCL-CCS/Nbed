@@ -1,7 +1,11 @@
 """Functions from PySCF that need to be tweeked to allow our hack of adding Vemb to Hcore."""
 
+import logging
+
 import numpy as np
 from pyscf import ao2mo
+
+logger = logging.getLogger(__name__)
 
 
 def energy_elec(mf, dm=None, h1e=None, vhf=None) -> tuple[float, float]:
@@ -19,6 +23,7 @@ def energy_elec(mf, dm=None, h1e=None, vhf=None) -> tuple[float, float]:
         e_elec (np.ndarray): Hartree-Fock electronic energy
         e_coul (np.ndarray): 2-electron contribution to electronic energy
     """
+    logger.debug("Running spin-aware energy_elec")
     if dm is None:
         dm = mf.make_rdm1()
     if h1e is None:
@@ -27,6 +32,9 @@ def energy_elec(mf, dm=None, h1e=None, vhf=None) -> tuple[float, float]:
         dm = np.array((dm * 0.5, dm * 0.5))
     if vhf is None:
         vhf = mf.get_veff(mf.mol, dm)
+    logger.debug(f"{h1e.shape=}")
+    logger.debug(f"{dm.shape=}")
+    logger.debug(f"{vhf.shape=}")
     e1 = np.einsum("ij,ji->", h1e[0], dm[0])
     e1 += np.einsum("ij,ji->", h1e[1], dm[1])
     e_coul = (
