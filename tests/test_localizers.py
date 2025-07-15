@@ -227,22 +227,35 @@ def test_cl_shell_numbers(global_rks, global_uks) -> None:
         global_rks,
         n_active_atoms=n_active_atoms,
     )
-    restricted_virt = ConcentricLocalizer(restricted_occ._global_scf, n_active_atoms=n_active_atoms)
-    restricted_virt.localize_virtual(restricted = restricted_occ._restricted)
+    restricted_virt = ConcentricLocalizer(
+        restricted_occ._global_scf, n_active_atoms=n_active_atoms
+    )
+    restricted_virt.localize_virtual()
 
     unrestricted_occ = SPADELocalizer(
         global_uks,
         n_active_atoms=n_active_atoms,
     )
-    unrestricted_virt = ConcentricLocalizer(unrestricted_occ._global_scf, n_active_atoms=n_active_atoms)
-    unrestricted_virt.localize_virtual(restricted = unrestricted_occ._restricted)
+    unrestricted_virt = ConcentricLocalizer(
+        unrestricted_occ._global_scf, n_active_atoms=n_active_atoms
+    )
+    unrestricted_virt.localize_virtual()
 
     assert restricted_virt.shells == [12, 13]
-    assert restricted_virt.shells == unrestricted_virt.shells[0] == unrestricted_virt.shells[1]
+    assert (
+        restricted_virt.shells
+        == unrestricted_virt.shells[0]
+        == unrestricted_virt.shells[1]
+    )
+
 
 def test_ace_localizer(global_rks, global_uks) -> None:
-    restricted = ACELocalizer(global_scf_list=[global_rks]*3, n_active_atoms=n_active_atoms).localize_path()
-    unrestricted = ACELocalizer(global_scf_list=[global_uks]*3, n_active_atoms=n_active_atoms).localize_path()
+    restricted = ACELocalizer(
+        global_scf_list=[global_rks] * 3, n_active_atoms=n_active_atoms
+    ).localize_path()
+    unrestricted = ACELocalizer(
+        global_scf_list=[global_uks] * 3, n_active_atoms=n_active_atoms
+    ).localize_path()
 
     restricted_spade = SPADELocalizer(
         global_rks,
@@ -257,11 +270,24 @@ def test_ace_localizer(global_rks, global_uks) -> None:
     )
     print(restricted_spade.enviro_selection_condition)
     print(unrestricted_spade.enviro_selection_condition)
-    assert restricted == unrestricted == (3,3)
+    assert restricted == unrestricted == (3, 3)
     assert restricted[0] == restricted[1]
     assert unrestricted[0] == unrestricted[1]
-    assert np.all(restricted[0] -1 == np.argmax(restricted_spade.enviro_selection_condition[0][:-1] - restricted_spade.enviro_selection_condition[0][1:]))
-    assert np.all(unrestricted[0] -1 == np.argmax(unrestricted_spade.enviro_selection_condition[0][:-1] - unrestricted_spade.enviro_selection_condition[0][1:]))
+    assert np.all(
+        restricted[0] - 1
+        == np.argmax(
+            restricted_spade.enviro_selection_condition[0][:-1]
+            - restricted_spade.enviro_selection_condition[0][1:]
+        )
+    )
+    assert np.all(
+        unrestricted[0] - 1
+        == np.argmax(
+            unrestricted_spade.enviro_selection_condition[0][:-1]
+            - unrestricted_spade.enviro_selection_condition[0][1:]
+        )
+    )
+
 
 if __name__ == "__main__":
     pass

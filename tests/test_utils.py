@@ -30,7 +30,6 @@ def water_xyz_o_active():
 
 
 def test_build_ordered_xyz_string(water_struct_dict, water_xyz_o_active) -> None:
-
     assert build_ordered_xyz_string(water_struct_dict, [0]) == water_xyz_o_active
 
     water_xyz_h_active = (
