@@ -21,7 +21,6 @@ def mu_driver(nbed_config) -> NbedDriver:
     driver.embed()
     return driver
 
-
 @pytest.fixture
 def huz_driver(nbed_config) -> NbedDriver:
     nbed_config.projector = ProjectorEnum.HUZ
@@ -29,25 +28,39 @@ def huz_driver(nbed_config) -> NbedDriver:
     driver.embed()
     return driver
 
-def test_global_ks(mu_driver):
-    result = mu_driver._global_hf()
+@pytest.fixture
+def both_driver(nbed_config) -> NbedDriver:
+    nbed_config.projector = ProjectorEnum.BOTH
+    driver = NbedDriver(nbed_config)
+    driver.embed()
+    return driver
+
+@pytest.mark.parametrize("driver",["mu_driver", "huz_driver"])
+def test_global_ks(request, driver):
+    driver = request.getfixturevalue(driver)
+    result = driver._global_hf()
     assert np.isclose(result.e_tot, np.float64(-74.96099960129165))
     assert np.allclose(result.energy_elec(), (np.float64(-84.24671382296947), np.float64(38.288162980954326)))
 
-def test_global_hf(mu_driver):
-    result = mu_driver._global_hf()
+@pytest.mark.parametrize("driver",["mu_driver", "huz_driver"])
+def test_global_hf(request, driver):
+    driver = request.getfixturevalue(driver)
+    result = driver._global_hf()
     assert np.isclose(result.energy_nuc(), np.float64(9.285714221677825))
     assert np.isclose(result.e_tot, -74.96099960129165)
     assert np.allclose(result.energy_elec(), (np.float64(-84.24671382296947), np.float64(38.288174841671974)))
 
-
-def test_global_ccsd(mu_driver):
-    result = mu_driver._global_ccsd()
+@pytest.mark.parametrize("driver",["mu_driver", "huz_driver"])
+def test_global_ccsd(request, driver):
+    driver = request.getfixturevalue(driver)
+    result = driver._global_ccsd()
     assert np.isclose(result.e_tot, -75.0090124134578)
     assert np.isclose(result.e_corr, -0.04801281045273269)
 
-def test_global_fci(mu_driver):
-    result = mu_driver._global_ccsd()
+@pytest.mark.parametrize("driver",["mu_driver", "huz_driver"])
+def test_global_fci(request, driver):
+    driver = request.getfixturevalue(driver)
+    result = driver._global_ccsd()
     assert np.isclose(result.e_tot, np.float64(-75.00912605315143))
 
 
@@ -58,64 +71,51 @@ def test_restricted_dft_in_dft(mu_driver, huz_driver):
     assert np.isclose(huz_did["e_dft_in_dft"], huz_driver._global_ks().e_tot)
     assert np.isclose(mu_did["e_dft_in_dft"], huz_did["e_dft_in_dft"])
 
-def test_embedded_ccsd_huz(
-    nbed_config, huz_driver
+@pytest.mark.parametrize("driver",["mu_driver", "huz_driver"])
+def test_embedded_ccsd(
+    driver, request
 ):
+    driver = request.getfixturevalue(driver)
     # assert np.isclose(
     #     huz_driver._run_emb_fci(huz_driver.embedded_scf).e_tot, -51.61379094995273
     # )
-    nbed_config.projector = ProjectorEnum.HUZ
-    nbed_config.n_active_atoms = 1
-    huz_driver = NbedDriver(nbed_config)
-    huz_driver.embed()
-    ccsd, ecorr = huz_driver._run_emb_ccsd(huz_driver.embedded_scf)
+    ccsd, ecorr = driver._run_emb_ccsd(driver.embedded_scf)
+    assert np.isclose(
+        ccsd.e_tot, -62.2617636081909
+    )
+    assert np.isclose(ecorr, -0.023809582813064136)
+
+    config = driver.config
+    config.n_active_atoms = 1
+    driver = NbedDriver(driver.config)
+    driver.embed()
+    ccsd, ecorr = driver._run_emb_ccsd(driver.embedded_scf)
     assert np.isclose(
         ccsd.e_tot, -51.61379094995273
     )
     assert np.isclose(ecorr, -0.004777653647962643)
 
-def test_embedded_ccsd_mu(
-    nbed_config, mu_driver
+@pytest.mark.parametrize("driver",["mu_driver", "huz_driver"])
+def test_embedded_fci(
+    driver, request
 ):
-    # assert np.isclose(
-    #     mu_driver._run_emb_fci(mu_driver.embedded_scf).e_tot, -51.61379094995273
-    # )
-    nbed_config.projector = ProjectorEnum.MU
-    nbed_config.n_active_atoms = 1
-    mu_driver = NbedDriver(nbed_config)
-    mu_driver.embed()
-    ccsd, ecorr = mu_driver._run_emb_ccsd(mu_driver.embedded_scf)
-    assert np.isclose(
-        ccsd.e_tot, -51.61379094995273
-    )
-    assert np.isclose(ecorr, -0.004777653647962643)
+    driver = request.getfixturevalue(driver)
 
-def test_embedded_fci_huz(
-    nbed_config, huz_driver
-):
     # assert np.isclose(
     #     huz_driver._run_emb_fci(huz_driver.embedded_scf).e_tot, -51.61379094995273
     # )
-    nbed_config.projector = ProjectorEnum.HUZ
-    nbed_config.n_active_atoms = 1
-    huz_driver = NbedDriver(nbed_config)
-    huz_driver.embed()
+    fci = driver._run_emb_fci(driver.embedded_scf)
     assert np.isclose(
-        huz_driver._run_emb_fci(huz_driver.embedded_scf).e_tot, -51.61379094995273
+        fci.e_tot, -62.440721085770036
     )
 
-def test_embedded_fci_mu(
-    nbed_config, mu_driver
-):
-    # assert np.isclose(
-    #     mu_driver._run_emb_fci(mu_driver.embedded_scf).e_tot, -51.61379094995273
-    # )
-    nbed_config.projector = ProjectorEnum.MU
-    nbed_config.n_active_atoms = 1
-    mu_driver = NbedDriver(nbed_config)
-    mu_driver.embed()
+    config = driver.config
+    config.n_active_atoms = 1
+    driver = NbedDriver(driver.config)
+    driver.embed()
+    fci = driver._run_emb_fci(driver.embedded_scf)
     assert np.isclose(
-        mu_driver._run_emb_fci(mu_driver.embedded_scf).e_tot, -51.61379094995273
+        fci.e_tot, -51.61379094995273
     )
 
 
