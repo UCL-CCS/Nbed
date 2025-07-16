@@ -24,6 +24,7 @@ from .ham_builder import HamiltonianBuilder
 from .scf import energy_elec
 from .scf.huzinaga_hf import huzinaga_HF
 from .scf.huzinaga_ks import huzinaga_KS
+from .scf.huzinaga_scf import huzinaga_scf
 
 # Create the Logger
 logger = logging.getLogger(__name__)
@@ -422,6 +423,7 @@ class NbedDriver:
     @cached_property
     def _env_projector(self) -> np.ndarray:
         """Return a projector onto the environment in orthogonal basis."""
+        logger.debug("Getting Environment Projector.")
         s_mat = self._global_ks.get_ovlp()
         env_projector_alpha = s_mat @ self.localized_system.dm_enviro @ s_mat
 
@@ -431,7 +433,7 @@ class NbedDriver:
         else:
             env_projector_beta = s_mat @ self.localized_system.beta_dm_enviro @ s_mat
             env_projector = np.array([env_projector_alpha, env_projector_beta])
-
+        logger.debug(f"{env_projector.shape=}")
         return env_projector
 
     def _run_emb_ccsd(
@@ -452,14 +454,8 @@ class NbedDriver:
             ccsd (cc.CCSD): PySCF CCSD object
             e_ccsd_corr (float): electron correlation CCSD energy
         """
-        logger.debug("Starting embedded CCSD calculation.")
-        ccsd = cc.CCSD(emb_pyscf_scf_rhf, frozen=frozen)
-        ccsd.conv_tol = self.config.convergence
-        ccsd.max_memory = self.config.max_ram_memory
+        return run_emb_ccsd(emb_pyscf_scf_rhf, frozen, self.config.convergence, self.config.max_ram_memory)
 
-        e_ccsd_corr, _, _ = ccsd.kernel()
-        logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
-        return ccsd, e_ccsd_corr
 
     def _run_emb_fci(
         self,
@@ -498,58 +494,26 @@ class NbedDriver:
             np.ndarray: Matrix form of the embedding potential.
             StreamObject: The embedded scf object.
         """
-        # logger.debug("Running mu embedded scf calculation.")
-
-        # # Modify the energy_elec function to handle different h_cores
-        # # which we need for different embedding potentials
-
-        # v_emb = (self.config.mu_level_shift * self._env_projector) + embedding_potential
-
-        # if v_emb.ndim == 3:
-        #     localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
-
-        # logger.debug(f"{v_emb.shape=}")
-        # logger.debug(f"{self._env_projector.shape=}")
-        # logger.debug(f"{embedding_potential.shape=}")
-        # hcore_std = localized_scf.get_hcore
-        # logger.debug(f"{hcore_std().shape=}")
-        # localized_scf.get_hcore = lambda *args: hcore_std(*args) + v_emb
-        # # veff_std = localized_scf.get_veff
-        # # localized_scf.get_veff = lambda *args: veff_std(*args) + v_emb
-        # logger.debug(f"embedded hcore shape {localized_scf.get_hcore().shape}")
-
-        # localized_scf.kernel()
-        # logger.info(
-        #     f"Embedded scf energy MU_SHIFT: {localized_scf.e_tot}, converged: {localized_scf.converged}"
-        # )
-
-        # return localized_scf, v_emb
-        logger.debug("Running embedded scf calculation.")
+        logger.debug("Running mu embedded scf calculation.")
 
         # Modify the energy_elec function to handle different h_cores
         # which we need for different embedding potentials
-        if isinstance(localized_scf, (scf.uhf.UHF, dft.uks.UKS)):
+
+        v_emb = (self.config.mu_level_shift * self._env_projector) + embedding_potential
+        logger.debug(f"{v_emb.shape=}")
+
+        if v_emb.ndim == 3:
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
-            v_emb_alpha = (
-                self.config.mu_level_shift * self._env_projector[0]
-            ) + embedding_potential[0]
-            v_emb_beta = (
-                self.config.mu_level_shift * self._env_projector[1]
-            ) + embedding_potential[1]
-            v_emb = np.array([v_emb_alpha, v_emb_beta])
 
-            hcore_std = localized_scf.get_hcore()
-            localized_scf.get_hcore = (
-                lambda *args: np.array([hcore_std, hcore_std]) + v_emb
-            )
-        else:
-            # modify hcore to embedded version
-            v_emb = (
-                self.config.mu_level_shift * self._env_projector
-            ) + embedding_potential
-
-            hcore_std = localized_scf.get_hcore()
-            localized_scf.get_hcore = lambda *args: hcore_std + v_emb
+        logger.debug(f"{v_emb.shape=}")
+        logger.debug(f"{self._env_projector.shape=}")
+        logger.debug(f"{embedding_potential.shape=}")
+        hcore_std = localized_scf.get_hcore
+        logger.debug(f"{hcore_std().shape=}")
+        localized_scf.get_hcore = lambda *args: hcore_std(*args) + v_emb
+        # veff_std = localized_scf.get_veff
+        # localized_scf.get_veff = lambda *args: veff_std(*args) + v_emb
+        logger.debug(f"embedded hcore shape {localized_scf.get_hcore().shape}")
 
         localized_scf.kernel()
         logger.info(
@@ -590,15 +554,15 @@ class NbedDriver:
             huz_method = huzinaga_KS
         elif isinstance(active_scf, (scf.rhf.RHF, scf.uhf.UHF)):
             huz_method = huzinaga_HF
-
+        localized_scf = active_scf
         (
             c_active_embedded,
             mo_embedded_energy,
             dm_active_embedded,
             huzinaga_op_std,
             huz_scf_conv_flag,
-        ) = huz_method(
-            active_scf,
+        ) = huzinaga_scf(
+            localized_scf,
             embedding_potential,
             total_enviro_dm,
             dm_conv_tol=1e-6,
@@ -609,22 +573,22 @@ class NbedDriver:
 
         # write results to pyscf object
         logger.debug("Writing results to PySCF object.")
-        hcore_std = active_scf.get_hcore()
+        hcore_std = localized_scf.get_hcore()
         v_emb = huzinaga_op_std + embedding_potential
-        active_scf.get_hcore = lambda *args: hcore_std + v_emb
+        localized_scf.get_hcore = lambda *args: hcore_std + v_emb
 
         if self._restricted_scf is False:
-            active_scf.energy_elec = lambda *args: energy_elec(active_scf, *args)
+            localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
 
-        active_scf.mo_coeff = c_active_embedded
-        active_scf.mo_occ = active_scf.get_occ(mo_embedded_energy, c_active_embedded)
-        active_scf.mo_energy = mo_embedded_energy
-        active_scf.e_tot = active_scf.energy_tot(dm=dm_active_embedded)
+        localized_scf.mo_coeff = c_active_embedded
+        localized_scf.mo_occ = localized_scf.get_occ(mo_embedded_energy, c_active_embedded)
+        localized_scf.mo_energy = mo_embedded_energy
+        localized_scf.e_tot = localized_scf.energy_tot(dm=dm_active_embedded)
         # localized_scf.conv_check = huz_scf_conv_flag
-        active_scf.converged = huz_scf_conv_flag
+        localized_scf.converged = huz_scf_conv_flag
 
-        logger.info(f"Huzinaga scf energy: {active_scf.e_tot}")
-        return active_scf, v_emb
+        logger.info(f"Embedded scf energy HUZINAGA: {localized_scf.e_tot}")
+        return localized_scf, v_emb
 
     def _delete_spin_environment(
         self,
@@ -661,6 +625,7 @@ class NbedDriver:
 
         match projector:
             case ProjectorEnum.HUZ:
+                # MOs which have the greatest overlap with the 
                 overlap = np.einsum(
                     "ij, ki -> i",
                     mo_coeff.swapaxes(-1, -2),
@@ -671,6 +636,7 @@ class NbedDriver:
                 frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]
 
             case ProjectorEnum.MU:
+                # Orbitals which have been shifted to have energy mu are removed
                 shift = mo_coeff.shape[-1] - n_env_mo
                 frozen_enviro_orb_inds = [
                     mo_i for mo_i in range(shift, mo_coeff.shape[-1])
@@ -1040,6 +1006,33 @@ def run_emb_fci(
     logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
     return fci_scf
 
+def run_emb_ccsd(
+    emb_pyscf_scf_rhf: Union[scf.ROHF, scf.UHF],
+    frozen: Optional[list] = None,
+    convergence: float = 1e-6,
+    max_ram_memory: int = 4000,
+    ) -> tuple[cc.CCSD, float]:
+    """Function run CCSD on embedded restricted Hartree Fock object.
+
+    Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
+    (see get_embedded_rhf method)
+
+    Args:
+        emb_pyscf_scf_rhf (scf.ROHF): PySCF restricted Hartree Fock object of active embedded subsystem
+        frozen (List): A path to an .xyz file describing molecular geometry.
+
+    Returns:
+        ccsd (cc.CCSD): PySCF CCSD object
+        e_ccsd_corr (float): electron correlation CCSD energy
+    """
+    logger.debug("Starting embedded CCSD calculation.")
+    ccsd = cc.CCSD(emb_pyscf_scf_rhf, frozen=frozen)
+    ccsd.conv_tol = convergence
+    ccsd.max_memory = max_ram_memory
+
+    e_ccsd_corr, _, _ = ccsd.kernel()
+    logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
+    return ccsd, e_ccsd_corr
 
 def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorEnum) -> dict:
     """Return energy of DFT in DFT embedding.
