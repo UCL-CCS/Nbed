@@ -31,4 +31,4 @@ jobs:
         uv run pre-commit run -a
     - uses: actions/checkout@v4
     - name: Run Pytest
-      run: uv run pytest
+      run: uv run pytest -n auto

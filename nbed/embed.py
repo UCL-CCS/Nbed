@@ -65,7 +65,6 @@ def nbed(
                 data = json.load(f)
             config = NbedConfig(**data)
             config = overwrite_config_kwargs(config, **config_kwargs)
-
         case None:
             logger.info("Validating config from passed arguments.")
             logger.debug(f"{config_kwargs=}")

@@ -45,6 +45,11 @@ def calculate_ks_energy(
     Returns:
         float: Kohn-sham energy
     """
+    logger.debug("Calculating Huzinaga KS energy")
+    logger.debug(f"{dft_potential.shape=}")
+    logger.debug(f"{density_matrix.shape=}")
+    logger.debug(f"{huzinaga_op_std.shape=}")
+
     vhf_updated = scf_method.get_veff(dm=density_matrix)
     rks_energy = vhf_updated.ecoul + vhf_updated.exc
     rks_energy += np.einsum(
@@ -61,7 +66,7 @@ def huzinaga_scf(
     dm_environment: np.ndarray,
     dm_conv_tol: float = 1e-6,
     dm_initial_guess: Optional[np.ndarray] = None,
-    use_DIIS: Optional[np.ndarray] = True,
+    use_DIIS: Optional[bool] = True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
     """Manual RHF calculation that is implemented using the huzinaga operator.
 
@@ -87,6 +92,7 @@ def huzinaga_scf(
     """
     logger.debug("Initializising Huzinaga HF calculation")
     s_mat = scf_method.get_ovlp()
+    logger.debug(f"{s_mat.shape=}")
     s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
 
     adiis = diis.DIIS() if use_DIIS else None
@@ -192,6 +198,6 @@ def huzinaga_scf(
         scf_energy_prev = scf_energy
 
     if conv_flag is False:
-        logger.warning("SCF has NOT converged.")
+        logger.warning("Huzinaga SCF has NOT converged.")
 
     return mo_coeff_std, mo_energy, density_matrix, huzinaga_op_std, conv_flag

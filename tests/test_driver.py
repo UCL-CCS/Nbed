@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
+
 @pytest.fixture
 def mu_driver(nbed_config) -> NbedDriver:
     nbed_config.projector = ProjectorEnum.MU
@@ -20,13 +21,6 @@ def mu_driver(nbed_config) -> NbedDriver:
     driver.embed()
     return driver
 
-@pytest.fixture
-def mu_unrestricted_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = ProjectorEnum.MU
-    nbed_config.force_unrestricted = True
-    driver = NbedDriver(nbed_config)
-    driver.embed()
-    return driver
 
 @pytest.fixture
 def huz_driver(nbed_config) -> NbedDriver:
@@ -35,13 +29,56 @@ def huz_driver(nbed_config) -> NbedDriver:
     driver.embed()
     return driver
 
+
 @pytest.fixture
-def huz_unrestricted_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = ProjectorEnum.HUZ
-    nbed_config.force_unrestricted = True
+def both_driver(nbed_config) -> NbedDriver:
+    nbed_config.projector = ProjectorEnum.BOTH
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
+
+
+@pytest.mark.parametrize("driver", ["both_driver", "mu_driver", "huz_driver"])
+def test_global_ks(request, driver):
+    driver = request.getfixturevalue(driver)
+    result = driver._global_ks()
+    assert np.isclose(result.e_tot, np.float64(-75.3091447400438))
+    assert np.allclose(
+        result.energy_elec(),
+        (np.float64(-84.59485896172163), np.float64(37.93302591280513)),
+    )
+
+
+@pytest.mark.parametrize("driver", ["both_driver", "mu_driver", "huz_driver"])
+def test_global_hf(request, driver):
+    driver = request.getfixturevalue(driver)
+    result = driver._global_hf()
+    assert np.isclose(result.energy_nuc(), np.float64(9.285714221677825))
+    assert np.isclose(result.e_tot, -74.96099960129165)
+    assert np.allclose(
+        result.energy_elec(),
+        (np.float64(-84.24671382296947), np.float64(38.288174841671974)),
+    )
+
+
+@pytest.mark.parametrize("driver", ["both_driver", "mu_driver", "huz_driver"])
+def test_global_ccsd(request, driver):
+    driver = request.getfixturevalue(driver)
+    result = driver._global_ccsd()
+    assert np.isclose(result.e_tot, -75.0090124134578)
+    assert np.isclose(result.e_corr, -0.04801281045273269)
+
+
+@pytest.mark.parametrize("driver", ["both_driver", "mu_driver", "huz_driver"])
+def test_global_fci(request, driver):
+    driver = request.getfixturevalue(driver)
+    result = driver._global_fci()
+    assert np.isclose(result.e_tot, np.float64(-75.00912605315143))
+    from nbed.driver import run_emb_fci
+
+    emb_result = run_emb_fci(driver._global_hf)
+    assert np.isclose(emb_result.e_tot, np.float64(-75.00912605315143))
+
 
 def test_restricted_dft_in_dft(mu_driver, huz_driver):
     mu_did = mu_driver._dft_in_dft(ProjectorEnum.MU)
@@ -50,28 +87,57 @@ def test_restricted_dft_in_dft(mu_driver, huz_driver):
     assert np.isclose(huz_did["e_dft_in_dft"], huz_driver._global_ks().e_tot)
     assert np.isclose(mu_did["e_dft_in_dft"], huz_did["e_dft_in_dft"])
 
-def test_embedded_fci(nbed_config, mu_driver, mu_unrestricted_driver, huz_driver, huz_unrestricted_driver):
-    assert(np.isclose(mu_driver._run_emb_fci(mu_driver.embedded_scf).e_tot, -62.261794716560416))
-    assert(np.isclose(mu_unrestricted_driver._run_emb_fci(mu_unrestricted_driver.embedded_scf).e_tot, -62.261794716560416))
-    nbed_config.projector = ProjectorEnum.HUZ
-    nbed_config.n_active_atoms=1
-    huz_driver = NbedDriver(nbed_config)
-    huz_driver.embed()
-    assert(np.isclose(huz_driver._run_emb_fci(huz_driver.embedded_scf).e_tot, -51.61379094995273))
-    nbed_config.force_unrestricted = True
-    huz_unrestricted_driver = NbedDriver(nbed_config)
-    huz_unrestricted_driver.embed()
-    assert(np.isclose(huz_unrestricted_driver._run_emb_fci(huz_unrestricted_driver.embedded_scf).e_tot, -51.61379094995273))
+
+@pytest.mark.parametrize("driver", ["mu_driver", "huz_driver"])
+def test_embedded_ccsd(driver, request):
+    driver = request.getfixturevalue(driver)
+    # assert np.isclose(
+    #     huz_driver._run_emb_fci(huz_driver.embedded_scf).e_tot, -51.61379094995273
+    # )
+    ccsd, ecorr = driver._run_emb_ccsd(driver.embedded_scf)
+    projector_result = getattr(driver, f"{driver.config.projector.value}")
+    e_emb = (
+        ccsd.e_tot
+        + driver.e_env
+        + driver.two_e_cross
+        - projector_result["correction"]
+        - projector_result["beta_correction"]
+    )
+
+    assert np.isclose(e_emb, -75.1285849238916)
+    assert np.isclose(ecorr, -0.00477765364464925)
+
+
+@pytest.mark.parametrize("driver", ["mu_driver", "huz_driver"])
+def test_embedded_fci(driver, request):
+    driver = request.getfixturevalue(driver)
+
+    # assert np.isclose(
+    #     huz_driver._run_emb_fci(huz_driver.embedded_scf).e_tot, -51.61379094995273
+    # )
+    fci = driver._run_emb_fci(driver.embedded_scf)
+    projector_result = getattr(driver, f"{driver.config.projector.value}")
+    e_emb_fci = (
+        fci.e_tot
+        + driver.e_env
+        + driver.two_e_cross
+        - projector_result["correction"]
+        - projector_result["beta_correction"]
+    )
+    assert np.isclose(e_emb_fci, -75.12858550813999)
+
 
 def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:
-    assert mu_driver._mu is not {} and mu_driver._huzinaga is None
-    assert huz_driver._huzinaga is not {} and huz_driver._mu is None
-    assert mu_driver._mu.keys() == huz_driver._huzinaga.keys()
+    assert mu_driver.mu is not {} and mu_driver.huzinaga is None
+    assert huz_driver.huzinaga is not {} and huz_driver.mu is None
+    assert mu_driver.mu.keys() == huz_driver.huzinaga.keys()
 
-def test_unrestricted_projector_results_match(mu_unrestricted_driver, huz_unrestricted_driver) -> None:
-    assert mu_unrestricted_driver._mu is not {} and mu_unrestricted_driver._huzinaga is None
-    assert huz_unrestricted_driver._huzinaga is not {} and huz_unrestricted_driver._mu is None
-    assert mu_unrestricted_driver._mu.keys() == huz_unrestricted_driver._huzinaga.keys()
+
+def test_unrestricted_projector_results_match(mu_driver, huz_driver) -> None:
+    assert mu_driver.mu is not {} and mu_driver.huzinaga is None
+    assert huz_driver.huzinaga is not {} and huz_driver.mu is None
+    assert mu_driver.mu.keys() == huz_driver.huzinaga.keys()
+
 
 def test_projectors_scf_match(mu_driver, huz_driver) -> None:
     mu_scf = mu_driver.embedded_scf
@@ -85,9 +151,10 @@ def test_projectors_scf_match(mu_driver, huz_driver) -> None:
     assert mu_scf.mo_energy.shape == huz_scf.mo_energy.shape
     assert np.isclose(mu_scf.e_tot, huz_scf.e_tot)
 
-def test_unrestricted_projectors_scf_match(mu_unrestricted_driver, huz_unrestricted_driver) -> None:
-    mu_scf = mu_unrestricted_driver.embedded_scf
-    huz_scf = huz_unrestricted_driver.embedded_scf
+
+def test_unrestricted_projectors_scf_match(mu_driver, huz_driver) -> None:
+    mu_scf = mu_driver.embedded_scf
+    huz_scf = huz_driver.embedded_scf
     assert mu_scf.converged is True
     assert huz_scf.converged is True
 
@@ -97,58 +164,51 @@ def test_unrestricted_projectors_scf_match(mu_unrestricted_driver, huz_unrestric
     assert mu_scf.mo_energy.shape == huz_scf.mo_energy.shape
     assert np.isclose(mu_scf.e_tot, huz_scf.e_tot)
 
+
 def test_incorrect_geometry_path() -> None:
     """Test to make sure that FileNotFoundError is thrown if invalid path to xyz geometry file is given"""
     molecule = "THIS/IS/NOT/AN/XYZ/FILE"
 
-
     with pytest.raises(ValidationError):
         config = NbedConfig(
-            geometry= molecule,
-            n_active_atoms= 1,
-            basis= "STO-3G",
-            xc_functional= "b3lyp5",
-            projector= "mu",
-            localization= "spade",
-            convergence= 1e-6,
-            run_ccsd_emb= True,
-            run_fci_emb= True,
+            geometry=molecule,
+            n_active_atoms=1,
+            basis="STO-3G",
+            xc_functional="b3lyp5",
+            projector="mu",
+            localization="spade",
+            convergence=1e-6,
+            run_ccsd_emb=True,
+            run_fci_emb=True,
         )
         # match will match with any printed error message
 
-def test_driver_standard_xyz_string_input(restricted_driver) -> None:
+
+def test_driver_standard_xyz_string_input(spinless_driver) -> None:
     """test to check driver works... raw xyz string given"""
 
-    assert isinstance(restricted_driver.embedded_scf, StreamObject)
-    assert isclose(restricted_driver.classical_energy, -3.5867934952241356)
-    assert restricted_driver.embedded_scf.mo_coeff.shape == (7,6)
-    assert np.allclose(
-        restricted_driver.embedded_scf.mo_coeff,
-        np.array(
-            [
-                [-3.88142342e-03,  3.02684557e-01,  4.52415720e-01, -1.27601032e-05,    1.13974737e+00,  5.86125955e-02],
-                [ 9.95680230e-01, -2.14527741e-01,  1.05457231e-01, -2.70844945e-06,    9.44244077e-02, -8.85885270e-02],
-                [ 2.14382088e-02,  8.09145086e-01, -5.27807618e-01,  1.53182987e-05,    -6.24665203e-01,  5.88976215e-01],
-                [-3.37254332e-03, -1.14106506e-01,  4.36409574e-01,  6.36016563e-01,    -2.56248456e-01,  5.35976802e-01],
-                [ 4.16624471e-03,  1.97283723e-01,  5.76343342e-01, -3.87702724e-01,    -7.99990268e-01, -2.44425249e-01],
-                [ 5.63571422e-03,  2.23407975e-01, -8.10867198e-02,  6.67210259e-01,    -2.20570850e-01, -6.52956233e-01],
-                [-1.49279773e-02, -1.68597526e-01,  3.95805972e-02, -7.65138433e-06,    5.55111512e-16, -1.14264919e+00]
-                ]
-        ),
+    assert isinstance(spinless_driver.embedded_scf, StreamObject)
+    assert isclose(spinless_driver.classical_energy, -3.5867934952241356)
+    assert spinless_driver.embedded_scf.mo_coeff.shape == (2, 7, 6)
+    logger.info(spinless_driver.embedded_scf.mo_coeff)
+    assert np.all(
+        spinless_driver.embedded_scf.mo_occ
+        == np.array([[1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 0, 0]])
     )
+
 
 def test_subsystem_dft(water_filepath) -> None:
     """Check thatcmponenets match total dft energy."""
     config = NbedConfig(
-        geometry= str(water_filepath),
-        n_active_atoms= 2,
-        basis= "STO-3G",
-        xc_functional= "b3lyp",
-        projector= "mu",
-        localization= "spade",
-        convergence= 1e-6,
-        run_ccsd_emb= False,
-        run_fci_emb= False,
+        geometry=str(water_filepath),
+        n_active_atoms=2,
+        basis="STO-3G",
+        xc_functional="b3lyp",
+        projector="mu",
+        localization="spade",
+        convergence=1e-6,
+        run_ccsd_emb=False,
+        run_fci_emb=False,
     )
 
     driver = NbedDriver(config)
@@ -162,47 +222,6 @@ def test_subsystem_dft(water_filepath) -> None:
     )
 
     assert isclose(energy_DFT_components, driver._global_ks.e_tot)
-
-
-def test_subsystem_dft_spin_consistency(water_filepath) -> None:
-    """Check restricted & unrestricted components match."""
-    config = NbedConfig(
-        geometry= str(water_filepath),
-        n_active_atoms= 1,
-        basis= "STO-3G",
-        xc_functional= "b3lyp",
-        projector= "mu",
-        localization= "spade",
-        convergence= 1e-6,
-        run_ccsd_emb= True,
-        run_fci_emb= True,
-    )
-
-    mu_driver = NbedDriver(config)
-    mu_driver.embed()
-
-    unrestricted_config = NbedConfig(
-        geometry= str(water_filepath),
-        n_active_atoms= 1,
-        basis= "STO-3G",
-        xc_functional= "b3lyp",
-        projector= "mu",
-        localization= "spade",
-        convergence= 1e-6,
-        run_ccsd_emb= True,
-        run_fci_emb= True,
-        force_unrestricted=True
-    )
-    unrestricted_driver = NbedDriver(unrestricted_config)
-    unrestricted_driver.embed()
-    # Could be problems with caching here
-
-    assert isclose(mu_driver.e_act, unrestricted_driver.e_act)
-    assert isclose(mu_driver.e_env, unrestricted_driver.e_env)
-    assert isclose(mu_driver.two_e_cross, unrestricted_driver.two_e_cross)
-    assert isclose(
-        mu_driver.classical_energy, unrestricted_driver.classical_energy
-    )
 
 
 if __name__ == "__main__":

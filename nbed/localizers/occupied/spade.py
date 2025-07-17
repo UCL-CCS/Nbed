@@ -65,7 +65,7 @@ class SPADELocalizer(OccupiedLocalizer):
             c_enviro (np.array): C matrix of localized occupied ennironment MOs
             c_loc_occ (np.array): full C matrix of localized occupied MOs
         """
-        if self._restricted:
+        if self.spinless:
             logger.debug("Running SPADE for only one spin.")
             alpha = self._localize_spin(
                 self._global_scf.mo_coeff,
