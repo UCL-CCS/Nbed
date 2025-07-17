@@ -53,8 +53,8 @@ class NbedDriver:
         self.localized_system: OccupiedLocalizer
         self.two_e_cross: np.typing.NDArray
         self.electron: int
-        self._mu: dict = None
-        self._huzinaga: dict = None
+        self.mu: dict = None
+        self.huzinaga: dict = None
 
         self._restricted_scf = False
         # if config.force_unrestricted:
@@ -829,39 +829,37 @@ class NbedDriver:
             or init_huzinaga_rhf_with_mu
         ):
             local_hf = self._init_local_hf()
-            embedded_scf, v_emb = self._mu_embed(local_hf, embedding_potential)
-            self._mu = self.collect_results(embedded_scf, v_emb, ProjectorEnum.MU)
+            embedded_scf, v_emb = self.mu_embed(local_hf, embedding_potential)
+            self.mu = self.collect_results(embedded_scf, v_emb, ProjectorEnum.MU)
 
         if self.config.projector in [ProjectorEnum.HUZ, ProjectorEnum.BOTH]:
             local_hf = self._init_local_hf()
             dmat_initial_guess: Optional[tuple[NDArray]] = (
-                self._mu["scf"].make_rdm1() if init_huzinaga_rhf_with_mu else None
+                self.mu["scf"].make_rdm1() if init_huzinaga_rhf_with_mu else None
             )
-            embedded_scf, v_emb = self._huzinaga_embed(
+            embedded_scf, v_emb = self.huzinaga_embed(
                 local_hf, embedding_potential, dmat_initial_guess
             )
-            self._huzinaga = self.collect_results(
-                embedded_scf, v_emb, ProjectorEnum.HUZ
-            )
+            self.huzinaga = self.collect_results(embedded_scf, v_emb, ProjectorEnum.HUZ)
 
         match self.config.projector:
             case ProjectorEnum.MU:
-                self.embedded_scf = self._mu["scf"]
-                self.classical_energy = self._mu["classical_energy"]
+                self.embedded_scf = self.mu["scf"]
+                self.classical_energy = self.mu["classical_energy"]
             case ProjectorEnum.HUZ:
-                self.embedded_scf = self._huzinaga["scf"]
-                self.classical_energy = self._huzinaga["classical_energy"]
+                self.embedded_scf = self.huzinaga["scf"]
+                self.classical_energy = self.huzinaga["classical_energy"]
             case ProjectorEnum.BOTH:
                 logger.warning(
                     "Outputting both mu and huzinaga embedding results as tuple."
                 )
                 self.embedded_scf = (
-                    self._mu["scf"],
-                    self._huzinaga["scf"],
+                    self.mu["scf"],
+                    self.huzinaga["scf"],
                 )
                 self.classical_energy = (
-                    self._mu["classical_energy"],
-                    self._huzinaga["classical_energy"],
+                    self.mu["classical_energy"],
+                    self.huzinaga["classical_energy"],
                 )
             case _:
                 logger.debug("Projector did not match any know case.")
@@ -870,7 +868,7 @@ class NbedDriver:
         if filename := self.config.savefile is not None:
             logger.debug("Saving results to file %s", filename)
             with open(filename, "w") as f:
-                jdump({"mu": self._mu, "huzinaga": self._huzinaga}, f)
+                jdump({"mu": self.mu, "huzinaga": self.huzinaga}, f)
 
         logger.info("Embedding complete.")
 
