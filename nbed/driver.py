@@ -226,20 +226,26 @@ class NbedDriver:
 
         # overwrite total number of electrons to only include active system
         if self.localized_system.beta_active_MO_inds is None:
-            embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
+            n_elec = len(self.localized_system.active_MO_inds)
+            logger.debug(f"embedded nelec {n_elec}")
+
+            embedded_mol.nelectron = 2 * n_elec
+            embedded_mol.nelec = (n_elec, n_elec)
             embedded_mol.spin = 0
             self._electron = embedded_mol.nelectron
             local_hf: scf.UHF = scf.UHF(embedded_mol)
         else:
-            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
-                self.localized_system.beta_active_MO_inds
-            )
-            embedded_mol.spin = len(self.localized_system.active_MO_inds) - len(
-                self.localized_system.beta_active_MO_inds
-            )
+            n_elec_alpha = len(self.localized_system.active_MO_inds)
+            n_elec_beta = len(self.localized_system.beta_active_MO_inds)
+            logger.debug(f"embedded nelec {n_elec_alpha, n_elec_beta}")
+
+            embedded_mol.nelectron = n_elec_alpha + n_elec_beta
+            embedded_mol.nelec = (n_elec_alpha, n_elec_beta)
+            embedded_mol.spin = n_elec_alpha - n_elec_beta
             self._electron = embedded_mol.nelectron
             local_hf: scf.uhf.UHF = scf.UHF(embedded_mol)
         logger.debug(f"{embedded_mol.nelectron=}")
+        logger.debug(f"{embedded_mol.nelec=}")
         logger.debug(f"{embedded_mol.spin=}")
 
         if self.run_qmmm:

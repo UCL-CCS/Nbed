@@ -74,19 +74,48 @@ class SPADELocalizer(OccupiedLocalizer):
             )
             beta = None
         else:
-            # to ensure the same number of alpha and beta orbitals are included
-            # use the sum of occupancies
-            mo_occ_sum = np.sum(self._global_scf.mo_occ, axis=0)
             alpha = self._localize_spin(
                 self._global_scf.mo_coeff[0],
-                mo_occ_sum,
+                self._global_scf.mo_occ[0],
                 self.n_mo_overwrite[0],
             )
             beta = self._localize_spin(
                 self._global_scf.mo_coeff[1],
-                mo_occ_sum,
+                self._global_scf.mo_occ[1],
                 self.n_mo_overwrite[1],
             )
+            # to ensure the same number of alpha and beta orbitals are included
+            # use the sum of occupancies
+            if set(alpha[0]) != set(beta[0]) or set(alpha[1]) != set(beta[1]):
+                logger.debug(
+                    "Recalculating occupied embedded C matrices to enforce equal number between spins."
+                )
+                mo_occ_sum = np.sum(self._global_scf.mo_occ, axis=0)
+                alpha_consistent = self._localize_spin(
+                    self._global_scf.mo_coeff[0],
+                    mo_occ_sum,
+                    self.n_mo_overwrite[0],
+                )
+                beta_consistent = self._localize_spin(
+                    self._global_scf.mo_coeff[1],
+                    mo_occ_sum,
+                    self.n_mo_overwrite[1],
+                )
+
+                alpha = (
+                    alpha[0],
+                    alpha[1],
+                    alpha_consistent[2],
+                    alpha_consistent[3],
+                    alpha_consistent[4],
+                )
+                beta = (
+                    beta[0],
+                    beta[1],
+                    beta_consistent[2],
+                    beta_consistent[3],
+                    beta_consistent[4],
+                )
 
         return (alpha, beta)
 
