@@ -28,7 +28,7 @@ copyright = "2022, Michael Williams de la Bastida, Alexis Ralli"
 author = "Michael Williams de la Bastida, Alexis Ralli"
 
 # The full version, including alpha/beta/rc tags
-release = "0.0.8"
+release = "0.0.9"
 
 
 # -- General configuration ---------------------------------------------------

@@ -8,6 +8,6 @@ authors:
     given-names: Alexis
     orcid: https://orcid.org/0000-0001-8953-1235
 title: "Nbed"
-version: 0.0.8
+version: 0.0.9
 date-released: 2022-03-07
 doi: 10.5281/zenodo.6323338

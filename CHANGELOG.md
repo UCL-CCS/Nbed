@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.0.9]
 Major refactor, with several breaking changes!
 
 ### Added
@@ -22,7 +22,7 @@ Major refactor, with several breaking changes!
 - Removed underscore from `driver._huzinaga` and `driver._mu`.
 - Driver defaults to *unrestricted* for both whole molecule and environment, passing charge and spin to environment based on spin-aware localization.
 
-## [0.0.8]
+## [0.0.9]
 ### Fixed
 - `SPADELocalizer` now outputs whole c matrix when virtual localization is stopped early.
 - `ACELocalizer` was returning 1 too few moleucular orbitals.
