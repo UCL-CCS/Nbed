@@ -21,22 +21,6 @@ def dm_environment(spinless_driver) -> NDArray:
     )
 
 
-def test_fock_operator_restriction_match():
-    pass
-
-
-def test_fock_diis_output():
-    pass
-
-
-def test_hf_energy_output():
-    pass
-
-
-def test_hf_energy_restriction_match():
-    pass
-
-
 def test_rks_output(water_rks, dft_potential, dm_environment):
     scf_result = huzinaga_scf(
         water_rks, dft_potential=dft_potential[0], dm_environment=dm_environment[0]
@@ -96,29 +80,60 @@ def test_uks_output(water_uks, dft_potential, dm_environment):
     assert np.allclose(scf_result[4], True)
 
 
-def test_ks_energy_restriction_match():
-    pass
+def test_rhf_output(water_rhf, dft_potential, dm_environment):
+    scf_result = huzinaga_scf(
+        water_rhf, dft_potential=dft_potential[0], dm_environment=dm_environment[0]
+    )
+    assert np.allclose(scf_result[0].shape, (7, 7))
+    assert np.allclose(
+        scf_result[1],
+        [
+            -19.346243,
+            -0.59741322,
+            0.12747464,
+            0.6132579,
+            0.79561917,
+            3.56833278,
+            4.1655741,
+        ],
+    )
+    assert np.allclose(scf_result[2].shape, (7, 7))
+    assert np.allclose(np.mean(scf_result[2]), 0.17985591319811933)
+    assert np.allclose(scf_result[3].shape, (7, 7))
+    assert np.allclose(np.mean(scf_result[3]), -0.01224642921175508)
+    assert np.allclose(scf_result[4], True)
 
 
-def test_scf_convergence():
-    pass
-
-
-def test_scf_convergence_warning():
-    pass
-
-
-def test_hf_output():
-    pass
-
-
-def test_hf_restriction_match():
-    pass
-
-
-def test_ks_output():
-    pass
-
-
-def test_ks_restriction_match():
-    pass
+def test_uhf_output(water_uhf, dft_potential, dm_environment):
+    scf_result = huzinaga_scf(
+        water_uhf, dft_potential=dft_potential, dm_environment=dm_environment
+    )
+    assert np.allclose(scf_result[0].shape, (2, 7, 7))
+    assert np.allclose(
+        scf_result[1],
+        [
+            [
+                -19.18005207,
+                -0.618383,
+                0.07366692,
+                0.39496279,
+                0.72192366,
+                2.44806433,
+                4.12874389,
+            ],
+            [
+                -19.17991953,
+                -0.6183819,
+                0.07366408,
+                0.39491023,
+                0.72191934,
+                2.44812268,
+                4.12874047,
+            ],
+        ],
+    )
+    assert np.allclose(scf_result[2].shape, (2, 7, 7))
+    assert np.allclose(np.mean(scf_result[2]), 0.0920247346776863)
+    assert np.allclose(scf_result[3].shape, (2, 7, 7))
+    assert np.allclose(np.mean(scf_result[3]), -0.024315876434944768)
+    assert np.allclose(scf_result[4], True)

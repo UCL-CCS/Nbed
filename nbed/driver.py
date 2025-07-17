@@ -829,7 +829,7 @@ class NbedDriver:
             or init_huzinaga_rhf_with_mu
         ):
             local_hf = self._init_local_hf()
-            embedded_scf, v_emb = self.mu_embed(local_hf, embedding_potential)
+            embedded_scf, v_emb = self._mu_embed(local_hf, embedding_potential)
             self.mu = self.collect_results(embedded_scf, v_emb, ProjectorEnum.MU)
 
         if self.config.projector in [ProjectorEnum.HUZ, ProjectorEnum.BOTH]:
@@ -837,7 +837,7 @@ class NbedDriver:
             dmat_initial_guess: Optional[tuple[NDArray]] = (
                 self.mu["scf"].make_rdm1() if init_huzinaga_rhf_with_mu else None
             )
-            embedded_scf, v_emb = self.huzinaga_embed(
+            embedded_scf, v_emb = self._huzinaga_embed(
                 local_hf, embedding_potential, dmat_initial_guess
             )
             self.huzinaga = self.collect_results(embedded_scf, v_emb, ProjectorEnum.HUZ)

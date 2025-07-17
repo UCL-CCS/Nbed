@@ -95,7 +95,7 @@ def test_embedded_ccsd(driver, request):
     #     huz_driver._run_emb_fci(huz_driver.embedded_scf).e_tot, -51.61379094995273
     # )
     ccsd, ecorr = driver._run_emb_ccsd(driver.embedded_scf)
-    projector_result = getattr(driver, f"_{driver.config.projector.value}")
+    projector_result = getattr(driver, f"{driver.config.projector.value}")
     e_emb = (
         ccsd.e_tot
         + driver.e_env
@@ -116,7 +116,7 @@ def test_embedded_fci(driver, request):
     #     huz_driver._run_emb_fci(huz_driver.embedded_scf).e_tot, -51.61379094995273
     # )
     fci = driver._run_emb_fci(driver.embedded_scf)
-    projector_result = getattr(driver, f"_{driver.config.projector.value}")
+    projector_result = getattr(driver, f"{driver.config.projector.value}")
     e_emb_fci = (
         fci.e_tot
         + driver.e_env
@@ -128,15 +128,15 @@ def test_embedded_fci(driver, request):
 
 
 def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:
-    assert mu_driver._mu is not {} and mu_driver._huzinaga is None
-    assert huz_driver._huzinaga is not {} and huz_driver._mu is None
-    assert mu_driver._mu.keys() == huz_driver._huzinaga.keys()
+    assert mu_driver.mu is not {} and mu_driver.huzinaga is None
+    assert huz_driver.huzinaga is not {} and huz_driver.mu is None
+    assert mu_driver.mu.keys() == huz_driver.huzinaga.keys()
 
 
 def test_unrestricted_projector_results_match(mu_driver, huz_driver) -> None:
-    assert mu_driver._mu is not {} and mu_driver._huzinaga is None
-    assert huz_driver._huzinaga is not {} and huz_driver._mu is None
-    assert mu_driver._mu.keys() == huz_driver._huzinaga.keys()
+    assert mu_driver.mu is not {} and mu_driver.huzinaga is None
+    assert huz_driver.huzinaga is not {} and huz_driver.mu is None
+    assert mu_driver.mu.keys() == huz_driver.huzinaga.keys()
 
 
 def test_projectors_scf_match(mu_driver, huz_driver) -> None:
