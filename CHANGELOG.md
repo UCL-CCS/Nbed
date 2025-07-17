@@ -19,6 +19,7 @@ Major refactor, with several breaking changes!
 ### Changed
 - CLI tool now expects a path to a config `.json` file which matches the `NbedConfig` model.
 - `NbedDriver` automatically calls `HamiltonianBuilder.build()`, adding output to results as `second_quantised`.
+- Removed underscore from `driver._huzinaga` and `driver._mu`.
 
 ## [0.0.8]
 ### Fixed
