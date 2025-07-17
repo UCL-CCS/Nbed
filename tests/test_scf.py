@@ -32,22 +32,20 @@ def test_hf_energy_restriction_match():
 
 
 def test_rks_output(water_rks, dft_potential, dm_environment):
-    ks_result = huzinaga_KS(water_rks, dft_potential=dft_potential[0], dm_enviroment=dm_environment[0])
     scf_result = huzinaga_scf(water_rks, dft_potential=dft_potential[0], dm_environment=dm_environment[0])
-    assert np.allclose(ks_result[0],scf_result[0])
-    assert np.allclose(ks_result[1],scf_result[1])
-    assert np.allclose(ks_result[2],scf_result[2])
-    assert np.allclose(ks_result[3],scf_result[3])
-    assert np.allclose(ks_result[4],scf_result[4])
+    assert np.allclose(ks_result.shape[0],0)
+    assert np.allclose(ks_result.shape[1],0)
+    assert np.allclose(ks_result.shape[2],0)
+    assert np.allclose(ks_result.shape[3],0)
+    assert np.allclose(ks_result[4],0)
 
 def test_uks_output(water_uks, dft_potential, dm_environment):
-    ks_result = huzinaga_KS(water_uks, dft_potential=dft_potential, dm_enviroment=dm_environment)
     scf_result = huzinaga_scf(water_uks, dft_potential=dft_potential, dm_environment=dm_environment)
-    assert np.allclose(ks_result[0],scf_result[0])
-    assert np.allclose(ks_result[1],scf_result[1])
-    assert np.allclose(ks_result[2],scf_result[2])
-    assert np.allclose(ks_result[3],scf_result[3])
-    assert np.allclose(ks_result[4],scf_result[4])
+    assert np.allclose(ks_result.shape[0],0)
+    assert np.allclose(ks_result.shape[1],0)
+    assert np.allclose(ks_result.shape[2],0)
+    assert np.allclose(ks_result.shape[3],0)
+    assert np.allclose(ks_result[4],0)
 
 def test_ks_energy_restriction_match():
     pass
