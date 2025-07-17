@@ -1,8 +1,6 @@
 """Test SCF Functions."""
 
 from nbed.scf import huzinaga_scf
-from nbed.scf.huzinaga_hf import huzinaga_HF
-from nbed.scf.huzinaga_ks import huzinaga_KS
 import pytest
 from numpy.typing import NDArray
 import numpy as np
