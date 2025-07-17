@@ -89,9 +89,9 @@ def test_uks_output(water_uks, dft_potential, dm_environment):
             ],
         ],
     )
-    assert np.allclose(scf_result[2].shape, (2,7, 7))
+    assert np.allclose(scf_result[2].shape, (2, 7, 7))
     assert np.allclose(np.mean(scf_result[2]), 0.09276688041715254)
-    assert np.allclose(scf_result[3].shape, (2,7, 7))
+    assert np.allclose(scf_result[3].shape, (2, 7, 7))
     assert np.allclose(np.mean(scf_result[3]), -0.02251188710459783)
     assert np.allclose(scf_result[4], True)
 
