@@ -226,7 +226,7 @@ class NbedDriver:
             embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
             embedded_mol.spin = 0
             self._electron = embedded_mol.nelectron
-            local_hf: scf.ROHF = scf.ROHF(embedded_mol)
+            local_hf: scf.UHF = scf.UHF(embedded_mol)
         else:
             embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
                 self.localized_system.beta_active_MO_inds
@@ -236,6 +236,8 @@ class NbedDriver:
             )
             self._electron = embedded_mol.nelectron
             local_hf: scf.uhf.UHF = scf.UHF(embedded_mol)
+        logger.debug(f"{embedded_mol.nelectron=}")
+        logger.debug(f"{embedded_mol.spin=}")
 
         if self.run_qmmm:
             logger.debug("QM/MM: running local SCF in presence of point charges.")
@@ -270,13 +272,15 @@ class NbedDriver:
             # overwrite total number of electrons to only include active system
             embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
             self._electron = embedded_mol.nelectron
-            local_ks: dft.RKS = dft.RKS(embedded_mol)
+            local_ks: dft.UKS = dft.UKS(embedded_mol)
         else:
             embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
                 self.localized_system.beta_active_MO_inds
             )
             self._electron = embedded_mol.nelectron
             local_ks: dft.uks.UKS = scf.UKS(embedded_mol)
+        logger.debug(f"{embedded_mol.nelectron=}")
+        logger.debug(f"{embedded_mol.spin=}")
 
         local_ks.max_memory = self.config.max_ram_memory
         local_ks.conv_tol = self.config.convergence
@@ -423,6 +427,7 @@ class NbedDriver:
         """Return a projector onto the environment in orthogonal basis."""
         logger.debug("Getting Environment Projector.")
         s_mat = self._global_ks.get_ovlp()
+        logger.debug(f"{s_mat.shape=}")
         env_projector_alpha = s_mat @ self.localized_system.dm_enviro @ s_mat
 
         if self.localized_system.beta_dm_enviro is None:
@@ -1096,6 +1101,7 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorEnum) -> dict:
             result["scf_dft"], result["v_emb_dft"] = driver._huzinaga_embed(
                 local_rks_same_functional, driver.embedding_potential
             )
+    result["scf_dft"] = driver._delete_environment(projection_method, result["scf_dft"])
 
     if driver.localized_system.beta_dm_active is not None:
         y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
