@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from pyscf import gto, scf,dft
+from pyscf import gto, scf, dft
 from pyscf.lib import StreamObject
 
 from nbed.driver import NbedDriver
@@ -42,17 +42,20 @@ def water_rhf(water_molecule) -> StreamObject:
     rhf.kernel()
     return rhf
 
+
 @pytest.fixture(scope="module")
 def water_uhf(water_molecule) -> StreamObject:
     uhf = scf.uhf.UHF(water_molecule)
     uhf.kernel()
     return uhf
 
+
 @pytest.fixture(scope="module")
 def water_rks(water_molecule) -> StreamObject:
     rks = dft.RKS(water_molecule)
     rks.kernel()
     return rks
+
 
 @pytest.fixture(scope="module")
 def water_uks(water_molecule) -> StreamObject:
