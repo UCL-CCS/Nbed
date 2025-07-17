@@ -74,14 +74,17 @@ class SPADELocalizer(OccupiedLocalizer):
             )
             beta = None
         else:
+            # to ensure the same number of alpha and beta orbitals are included
+            # use the sum of occupancies
+            mo_occ_sum = np.sum(self._global_scf.mo_occ, axis=0)
             alpha = self._localize_spin(
                 self._global_scf.mo_coeff[0],
-                self._global_scf.mo_occ[0],
+                mo_occ_sum,
                 self.n_mo_overwrite[0],
             )
             beta = self._localize_spin(
                 self._global_scf.mo_coeff[1],
-                self._global_scf.mo_occ[1],
+                mo_occ_sum,
                 self.n_mo_overwrite[1],
             )
 
@@ -101,7 +104,11 @@ class SPADELocalizer(OccupiedLocalizer):
             n_mo_overwrite (int): Number of molecular orbitals to use in active region. Overwrite SVD based value.
 
         Returns:
-            np.ndarray: Localized C matrix of occupied orbitals.
+            np.ndarray: Indices of active molecular orbitals
+            np.ndarray: Indices of environment molecular orbitals
+            np.ndarray: Localized C matrix of active orbitals.
+            np.ndarray: Localized C matrix of environment orbitals.
+            np.ndarray: Localized C matrix of all occpied orbitals.
         """
         logger.debug("Localising with SPADE.")
 

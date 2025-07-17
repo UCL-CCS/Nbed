@@ -55,7 +55,10 @@ class NbedDriver:
         self.electron: int
         self.mu: dict = None
         self.huzinaga: dict = None
-
+        self.active_geometry = f"{self.config.n_active_atoms}\n\n" + "\n".join(
+            self.config.geometry.splitlines()[2 : 2 + self.config.n_active_atoms]
+        )
+        logger.debug(f"{self.active_geometry=}")
         self._restricted_scf = False
         # if config.force_unrestricted:
         #     logger.debug("Forcing unrestricted SCF")
@@ -521,7 +524,6 @@ class NbedDriver:
         # veff_std = localized_scf.get_veff
         # localized_scf.get_veff = lambda *args: veff_std(*args) + v_emb
         logger.debug(f"embedded hcore shape {localized_scf.get_hcore().shape}")
-
         localized_scf.kernel()
         logger.info(
             f"Embedded scf energy MU_SHIFT: {localized_scf.e_tot}, converged: {localized_scf.converged}"
@@ -665,7 +667,7 @@ class NbedDriver:
         # overwrites varibles keeping only active part (both occupied and virtual)
         active_mo_coeff = mo_coeff[:, active_MOs_occ_and_virt_embedded]
         active_mo_energy = mo_energy[active_MOs_occ_and_virt_embedded]
-        active_mo_occ = mo_occ[: len(active_MOs_occ_and_virt_embedded)]
+        active_mo_occ = mo_occ[active_MOs_occ_and_virt_embedded]
 
         logger.debug("Spin environment deleted.")
         logger.debug(f"{active_mo_coeff=}")
@@ -703,13 +705,10 @@ class NbedDriver:
         else:
             alpha_n_env_mos = len(self.localized_system.enviro_MO_inds)
             beta_n_env_mos = len(self.localized_system.beta_enviro_MO_inds)
-            mo_coeff = np.array([None, None])
-            mo_energy = np.array([None, None])
-            mo_occ = np.array([None, None])
             (
-                mo_coeff[0],
-                mo_energy[0],
-                mo_occ[0],
+                mo_coeff_alpha,
+                mo_energy_alpha,
+                mo_occ_alpha,
             ) = self._delete_spin_environment(
                 projector,
                 alpha_n_env_mos,
@@ -718,24 +717,32 @@ class NbedDriver:
                 scf.mo_occ[0],
                 self._env_projector[0],
             )
-            (mo_coeff[1], mo_energy[1], mo_occ[1]) = self._delete_spin_environment(
-                projector,
-                beta_n_env_mos,
-                scf.mo_coeff[1],
-                scf.mo_energy[1],
-                scf.mo_occ[1],
-                self._env_projector[1],
+            (mo_coeff_beta, mo_energy_beta, mo_occ_beta) = (
+                self._delete_spin_environment(
+                    projector,
+                    beta_n_env_mos,
+                    scf.mo_coeff[1],
+                    scf.mo_energy[1],
+                    scf.mo_occ[1],
+                    self._env_projector[1],
+                )
             )
 
+            logger.debug(f"{mo_coeff_alpha.shape=}")
+            logger.debug(f"{mo_energy_alpha.shape=}")
+            logger.debug(f"{mo_occ_alpha.shape=}")
+            logger.debug(f"{mo_coeff_beta.shape=}")
+            logger.debug(f"{mo_energy_beta.shape=}")
+            logger.debug(f"{mo_occ_beta.shape=}")
             # Need to do it this way or there are broadcasting issues
             scf.mo_coeff = np.array(
-                [mo_coeff[0], mo_coeff[1]]
+                [mo_coeff_alpha, mo_coeff_beta]
             )  # np.array([mo_coeff[0], mo_coeff[1]])
             scf.mo_energy = np.array(
-                [mo_energy[0], mo_energy[1]]
+                [mo_energy_alpha, mo_energy_beta]
             )  # np.array([mo_energy[0], mo_energy[1]])
             scf.mo_occ = np.array(
-                [mo_occ[0], mo_occ[1]]
+                [mo_occ_alpha, mo_occ_beta]
             )  # np.array([mo_occ[0], mo_occ[1]])
 
         logger.debug("Environment deleted.")
