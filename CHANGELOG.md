@@ -20,6 +20,7 @@ Major refactor, with several breaking changes!
 - CLI tool now expects a path to a config `.json` file which matches the `NbedConfig` model.
 - `NbedDriver` automatically calls `HamiltonianBuilder.build()`, adding output to results as `second_quantised`.
 - Removed underscore from `driver._huzinaga` and `driver._mu`.
+- Driver defaults to *unrestricted* for both whole molecule and environment, passing charge and spin to environment based on spin-aware localization.
 
 ## [0.0.8]
 ### Fixed
