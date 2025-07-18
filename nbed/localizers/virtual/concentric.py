@@ -65,9 +65,13 @@ class ConcentricLocalizer(VirtualLocalizer):
 
         logger.debug("Creating projected molecule object.")
         embedded_scf = self.embedded_scf
+        logger.debug(f"{embedded_scf.mol.atom=}")
+        logger.debug(f"{embedded_scf.mol.charge=}")
+        logger.debug(f"{embedded_scf.mol.spin=}")
 
         projected_mol = gto.mole.Mole()
         projected_mol.atom = embedded_scf.mol.atom
+        projected_mol.nelec = embedded_scf.mol.nelec
         projected_mol.basis = embedded_scf.mol.basis  # can be anything
         projected_mol.charge = embedded_scf.mol.charge
         projected_mol.spin = embedded_scf.mol.spin
