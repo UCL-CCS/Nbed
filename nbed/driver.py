@@ -222,28 +222,9 @@ class NbedDriver:
             local_hf (scf.uhf.UHF or scf.ROHF): embedded Hartree-Fock object.
         """
         logger.debug("Constructing localised HF object.")
-        embedded_mol: gto.Mole = self._build_mol()
+        embedded_mol: gto.Mole = self._init_embedded_mol()
 
-        # overwrite total number of electrons to only include active system
-        if self.localized_system.beta_active_MO_inds is None:
-            n_elec = len(self.localized_system.active_MO_inds)
-            logger.debug(f"embedded nelec {n_elec}")
-
-            embedded_mol.nelectron = 2 * n_elec
-            embedded_mol.nelec = (n_elec, n_elec)
-            embedded_mol.spin = 0
-            self._electron = embedded_mol.nelectron
-            local_hf: scf.UHF = scf.UHF(embedded_mol)
-        else:
-            n_elec_alpha = len(self.localized_system.active_MO_inds)
-            n_elec_beta = len(self.localized_system.beta_active_MO_inds)
-            logger.debug(f"embedded nelec {n_elec_alpha, n_elec_beta}")
-
-            embedded_mol.nelectron = n_elec_alpha + n_elec_beta
-            embedded_mol.nelec = (n_elec_alpha, n_elec_beta)
-            embedded_mol.spin = n_elec_alpha - n_elec_beta
-            self._electron = embedded_mol.nelectron
-            local_hf: scf.uhf.UHF = scf.UHF(embedded_mol)
+        local_hf: scf.uhf.UHF = scf.UHF(embedded_mol)
         logger.debug(f"{embedded_mol.nelectron=}")
         logger.debug(f"{embedded_mol.nelec=}")
         logger.debug(f"{embedded_mol.spin=}")
@@ -263,6 +244,32 @@ class NbedDriver:
 
         return local_hf
 
+    def _init_embedded_mol(self) -> gto.Mole:
+        """Create a pyscf molecule for the embedded system.
+
+        Returns:
+            gto.Mole: An embedded molecule object.
+        """
+        embedded_mol: gto.Mole = self._build_mol()
+        if self.localized_system.beta_active_MO_inds is None:
+            n_elec = len(self.localized_system.active_MO_inds)
+            logger.debug(f"embedded nelec {n_elec}")
+
+            embedded_mol.nelectron = 2 * n_elec
+            embedded_mol.nelec = (n_elec, n_elec)
+            embedded_mol.spin = 0
+            self._electron = embedded_mol.nelectron
+        else:
+            n_elec_alpha = len(self.localized_system.active_MO_inds)
+            n_elec_beta = len(self.localized_system.beta_active_MO_inds)
+            logger.debug(f"embedded nelec {n_elec_alpha, n_elec_beta}")
+
+            embedded_mol.nelectron = n_elec_alpha + n_elec_beta
+            embedded_mol.nelec = (n_elec_alpha, n_elec_beta)
+            embedded_mol.spin = n_elec_alpha - n_elec_beta
+            self._electron = embedded_mol.nelectron
+        return embedded_mol
+
     def _init_local_ks(self, xc_functional: str) -> Union[dft.uks.UKS, dft.ROKS]:
         """Function to build embedded Hartree Fock object for active subsystem.
 
@@ -275,20 +282,11 @@ class NbedDriver:
             local_ks (pyscf.dft.RKS or pyscf.dft.uks.UKS): embedded Kohn-Sham DFT object.
         """
         logger.debug("Initialising localised RKS object.")
-        embedded_mol: gto.Mole = self._build_mol()
+        embedded_mol: gto.Mole = self._init_embedded_mol()
 
-        if self.localized_system.beta_active_MO_inds is None:
-            # overwrite total number of electrons to only include active system
-            embedded_mol.nelectron = 2 * len(self.localized_system.active_MO_inds)
-            self._electron = embedded_mol.nelectron
-            local_ks: dft.UKS = dft.UKS(embedded_mol)
-        else:
-            embedded_mol.nelectron = len(self.localized_system.active_MO_inds) + len(
-                self.localized_system.beta_active_MO_inds
-            )
-            self._electron = embedded_mol.nelectron
-            local_ks: dft.uks.UKS = scf.UKS(embedded_mol)
+        local_ks: dft.UKS.UKS = dft.UKS(embedded_mol)
         logger.debug(f"{embedded_mol.nelectron=}")
+        logger.debug(f"{embedded_mol.nelec=}")
         logger.debug(f"{embedded_mol.spin=}")
 
         local_ks.max_memory = self.config.max_ram_memory
@@ -604,6 +602,85 @@ class NbedDriver:
         logger.info(f"Embedded scf energy HUZINAGA: {localized_scf.e_tot}")
         return localized_scf, v_emb
 
+    def _delete_environment(
+        self, projector: ProjectorEnum, scf: StreamObject
+    ) -> StreamObject:
+        """Remove enironment orbit from embedded ROHF object.
+
+        This function removes (in fact deletes completely) the molecular orbitals
+        defined by the environment of the localized system
+
+        Args:
+            projector (ProjectorEnum): The projector used to embed the system.
+            scf (StreamObject): The embedded SCF object.
+
+        Returns:
+            StreamObject: Returns input, but with environment orbitals deleted.
+        """
+        logger.debug("Deleting environment from SCF object.")
+
+        if self.localized_system.beta_c_enviro is None:
+            n_env_mos = self.localized_system.c_enviro.shape[-1]
+            logger.debug(f"{n_env_mos=}")
+            scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
+                projector,
+                n_env_mos,
+                scf.mo_coeff,
+                scf.mo_energy,
+                scf.mo_occ,
+                self._env_projector,
+            )
+        else:
+            #
+            n_env_mos = len(
+                set(self.localized_system.enviro_MO_inds).union(
+                    self.localized_system.beta_enviro_MO_inds
+                )
+            )
+            logger.debug(f"{n_env_mos=}")
+            (
+                mo_coeff_alpha,
+                mo_energy_alpha,
+                mo_occ_alpha,
+            ) = self._delete_spin_environment(
+                projector,
+                n_env_mos,
+                scf.mo_coeff[0],
+                scf.mo_energy[0],
+                scf.mo_occ[0],
+                self._env_projector[0],
+            )
+            (mo_coeff_beta, mo_energy_beta, mo_occ_beta) = (
+                self._delete_spin_environment(
+                    projector,
+                    n_env_mos,
+                    scf.mo_coeff[1],
+                    scf.mo_energy[1],
+                    scf.mo_occ[1],
+                    self._env_projector[1],
+                )
+            )
+
+            logger.debug(f"{mo_coeff_alpha.shape=}")
+            logger.debug(f"{mo_energy_alpha.shape=}")
+            logger.debug(f"{mo_occ_alpha.shape=}")
+            logger.debug(f"{mo_coeff_beta.shape=}")
+            logger.debug(f"{mo_energy_beta.shape=}")
+            logger.debug(f"{mo_occ_beta.shape=}")
+            # Need to do it this way or there are broadcasting issues
+            scf.mo_coeff = np.array(
+                [mo_coeff_alpha, mo_coeff_beta]
+            )  # np.array([mo_coeff[0], mo_coeff[1]])
+            scf.mo_energy = np.array(
+                [mo_energy_alpha, mo_energy_beta]
+            )  # np.array([mo_energy[0], mo_energy[1]])
+            scf.mo_occ = np.array(
+                [mo_occ_alpha, mo_occ_beta]
+            )  # np.array([mo_occ[0], mo_occ[1]])
+
+        logger.debug("Environment deleted.")
+        return scf
+
     def _delete_spin_environment(
         self,
         projector: ProjectorEnum,
@@ -652,6 +729,9 @@ class NbedDriver:
             case ProjectorEnum.MU:
                 # Orbitals which have been shifted to have energy mu are removed
                 shift = mo_coeff.shape[-1] - n_env_mo
+                logger.debug(f"{shift=}")
+                logger.debug(f"{mo_coeff.shape=}")
+                logger.debug(f"{n_env_mo=}")
                 frozen_enviro_orb_inds = [
                     mo_i for mo_i in range(shift, mo_coeff.shape[-1])
                 ]
@@ -680,79 +760,6 @@ class NbedDriver:
         logger.debug(f"{active_mo_energy=}")
         logger.debug(f"{active_mo_occ=}")
         return active_mo_coeff, active_mo_energy, active_mo_occ
-
-    def _delete_environment(
-        self, projector: ProjectorEnum, scf: StreamObject
-    ) -> StreamObject:
-        """Remove enironment orbit from embedded ROHF object.
-
-        This function removes (in fact deletes completely) the molecular orbitals
-        defined by the environment of the localized system
-
-        Args:
-            projector (ProjectorEnum): The projector used to embed the system.
-            scf (StreamObject): The embedded SCF object.
-
-        Returns:
-            StreamObject: Returns input, but with environment orbitals deleted.
-        """
-        logger.debug("Deleting environment from SCF object.")
-
-        if self.localized_system.beta_enviro_MO_inds is None:
-            n_env_mos = len(self.localized_system.enviro_MO_inds)
-            scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
-                projector,
-                n_env_mos,
-                scf.mo_coeff,
-                scf.mo_energy,
-                scf.mo_occ,
-                self._env_projector,
-            )
-        else:
-            alpha_n_env_mos = len(self.localized_system.enviro_MO_inds)
-            beta_n_env_mos = len(self.localized_system.beta_enviro_MO_inds)
-            (
-                mo_coeff_alpha,
-                mo_energy_alpha,
-                mo_occ_alpha,
-            ) = self._delete_spin_environment(
-                projector,
-                alpha_n_env_mos,
-                scf.mo_coeff[0],
-                scf.mo_energy[0],
-                scf.mo_occ[0],
-                self._env_projector[0],
-            )
-            (mo_coeff_beta, mo_energy_beta, mo_occ_beta) = (
-                self._delete_spin_environment(
-                    projector,
-                    beta_n_env_mos,
-                    scf.mo_coeff[1],
-                    scf.mo_energy[1],
-                    scf.mo_occ[1],
-                    self._env_projector[1],
-                )
-            )
-
-            logger.debug(f"{mo_coeff_alpha.shape=}")
-            logger.debug(f"{mo_energy_alpha.shape=}")
-            logger.debug(f"{mo_occ_alpha.shape=}")
-            logger.debug(f"{mo_coeff_beta.shape=}")
-            logger.debug(f"{mo_energy_beta.shape=}")
-            logger.debug(f"{mo_occ_beta.shape=}")
-            # Need to do it this way or there are broadcasting issues
-            scf.mo_coeff = np.array(
-                [mo_coeff_alpha, mo_coeff_beta]
-            )  # np.array([mo_coeff[0], mo_coeff[1]])
-            scf.mo_energy = np.array(
-                [mo_energy_alpha, mo_energy_beta]
-            )  # np.array([mo_energy[0], mo_energy[1]])
-            scf.mo_occ = np.array(
-                [mo_occ_alpha, mo_occ_beta]
-            )  # np.array([mo_occ[0], mo_occ[1]])
-
-        logger.debug("Environment deleted.")
-        return scf
 
     def _dft_in_dft(self, projection_method: ProjectorEnum) -> dict:
         """Return energy of DFT in DFT embedding.
