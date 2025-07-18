@@ -32,6 +32,9 @@ dev = [
     "py3dmol>=2.4.2,<3",
 ]
 docs = [
+    "myst-nb>=1.3.0",
+    "myst-parser>=4.0.1",
+    "myst-sphinx-gallery>=0.3.0",
     "nbsphinx>=0.9.0,<0.10",
     "Sphinx>=5.0.0, <9",
     "sphinx-rtd-theme>=2.0.0,<4",

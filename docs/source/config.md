@@ -1,13 +1,13 @@
-Configuration
--------------
+# Configuration
+
 
 Input data is validated against a Pydantic model, in the `NbedConfig` class. This is then passed to the `NbedDriver`.
 
-Example Configuration File
-==========================
+## Example Configuration File
 
 For the command-line interface to Nbed, you'll need to provide a path to a config file. This should contain a Json dictionary of input values.
 
+```{eval-rst}
 .. code-block:: json
 
    {
@@ -40,11 +40,13 @@ For the command-line interface to Nbed, you'll need to provide a path to a confi
    "mm_charges":null,
    "mm_radii":null
    }
+```
 
-Config Model
-============
+## Config Model
 
+```{eval-rst}
 .. automodule:: nbed.config
    :members:
    :undoc-members:
    :show-inheritance:
+```

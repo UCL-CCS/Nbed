@@ -106,6 +106,7 @@ class NbedDriver:
         global_hf.conv_tol = self.config.convergence
         global_hf.max_memory = self.config.max_ram_memory
         global_hf.max_cycle = self.config.max_hf_cycles
+        global_hf.verbose = 1
         global_hf.kernel()
         logger.info(f"Global HF: {global_hf.e_tot}")
 
@@ -120,6 +121,7 @@ class NbedDriver:
         global_cc = cc.CCSD(self._global_hf, **ccsd_kwargs)
         global_cc.conv_tol = self.config.convergence
         global_cc.max_memory = self.config.max_ram_memory
+        global_cc.verbose = 1
         global_cc.run()
         logger.info(f"Global CCSD: {global_cc.e_tot}")
 
@@ -136,6 +138,8 @@ class NbedDriver:
         global_fci = fci.FCI(self._global_hf, **fci_kwargs)
         global_fci.conv_tol = self.config.convergence
         global_fci.max_memory = self.config.max_ram_memory
+        global_fci.verbose = 1
+
         global_fci.run()
         logger.info(f"Global FCI: {global_fci.e_tot}")
 
@@ -155,6 +159,7 @@ class NbedDriver:
         global_ks.xc = self.config.xc_functional
         global_ks.max_memory = self.config.max_ram_memory
         global_ks.max_cycle = self.config.max_dft_cycles
+        global_ks.verbose = 1
 
         if self.run_qmmm:
             logger.debug(
@@ -166,7 +171,6 @@ class NbedDriver:
                 self.config.mm_charges,
                 self.config.mm_radii,
             )
-
         global_ks.kernel()
         logger.debug(f"{global_ks.mo_coeff.shape=}")
         logger.debug(f"{global_ks.mo_occ.shape=}")
@@ -932,11 +936,12 @@ class NbedDriver:
         # TODO correlation energy correction???
         if self.config.run_virtual_localization is True:
             logger.debug("Performing virtual localization.")
-            result["scf"] = ConcentricLocalizer(
+            result["cl"] = ConcentricLocalizer(
                 result["scf"],
                 self.config.n_active_atoms,
                 max_shells=self.config.max_shells,
-            ).localize_virtual()
+            )
+            result["scf"] = result["cl"].localize_virtual()
 
         result["e_rhf"] = (
             result["scf"].e_tot
@@ -1042,6 +1047,7 @@ def run_emb_fci(
         )
     fci_scf.conv_tol = convergence
     fci_scf.max_memory = max_ram_memory
+    fci_scf.verbose = 1
 
     # For UHF, PySCF assumes that hcore is spinless and 2D
     # Because we update hcore for embedding, we need to calculate our own h1e term.
@@ -1086,6 +1092,7 @@ def run_emb_ccsd(
     ccsd = cc.CCSD(emb_pyscf_scf_rhf, frozen=frozen)
     ccsd.conv_tol = convergence
     ccsd.max_memory = max_ram_memory
+    ccsd.verbose = 1
 
     e_ccsd_corr, _, _ = ccsd.kernel()
     logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
