@@ -1,7 +1,8 @@
-Embed
------
+# Utils
 
-.. automodule:: nbed.embed
+```{eval-rst}
+.. automodule:: nbed.utils
    :members:
    :undoc-members:
    :show-inheritance:
+```
