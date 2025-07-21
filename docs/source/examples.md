@@ -1,4 +1,5 @@
 # Examples
+(Examples)=
 ```{base-gallery}
 :caption: Usage Examples
 :tooltip:

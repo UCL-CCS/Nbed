@@ -70,24 +70,23 @@ class NbedConfig(BaseModel):
     """Config for Nbed.
 
     Args:
-        geometry (str): Path to .xyz file containing molecular geometry or raw xyz string.
-        n_active_atoms (int): The number of atoms to include in the active region.
+        geometry (XYZGeometry): Path to .xyz file containing molecular geometry or raw xyz string.
+        n_active_atoms (PositiveInt): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functional (str): The name of an Exchange-Correlation functional to be used for DFT.
-        projector (str): Projector to screen out environment orbitals, One of 'mu' or 'huzinaga'.
-        localization (str): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
-        convergence (float): The convergence tolerance for energy calculations.
-        charge (int): Charge of molecular species
-        mu_level_shift (float): Level shift parameter to use for mu-projector.
+        projector (ProjectorEnum): Projector to screen out environment orbitals, One of 'mu' or 'huzinaga'.
+        localization (LocalizerEnum): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
+        convergence (Annotated[float, Gt(gt=0), Lt(lt=1)]): The convergence tolerance for energy calculations.
+        charge (PositiveInt): Charge of molecular species
+        mu_level_shift (PositiveFloat): Level shift parameter to use for mu-projector.
         run_ccsd_emb (bool): Whether or not to find the CCSD energy of embbeded system for reference.
         run_fci_emb (bool): Whether or not to find the FCI energy of embbeded system for reference.
         run_virtual_localization (bool): Whether or not to localize virtual orbitals.
-        n_mo_overwrite (tuple[None| int, None | int]): Optional overwrite values for occupied localizers.
-        max_ram_memory (int): Amount of RAM memery in MB available for PySCF calculation
-        pyscf_print_level (int): Amount of information PySCF prints
+        n_mo_overwrite (tuple[None| PositiveInt, None | PositiveInt]): Optional overwrite values for occupied localizers.
+        max_ram_memory (PositiveInt): Amount of RAM memery in MB available for PySCF calculation
         unit (str): molecular geometry unit 'Angstrom' or 'Bohr'
-        max_hf_cycles (int): max number of Hartree-Fock iterations allowed (for global and local HFock)
-        max_dft_cycles (int): max number of DFT iterations allowed in scf calc
+        max_hf_cycles (PositiveInt): max number of Hartree-Fock iterations allowed (for global and local HFock)
+        max_dft_cycles (PositiveInt): max number of DFT iterations allowed in scf calc
         init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
         savefile (FilePath): Location of file to save output to.
     """

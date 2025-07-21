@@ -245,6 +245,7 @@ class NbedDriver:
         local_hf.max_memory = self.config.max_ram_memory
         local_hf.conv_tol = self.config.convergence
         local_hf.max_cycle = self.config.max_hf_cycles
+        local_hf.verbose = 1
 
         return local_hf
 
@@ -296,6 +297,7 @@ class NbedDriver:
         local_ks.max_memory = self.config.max_ram_memory
         local_ks.conv_tol = self.config.convergence
         local_ks.xc = xc_functional
+        local_ks.verbose = 1
 
         return local_ks
 
