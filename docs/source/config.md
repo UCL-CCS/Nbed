@@ -1,5 +1,4 @@
-# Configuration
-
+# Config
 
 Input data is validated against a Pydantic model, in the `NbedConfig` class. This is then passed to the `NbedDriver`.
 

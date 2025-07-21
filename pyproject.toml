@@ -36,6 +36,7 @@ docs = [
     "myst-parser>=4.0.1",
     "myst-sphinx-gallery>=0.3.0",
     "nbsphinx>=0.9.0,<0.10",
+    "pydata-sphinx-theme>=0.16.1",
     "Sphinx>=5.0.0, <9",
     "sphinx-rtd-theme>=2.0.0,<4",
 ]
