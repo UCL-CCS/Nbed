@@ -6,7 +6,7 @@ from pyscf import gto, scf
 
 from nbed.localizers.occupied import OccupiedLocalizer, PMLocalizer, SPADELocalizer
 from nbed.localizers.virtual import ConcentricLocalizer
-from nbed.localizers.ace import ACELocalizer
+from nbed.ace import ACELocalizer
 
 xc_functional = "b3lyp"
 convergence = 1e-6

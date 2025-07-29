@@ -52,7 +52,7 @@ def _fermi_dist(diff_i_max: int, beta: float) -> float:
     return beta * np.exp(beta * diff_i_max) / (1 + np.exp(beta * diff_i_max)) ** 1.5
 
 
-def _best_fit_nmo(all_singular_values: list[list[float]]) -> tuple[int, int]:
+def _best_fit_nmo(all_singular_values: list[list[float]]) -> int:
     """Find the best fit number of molecular orbitals.
 
     Args:
@@ -70,6 +70,9 @@ def _best_fit_nmo(all_singular_values: list[list[float]]) -> tuple[int, int]:
 
         diff_i_max = [i - max_i for i in range(len(geometry_singular_values))]
         logger.debug(f"{diff_i_max=}")
+        logger.debug(
+            f"Single Geometry n MO {np.argwhere(diff_i_max == np.int64(0)) + 1}"
+        )
 
         beta_fit, _ = curve_fit(_fermi_dist, diff_i_max, geometry_singular_values)
         logger.debug(f"{beta_fit=}")
@@ -78,19 +81,21 @@ def _best_fit_nmo(all_singular_values: list[list[float]]) -> tuple[int, int]:
             return -1 * _fermi_dist(diff_i_max, beta_fit)
 
         res = minimize(neg_fermi_dist, max_i)
-        max_vals.append(res.x[0])
-        logger.debug(f"{max_vals=}")
+        logger.debug(f"Fit value {res.x[0]}")
+        max_vals.append(res.x[0] + np.argwhere(diff_i_max == np.int64(0)) + 1)
 
+    logger.debug(f"{max_vals=}")
     mean_max = np.mean(max_vals)
+    logger.debug(f"{mean_max=}")
     # we want to round to the nearesrt 1, we cam do this with int(val+0.5)
-    nmo = mean_max + np.argwhere(diff_i_max == np.int64(0)) + 0.5
-    nmo = int(nmo) + 1
+    nmo = int(mean_max + 0.5)
     logger.debug(f"Using {nmo} Molecular Orbitals")
     return nmo
 
 
 def ace_of_spade(
-    geometries: list[XYZGeometry], config: NbedConfig, split_spins: bool = False
+    geometries: list[XYZGeometry],
+    config: NbedConfig,
 ) -> tuple[int, int]:
     """Find the number of MOs to use over the reaction coordinates.
 
@@ -106,9 +111,10 @@ def ace_of_spade(
     """
     logger.debug("Running ACE of SPADE across reaction coordinates.")
 
-    alpha_singular_values: list[tuple[float]] = []
-    beta_singular_values: list[tuple[float]] = []
+    alpha_singular_values: list[list[float]] = []
+    beta_singular_values: list[list[float]] = []
     for geo in geometries:
+        logger.debug("Setting up geometry for ACE-of-SPADE.")
         config = parse_config(config, geometry=geo)
         driver = NbedDriver(config=config)
         global_ks = driver._global_ks()
@@ -119,12 +125,17 @@ def ace_of_spade(
         ]
         ao_overlap = driver._global_ks.get_ovlp()
 
+        logger.debug("Getting singular values for geometry.")
         match global_ks.mo_coeff.ndim:
             case 2:
+                logger.debug(
+                    "Spinless mo coeffs, single localization will be use for both."
+                )
                 alpha = _get_spade_singular_values(
                     occupancy, global_ks.mo_coeff, n_act_aos, ao_overlap
                 )
             case 3:
+                logger.debug("Alpha and Beta localization will be checked seperately.")
                 alpha = _get_spade_singular_values(
                     occupancy[0], global_ks.mo_coeff[0, :, :], n_act_aos, ao_overlap
                 )
@@ -135,14 +146,13 @@ def ace_of_spade(
 
         alpha_singular_values.append(alpha)
 
+    logger.debug("Finding best fit number of MOs.")
     if beta_singular_values == []:
         alpha_nmos = _best_fit_nmo(alpha_singular_values)
-        beta_nmos = alpha_nmos
-    elif split_spins is False:
-        alpha_nmos = _best_fit_nmo(alpha_singular_values + beta_singular_values)
         beta_nmos = alpha_nmos
     else:
         alpha_nmos = _best_fit_nmo(alpha_singular_values)
         beta_nmos = _best_fit_nmo(beta_singular_values)
 
+    logger.debug(f"ACE-of-SPADE best fit n MOs {(alpha_nmos, beta_nmos)}")
     return (alpha_nmos, beta_nmos)
