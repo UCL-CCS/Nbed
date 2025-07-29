@@ -43,7 +43,13 @@ class SPADELocalizer(OccupiedLocalizer):
     ):
         """Initialize SPADE Localizer object."""
         self.max_shells = max_shells
-        self.n_mo_overwrite = (None, None) if n_mo_overwrite is None else n_mo_overwrite
+        match n_mo_overwrite:
+            case (int(), int()):
+                logger.debug("Forcing use of %s MOs")
+                self.n_mo_overwrite = n_mo_overwrite
+            case _:
+                logger.debug("Not overwriting n MOs")
+
         self.shells = None
         self.singular_values = None
         self.enviro_selection_condition = None
