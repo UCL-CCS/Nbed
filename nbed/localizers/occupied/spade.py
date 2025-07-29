@@ -49,6 +49,7 @@ class SPADELocalizer(OccupiedLocalizer):
                 self.n_mo_overwrite = n_mo_overwrite
             case _:
                 logger.debug("Not overwriting n MOs")
+                self.n_mo_overwrite = (None, None)
 
         self.shells = None
         self.singular_values = None
