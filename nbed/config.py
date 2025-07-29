@@ -20,7 +20,7 @@ from pydantic import (
 logger = logging.getLogger(__name__)
 
 
-class ProjectorEnum(Enum):
+class ProjectorTypes(Enum):
     """Implemented Projectors."""
 
     MU = "mu"
@@ -28,7 +28,7 @@ class ProjectorEnum(Enum):
     BOTH = "both"
 
 
-class LocalizerEnum(Enum):
+class LocalizerTypes(Enum):
     """Implemented Occupied Localizers."""
 
     SPADE = "spade"
@@ -74,8 +74,8 @@ class NbedConfig(BaseModel):
         n_active_atoms (PositiveInt): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functional (str): The name of an Exchange-Correlation functional to be used for DFT.
-        projector (ProjectorEnum): Projector to screen out environment orbitals, One of 'mu' or 'huzinaga'.
-        localization (LocalizerEnum): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
+        projector (ProjectorTypes): Projector to screen out environment orbitals, One of 'mu' or 'huzinaga'.
+        localization (LocalizerTypes): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
         convergence (Annotated[float, Gt(gt=0), Lt(lt=1)]): The convergence tolerance for energy calculations.
         charge (PositiveInt): Charge of molecular species
         mu_level_shift (PositiveFloat): Level shift parameter to use for mu-projector.
@@ -95,8 +95,8 @@ class NbedConfig(BaseModel):
     n_active_atoms: PositiveInt
     basis: str
     xc_functional: str
-    projector: ProjectorEnum = Field(default=ProjectorEnum.MU)
-    localization: LocalizerEnum = Field(default=LocalizerEnum.SPADE)
+    projector: ProjectorTypes = Field(default=ProjectorTypes.MU)
+    localization: LocalizerTypes = Field(default=LocalizerTypes.SPADE)
     convergence: PositiveFloat = 1e-6
     charge: NonNegativeInt = Field(default=0)
     spin: NonNegativeInt = Field(default=0)

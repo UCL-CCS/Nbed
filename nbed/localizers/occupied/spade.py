@@ -195,13 +195,4 @@ class SPADELocalizer(OccupiedLocalizer):
         c_enviro = occupied_orbitals @ right_vectors.T[:, n_act_mos:]
         c_loc_occ = occupied_orbitals @ right_vectors.T
 
-        # storing condition used to select env system
-        if self.enviro_selection_condition is None:
-            self.enviro_selection_condition = (sigma, np.zeros(len(sigma)))
-        else:
-            self.enviro_selection_condition = (
-                self.enviro_selection_condition[0],
-                sigma,
-            )
-
         return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
