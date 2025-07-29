@@ -10,6 +10,7 @@ from typing import Annotated, Any
 from pydantic import (
     BaseModel,
     BeforeValidator,
+    ConfigDict,
     Field,
     FilePath,
     NonNegativeInt,
@@ -91,6 +92,8 @@ class NbedConfig(BaseModel):
         init_huzinaga_rhf_with_mu (bool): Hidden flag to seed huzinaga RHF with mu shift result (for developers only)
         savefile (FilePath): Location of file to save output to.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     geometry: Annotated[XYZGeometry, BeforeValidator(validate_xyz_file)]
     n_active_atoms: PositiveInt
