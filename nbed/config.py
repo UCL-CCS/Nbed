@@ -44,6 +44,7 @@ class VirtualLocalizerTypes(Enum):
 
     CONCENTRIC = "cl"
     PROJECTED_AO = "pao"
+    NONE = None
 
 
 XYZGeometry = Annotated[
@@ -118,19 +119,25 @@ class NbedConfig(BaseModel):
 
     run_ccsd_emb: bool = False
     run_fci_emb: bool = False
-    run_virtual_localization: bool = True
     run_dft_in_dft: bool = False
 
     mm_coords: list | None = None
     mm_charges: list | None = None
     mm_radii: list | None = None
 
-    n_mo_overwrite: tuple[None | NonNegativeInt, None | NonNegativeInt] = (None, None)
     mu_level_shift: PositiveFloat = 1e6
+    init_huzinaga_rhf_with_mu: bool = False
+
+    virtual_localization: VirtualLocalizerTypes = Field(
+        default=VirtualLocalizerTypes.CONCENTRIC
+    )
+    n_mo_overwrite: tuple[None | NonNegativeInt, None | NonNegativeInt] = (None, None)
     occupied_threshold: float = Field(default=0.95, gt=0, lt=1)
     virtual_threshold: float = Field(default=0.95, gt=0, lt=1)
     max_shells: PositiveInt = 4
-    init_huzinaga_rhf_with_mu: bool = False
+    norm_cutoff: PositiveFloat = 0.05
+    overlap_cutoff: PositiveFloat = 1e-5
+
     force_unrestricted: bool = False
 
     max_ram_memory: PositiveInt = 4000
