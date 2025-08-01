@@ -30,13 +30,20 @@ class ProjectorTypes(Enum):
     BOTH = "both"
 
 
-class LocalizerTypes(Enum):
+class OccupiedLocalizerTypes(Enum):
     """Implemented Occupied Localizers."""
 
     SPADE = "spade"
     BOYS = "boys"
     IBO = "ibo"
     PM = "pm"
+
+
+class VirtualLocalizerTypes(Enum):
+    """Implemented Virtual Localizers."""
+
+    CONCENTRIC = "cl"
+    PROJECTED_AO = "pao"
 
 
 XYZGeometry = Annotated[
@@ -77,7 +84,7 @@ class NbedConfig(BaseModel):
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functional (str): The name of an Exchange-Correlation functional to be used for DFT.
         projector (ProjectorTypes): Projector to screen out environment orbitals, One of 'mu' or 'huzinaga'.
-        localization (LocalizerTypes): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
+        localization (OccupiedLocalizerTypes): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
         convergence (Annotated[float, Gt(gt=0), Lt(lt=1)]): The convergence tolerance for energy calculations.
         charge (PositiveInt): Charge of molecular species
         mu_level_shift (PositiveFloat): Level shift parameter to use for mu-projector.
@@ -100,7 +107,7 @@ class NbedConfig(BaseModel):
     basis: str
     xc_functional: str
     projector: ProjectorTypes = Field(default=ProjectorTypes.MU)
-    localization: LocalizerTypes = Field(default=LocalizerTypes.SPADE)
+    localization: OccupiedLocalizerTypes = Field(default=OccupiedLocalizerTypes.SPADE)
     convergence: PositiveFloat = 1e-6
     charge: NonNegativeInt = Field(default=0)
     spin: NonNegativeInt = Field(default=0)
