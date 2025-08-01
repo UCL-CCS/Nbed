@@ -15,11 +15,17 @@ from nbed.localizers import (
     ConcentricLocalizer,
     IBOLocalizer,
     OccupiedLocalizer,
+    PAOLocalizer,
     PMLocalizer,
     SPADELocalizer,
 )
 
-from .config import LocalizerEnum, NbedConfig, ProjectorEnum
+from .config import (
+    NbedConfig,
+    OccupiedLocalizerTypes,
+    ProjectorTypes,
+    VirtualLocalizerTypes,
+)
 from .ham_builder import HamiltonianBuilder
 from .scf import energy_elec
 from .scf.huzinaga_scf import huzinaga_scf
@@ -147,7 +153,7 @@ class NbedDriver:
 
     @cached_property
     def _global_ks(self, **ks_kwargs) -> StreamObject:
-        """Method to run full cheap molecule USK DFT calculation.
+        """Method to run full cheap molecule UKS DFT calculation.
 
         Note this is necessary to perform localization procedure.
         """
@@ -176,7 +182,7 @@ class NbedDriver:
         logger.debug(f"{global_ks.mo_occ.shape=}")
         logger.debug(f"{global_ks.get_veff().shape=}")
         logger.debug(f"{global_ks.get_hcore().shape=}")
-        logger.info(f"Global USK: {global_ks.e_tot}")
+        logger.info(f"Global UKS: {global_ks.e_tot}")
 
         if global_ks.converged is not True:
             logger.warning("(cheap) global DFT calculation has NOT converged!")
@@ -188,28 +194,28 @@ class NbedDriver:
         logger.debug(f"Getting localized system using {self.config.localization}.")
 
         match self.config.localization:
-            case LocalizerEnum.SPADE:
+            case OccupiedLocalizerTypes.SPADE:
                 return SPADELocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     max_shells=self.config.max_shells,
                     n_mo_overwrite=self.n_mo_overwrite,
                 )
-            case LocalizerEnum.BOYS:
+            case OccupiedLocalizerTypes.BOYS:
                 return BOYSLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     occ_cutoff=self.config.occupied_threshold,
                     virt_cutoff=self.config.virtual_threshold,
                 )
-            case LocalizerEnum.IBO:
+            case OccupiedLocalizerTypes.IBO:
                 return IBOLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     occ_cutoff=self.config.occupied_threshold,
                     virt_cutoff=self.config.virtual_threshold,
                 )
-            case LocalizerEnum.PM:
+            case OccupiedLocalizerTypes.PM:
                 return PMLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
@@ -304,14 +310,14 @@ class NbedDriver:
     def _subsystem_dft(
         self, global_ks, localized_system
     ) -> tuple[float, float, np.typing.NDArray]:
-        """Function to perform subsystem USK DFT calculation."""
+        """Function to perform subsystem UKS DFT calculation."""
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _ks_components(
             ks_system: dft.KohnShamDFT,
             subsystem_dm: np.ndarray,
         ) -> tuple[float, np.ndarray, np.ndarray]:
-            """Calculate the components of subsystem energy from a USK DFT calculation.
+            """Calculate the components of subsystem energy from a UKS DFT calculation.
 
             For a given density matrix this function returns the electronic energy, exchange correlation energy and
             J,K, V_xc matrices.
@@ -326,7 +332,7 @@ class NbedDriver:
                 two_e_term (npt.NDArray): Two electron potential term
                 j_mat (npt.NDArray): J_matrix defined by input density matrix
             """
-            logger.debug("Finding subsystem USK componenets.")
+            logger.debug("Finding subsystem UKS componenets.")
             # It seems that PySCF lumps J and K in the J array
             # need to access the potential for the right subsystem for unrestricted
             logger.debug(f"{subsystem_dm.shape=}")
@@ -357,9 +363,9 @@ class NbedDriver:
             #     energy_elec_pyscf = global_ks.energy_elec(dm=dm_matrix)[0]
             #     if not np.isclose(energy_elec_pyscf, energy_elec):
             #         raise ValueError("Energy calculation incorrect")
-            logger.debug("Subsystem USK components found.")
+            logger.debug("Subsystem UKS components found.")
             logger.debug(f"{e_act=}")
-            logger.debug(f"{two_e_term=}")
+            logger.debug(f"{two_e_term.shape=}")
             return e_act, two_e_term, j_mat
 
         if localized_system.beta_dm_active is None:
@@ -428,7 +434,7 @@ class NbedDriver:
         # overall two_electron cross energy
         two_e_cross = j_cross + k_cross + xc_cross
 
-        logger.debug("USK components")
+        logger.debug("UKS components")
         logger.debug(f"e_act: {e_act}")
         logger.debug(f"e_env: {e_env}")
         logger.debug(f"two_e_cross: {two_e_cross}")
@@ -609,7 +615,7 @@ class NbedDriver:
         return localized_scf, v_emb
 
     def _delete_environment(
-        self, projector: ProjectorEnum, scf: StreamObject
+        self, projector: ProjectorTypes, scf: StreamObject
     ) -> StreamObject:
         """Remove enironment orbit from embedded ROHF object.
 
@@ -617,7 +623,7 @@ class NbedDriver:
         defined by the environment of the localized system
 
         Args:
-            projector (ProjectorEnum): The projector used to embed the system.
+            projector (ProjectorTypes): The projector used to embed the system.
             scf (StreamObject): The embedded SCF object.
 
         Returns:
@@ -689,7 +695,7 @@ class NbedDriver:
 
     def _delete_spin_environment(
         self,
-        projector: ProjectorEnum,
+        projector: ProjectorTypes,
         n_env_mo: int,
         mo_coeff: np.ndarray,
         mo_energy: np.ndarray,
@@ -702,7 +708,7 @@ class NbedDriver:
         defined by the environment of the localized system
 
         Args:
-            projector (ProjectorEnum): The projector used to embed the system.
+            projector (ProjectorTypes): The projector used to embed the system.
             n_env_mo (int): The number of molecular orbitals in the environment.
             mo_coeff (np.ndarray): The molecular orbitals.
             mo_energy (np.ndarray): The molecular orbital energies.
@@ -721,7 +727,7 @@ class NbedDriver:
         logger.debug(f"{environment_projector.shape=}")
 
         match projector:
-            case ProjectorEnum.HUZ:
+            case ProjectorTypes.HUZ:
                 # MOs which have the greatest overlap with the
                 overlap = np.einsum(
                     "ij, ki -> i",
@@ -732,7 +738,7 @@ class NbedDriver:
                 logger.debug(f"{overlap_by_size=}")
                 frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]
 
-            case ProjectorEnum.MU:
+            case ProjectorTypes.MU:
                 # Orbitals which have been shifted to have energy mu are removed
                 shift = mo_coeff.shape[-1] - n_env_mo
                 logger.debug(f"{shift=}")
@@ -767,7 +773,7 @@ class NbedDriver:
         logger.debug(f"{active_mo_occ=}")
         return active_mo_coeff, active_mo_energy, active_mo_occ
 
-    def _dft_in_dft(self, projection_method: ProjectorEnum) -> dict:
+    def _dft_in_dft(self, projection_method: ProjectorTypes) -> dict:
         """Return energy of DFT in DFT embedding.
 
         Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
@@ -851,14 +857,14 @@ class NbedDriver:
 
         logger.debug("Beginning Projection.")
         if (
-            self.config.projector in [ProjectorEnum.MU, ProjectorEnum.BOTH]
+            self.config.projector in [ProjectorTypes.MU, ProjectorTypes.BOTH]
             or init_huzinaga_rhf_with_mu
         ):
             local_hf = self._init_local_hf()
             embedded_scf, v_emb = self._mu_embed(local_hf, embedding_potential)
-            self.mu = self.collect_results(embedded_scf, v_emb, ProjectorEnum.MU)
+            self.mu = self.collect_results(embedded_scf, v_emb, ProjectorTypes.MU)
 
-        if self.config.projector in [ProjectorEnum.HUZ, ProjectorEnum.BOTH]:
+        if self.config.projector in [ProjectorTypes.HUZ, ProjectorTypes.BOTH]:
             local_hf = self._init_local_hf()
             dmat_initial_guess: Optional[tuple[NDArray]] = (
                 self.mu["scf"].make_rdm1() if init_huzinaga_rhf_with_mu else None
@@ -866,16 +872,18 @@ class NbedDriver:
             embedded_scf, v_emb = self._huzinaga_embed(
                 local_hf, embedding_potential, dmat_initial_guess
             )
-            self.huzinaga = self.collect_results(embedded_scf, v_emb, ProjectorEnum.HUZ)
+            self.huzinaga = self.collect_results(
+                embedded_scf, v_emb, ProjectorTypes.HUZ
+            )
 
         match self.config.projector:
-            case ProjectorEnum.MU:
+            case ProjectorTypes.MU:
                 self.embedded_scf = self.mu["scf"]
                 self.classical_energy = self.mu["classical_energy"]
-            case ProjectorEnum.HUZ:
+            case ProjectorTypes.HUZ:
                 self.embedded_scf = self.huzinaga["scf"]
                 self.classical_energy = self.huzinaga["classical_energy"]
-            case ProjectorEnum.BOTH:
+            case ProjectorTypes.BOTH:
                 logger.warning(
                     "Outputting both mu and huzinaga embedding results as tuple."
                 )
@@ -899,14 +907,14 @@ class NbedDriver:
         logger.info("Embedding complete.")
 
     def collect_results(
-        self, embedded_scf: StreamObject, v_emb: NDArray, projector: ProjectorEnum
+        self, embedded_scf: StreamObject, v_emb: NDArray, projector: ProjectorTypes
     ) -> dict:
         """Build a results dictionary.
 
         Args:
             embedded_scf (StreamObject): An embedded pyscf scf object.
             v_emb (NDArray): Embedding Potential
-            projector (ProjectorEnum): Which projector the result should use.
+            projector (ProjectorTypes): Which projector the result should use.
 
         Returns:
             dict: A dict of results.
@@ -935,15 +943,33 @@ class NbedDriver:
             )
 
         # Virtual localization
-        # TODO correlation energy correction???
-        if self.config.run_virtual_localization is True:
-            logger.debug("Performing virtual localization.")
-            result["cl"] = ConcentricLocalizer(
-                result["scf"],
-                self.config.n_active_atoms,
-                max_shells=self.config.max_shells,
-            )
-            result["scf"] = result["cl"].localize_virtual()
+        match self.config.virtual_localization:
+            case VirtualLocalizerTypes.CONCENTRIC:
+                logger.debug("Performing virtual Concentric Localization.")
+                result["cl"] = ConcentricLocalizer(
+                    result["scf"],
+                    self.config.n_active_atoms,
+                    max_shells=self.config.max_shells,
+                )
+                result["scf"] = result["cl"].localize_virtual()
+            case VirtualLocalizerTypes.PROJECTED_AO:
+                logger.debug(
+                    "Performing virtual Projected Atomic Orbital Localization."
+                )
+                result["pao"] = PAOLocalizer(
+                    result["scf"],
+                    self.config.n_active_atoms,
+                    (
+                        self.localized_system._c_loc_occ,
+                        self.localized_system._beta_c_loc_occ,
+                    ),
+                    norm_cutoff=self.config.norm_cutoff,
+                    overlap_cutoff=self.config.overlap_cutoff,
+                )
+            case _:
+                logger.debug(
+                    f"Driver does not have a method implemented for {self.config.virtual_localization}"
+                )
 
         result["e_rhf"] = (
             result["scf"].e_tot
@@ -1094,14 +1120,15 @@ def run_emb_ccsd(
     ccsd = cc.CCSD(emb_pyscf_scf_rhf, frozen=frozen)
     ccsd.conv_tol = convergence
     ccsd.max_memory = max_ram_memory
-    ccsd.verbose = 1
+    ccsd.verbose = 2
 
     e_ccsd_corr, _, _ = ccsd.kernel()
     logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
+    logger.info(f"CCSD Converged {ccsd.converged}")
     return ccsd, e_ccsd_corr
 
 
-def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorEnum) -> dict:
+def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
     """Return energy of DFT in DFT embedding.
 
     Note run_mu_shift (bool) and run_huzinaga (bool) flags define which method to use (can be both)
@@ -1120,11 +1147,11 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorEnum) -> dict:
     local_rks_same_functional = driver._init_local_ks(driver._global_ks.xc)
     hcore_std = local_rks_same_functional.get_hcore()
     match projection_method:
-        case ProjectorEnum.MU:
+        case ProjectorTypes.MU:
             result["scf_dft"], result["v_emb_dft"] = driver._mu_embed(
                 local_rks_same_functional, driver.embedding_potential
             )
-        case ProjectorEnum.HUZ:
+        case ProjectorTypes.HUZ:
             result["scf_dft"], result["v_emb_dft"] = driver._huzinaga_embed(
                 local_rks_same_functional, driver.embedding_potential
             )
