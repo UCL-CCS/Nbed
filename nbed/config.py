@@ -44,7 +44,6 @@ class VirtualLocalizerTypes(Enum):
 
     CONCENTRIC = "cl"
     PROJECTED_AO = "pao"
-    NONE = None
 
 
 XYZGeometry = Annotated[
