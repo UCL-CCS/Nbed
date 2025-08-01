@@ -36,6 +36,7 @@ def _get_spade_singular_values(
         linalg.fractional_matrix_power(ao_overlap, 0.5) @ occupied_orbitals
     )
     _, sigma, _ = linalg.svd(rotated_orbitals[:n_act_aos, :])
+    logger.debug("Singular Values: %s", sigma)
     return sigma
 
 
