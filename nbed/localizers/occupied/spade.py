@@ -45,7 +45,7 @@ class SPADELocalizer(OccupiedLocalizer):
         self.max_shells = max_shells
         match n_mo_overwrite:
             case (int(), int()):
-                logger.debug("Forcing use of %s MOs")
+                logger.debug(f"{n_mo_overwrite}=")
                 self.n_mo_overwrite = n_mo_overwrite
             case _:
                 logger.debug("Not overwriting n MOs")
@@ -82,13 +82,13 @@ class SPADELocalizer(OccupiedLocalizer):
             beta = None
         else:
             alpha = self._localize_spin(
-                self._global_scf.mo_coeff[0],
-                self._global_scf.mo_occ[0],
+                self._global_scf.mo_coeff[0, :, :],
+                self._global_scf.mo_occ[0, :],
                 self.n_mo_overwrite[0],
             )
             beta = self._localize_spin(
-                self._global_scf.mo_coeff[1],
-                self._global_scf.mo_occ[1],
+                self._global_scf.mo_coeff[1, :, :],
+                self._global_scf.mo_occ[1, :],
                 self.n_mo_overwrite[1],
             )
             # to ensure the same number of alpha and beta orbitals are included
@@ -148,9 +148,6 @@ class SPADELocalizer(OccupiedLocalizer):
         """
         logger.debug("Localising with SPADE.")
 
-        # We want the same partition for each spin.
-        # It wouldn't make sense to have different spin states be localized differently.
-
         n_occupied_orbitals = np.count_nonzero(occupancy)
         occupied_orbitals = c_matrix[:, :n_occupied_orbitals]
         logger.debug(f"{occupancy=}")
@@ -158,6 +155,11 @@ class SPADELocalizer(OccupiedLocalizer):
 
         n_act_aos = self._global_scf.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_aos} active AOs.")
+        if n_mo_overwrite is not None and n_act_aos < n_mo_overwrite:
+            logger.error("NMO overwrite is higher than number of occupied orbitals.")
+            raise ValueError(
+                "NMO overwrite is higher than number of occupied orbitals."
+            )
 
         ao_overlap = self._global_scf.get_ovlp()
 

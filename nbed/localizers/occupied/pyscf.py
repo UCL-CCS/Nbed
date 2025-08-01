@@ -215,7 +215,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         active_percentage_MO = numerator_all / denominator_all
 
         logger.debug("Virtual orbitals localized.")
-        logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(active_percentage_MO,4)}")
+        logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(active_percentage_MO, 4)}")
         logger.debug(f"threshold for active part: {self._virt_cutoff}")
 
         # NOT IN USE
