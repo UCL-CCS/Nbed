@@ -248,6 +248,8 @@ def test_cl_shell_numbers(global_rks, global_uks) -> None:
         == unrestricted_virt.shells[1]
     )
 
+def test_pao_localizer(global_rks, global_uks) -> None:
+    pass
 
 def test_ace_localizer(global_rks, global_uks) -> None:
     restricted = ACELocalizer(
