@@ -93,7 +93,7 @@ class NbedDriver:
         logger.info("Molecule input geometry: %s", self.config.geometry)
         # geometry is raw xyz string
         full_mol = gto.Mole(
-            atom=self.config.geometry[3:],
+            atom=self.config.geometry[2:],
             basis=self.config.basis,
             charge=self.config.charge,
             unit=self.config.unit,
@@ -966,6 +966,9 @@ class NbedDriver:
                     norm_cutoff=self.config.norm_cutoff,
                     overlap_cutoff=self.config.overlap_cutoff,
                 )
+                result["scf"] = result["pao"].localize_virtual()
+            case VirtualLocalizerTypes.DISABLE:
+                logger.debug("Not performing virtual localization.")
             case _:
                 logger.debug(
                     f"Driver does not have a method implemented for {self.config.virtual_localization}"

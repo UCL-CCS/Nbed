@@ -139,14 +139,16 @@ class SPADELocalizer(OccupiedLocalizer):
             np.ndarray: Localized C matrix of environment orbitals.
             np.ndarray: Localized C matrix of all occpied orbitals.
         """
-        logger.debug("Localising with SPADE.")
+        logger.debug("Localising spin with SPADE.")
+        logger.debug(f"{c_matrix.shape=}")
+        logger.debug(f"{occupancy=}")
+        logger.debug(f"{n_mo_overwrite=}")
 
         # We want the same partition for each spin.
         # It wouldn't make sense to have different spin states be localized differently.
 
         n_occupied_orbitals = np.count_nonzero(occupancy)
         occupied_orbitals = c_matrix[:, :n_occupied_orbitals]
-        logger.debug(f"{occupancy=}")
         logger.debug(f"{n_occupied_orbitals} occupied AOs.")
 
         n_act_aos = self._global_scf.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
@@ -174,7 +176,14 @@ class SPADELocalizer(OccupiedLocalizer):
             n_act_mos: int = n_mo_overwrite
         else:
             value_diffs = sigma[:-1] - sigma[1:]
-            n_act_mos: int = np.argmax(value_diffs) + 1
+            logger.debug("Singular value differences %s", value_diffs)
+            # It is possible to choose an active subsystem for which all
+            # singular values are 1 (i.e. the whole system)
+            # we want to avoid numerical error forcing random orbital assignment
+            if np.allclose(value_diffs, [0] * len(value_diffs)):
+                n_act_mos = len(sigma)
+            else:
+                n_act_mos: int = np.argmax(value_diffs) + 1
 
         n_env_mos = n_occupied_orbitals - n_act_mos
         logger.debug(f"{n_act_mos} active MOs.")

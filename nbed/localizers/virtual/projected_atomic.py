@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 from pyscf.lib import StreamObject
 from scipy.linalg import fractional_matrix_power
 
-from .base import VirtualLocalizer
+from nbed.localizers.virtual.base import VirtualLocalizer
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class PAOLocalizer(VirtualLocalizer):
         self,
         embedded_scf: StreamObject,
         n_active_atoms: int,
-        c_loc_occ: tuple(NDArray, NDArray | None),
+        c_loc_occ: tuple[NDArray, NDArray | None],
         norm_cutoff: float = 0.05,
         overlap_cutoff=1e-5,
     ):
@@ -38,56 +38,70 @@ class PAOLocalizer(VirtualLocalizer):
 
         if self.c_loc_occ[1] is None:
             logger.debug("Runing PAO for spinless system.")
-            virtuals = _localize__spin_pao(
+            virtuals = _localize_virtual_spin_pao(
                 self.c_loc_occ[0],
                 ao_overlap,
                 n_act_aos,
                 self.norm_cutoff,
                 self.overlap_cutoff,
             )
-
+            logger.debug(f"{virtuals.shape=}")
             occ_mo_coeff = self.embedded_scf.mo_coeff[:, self.embedded_scf.mo_occ > 0]
-            self.embedded_scf.mo_coeff = np.hstack((occ_mo_coeff, virtuals))
-            self.embedded_scf.mo_occ = self.embedded_scf.mo_occ[
-                : self.embedded_scf.mo_coeff.shape[-1]
-            ]
+            mo_coeff = np.hstack((occ_mo_coeff, virtuals))
+
+            n_mos = mo_coeff.shape[-1]
+            n_occ = np.count_nonzero(self.embedded_scf.mo_occ[0])
+            mo_occ = np.array(n_occ * [1] + (n_mos - n_occ) * [0])
 
         else:  # Restricted open shell
             logger.debug("Running PAO for each spin separately.")
-            alpha_virtuals = _localize__spin_pao(
+            alpha_virtuals = _localize_virtual_spin_pao(
                 self.c_loc_occ[0],
                 ao_overlap,
                 n_act_aos,
                 self.norm_cutoff,
                 self.overlap_cutoff,
             )
-            beta_virtuals = _localize__spin_pao(
+            beta_virtuals = _localize_virtual_spin_pao(
                 self.c_loc_occ[1],
                 ao_overlap,
                 n_act_aos,
                 self.norm_cutoff,
                 self.overlap_cutoff,
             )
-
-            occ_mo_coeff = self.embedded_scf.mo_coeff[
-                :, :, self.embedded_scf.mo_occ > 0
+            logger.debug(f"{alpha_virtuals.shape=}")
+            logger.debug(f"{beta_virtuals.shape=}")
+            alpha_occ_mo_coeff = self.embedded_scf.mo_coeff[0][
+                :, self.embedded_scf.mo_occ[0] > 0
             ]
-            self.embedded_scf.mo_coeff = np.vstack(
+            beta_occ_mo_coeff = self.embedded_scf.mo_coeff[1][
+                :, self.embedded_scf.mo_occ[1] > 0
+            ]
+            mo_coeff = np.array(
+                [
+                    np.hstack((alpha_occ_mo_coeff, alpha_virtuals)),
+                    np.hstack((beta_occ_mo_coeff, beta_virtuals)),
+                ]
+            )
+            n_mos = mo_coeff.shape[-1]
+            alpha_n_occ = np.count_nonzero(self.embedded_scf.mo_occ[0])
+            beta_n_occ = np.count_nonzero(self.embedded_scf.mo_occ[1])
+            mo_occ = np.vstack(
                 (
-                    np.hstack((occ_mo_coeff[0], alpha_virtuals)),
-                    np.hstack((occ_mo_coeff[1], beta_virtuals)),
+                    np.array(alpha_n_occ * [1] + (n_mos - alpha_n_occ) * [0]),
+                    np.array(beta_n_occ * [1] + (n_mos - beta_n_occ) * [0]),
                 )
             )
-            self.embedded_scf.mo_occ = self.embedded_scf.mo_occ[
-                :, : self.embedded_scf.mo_coeff.shape[-1]
-            ]
+
+        self.embedded_scf.mo_coeff = mo_coeff
+        self.embedded_scf.mo_occ = mo_occ
 
         return self.embedded_scf
 
     # where should the cutoff values come from?
 
 
-def _localize__spin_pao(
+def _localize_virtual_spin_pao(
     c_loc_occ: NDArray,
     ao_overlap: NDArray,
     n_act_aos: int,
@@ -124,6 +138,7 @@ def _localize__spin_pao(
 
     renormalized_paos = s_half @ truncated_paos
     logger.debug(f"{renormalized_paos=}")
+    logger.debug(f"{renormalized_paos.shape=}")
     logger.debug(f"{np.einsum("ij,ij->j", renormalized_paos, renormalized_paos)=}")
     renormalized_paos = renormalized_paos / np.sqrt(
         np.einsum("ij,ij->j", renormalized_paos, renormalized_paos)
@@ -134,14 +149,22 @@ def _localize__spin_pao(
 
     diagonalized_overlap = renormalized_paos.T @ ao_overlap @ renormalized_paos
 
+    logger.debug(f"{diagonalized_overlap.shape=}")
     logger.debug(f"{diagonalized_overlap=}")
 
     eigvals, eigvecs = np.linalg.eigh(diagonalized_overlap)
 
-    logger.debug(eigvals)
+    logger.debug(f"Overlap eigenvalues {eigvals}")
+    logger.debug(f"{overlap_cutoff=}")
 
+    logger.debug(f"{eigvecs.shape=}")
     # How to transform the truncated paos?
-    final_paos = eigvecs[:, eigvals > overlap_cutoff]
-    logger.debug(final_paos)
+    final_paos = renormalized_paos[:, eigvals > overlap_cutoff]
+    logger.debug(f"{final_paos=}")
 
+    if final_paos.shape[-1] == 0:
+        logger.warning("No projected atomic orbitals!")
+        logger.warning(
+            "This suggests your active region has no virtual Atomic Orbitals."
+        )
     return final_paos

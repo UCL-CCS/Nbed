@@ -135,6 +135,9 @@ class ConcentricLocalizer(VirtualLocalizer):
             np.ndarray: The update MO coefficient matrix
         """
         logger.debug("Running concentric localiztion for single spin.")
+        logger.debug(f"{occ=}")
+        logger.debug(f"{mo_coeff.shape=}")
+        logger.debug(f"{fock_operator.shape=}")
 
         effective_virt = mo_coeff[:, occ == 0]
         logger.debug(f"N effective virtuals: {effective_virt.shape}")

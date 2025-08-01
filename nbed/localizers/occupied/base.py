@@ -45,7 +45,7 @@ class OccupiedLocalizer(ABC):
         n_active_atoms: int,
     ):
         """Initialise class."""
-        logger.debug("Initialising LocalizerEnum.")
+        logger.debug("Initialising OccupiedLocalizerTypes.")
         if global_scf.mo_coeff is None:
             logger.debug("SCF method not initialised, running now...")
             global_scf.run()
