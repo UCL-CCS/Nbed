@@ -18,13 +18,15 @@ class VirtualLocalizer(ABC):
         n_active_atoms (int): Number of active atoms in the system.
     """
 
-    def __init__(self, embedded_scf: StreamObject):
+    def __init__(self, embedded_scf: StreamObject, n_active_atoms: int):
         """Initialize VirtualLocalizer.
 
         Args:
             embedded_scf (StreamObject): A pyscf SCF object.
+            n_active_atoms (int): The number of atoms in the active region.
         """
         self.embedded_scf = embedded_scf
+        self._n_active_atoms = n_active_atoms
 
     @abstractmethod
     def localize_virtual(self) -> gto.Mole:
