@@ -8,7 +8,7 @@ from numpy import isclose
 from pyscf.lib.misc import StreamObject
 
 from nbed.driver import NbedDriver
-from nbed.config import NbedConfig, ProjectorEnum
+from nbed.config import NbedConfig, ProjectorTypes
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def mu_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = ProjectorEnum.MU
+    nbed_config.projector = ProjectorTypes.MU
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
@@ -24,7 +24,7 @@ def mu_driver(nbed_config) -> NbedDriver:
 
 @pytest.fixture
 def huz_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = ProjectorEnum.HUZ
+    nbed_config.projector = ProjectorTypes.HUZ
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
@@ -32,7 +32,7 @@ def huz_driver(nbed_config) -> NbedDriver:
 
 @pytest.fixture
 def both_driver(nbed_config) -> NbedDriver:
-    nbed_config.projector = ProjectorEnum.BOTH
+    nbed_config.projector = ProjectorTypes.BOTH
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
@@ -81,8 +81,8 @@ def test_global_fci(request, driver):
 
 
 def test_restricted_dft_in_dft(mu_driver, huz_driver):
-    mu_did = mu_driver._dft_in_dft(ProjectorEnum.MU)
-    huz_did = huz_driver._dft_in_dft(ProjectorEnum.HUZ)
+    mu_did = mu_driver._dft_in_dft(ProjectorTypes.MU)
+    huz_did = huz_driver._dft_in_dft(ProjectorTypes.HUZ)
     assert np.isclose(mu_did["e_dft_in_dft"], mu_driver._global_ks().e_tot)
     assert np.isclose(huz_did["e_dft_in_dft"], huz_driver._global_ks().e_tot)
     assert np.isclose(mu_did["e_dft_in_dft"], huz_did["e_dft_in_dft"])
