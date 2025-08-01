@@ -11,6 +11,7 @@ Major refactor, with several breaking changes!
 ### Added
 - `NbedConfig` pydantic model to validate user input.
 - `savefile` config option used to save driver output to json file.
+- `PAOLocalizer` Virtual orbital localizaion with Projected Atomic Orbitals.
 
 ### Removed
 - `HamiltonianConverter` removed.
@@ -21,6 +22,7 @@ Major refactor, with several breaking changes!
 - `NbedDriver` automatically calls `HamiltonianBuilder.build()`, adding output to results as `second_quantised`.
 - Removed underscore from `driver._huzinaga` and `driver._mu`.
 - Driver defaults to *unrestricted* for both whole molecule and environment, passing charge and spin to environment based on spin-aware localization.
+- Config `run_virtual_localization` removed, with new flag `virtual_localizer` allowing for "cl" or "pao", defaulting to "cl".
 
 ## [0.0.9]
 ### Fixed
