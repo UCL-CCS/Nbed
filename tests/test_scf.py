@@ -13,12 +13,7 @@ def dft_potential(spinless_driver) -> NDArray:
 
 @pytest.fixture()
 def dm_environment(spinless_driver) -> NDArray:
-    return np.array(
-        [
-            spinless_driver.localized_system.dm_enviro,
-            spinless_driver.localized_system.beta_dm_enviro,
-        ]
-    )
+    return spinless_driver.localized_system.dm_enviro
 
 
 def test_rks_output(water_rks, dft_potential, dm_environment):

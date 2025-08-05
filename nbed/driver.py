@@ -14,6 +14,7 @@ from nbed.localizers import (
     BOYSLocalizer,
     ConcentricLocalizer,
     IBOLocalizer,
+    LocalizedSystem,
     OccupiedLocalizer,
     PAOLocalizer,
     PMLocalizer,
@@ -56,7 +57,7 @@ class NbedDriver:
         logger.debug("Initialising NbedDriver with config:")
         logger.debug(config.model_dump_json())
         self.config = config
-        self.localized_system: OccupiedLocalizer
+        self.localized_system: LocalizedSystem
         self.two_e_cross: np.typing.NDArray
         self.electron: int
         self.mu: dict = None
@@ -189,39 +190,42 @@ class NbedDriver:
 
         return global_ks
 
-    def _localize(self) -> OccupiedLocalizer:
+    def _localize(self) -> LocalizedSystem:
         """Run the localizer class."""
         logger.debug(f"Getting localized system using {self.config.localization}.")
 
+        localizer: OccupiedLocalizer
         match self.config.localization:
             case OccupiedLocalizerTypes.SPADE:
-                return SPADELocalizer(
+                localizer = SPADELocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     max_shells=self.config.max_shells,
                     n_mo_overwrite=self.n_mo_overwrite,
                 )
             case OccupiedLocalizerTypes.BOYS:
-                return BOYSLocalizer(
+                localizer = BOYSLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     occ_cutoff=self.config.occupied_threshold,
                     virt_cutoff=self.config.virtual_threshold,
                 )
             case OccupiedLocalizerTypes.IBO:
-                return IBOLocalizer(
+                localizer = IBOLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     occ_cutoff=self.config.occupied_threshold,
                     virt_cutoff=self.config.virtual_threshold,
                 )
             case OccupiedLocalizerTypes.PM:
-                return PMLocalizer(
+                localizer = PMLocalizer(
                     self._global_ks,
                     self.config.n_active_atoms,
                     occ_cutoff=self.config.occupied_threshold,
                     virt_cutoff=self.config.virtual_threshold,
                 )
+        self.localizer = localizer
+        return localizer.localize()
 
     def _init_local_hf(self) -> Union[scf.uhf.UHF, scf.ROHF]:
         """Function to build embedded HF object for active subsystem.
@@ -262,23 +266,24 @@ class NbedDriver:
             gto.Mole: An embedded molecule object.
         """
         embedded_mol: gto.Mole = self._build_mol()
-        if self.localized_system.beta_active_MO_inds is None:
-            n_elec = len(self.localized_system.active_MO_inds)
-            logger.debug(f"embedded nelec {n_elec}")
+        match self.localized_system.active_mo_inds.ndim:
+            case 1:
+                n_elec = len(self.localized_system.active_mo_inds)
+                logger.debug(f"embedded nelec {n_elec}")
 
-            embedded_mol.nelectron = 2 * n_elec
-            embedded_mol.nelec = (n_elec, n_elec)
-            embedded_mol.spin = 0
-            self._electron = embedded_mol.nelectron
-        else:
-            n_elec_alpha = len(self.localized_system.active_MO_inds)
-            n_elec_beta = len(self.localized_system.beta_active_MO_inds)
-            logger.debug(f"embedded nelec {n_elec_alpha, n_elec_beta}")
+                embedded_mol.nelectron = 2 * n_elec
+                embedded_mol.nelec = (n_elec, n_elec)
+                embedded_mol.spin = 0
+                self._electron = embedded_mol.nelectron
+            case 2:
+                n_elec_alpha = len(self.localized_system.active_mo_inds[0, :])
+                n_elec_beta = len(self.localized_system.active_mo_inds[1, :])
+                logger.debug(f"embedded nelec {n_elec_alpha, n_elec_beta}")
 
-            embedded_mol.nelectron = n_elec_alpha + n_elec_beta
-            embedded_mol.nelec = (n_elec_alpha, n_elec_beta)
-            embedded_mol.spin = n_elec_alpha - n_elec_beta
-            self._electron = embedded_mol.nelectron
+                embedded_mol.nelectron = n_elec_alpha + n_elec_beta
+                embedded_mol.nelec = (n_elec_alpha, n_elec_beta)
+                embedded_mol.spin = n_elec_alpha - n_elec_beta
+                self._electron = embedded_mol.nelectron
         return embedded_mol
 
     def _init_local_ks(self, xc_functional: str) -> Union[dft.uks.UKS, dft.ROKS]:
@@ -368,23 +373,8 @@ class NbedDriver:
             logger.debug(f"{two_e_term.shape=}")
             return e_act, two_e_term, j_mat
 
-        if localized_system.beta_dm_active is None:
-            logger.debug("Using spinless density matrix.")
-            dm_act = localized_system.dm_active
-            dm_env = localized_system.dm_enviro
-        else:
-            dm_act = np.array(
-                [
-                    localized_system.dm_active,
-                    localized_system.beta_dm_active,
-                ]
-            )
-            dm_env = np.array(
-                [
-                    localized_system.dm_enviro,
-                    localized_system.beta_dm_enviro,
-                ]
-            )
+        dm_act = localized_system.dm_active
+        dm_env = localized_system.dm_enviro
 
         (e_act, two_e_act, j_act) = _ks_components(global_ks, dm_act)
         # logger.debug(e_act, alpha_e_xc_act)
@@ -395,32 +385,31 @@ class NbedDriver:
         logger.debug("Calculating two electron cross subsystem energy.")
         total_dm = localized_system.dm_active + localized_system.dm_enviro
 
-        if localized_system.beta_dm_active is not None:
-            total_dm += (
-                localized_system.beta_dm_active + localized_system.beta_dm_enviro
-            )
+        if localized_system.dm_active.ndim == 3:
+            total_dm = total_dm[0, :, :] + total_dm[1, :, :]
 
         two_e_term_total = global_ks.get_veff(dm=total_dm)
         logger.debug(f"{total_dm.shape=}")
         logger.debug(f"{two_e_term_total.shape=}")
         e_xc_total = two_e_term_total.exc
 
-        if localized_system.beta_dm_active is None:
-            j_cross = 0.5 * (
-                np.einsum("ij,ij", localized_system.dm_active, j_env)
-                + np.einsum("ij,ij", localized_system.dm_enviro, j_act)
-            )
-        else:
-            j_cross = 0.5 * (
-                np.einsum("ij,ij", localized_system.dm_active, j_env[0])
-                + np.einsum("ij,ij", localized_system.dm_enviro, j_act[0])
-                + np.einsum("ij,ij", localized_system.dm_active, j_env[1])
-                + np.einsum("ij,ij", localized_system.dm_enviro, j_act[1])
-                + np.einsum("ij,ij", localized_system.beta_dm_active, j_env[1])
-                + np.einsum("ij,ij", localized_system.beta_dm_enviro, j_act[1])
-                + np.einsum("ij,ij", localized_system.beta_dm_active, j_env[0])
-                + np.einsum("ij,ij", localized_system.beta_dm_enviro, j_act[0])
-            )
+        match localized_system.dm_active.ndim:
+            case 2:
+                j_cross = 0.5 * (
+                    np.einsum("ij,ij", localized_system.dm_active, j_env)
+                    + np.einsum("ij,ij", localized_system.dm_enviro, j_act)
+                )
+            case 3:
+                j_cross = 0.5 * (
+                    np.einsum("ij,ij", localized_system.dm_active[0], j_env[0])
+                    + np.einsum("ij,ij", localized_system.dm_enviro[0], j_act[0])
+                    + np.einsum("ij,ij", localized_system.dm_active[0], j_env[1])
+                    + np.einsum("ij,ij", localized_system.dm_enviro[0], j_act[1])
+                    + np.einsum("ij,ij", localized_system.dm_active[1], j_env[1])
+                    + np.einsum("ij,ij", localized_system.dm_enviro[1], j_act[1])
+                    + np.einsum("ij,ij", localized_system.dm_active[1], j_env[0])
+                    + np.einsum("ij,ij", localized_system.dm_enviro[1], j_act[0])
+                )
         logger.debug(f"{j_cross=}")
 
         # Because of projection we expect kinetic term to be zero
@@ -447,14 +436,15 @@ class NbedDriver:
         logger.debug("Getting Environment Projector.")
         s_mat = self._global_ks.get_ovlp()
         logger.debug(f"{s_mat.shape=}")
-        env_projector_alpha = s_mat @ self.localized_system.dm_enviro @ s_mat
+        env_projector_alpha = s_mat @ self.localized_system.dm_enviro[0] @ s_mat
 
-        if self.localized_system.beta_dm_enviro is None:
-            env_projector = env_projector_alpha
+        match self.localized_system.dm_enviro.ndim:
+            case 2:
+                env_projector = env_projector_alpha
 
-        else:
-            env_projector_beta = s_mat @ self.localized_system.beta_dm_enviro @ s_mat
-            env_projector = np.array([env_projector_alpha, env_projector_beta])
+            case 3:
+                env_projector_beta = s_mat @ self.localized_system.dm_enviro[1] @ s_mat
+                env_projector = np.array([env_projector_alpha, env_projector_beta])
         logger.debug(f"{env_projector.shape=}")
         return env_projector
 
@@ -566,15 +556,7 @@ class NbedDriver:
         """
         logger.debug("Starting Huzinaga embedding method.")
         # We need to run our own SCF method here to update the potential.
-        if self.localized_system.beta_dm_enviro is None:
-            total_enviro_dm = self.localized_system.dm_enviro
-        else:
-            total_enviro_dm = np.array(
-                [
-                    self.localized_system.dm_enviro,
-                    self.localized_system.beta_dm_enviro,
-                ]
-            )
+
         localized_scf = active_scf
         (
             c_active_embedded,
@@ -585,7 +567,7 @@ class NbedDriver:
         ) = huzinaga_scf(
             localized_scf,
             embedding_potential,
-            total_enviro_dm,
+            self.localized_system.dm_enviro,
             dm_conv_tol=1e-6,
             dm_initial_guess=dmat_initial_guess,
         )
@@ -598,7 +580,7 @@ class NbedDriver:
         v_emb = huzinaga_op_std + embedding_potential
         localized_scf.get_hcore = lambda *args: hcore_std + v_emb
 
-        if self.localized_system.spinless is False:
+        if self.localized_system.c_active.ndim == 3:
             localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
 
         localized_scf.mo_coeff = c_active_embedded
@@ -615,80 +597,80 @@ class NbedDriver:
         return localized_scf, v_emb
 
     def _delete_environment(
-        self, projector: ProjectorTypes, scf: StreamObject
+        self,
+        projector: ProjectorTypes,
+        scf: StreamObject,
+        localized_system: LocalizedSystem,
+        env_projector: NDArray,
     ) -> StreamObject:
         """Remove enironment orbit from embedded ROHF object.
 
         This function removes (in fact deletes completely) the molecular orbitals
-        defined by the environment of the localized system
+        defined by the environment of the localized system.
 
         Args:
             projector (ProjectorTypes): The projector used to embed the system.
             scf (StreamObject): The embedded SCF object.
+            localized_system (LocalizedSystem): Occupied Localization results for a molecule.
+            env_projector (NDArray): Projector onto the environment region.
 
         Returns:
             StreamObject: Returns input, but with environment orbitals deleted.
         """
         logger.debug("Deleting environment from SCF object.")
 
-        if self.localized_system.beta_c_enviro is None:
-            n_env_mos = self.localized_system.c_enviro.shape[-1]
-            logger.debug(f"{n_env_mos=}")
-            scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
-                projector,
-                n_env_mos,
-                scf.mo_coeff,
-                scf.mo_energy,
-                scf.mo_occ,
-                self._env_projector,
-            )
-        else:
-            #
-            n_env_mos = len(
-                set(self.localized_system.enviro_MO_inds).union(
-                    self.localized_system.beta_enviro_MO_inds
-                )
-            )
-            logger.debug(f"{n_env_mos=}")
-            (
-                mo_coeff_alpha,
-                mo_energy_alpha,
-                mo_occ_alpha,
-            ) = self._delete_spin_environment(
-                projector,
-                n_env_mos,
-                scf.mo_coeff[0],
-                scf.mo_energy[0],
-                scf.mo_occ[0],
-                self._env_projector[0],
-            )
-            (mo_coeff_beta, mo_energy_beta, mo_occ_beta) = (
-                self._delete_spin_environment(
+        match localized_system.c_enviro.ndim:
+            case 2:
+                n_env_mos = localized_system.c_enviro.shape[-1]
+                logger.debug(f"{n_env_mos=}")
+                scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
                     projector,
                     n_env_mos,
-                    scf.mo_coeff[1],
-                    scf.mo_energy[1],
-                    scf.mo_occ[1],
-                    self._env_projector[1],
+                    scf.mo_coeff,
+                    scf.mo_energy,
+                    scf.mo_occ,
+                    env_projector,
                 )
-            )
-
-            logger.debug(f"{mo_coeff_alpha.shape=}")
-            logger.debug(f"{mo_energy_alpha.shape=}")
-            logger.debug(f"{mo_occ_alpha.shape=}")
-            logger.debug(f"{mo_coeff_beta.shape=}")
-            logger.debug(f"{mo_energy_beta.shape=}")
-            logger.debug(f"{mo_occ_beta.shape=}")
-            # Need to do it this way or there are broadcasting issues
-            scf.mo_coeff = np.array(
-                [mo_coeff_alpha, mo_coeff_beta]
-            )  # np.array([mo_coeff[0], mo_coeff[1]])
-            scf.mo_energy = np.array(
-                [mo_energy_alpha, mo_energy_beta]
-            )  # np.array([mo_energy[0], mo_energy[1]])
-            scf.mo_occ = np.array(
-                [mo_occ_alpha, mo_occ_beta]
-            )  # np.array([mo_occ[0], mo_occ[1]])
+            case 3:
+                #
+                n_env_mos = len(
+                    set(localized_system.enviro_mo_inds[0]).union(
+                        localized_system.enviro_mo_inds[1]
+                    )
+                )
+                logger.debug(f"{n_env_mos=}")
+                (
+                    mo_coeff_alpha,
+                    mo_energy_alpha,
+                    mo_occ_alpha,
+                ) = self._delete_spin_environment(
+                    projector,
+                    n_env_mos,
+                    scf.mo_coeff[0],
+                    scf.mo_energy[0],
+                    scf.mo_occ[0],
+                    env_projector[0],
+                )
+                (mo_coeff_beta, mo_energy_beta, mo_occ_beta) = (
+                    self._delete_spin_environment(
+                        projector,
+                        n_env_mos,
+                        scf.mo_coeff[1],
+                        scf.mo_energy[1],
+                        scf.mo_occ[1],
+                        env_projector[1],
+                    )
+                )
+                # Need to do it this way or there are broadcasting issues
+                scf.mo_coeff = np.array(
+                    [mo_coeff_alpha, mo_coeff_beta]
+                )  # np.array([mo_coeff[0], mo_coeff[1]])
+                scf.mo_energy = np.array(
+                    [mo_energy_alpha, mo_energy_beta]
+                )  # np.array([mo_energy[0], mo_energy[1]])
+                scf.mo_occ = np.array(
+                    [mo_occ_alpha, mo_occ_beta]
+                )  # np.array([mo_occ[0], mo_occ[1]])
 
         logger.debug("Environment deleted.")
         return scf
@@ -813,8 +795,8 @@ class NbedDriver:
 
         self.localized_system = self._localize()
         logger.info("Indices of embedded electrons:")
-        logger.info(self.localized_system.active_MO_inds)
-        logger.info(self.localized_system.enviro_MO_inds)
+        logger.info(self.localized_system.active_mo_inds)
+        logger.info(self.localized_system.enviro_mo_inds)
 
         # Run subsystem DFT (calls localized rks)
         self.e_act, self.e_env, self.two_e_cross = self._subsystem_dft(
@@ -823,15 +805,6 @@ class NbedDriver:
         logger.debug("Getting global DFT potential to optimize embedded calc in.")
 
         total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
-        if self.localized_system.beta_dm_active is not None:
-            logger.debug("Adding beta spin density matrix")
-            total_dm = np.array(
-                [
-                    total_dm,
-                    self.localized_system.beta_dm_active
-                    + self.localized_system.beta_dm_enviro,
-                ]
-            )
 
         logger.debug(f"{self._global_ks.get_veff().shape=}")
         logger.debug(f"{self._global_ks.get_veff(dm=total_dm).shape=}")
@@ -839,17 +812,8 @@ class NbedDriver:
         logger.debug(f"{total_dm.shape=}")
         logger.debug(f"{g_act_and_env.shape=}")
 
-        if self.localized_system.beta_dm_active is None:
-            g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
-        else:
-            g_act = self._global_ks.get_veff(
-                dm=np.array(
-                    [
-                        self.localized_system.dm_active,
-                        self.localized_system.beta_dm_active,
-                    ]
-                )
-            )
+        g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
+
         embedding_potential = g_act_and_env - g_act
         self.embedding_potential = embedding_potential
 
@@ -862,7 +826,7 @@ class NbedDriver:
         ):
             local_hf = self._init_local_hf()
             embedded_scf, v_emb = self._mu_embed(local_hf, embedding_potential)
-            self.mu = self.collect_results(embedded_scf, v_emb, ProjectorTypes.MU)
+            self.mu = self.embed_post_projector(embedded_scf, v_emb, ProjectorTypes.MU)
 
         if self.config.projector in [ProjectorTypes.HUZ, ProjectorTypes.BOTH]:
             local_hf = self._init_local_hf()
@@ -872,7 +836,7 @@ class NbedDriver:
             embedded_scf, v_emb = self._huzinaga_embed(
                 local_hf, embedding_potential, dmat_initial_guess
             )
-            self.huzinaga = self.collect_results(
+            self.huzinaga = self.embed_post_projector(
                 embedded_scf, v_emb, ProjectorTypes.HUZ
             )
 
@@ -906,10 +870,10 @@ class NbedDriver:
 
         logger.info("Embedding complete.")
 
-    def collect_results(
+    def embed_post_projector(
         self, embedded_scf: StreamObject, v_emb: NDArray, projector: ProjectorTypes
     ) -> dict:
-        """Build a results dictionary.
+        """Projector-dependent components of the embedding procedure.
 
         Args:
             embedded_scf (StreamObject): An embedded pyscf scf object.
@@ -923,24 +887,27 @@ class NbedDriver:
         result["scf"] = embedded_scf.copy()
         result["v_emb"] = v_emb
         result["mo_energies_emb_pre_del"] = result["scf"].mo_energy
-        result["scf"] = self._delete_environment(projector, result["scf"])
+        result["scf"] = self._delete_environment(
+            projector, result["scf"], self.localized_system, self._env_projector
+        )
         result["mo_energies_emb_post_del"] = result["scf"].mo_energy
 
         logger.info(f"V emb mean {projector}: {np.mean(result['v_emb'])}")
 
         # calculate correction
-        if self.localized_system.beta_dm_active is None:
-            result["correction"] = np.einsum(
-                "ij,ij", result["v_emb"], self.localized_system.dm_active
-            )
-            result["beta_correction"] = 0
-        else:
-            result["correction"] = np.einsum(
-                "ij,ij", result["v_emb"][0], self.localized_system.dm_active
-            )
-            result["beta_correction"] = np.einsum(
-                "ij,ij", result["v_emb"][1], self.localized_system.beta_dm_active
-            )
+        match self.localized_system.dm_active.ndim:
+            case 2:
+                result["correction"] = np.einsum(
+                    "ij,ij", result["v_emb"], self.localized_system.dm_active
+                )
+                result["beta_correction"] = 0
+            case 3:
+                result["correction"] = np.einsum(
+                    "ij,ij", result["v_emb"][0], self.localized_system.dm_active[0]
+                )
+                result["beta_correction"] = np.einsum(
+                    "ij,ij", result["v_emb"][1], self.localized_system.dm_active[1]
+                )
 
         # Virtual localization
         match self.config.virtual_localization:
@@ -959,10 +926,7 @@ class NbedDriver:
                 result["pao"] = PAOLocalizer(
                     result["scf"],
                     self.config.n_active_atoms,
-                    (
-                        self.localized_system._c_loc_occ,
-                        self.localized_system._beta_c_loc_occ,
-                    ),
+                    self.localized_system.c_loc_occ,
                     norm_cutoff=self.config.norm_cutoff,
                     overlap_cutoff=self.config.overlap_cutoff,
                 )
@@ -1158,53 +1122,59 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
             result["scf_dft"], result["v_emb_dft"] = driver._huzinaga_embed(
                 local_rks_same_functional, driver.embedding_potential
             )
-    result["scf_dft"] = driver._delete_environment(projection_method, result["scf_dft"])
+    result["scf_dft"] = driver._delete_environment(
+        projection_method,
+        result["scf_dft"],
+        driver.localized_system,
+        driver._env_projector,
+    )
 
-    if driver.localized_system.beta_dm_active is not None:
-        y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
+    match driver.localized_system.dm_active.ndim:
+        case 2:
+            y_emb = result["scf_dft"].make_rdm1()
 
-        # calculate correction
-        result["dft_correction"] = np.einsum(
-            "ij,ij",
-            result["v_emb_dft"][0],
-            (y_emb_alpha - driver.localized_system.dm_active),
-        )
-
-        result["dft_correction_beta"] = np.einsum(
-            "ij,ij",
-            result["v_emb_dft"][1],
-            (y_emb_beta - driver.localized_system.beta_dm_active),
-        )
-
-        veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
-
-        rks_e_elec = (
-            veff.exc
-            + veff.ecoul
-            + np.einsum(
+            # calculate correction
+            result["dft_correction"] = np.einsum(
                 "ij,ij",
-                hcore_std,
-                y_emb_alpha,
+                result["v_emb_dft"],
+                (y_emb - driver.localized_system.dm_active),
             )
-            + np.einsum(
+            veff = result["scf_dft"].get_veff(dm=y_emb)
+            result["dft_correction_beta"] = 0
+            rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
+
+        case 3:
+            y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
+
+            # calculate correction
+            result["dft_correction"] = np.einsum(
                 "ij,ij",
-                hcore_std,
-                y_emb_beta,
+                result["v_emb_dft"][0],
+                (y_emb_alpha - driver.localized_system.dm_active[0]),
             )
-        )
 
-    else:
-        y_emb = result["scf_dft"].make_rdm1()
+            result["dft_correction_beta"] = np.einsum(
+                "ij,ij",
+                result["v_emb_dft"][1],
+                (y_emb_beta - driver.localized_system.dm_active[1]),
+            )
 
-        # calculate correction
-        result["dft_correction"] = np.einsum(
-            "ij,ij",
-            result["v_emb_dft"],
-            (y_emb - driver.localized_system.dm_active),
-        )
-        veff = result["scf_dft"].get_veff(dm=y_emb)
-        result["dft_correction_beta"] = 0
-        rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
+            veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
+
+            rks_e_elec = (
+                veff.exc
+                + veff.ecoul
+                + np.einsum(
+                    "ij,ij",
+                    hcore_std,
+                    y_emb_alpha,
+                )
+                + np.einsum(
+                    "ij,ij",
+                    hcore_std,
+                    y_emb_beta,
+                )
+            )
 
     result["e_dft_in_dft"] = (
         rks_e_elec

@@ -6,7 +6,7 @@ import numpy as np
 from pyscf import lib
 from scipy import linalg
 
-from .base import OccupiedLocalizer
+from .base import LocalizedSystem, OccupiedLocalizer
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +26,9 @@ class SPADELocalizer(OccupiedLocalizer):
         c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
         dm_active (np.array): active system density matrix
         dm_enviro (np.array): environment system density matrix
-        active_MO_inds (np.array): 1D array of active occupied MO indices
-        enviro_MO_inds (np.array): 1D array of environment occupied MO indices
-        _c_loc_occ (np.array): C matrix of localized occupied MOs
+        active_mo_inds (np.array): 1D array of active occupied MO indices
+        enviro_mo_inds (np.array): 1D array of environment occupied MO indices
+        c_loc_occ (np.array): C matrix of localized occupied MOs
 
     Methods:
         run: Main function to run localization.
@@ -43,7 +43,6 @@ class SPADELocalizer(OccupiedLocalizer):
     ):
         """Initialize SPADE Localizer object."""
         self.max_shells = max_shells
-        self.n_mo_overwrite = (None, None) if n_mo_overwrite is None else n_mo_overwrite
         self.shells = None
         self.singular_values = None
         self.enviro_selection_condition = None
@@ -51,86 +50,21 @@ class SPADELocalizer(OccupiedLocalizer):
         super().__init__(
             global_scf,
             n_active_atoms,
+            n_mo_overwrite,
         )
-
-    def _localize(
-        self,
-    ) -> tuple[tuple, tuple | None]:
-        """Localise orbitals using SPADE.
-
-        Returns:
-            active_MO_inds (np.array): 1D array of active occupied MO indices
-            enviro_MO_inds (np.array): 1D array of environment occupied MO indices
-            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
-            c_enviro (np.array): C matrix of localized occupied ennironment MOs
-            c_loc_occ (np.array): full C matrix of localized occupied MOs
-        """
-        if self.spinless:
-            logger.debug("Running SPADE for only one spin.")
-            alpha = self._localize_spin(
-                self._global_scf.mo_coeff,
-                self._global_scf.mo_occ,
-                self.n_mo_overwrite[0],
-            )
-            beta = None
-        else:
-            alpha = self._localize_spin(
-                self._global_scf.mo_coeff[0],
-                self._global_scf.mo_occ[0],
-                self.n_mo_overwrite[0],
-            )
-            beta = self._localize_spin(
-                self._global_scf.mo_coeff[1],
-                self._global_scf.mo_occ[1],
-                self.n_mo_overwrite[1],
-            )
-            # to ensure the same number of alpha and beta orbitals are included
-            # use the sum of occupancies
-            if set(alpha[0]) != set(beta[0]) or set(alpha[1]) != set(beta[1]):
-                logger.debug(
-                    "Recalculating occupied embedded C matrices to enforce equal number between spins."
-                )
-                mo_occ_sum = np.sum(self._global_scf.mo_occ, axis=0)
-                alpha_consistent = self._localize_spin(
-                    self._global_scf.mo_coeff[0],
-                    mo_occ_sum,
-                    self.n_mo_overwrite[0],
-                )
-                beta_consistent = self._localize_spin(
-                    self._global_scf.mo_coeff[1],
-                    mo_occ_sum,
-                    self.n_mo_overwrite[1],
-                )
-
-                alpha = (
-                    alpha[0],
-                    alpha[1],
-                    alpha_consistent[2],
-                    alpha_consistent[3],
-                    alpha_consistent[4],
-                )
-                beta = (
-                    beta[0],
-                    beta[1],
-                    beta_consistent[2],
-                    beta_consistent[3],
-                    beta_consistent[4],
-                )
-
-        return (alpha, beta)
 
     def _localize_spin(
         self,
         c_matrix: np.ndarray,
         occupancy: np.ndarray,
         n_mo_overwrite: int | None = None,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> LocalizedSystem:
         """Localize orbitals of one spin using SPADE.
 
         Args:
             c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
             occupancy (np.ndarray): Occupancy of orbitals.
-            n_mo_overwrite (int): Number of molecular orbitals to use in active region. Overwrite SVD based value.
+            n_mo_overwrite (int | None): Overwrite the number of active molecular orbitals.
 
         Returns:
             np.ndarray: Indices of active molecular orbitals
@@ -190,8 +124,8 @@ class SPADELocalizer(OccupiedLocalizer):
         logger.debug(f"{n_env_mos} environment MOs.")
 
         # get active and enviro indices
-        active_MO_inds = np.arange(n_act_mos)
-        enviro_MO_inds = np.arange(n_act_mos, n_act_mos + n_env_mos)
+        active_mo_inds = np.arange(n_act_mos)
+        enviro_mo_inds = np.arange(n_act_mos, n_act_mos + n_env_mos)
 
         # Defining active and environment orbitals and density
         c_active = occupied_orbitals @ right_vectors.T[:, :n_act_mos]
@@ -207,4 +141,6 @@ class SPADELocalizer(OccupiedLocalizer):
                 sigma,
             )
 
-        return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
+        return LocalizedSystem(
+            active_mo_inds, enviro_mo_inds, c_active, c_enviro, c_loc_occ
+        )

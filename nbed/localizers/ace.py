@@ -63,6 +63,7 @@ class ACELocalizer:
         localized_systems = []
         for scf_object in self.global_scf_list:
             loc = SPADELocalizer(scf_object, self.n_active_atoms, self.max_shells)
+            loc.localize()
             localized_systems.append(loc)
 
         # only does restricted atm

@@ -19,7 +19,7 @@ class PAOLocalizer(VirtualLocalizer):
         self,
         embedded_scf: StreamObject,
         n_active_atoms: int,
-        c_loc_occ: tuple[NDArray, NDArray | None],
+        c_loc_occ: NDArray,
         norm_cutoff: float = 0.05,
         overlap_cutoff=1e-5,
     ):
@@ -36,62 +36,65 @@ class PAOLocalizer(VirtualLocalizer):
         ]
         ao_overlap = self.embedded_scf.get_ovlp()
 
-        if self.c_loc_occ[1] is None:
-            logger.debug("Runing PAO for spinless system.")
-            virtuals = _localize_virtual_spin_pao(
-                self.c_loc_occ[0],
-                ao_overlap,
-                n_act_aos,
-                self.norm_cutoff,
-                self.overlap_cutoff,
-            )
-            logger.debug(f"{virtuals.shape=}")
-            occ_mo_coeff = self.embedded_scf.mo_coeff[:, self.embedded_scf.mo_occ > 0]
-            mo_coeff = np.hstack((occ_mo_coeff, virtuals))
-
-            n_mos = mo_coeff.shape[-1]
-            n_occ = np.count_nonzero(self.embedded_scf.mo_occ[0])
-            mo_occ = np.array(n_occ * [1] + (n_mos - n_occ) * [0])
-
-        else:  # Restricted open shell
-            logger.debug("Running PAO for each spin separately.")
-            alpha_virtuals = _localize_virtual_spin_pao(
-                self.c_loc_occ[0],
-                ao_overlap,
-                n_act_aos,
-                self.norm_cutoff,
-                self.overlap_cutoff,
-            )
-            beta_virtuals = _localize_virtual_spin_pao(
-                self.c_loc_occ[1],
-                ao_overlap,
-                n_act_aos,
-                self.norm_cutoff,
-                self.overlap_cutoff,
-            )
-            logger.debug(f"{alpha_virtuals.shape=}")
-            logger.debug(f"{beta_virtuals.shape=}")
-            alpha_occ_mo_coeff = self.embedded_scf.mo_coeff[0][
-                :, self.embedded_scf.mo_occ[0] > 0
-            ]
-            beta_occ_mo_coeff = self.embedded_scf.mo_coeff[1][
-                :, self.embedded_scf.mo_occ[1] > 0
-            ]
-            mo_coeff = np.array(
-                [
-                    np.hstack((alpha_occ_mo_coeff, alpha_virtuals)),
-                    np.hstack((beta_occ_mo_coeff, beta_virtuals)),
-                ]
-            )
-            n_mos = mo_coeff.shape[-1]
-            alpha_n_occ = np.count_nonzero(self.embedded_scf.mo_occ[0])
-            beta_n_occ = np.count_nonzero(self.embedded_scf.mo_occ[1])
-            mo_occ = np.vstack(
-                (
-                    np.array(alpha_n_occ * [1] + (n_mos - alpha_n_occ) * [0]),
-                    np.array(beta_n_occ * [1] + (n_mos - beta_n_occ) * [0]),
+        match self.c_loc_occ.ndim:
+            case 2:
+                logger.debug("Runing PAO for spinless system.")
+                virtuals = _localize_virtual_spin_pao(
+                    self.c_loc_occ[0],
+                    ao_overlap,
+                    n_act_aos,
+                    self.norm_cutoff,
+                    self.overlap_cutoff,
                 )
-            )
+                logger.debug(f"{virtuals.shape=}")
+                occ_mo_coeff = self.embedded_scf.mo_coeff[
+                    :, self.embedded_scf.mo_occ > 0
+                ]
+                mo_coeff = np.hstack((occ_mo_coeff, virtuals))
+
+                n_mos = mo_coeff.shape[-1]
+                n_occ = np.count_nonzero(self.embedded_scf.mo_occ[0])
+                mo_occ = np.array(n_occ * [1] + (n_mos - n_occ) * [0])
+
+            case 3:  # Restricted open shell
+                logger.debug("Running PAO for each spin separately.")
+                alpha_virtuals = _localize_virtual_spin_pao(
+                    self.c_loc_occ[0],
+                    ao_overlap,
+                    n_act_aos,
+                    self.norm_cutoff,
+                    self.overlap_cutoff,
+                )
+                beta_virtuals = _localize_virtual_spin_pao(
+                    self.c_loc_occ[1],
+                    ao_overlap,
+                    n_act_aos,
+                    self.norm_cutoff,
+                    self.overlap_cutoff,
+                )
+                logger.debug(f"{alpha_virtuals.shape=}")
+                logger.debug(f"{beta_virtuals.shape=}")
+                alpha_occ_mo_coeff = self.embedded_scf.mo_coeff[0][
+                    :, self.embedded_scf.mo_occ[0] > 0
+                ]
+                beta_occ_mo_coeff = self.embedded_scf.mo_coeff[1][
+                    :, self.embedded_scf.mo_occ[1] > 0
+                ]
+                mo_coeff = np.array(
+                    [
+                        np.hstack((alpha_occ_mo_coeff, alpha_virtuals)),
+                        np.hstack((beta_occ_mo_coeff, beta_virtuals)),
+                    ]
+                )
+                n_mos = mo_coeff.shape[-1]
+                alpha_n_occ = np.count_nonzero(self.embedded_scf.mo_occ[0])
+                beta_n_occ = np.count_nonzero(self.embedded_scf.mo_occ[1])
+                mo_occ = np.vstack(
+                    (
+                        np.array(alpha_n_occ * [1] + (n_mos - alpha_n_occ) * [0]),
+                        np.array(beta_n_occ * [1] + (n_mos - beta_n_occ) * [0]),
+                    )
+                )
 
         self.embedded_scf.mo_coeff = mo_coeff
         self.embedded_scf.mo_occ = mo_occ
