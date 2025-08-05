@@ -105,28 +105,15 @@ def huzinaga_scf(
             "Unrestricted calculation requires stacked dm_environment shape (2xMxM)."
         )
 
-    if unrestricted:
-        dm_env_S = np.array([dm_environment[0] @ s_mat, dm_environment[1] @ s_mat])
-    else:
-        dm_env_S = dm_environment @ s_mat
+    dm_env_S = np.einsum("...ij,jk->...ik", dm_environment, s_mat)
 
     # Create an initial dm if needed.
     if dm_initial_guess is None:
         fock = scf_method.get_hcore() + dft_potential
 
-        if unrestricted:
-            fds_alpha = fock[0] @ dm_env_S[0]
-            fds_beta = fock[1] @ dm_env_S[1]
-            huzinaga_op_std = np.array(
-                [
-                    -(fds_alpha + fds_alpha.T),
-                    -(fds_beta + fds_beta.T),
-                ]
-            )
-        else:
-            fds = fock @ dm_env_S
-            # Cant use T as restricted with spin has split DFT potential
-            huzinaga_op_std = -0.5 * (fds + np.swapaxes(fds, -1, -2))
+        fds = np.einsum("...ij,...jk->...ik", fock, dm_env_S)
+        huzinaga_op_std = fds + np.swapaxes(fds, -1, -2)
+        huzinaga_op_std *= (-0.5) if fds.ndim == 2 else (-1.0)
 
         fock += huzinaga_op_std
         # Create the orthogonal fock operator
@@ -145,15 +132,10 @@ def huzinaga_scf(
         vhf = scf_method.get_veff(dm=density_matrix)
         fock = scf_method.get_hcore() + dft_potential + vhf
 
-        if unrestricted:
-            fds_alpha = fock[0] @ dm_env_S[0]
-            fds_beta = fock[1] @ dm_env_S[1]
-            huzinaga_op_std = np.array(
-                [-(fds_alpha + fds_alpha.T), -(fds_beta + fds_beta.T)]
-            )
-        else:
-            fds = fock @ dm_env_S
-            huzinaga_op_std = -0.5 * (fds + np.swapaxes(fds, -1, -2))
+        fds = np.einsum("...ij,...jk->...ik", fock, dm_env_S)
+        huzinaga_op_std = fds + np.swapaxes(fds, -1, -2)
+        huzinaga_op_std *= (-0.5) if fds.ndim == 2 else (-1.0)
+
         fock += huzinaga_op_std
 
         if use_DIIS and (i > 1):
