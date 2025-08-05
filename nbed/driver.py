@@ -802,15 +802,11 @@ class NbedDriver:
         self.e_act, self.e_env, self.two_e_cross = self._subsystem_dft(
             self._global_ks, self.localized_system
         )
-        logger.debug("Getting global DFT potential to optimize embedded calc in.")
+        logger.debug("Getting global DFT embedding potential.")
 
         total_dm = self.localized_system.dm_active + self.localized_system.dm_enviro
 
-        logger.debug(f"{self._global_ks.get_veff().shape=}")
-        logger.debug(f"{self._global_ks.get_veff(dm=total_dm).shape=}")
         g_act_and_env = self._global_ks.get_veff(dm=total_dm)
-        logger.debug(f"{total_dm.shape=}")
-        logger.debug(f"{g_act_and_env.shape=}")
 
         g_act = self._global_ks.get_veff(dm=self.localized_system.dm_active)
 
@@ -825,20 +821,40 @@ class NbedDriver:
             or init_huzinaga_rhf_with_mu
         ):
             local_hf = self._init_local_hf()
+
+            if self.config.virtual_localization == VirtualLocalizerTypes.PROJECTED_AO:
+                pao = PAOLocalizer(
+                    local_hf,
+                    self.config.n_active_atoms,
+                    self.localized_system.c_loc_occ,
+                    norm_cutoff=self.config.norm_cutoff,
+                    overlap_cutoff=self.config.overlap_cutoff,
+                )
+                local_hf = pao.localize_virtual()
+
             embedded_scf, v_emb = self._mu_embed(local_hf, embedding_potential)
-            self.mu = self.embed_post_projector(embedded_scf, v_emb, ProjectorTypes.MU)
+            self.mu = self.post_embed(embedded_scf, v_emb, ProjectorTypes.MU)
 
         if self.config.projector in [ProjectorTypes.HUZ, ProjectorTypes.BOTH]:
             local_hf = self._init_local_hf()
+
+            if self.config.virtual_localization == VirtualLocalizerTypes.PROJECTED_AO:
+                pao = PAOLocalizer(
+                    local_hf,
+                    self.config.n_active_atoms,
+                    self.localized_system.c_loc_occ,
+                    norm_cutoff=self.config.norm_cutoff,
+                    overlap_cutoff=self.config.overlap_cutoff,
+                )
+                local_hf = pao.localize_virtual()
+
             dmat_initial_guess: Optional[tuple[NDArray]] = (
                 self.mu["scf"].make_rdm1() if init_huzinaga_rhf_with_mu else None
             )
             embedded_scf, v_emb = self._huzinaga_embed(
                 local_hf, embedding_potential, dmat_initial_guess
             )
-            self.huzinaga = self.embed_post_projector(
-                embedded_scf, v_emb, ProjectorTypes.HUZ
-            )
+            self.huzinaga = self.post_embed(embedded_scf, v_emb, ProjectorTypes.HUZ)
 
         match self.config.projector:
             case ProjectorTypes.MU:
@@ -870,7 +886,7 @@ class NbedDriver:
 
         logger.info("Embedding complete.")
 
-    def embed_post_projector(
+    def post_embed(
         self, embedded_scf: StreamObject, v_emb: NDArray, projector: ProjectorTypes
     ) -> dict:
         """Projector-dependent components of the embedding procedure.
@@ -909,7 +925,7 @@ class NbedDriver:
                     "ij,ij", result["v_emb"][1], self.localized_system.dm_active[1]
                 )
 
-        # Virtual localization
+        # Post-embedding Virtual localization
         match self.config.virtual_localization:
             case VirtualLocalizerTypes.CONCENTRIC:
                 logger.debug("Performing virtual Concentric Localization.")
@@ -919,18 +935,6 @@ class NbedDriver:
                     max_shells=self.config.max_shells,
                 )
                 result["scf"] = result["cl"].localize_virtual()
-            case VirtualLocalizerTypes.PROJECTED_AO:
-                logger.debug(
-                    "Performing virtual Projected Atomic Orbital Localization."
-                )
-                result["pao"] = PAOLocalizer(
-                    result["scf"],
-                    self.config.n_active_atoms,
-                    self.localized_system.c_loc_occ,
-                    norm_cutoff=self.config.norm_cutoff,
-                    overlap_cutoff=self.config.overlap_cutoff,
-                )
-                result["scf"] = result["pao"].localize_virtual()
             case VirtualLocalizerTypes.DISABLE:
                 logger.debug("Not performing virtual localization.")
             case _:
