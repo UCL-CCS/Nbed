@@ -33,11 +33,13 @@ class LocalizedSystem:
     c_loc_occ: NDArray
     dm_active: NDArray = field(init=False)
     dm_enviro: NDArray = field(init=False)
+    dm_loc_occ: NDArray = field(init=False)
 
     def __post_init__(self):
         """Post init for derived attributes."""
         self.dm_active = self.c_active @ self.c_active.swapaxes(-1, -2)
         self.dm_enviro = self.c_enviro @ self.c_enviro.swapaxes(-1, -2)
+        self.dm_loc_occ = self.c_loc_occ @ self.c_loc_occ.swapaxes(-1, -2)
 
 
 class OccupiedLocalizer(ABC):

@@ -557,7 +557,6 @@ class NbedDriver:
         logger.debug("Starting Huzinaga embedding method.")
         # We need to run our own SCF method here to update the potential.
 
-        localized_scf = active_scf
         (
             c_active_embedded,
             mo_embedded_energy,
@@ -565,7 +564,7 @@ class NbedDriver:
             huzinaga_op_std,
             huz_scf_conv_flag,
         ) = huzinaga_scf(
-            localized_scf,
+            active_scf,
             embedding_potential,
             self.localized_system.dm_enviro,
             dm_conv_tol=1e-6,
@@ -576,25 +575,23 @@ class NbedDriver:
 
         # write results to pyscf object
         logger.debug("Writing results to PySCF object.")
-        hcore_std = localized_scf.get_hcore()
+        hcore_std = active_scf.get_hcore()
         v_emb = huzinaga_op_std + embedding_potential
-        localized_scf.get_hcore = lambda *args: hcore_std + v_emb
+        active_scf.get_hcore = lambda *args: hcore_std + v_emb
 
         if self.localized_system.c_active.ndim == 3:
-            localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
+            active_scf.energy_elec = lambda *args: energy_elec(active_scf, *args)
 
-        localized_scf.mo_coeff = c_active_embedded
-        localized_scf.mo_occ = localized_scf.get_occ(
-            mo_embedded_energy, c_active_embedded
-        )
-        logger.debug(f"{localized_scf.mo_occ=}")
-        localized_scf.mo_energy = mo_embedded_energy
-        localized_scf.e_tot = localized_scf.energy_tot(dm=dm_active_embedded)
-        # localized_scf.conv_check = huz_scf_conv_flag
-        localized_scf.converged = huz_scf_conv_flag
+        active_scf.mo_coeff = c_active_embedded
+        active_scf.mo_occ = active_scf.get_occ(mo_embedded_energy, c_active_embedded)
+        logger.debug(f"{active_scf.mo_occ=}")
+        active_scf.mo_energy = mo_embedded_energy
+        active_scf.e_tot = active_scf.energy_tot(dm=dm_active_embedded)
+        # active_scf.conv_check = huz_scf_conv_flag
+        active_scf.converged = huz_scf_conv_flag
 
-        logger.info(f"Embedded scf energy HUZINAGA: {localized_scf.e_tot}")
-        return localized_scf, v_emb
+        logger.info(f"Embedded scf energy HUZINAGA: {active_scf.e_tot}")
+        return active_scf, v_emb
 
     def _delete_environment(
         self,
