@@ -560,9 +560,10 @@ class NbedDriver:
         # We need to run our own SCF method here to update the potential.
 
         if localized_system.c_loc_virt is not None:
-            virtual_projector = (
-                localized_system.c_loc_virt
-                @ localized_system.c_loc_virt.swapaxes(-1, -2)
+            virtual_projector = np.einsum(
+                "...ij,...jk->...ik",
+                localized_system.c_loc_virt,
+                localized_system.c_loc_virt.swapaxes(-1, -2),
             )
             dm_environment_virtual = (
                 np.identity(localized_system.c_loc_virt.shape[-2])
@@ -867,6 +868,10 @@ class NbedDriver:
         if self.config.projector in [ProjectorTypes.HUZ, ProjectorTypes.BOTH]:
             local_hf = self._init_local_hf()
 
+            dmat_initial_guess: Optional[tuple[NDArray]] = (
+                self.mu["scf"].make_rdm1() if init_huzinaga_rhf_with_mu else None
+            )
+
             if self.config.virtual_localization == VirtualLocalizerTypes.PROJECTED_AO:
                 logger.debug("Updating localized system with PAO virtual orbitals.")
                 pao = PAOLocalizer(
@@ -879,9 +884,6 @@ class NbedDriver:
                 pao_mo_coeff = pao.localize_virtual()
                 self.localized_system.c_loc_virt = pao_mo_coeff
 
-            dmat_initial_guess: Optional[tuple[NDArray]] = (
-                self.mu["scf"].make_rdm1() if init_huzinaga_rhf_with_mu else None
-            )
             embedded_scf, v_emb = self._huzinaga_embed(
                 local_hf, embedding_potential, self.localized_system, dmat_initial_guess
             )
