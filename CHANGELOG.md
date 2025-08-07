@@ -12,7 +12,7 @@ Major refactor, with several breaking changes!
 - `NbedConfig` pydantic model to validate user input.
 - `OccupiedLocalizerTypes`, `VirtualLocalizerTypes` and `ProjectorTypes` enums added to config.
 - `savefile` config option used to save driver output to json file.
-- `PAOLocalizer` Virtual orbital localizaion with Projected Atomic Orbitals.
+- `PAOLocalizer` Virtual orbital localizaion with Projected Atomic Orbitals. (Implementation in driver not complete.)
 - `LocalizedSystem` dataclass added in `localizers/system.py`.
 
 ### Removed
