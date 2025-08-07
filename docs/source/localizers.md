@@ -24,3 +24,14 @@ After projection is performed, virtual orbitals can be localized using the embed
    :undoc-members:
    :show-inheritance:
 ```
+
+## Localisation Data
+
+Outputs from `OccupiedLocalizer.localize` are standardised as a dataclass, `LocalizedSystem`
+
+```{eval-rst}
+.. automodule:: nbed.localizers.system
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
