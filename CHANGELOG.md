@@ -10,14 +10,17 @@ Major refactor, with several breaking changes!
 
 ### Added
 - `NbedConfig` pydantic model to validate user input.
+- `OccupiedLocalizerTypes`, `VirtualLocalizerTypes` and `ProjectorTypes` enums added to config.
 - `savefile` config option used to save driver output to json file.
 - `PAOLocalizer` Virtual orbital localizaion with Projected Atomic Orbitals.
+- `LocalizedSystem` dataclass added in `localizers/system.py`.
 
 ### Removed
 - `HamiltonianConverter` removed.
 - All functions relating to generating qubit hamiltonians have been removed from `HamiltonianBuilder`, this now only handles creating a second quantised hamiltonian.
 
 ### Changed
+- `OccupiedLocalizer` classes now output `LocalizedSystem` dataclass.
 - CLI tool now expects a path to a config `.json` file which matches the `NbedConfig` model.
 - `NbedDriver` automatically calls `HamiltonianBuilder.build()`, adding output to results as `second_quantised`.
 - Removed underscore from `driver._huzinaga` and `driver._mu`.
