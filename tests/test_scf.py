@@ -13,17 +13,12 @@ def dft_potential(spinless_driver) -> NDArray:
 
 @pytest.fixture()
 def dm_environment(spinless_driver) -> NDArray:
-    return np.array(
-        [
-            spinless_driver.localized_system.dm_enviro,
-            spinless_driver.localized_system.beta_dm_enviro,
-        ]
-    )
+    return spinless_driver.localized_system.dm_enviro
 
 
 def test_rks_output(water_rks, dft_potential, dm_environment):
     scf_result = huzinaga_scf(
-        water_rks, dft_potential=dft_potential[0], dm_environment=dm_environment[0]
+        water_rks, embedding_potential=dft_potential[0], dm_environment_occupied=dm_environment[0]
     )
     assert np.allclose(scf_result[0].shape, (7, 7))
     assert np.allclose(
@@ -47,7 +42,7 @@ def test_rks_output(water_rks, dft_potential, dm_environment):
 
 def test_uks_output(water_uks, dft_potential, dm_environment):
     scf_result = huzinaga_scf(
-        water_uks, dft_potential=dft_potential, dm_environment=dm_environment
+        water_uks, embedding_potential=dft_potential, dm_environment_occupied=dm_environment
     )
     assert np.allclose(scf_result[0].shape, (2, 7, 7))
     assert np.allclose(
@@ -82,7 +77,7 @@ def test_uks_output(water_uks, dft_potential, dm_environment):
 
 def test_rhf_output(water_rhf, dft_potential, dm_environment):
     scf_result = huzinaga_scf(
-        water_rhf, dft_potential=dft_potential[0], dm_environment=dm_environment[0]
+        water_rhf, embedding_potential=dft_potential[0], dm_environment_occupied=dm_environment[0]
     )
     assert np.allclose(scf_result[0].shape, (7, 7))
     assert np.allclose(
@@ -106,7 +101,7 @@ def test_rhf_output(water_rhf, dft_potential, dm_environment):
 
 def test_uhf_output(water_uhf, dft_potential, dm_environment):
     scf_result = huzinaga_scf(
-        water_uhf, dft_potential=dft_potential, dm_environment=dm_environment
+        water_uhf, embedding_potential=dft_potential, dm_environment_occupied=dm_environment
     )
     assert np.allclose(scf_result[0].shape, (2, 7, 7))
     assert np.allclose(

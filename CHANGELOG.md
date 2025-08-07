@@ -5,22 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.9]
+## [Unreleased]
 Major refactor, with several breaking changes!
 
 ### Added
 - `NbedConfig` pydantic model to validate user input.
+- `OccupiedLocalizerTypes`, `VirtualLocalizerTypes` and `ProjectorTypes` enums added to config.
 - `savefile` config option used to save driver output to json file.
+- `PAOLocalizer` Virtual orbital localizaion with Projected Atomic Orbitals. (Implementation in driver not complete.)
+- `LocalizedSystem` dataclass added in `localizers/system.py`.
 
 ### Removed
 - `HamiltonianConverter` removed.
 - All functions relating to generating qubit hamiltonians have been removed from `HamiltonianBuilder`, this now only handles creating a second quantised hamiltonian.
 
 ### Changed
+- `OccupiedLocalizer` classes now output `LocalizedSystem` dataclass.
 - CLI tool now expects a path to a config `.json` file which matches the `NbedConfig` model.
 - `NbedDriver` automatically calls `HamiltonianBuilder.build()`, adding output to results as `second_quantised`.
 - Removed underscore from `driver._huzinaga` and `driver._mu`.
 - Driver defaults to *unrestricted* for both whole molecule and environment, passing charge and spin to environment based on spin-aware localization.
+- Config `run_virtual_localization` removed, with new flag `virtual_localizer` allowing for "cl" or "pao", defaulting to "cl".
 
 ## [0.0.9]
 ### Fixed

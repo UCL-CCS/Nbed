@@ -1,5 +1,6 @@
 """Custom Types and Enums."""
 
+import json
 import logging
 import os
 from enum import Enum
@@ -9,6 +10,7 @@ from typing import Annotated, Any
 from pydantic import (
     BaseModel,
     BeforeValidator,
+    ConfigDict,
     Field,
     FilePath,
     NonNegativeInt,
@@ -20,7 +22,7 @@ from pydantic import (
 logger = logging.getLogger(__name__)
 
 
-class ProjectorEnum(Enum):
+class ProjectorTypes(Enum):
     """Implemented Projectors."""
 
     MU = "mu"
@@ -28,13 +30,21 @@ class ProjectorEnum(Enum):
     BOTH = "both"
 
 
-class LocalizerEnum(Enum):
+class OccupiedLocalizerTypes(Enum):
     """Implemented Occupied Localizers."""
 
     SPADE = "spade"
     BOYS = "boys"
     IBO = "ibo"
     PM = "pm"
+
+
+class VirtualLocalizerTypes(Enum):
+    """Implemented Virtual Localizers."""
+
+    CONCENTRIC = "cl"
+    PROJECTED_AO = "pao"
+    DISABLE = "disable"
 
 
 XYZGeometry = Annotated[
@@ -74,8 +84,8 @@ class NbedConfig(BaseModel):
         n_active_atoms (PositiveInt): The number of atoms to include in the active region.
         basis (str): The name of an atomic orbital basis set to use for chemistry calculations.
         xc_functional (str): The name of an Exchange-Correlation functional to be used for DFT.
-        projector (ProjectorEnum): Projector to screen out environment orbitals, One of 'mu' or 'huzinaga'.
-        localization (LocalizerEnum): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
+        projector (ProjectorTypes): Projector to screen out environment orbitals, One of 'mu' or 'huzinaga'.
+        localization (OccupiedLocalizerTypes): Orbital localization method to use. One of 'spade', 'pipek-mezey', 'boys' or 'ibo'.
         convergence (Annotated[float, Gt(gt=0), Lt(lt=1)]): The convergence tolerance for energy calculations.
         charge (PositiveInt): Charge of molecular species
         mu_level_shift (PositiveFloat): Level shift parameter to use for mu-projector.
@@ -91,12 +101,14 @@ class NbedConfig(BaseModel):
         savefile (FilePath): Location of file to save output to.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     geometry: Annotated[XYZGeometry, BeforeValidator(validate_xyz_file)]
     n_active_atoms: PositiveInt
     basis: str
     xc_functional: str
-    projector: ProjectorEnum = Field(default=ProjectorEnum.MU)
-    localization: LocalizerEnum = Field(default=LocalizerEnum.SPADE)
+    projector: ProjectorTypes = Field(default=ProjectorTypes.MU)
+    localization: OccupiedLocalizerTypes = Field(default=OccupiedLocalizerTypes.SPADE)
     convergence: PositiveFloat = 1e-6
     charge: NonNegativeInt = Field(default=0)
     spin: NonNegativeInt = Field(default=0)
@@ -107,21 +119,89 @@ class NbedConfig(BaseModel):
 
     run_ccsd_emb: bool = False
     run_fci_emb: bool = False
-    run_virtual_localization: bool = True
     run_dft_in_dft: bool = False
 
     mm_coords: list | None = None
     mm_charges: list | None = None
     mm_radii: list | None = None
 
-    n_mo_overwrite: tuple[None | NonNegativeInt, None | NonNegativeInt] = (None, None)
     mu_level_shift: PositiveFloat = 1e6
+    init_huzinaga_rhf_with_mu: bool = False
+
+    virtual_localization: VirtualLocalizerTypes = Field(
+        default=VirtualLocalizerTypes.CONCENTRIC
+    )
+    n_mo_overwrite: tuple[None | NonNegativeInt, None | NonNegativeInt] = (None, None)
     occupied_threshold: float = Field(default=0.95, gt=0, lt=1)
     virtual_threshold: float = Field(default=0.95, gt=0, lt=1)
     max_shells: PositiveInt = 4
-    init_huzinaga_rhf_with_mu: bool = False
+    norm_cutoff: PositiveFloat = 0.05
+    overlap_cutoff: PositiveFloat = 1e-5
+
     force_unrestricted: bool = False
 
     max_ram_memory: PositiveInt = 4000
     max_hf_cycles: PositiveInt = Field(default=50)
     max_dft_cycles: PositiveInt = Field(default=50)
+
+
+def overwrite_config_kwargs(config: NbedConfig, **config_kwargs) -> NbedConfig:
+    """Overwrites config values with key-words and revalidates.
+
+    Args:
+        config (NbedConfig): A config model.
+        config_kwargs (dict): Any possible key-word arguments.
+
+    Returns:
+        NbedConfig: A validated config model.
+
+    Raises:
+        ValidationError: If key-word arguments provided are not part of model.
+    """
+    if config_kwargs != {}:
+        logger.info("Overwriting select field with additonal config.")
+        config_dict = config.model_dump()
+        for k, v in config_kwargs.items():
+            config_dict[k] = v
+        return NbedConfig(**config_dict)
+    else:
+        return config
+
+
+def parse_config(
+    config: NbedConfig | str | None = None,
+    **config_kwargs,
+):
+    """Parse the various config options and return a valid model.
+
+    Args:
+        config (NbedConfig): A validated config model or path to a '.json' config file.
+        **config_kwargs: Allows arbitrary keyword arguments for manual configuration.
+
+    Returns:
+        NbedConfig: A valid config model.
+
+    """
+    match config:
+        case NbedConfig():
+            logger.info("Using validated config.")
+            config = overwrite_config_kwargs(config, **config_kwargs)
+
+        case str() | Path():
+            logger.info("Using config file %s", config)
+            logger.info("Validating config from file.")
+            with open(FilePath(config)) as f:
+                data = json.load(f)
+            config = NbedConfig(**data)
+            config = overwrite_config_kwargs(config, **config_kwargs)
+        case None:
+            logger.info("Validating config from passed arguments.")
+            logger.debug(f"{config_kwargs=}")
+            config = NbedConfig(**config_kwargs)
+        case _:
+            logger.warning("Unknown input to config argument will be ignored.")
+            logger.debug(f"{config=}")
+            logger.debug(f"{config_kwargs=}")
+            config = NbedConfig(**config_kwargs)
+
+    return config

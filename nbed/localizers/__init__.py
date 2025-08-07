@@ -1,17 +1,19 @@
 """Init Localizer classes."""
 
-from .ace import ACELocalizer
 from .occupied.base import OccupiedLocalizer
 from .occupied.pyscf import BOYSLocalizer, IBOLocalizer, PMLocalizer
 from .occupied.spade import SPADELocalizer
+from .system import LocalizedSystem
 from .virtual.concentric import ConcentricLocalizer
+from .virtual.projected_atomic import PAOLocalizer
 
 __all__ = [
     "BOYSLocalizer",
     "IBOLocalizer",
     "PMLocalizer",
     "SPADELocalizer",
-    "ACELocalizer",
     "ConcentricLocalizer",
     "OccupiedLocalizer",
+    "PAOLocalizer",
+    "LocalizedSystem",
 ]

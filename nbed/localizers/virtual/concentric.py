@@ -41,8 +41,8 @@ class ConcentricLocalizer(VirtualLocalizer):
             n_active_atoms (int): Number of active atoms in the system.
             max_shells (int): Maximum number of shells to localize.
         """
-        super().__init__(embedded_scf)
-        self._n_active_atoms = n_active_atoms
+        super().__init__(n_active_atoms)
+        self.embedded_scf = embedded_scf
         self.max_shells = max_shells
         self.projected_overlap = None
         self.overlap_two_basis = None
@@ -136,6 +136,9 @@ class ConcentricLocalizer(VirtualLocalizer):
             np.ndarray: The update MO coefficient matrix
         """
         logger.debug("Running concentric localiztion for single spin.")
+        logger.debug(f"{occ=}")
+        logger.debug(f"{mo_coeff.shape=}")
+        logger.debug(f"{fock_operator.shape=}")
 
         effective_virt = mo_coeff[:, occ == 0]
         logger.debug(f"N effective virtuals: {effective_virt.shape}")
