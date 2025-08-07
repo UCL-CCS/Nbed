@@ -131,7 +131,7 @@ def huzinaga_scf(
 
     dm_occ_S = np.einsum("...ij,jk->...ik", dm_environment_occupied, s_mat)
     if dm_environment_virtual is not None:
-        dm_virt_S = np.einsum("...ij,jk->...ik", dm_environment_occupied, s_mat)
+        dm_virt_S = np.einsum("...ij,jk->...ik", dm_environment_virtual, s_mat)
     else:
         dm_virt_S = np.zeros(dm_occ_S.shape)
 

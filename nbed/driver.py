@@ -566,7 +566,7 @@ class NbedDriver:
             )
             dm_environment_virtual = (
                 np.identity(localized_system.c_loc_virt.shape[-2])
-                - localized_system.dm_enviro
+                - localized_system.dm_loc_occ
                 - virtual_projector
             )
         else:
@@ -600,23 +600,28 @@ class NbedDriver:
 
         active_scf.mo_occ = active_scf.get_occ(mo_embedded_energy, c_active_embedded)
 
-        # if localized_system.c_loc_virt is not None:
-        #     logger.debug("Overwriting embedded virtuals with result from localizer.")
-        #     logger.debug(f"{ np.sum(active_scf.mo_occ, axis=0)}")
-        #     logger.debug(f"{c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0)> 0].shape=}")
-        #     logger.debug(f"{localized_system.c_loc_virt.shape=}")
-        #     active_scf.mo_coeff = np.concatenate(
-        #         (
-        #             c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0) > 0],
-        #             localized_system.c_loc_virt,
-        #         ),
-        #         axis=2,
-        #     )
-        #     active_scf.mo_occ = active_scf.mo_occ[: active_scf.mo_coeff.shape[-1]]
-        # else:
-        active_scf.mo_coeff = c_active_embedded
+        if localized_system.c_loc_virt is not None:
+            logger.debug("Overwriting embedded virtuals with result from localizer.")
+            logger.debug(f"{ np.sum(active_scf.mo_occ, axis=0)}")
+            logger.debug(
+                f"{c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0)> 0].shape=}"
+            )
+            logger.debug(f"{localized_system.c_loc_virt.shape=}")
+            active_scf.mo_coeff = np.concatenate(
+                (
+                    c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0) > 0],
+                    c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0) == 0][
+                        : localized_system.c_loc_virt.shape[-1]
+                    ],
+                ),
+                axis=2,
+            )
+            active_scf.mo_occ = active_scf.mo_occ[: active_scf.mo_coeff.shape[-1]]
+        else:
+            active_scf.mo_coeff = c_active_embedded
 
         logger.debug(f"{active_scf.mo_occ=}")
+        logger.debug(f"{active_scf.mo_coeff.shape=}")
         active_scf.mo_energy = mo_embedded_energy
         active_scf.e_tot = active_scf.energy_tot(dm=dm_active_embedded)
         # active_scf.conv_check = huz_scf_conv_flag
