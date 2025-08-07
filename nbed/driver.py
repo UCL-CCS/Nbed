@@ -816,6 +816,9 @@ class NbedDriver:
             init_huzinaga_rhf_with_mu (bool): Will run mu-shift projector even when input projector='huzinaga'.
             n_mo_overwrite (tuple[int, int]): Enforces a specific number of MOs are included in the active region. Used for ACE-of-SPADE reaction path localization.
         """
+        if self.config.virtual_localization is VirtualLocalizerTypes.PROJECTED_AO:
+            raise NotImplementedError("PAO not yet fully implemented.")
+
         logger.debug("Embedding molecule.")
         self.e_nuc = self._global_ks.energy_nuc()
 
