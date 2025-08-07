@@ -85,18 +85,22 @@ def _localize_virtual_spin_pao(
         NDArray: The localized atomic orbitals
     """
     logger.debug("Calculating Projected Atomic Orbitals.")
+    logger.debug(f"{n_act_aos=}")
+    logger.debug(f"{norm_cutoff=}")
+    logger.debug(f"{overlap_cutoff=}")
     pao_projector = (
         np.identity(ao_overlap.shape[-1]) - c_loc_occ @ c_loc_occ.T @ ao_overlap
     )
 
     # Seems like in the paper they do indices (MOs, AOs?)
-    logger.debug(f"{n_act_aos=}")
     logger.debug(f"{pao_projector[:n_act_aos].shape=}")
     pao_norms = np.einsum(
         "ji,ji->i",
         pao_projector[:n_act_aos],
         ao_overlap[:n_act_aos, :n_act_aos] @ pao_projector[:n_act_aos],
     )
+    # do we need to scale the norm by the system size?
+    # pao_norms /= n_act_aos
     logger.debug(f"{pao_norms=}")
 
     # Take the columns of C matrix (MOs)
@@ -114,12 +118,11 @@ def _localize_virtual_spin_pao(
     eigvals, eigvecs = np.linalg.eigh(diagonalized_overlap)
 
     logger.debug(f"Overlap eigenvalues {eigvals}")
-    logger.debug(f"{overlap_cutoff=}")
 
     logger.debug(f"{eigvecs.shape=}")
     # How to transform the truncated paos?
     final_paos = renormalized_paos[:, eigvals > overlap_cutoff]
-    logger.debug(f"{final_paos=}")
+    logger.debug(f"{final_paos.shape=}")
 
     if (n_paos := final_paos.shape[-1]) == 0:
         logger.warning("No projected atomic orbitals!")

@@ -565,7 +565,7 @@ class NbedDriver:
                 @ localized_system.c_loc_virt.swapaxes(-1, -2)
             )
             dm_environment_virtual = (
-                np.identity(localized_system.c_loc_virt.shape[0])
+                np.identity(localized_system.c_loc_virt.shape[-2])
                 - localized_system.dm_enviro
                 - virtual_projector
             )
@@ -600,19 +600,21 @@ class NbedDriver:
 
         active_scf.mo_occ = active_scf.get_occ(mo_embedded_energy, c_active_embedded)
 
-        if localized_system.c_loc_virt is not None:
-            logger.debug("Overwriting embedded virtuals with result from localizer.")
-
-            active_scf.mo_coeff = np.stack(
-                (
-                    c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0) > 0],
-                    localized_system.c_loc_virt,
-                ),
-                axis=1,
-            )
-            active_scf.mo_occ = active_scf[: active_scf.mo_coeff.shape[-1]]
-        else:
-            active_scf.mo_coeff = c_active_embedded
+        # if localized_system.c_loc_virt is not None:
+        #     logger.debug("Overwriting embedded virtuals with result from localizer.")
+        #     logger.debug(f"{ np.sum(active_scf.mo_occ, axis=0)}")
+        #     logger.debug(f"{c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0)> 0].shape=}")
+        #     logger.debug(f"{localized_system.c_loc_virt.shape=}")
+        #     active_scf.mo_coeff = np.concatenate(
+        #         (
+        #             c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0) > 0],
+        #             localized_system.c_loc_virt,
+        #         ),
+        #         axis=2,
+        #     )
+        #     active_scf.mo_occ = active_scf.mo_occ[: active_scf.mo_coeff.shape[-1]]
+        # else:
+        active_scf.mo_coeff = c_active_embedded
 
         logger.debug(f"{active_scf.mo_occ=}")
         active_scf.mo_energy = mo_embedded_energy
@@ -869,7 +871,7 @@ class NbedDriver:
                     norm_cutoff=self.config.norm_cutoff,
                     overlap_cutoff=self.config.overlap_cutoff,
                 )
-                pao_mo_coeff, pao_occ = pao.localize_virtual()
+                pao_mo_coeff = pao.localize_virtual()
                 self.localized_system.c_loc_virt = pao_mo_coeff
 
             dmat_initial_guess: Optional[tuple[NDArray]] = (
