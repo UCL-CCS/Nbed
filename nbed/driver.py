@@ -541,6 +541,7 @@ class NbedDriver:
         self,
         active_scf: StreamObject,
         embedding_potential: np.ndarray,
+        localized_system: LocalizedSystem,
         dmat_initial_guess: Optional[tuple[np.ndarray]] = None,
     ) -> tuple[StreamObject, np.ndarray]:
         """Embed using Huzinaga projector.
@@ -548,6 +549,7 @@ class NbedDriver:
         Args:
             active_scf (StreamObject): A PySCF scf method with the correct number of electrons for the active region.
             embedding_potential (np.ndarray): Potential calculated from two electron terms in dft.
+            localized_system (LocalizedSystem): Dataclass describing the MOs of a localized system.
             dmat_initial_guess (bool): If True, use the initial guess for the density matrix.
 
         Returns:
@@ -556,6 +558,19 @@ class NbedDriver:
         """
         logger.debug("Starting Huzinaga embedding method.")
         # We need to run our own SCF method here to update the potential.
+
+        if localized_system.c_loc_virt is not None:
+            virtual_projector = (
+                localized_system.c_loc_virt
+                @ localized_system.c_loc_virt.swapaxes(-1, -2)
+            )
+            dm_environment_virtual = (
+                np.identity(localized_system.c_loc_virt.shape[0])
+                - localized_system.dm_enviro
+                - virtual_projector
+            )
+        else:
+            dm_environment_virtual = None
 
         (
             c_active_embedded,
@@ -566,7 +581,8 @@ class NbedDriver:
         ) = huzinaga_scf(
             active_scf,
             embedding_potential,
-            self.localized_system.dm_enviro,
+            localized_system.dm_enviro,
+            dm_environment_virtual=dm_environment_virtual,
             dm_conv_tol=1e-6,
             dm_initial_guess=dmat_initial_guess,
         )
@@ -579,11 +595,25 @@ class NbedDriver:
         v_emb = huzinaga_op_std + embedding_potential
         active_scf.get_hcore = lambda *args: hcore_std + v_emb
 
-        if self.localized_system.c_active.ndim == 3:
+        if localized_system.c_active.ndim == 3:
             active_scf.energy_elec = lambda *args: energy_elec(active_scf, *args)
 
-        active_scf.mo_coeff = c_active_embedded
         active_scf.mo_occ = active_scf.get_occ(mo_embedded_energy, c_active_embedded)
+
+        if localized_system.c_loc_virt is not None:
+            logger.debug("Overwriting embedded virtuals with result from localizer.")
+
+            active_scf.mo_coeff = np.stack(
+                (
+                    c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0) > 0],
+                    localized_system.c_loc_virt,
+                ),
+                axis=1,
+            )
+            active_scf.mo_occ = active_scf[: active_scf.mo_coeff.shape[-1]]
+        else:
+            active_scf.mo_coeff = c_active_embedded
+
         logger.debug(f"{active_scf.mo_occ=}")
         active_scf.mo_energy = mo_embedded_energy
         active_scf.e_tot = active_scf.energy_tot(dm=dm_active_embedded)
@@ -820,14 +850,9 @@ class NbedDriver:
             local_hf = self._init_local_hf()
 
             if self.config.virtual_localization == VirtualLocalizerTypes.PROJECTED_AO:
-                pao = PAOLocalizer(
-                    local_hf,
-                    self.config.n_active_atoms,
-                    self.localized_system.c_loc_occ,
-                    norm_cutoff=self.config.norm_cutoff,
-                    overlap_cutoff=self.config.overlap_cutoff,
+                raise NotImplementedError(
+                    "Projected Atomic Orbitals defined only for Huzinaga projector."
                 )
-                local_hf = pao.localize_virtual()
 
             embedded_scf, v_emb = self._mu_embed(local_hf, embedding_potential)
             self.mu = self.post_embed(embedded_scf, v_emb, ProjectorTypes.MU)
@@ -836,6 +861,7 @@ class NbedDriver:
             local_hf = self._init_local_hf()
 
             if self.config.virtual_localization == VirtualLocalizerTypes.PROJECTED_AO:
+                logger.debug("Updating localized system with PAO virtual orbitals.")
                 pao = PAOLocalizer(
                     local_hf,
                     self.config.n_active_atoms,
@@ -843,13 +869,14 @@ class NbedDriver:
                     norm_cutoff=self.config.norm_cutoff,
                     overlap_cutoff=self.config.overlap_cutoff,
                 )
-                local_hf = pao.localize_virtual()
+                pao_mo_coeff, pao_occ = pao.localize_virtual()
+                self.localized_system.c_loc_virt = pao_mo_coeff
 
             dmat_initial_guess: Optional[tuple[NDArray]] = (
                 self.mu["scf"].make_rdm1() if init_huzinaga_rhf_with_mu else None
             )
             embedded_scf, v_emb = self._huzinaga_embed(
-                local_hf, embedding_potential, dmat_initial_guess
+                local_hf, embedding_potential, self.localized_system, dmat_initial_guess
             )
             self.huzinaga = self.post_embed(embedded_scf, v_emb, ProjectorTypes.HUZ)
 
@@ -1121,7 +1148,9 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
             )
         case ProjectorTypes.HUZ:
             result["scf_dft"], result["v_emb_dft"] = driver._huzinaga_embed(
-                local_rks_same_functional, driver.embedding_potential
+                local_rks_same_functional,
+                driver.embedding_potential,
+                driver.localized_system,
             )
     result["scf_dft"] = driver._delete_environment(
         projection_method,

@@ -3,7 +3,6 @@
 from abc import ABC, abstractmethod
 
 from pyscf import gto
-from pyscf.lib import StreamObject
 
 
 class VirtualLocalizer(ABC):
@@ -18,14 +17,13 @@ class VirtualLocalizer(ABC):
         n_active_atoms (int): Number of active atoms in the system.
     """
 
-    def __init__(self, embedded_scf: StreamObject, n_active_atoms: int):
+    def __init__(self, n_active_atoms: int):
         """Initialize VirtualLocalizer.
 
         Args:
             embedded_scf (StreamObject): A pyscf SCF object.
             n_active_atoms (int): The number of atoms in the active region.
         """
-        self.embedded_scf = embedded_scf
         self._n_active_atoms = n_active_atoms
 
     @abstractmethod

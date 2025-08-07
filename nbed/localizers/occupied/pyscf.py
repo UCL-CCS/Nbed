@@ -9,7 +9,8 @@ from pyscf import lo
 from pyscf.lib import StreamObject
 from pyscf.lo import vvo
 
-from .base import LocalizedSystem, OccupiedLocalizer
+from ..system import LocalizedSystem
+from .base import OccupiedLocalizer
 
 logger = logging.getLogger(__name__)
 

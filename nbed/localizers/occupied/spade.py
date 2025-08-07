@@ -6,7 +6,8 @@ import numpy as np
 from pyscf import lib
 from scipy import linalg
 
-from .base import LocalizedSystem, OccupiedLocalizer
+from ..system import LocalizedSystem
+from .base import OccupiedLocalizer
 
 logger = logging.getLogger(__name__)
 
