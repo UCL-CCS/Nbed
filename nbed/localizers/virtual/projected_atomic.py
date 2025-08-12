@@ -97,7 +97,7 @@ def _localize_virtual_spin_pao(
     pao_norms = np.einsum(
         "ji,ji->i",
         pao_projector[:n_act_aos],
-        ao_overlap[:n_act_aos, :n_act_aos] @ pao_projector[:n_act_aos],
+        (ao_overlap @ pao_projector)[:n_act_aos],
     )
     # do we need to scale the norm by the system size?
     # pao_norms /= n_act_aos
