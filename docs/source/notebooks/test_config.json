@@ -13,7 +13,6 @@
   "mu_level_shift":1000000.0,
   "run_ccsd_emb":true,
   "run_fci_emb":true,
-  "run_virtual_localization":true,
   "run_dft_in_dft":true,
   "n_mo_overwrite":[null,null],
   "max_ram_memory":4000,
