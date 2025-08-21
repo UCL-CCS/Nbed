@@ -5,7 +5,6 @@ import logging
 import numpy as np
 from numpy.typing import NDArray
 from pyscf.lib import StreamObject
-from scipy.linalg import fractional_matrix_power
 
 from nbed.localizers.virtual.base import VirtualLocalizer
 
@@ -97,7 +96,7 @@ def _localize_virtual_spin_pao(
     pao_norms = np.einsum(
         "ji,ji->i",
         pao_projector[:n_act_aos],
-        ao_overlap[:n_act_aos, :n_act_aos] @ pao_projector[:n_act_aos],
+        (ao_overlap @ pao_projector)[:n_act_aos],
     )
     # do we need to scale the norm by the system size?
     # pao_norms /= n_act_aos
@@ -106,9 +105,7 @@ def _localize_virtual_spin_pao(
     # Take the columns of C matrix (MOs)
     truncated_paos = pao_projector[:, np.abs(pao_norms) > norm_cutoff]
 
-    s_half = fractional_matrix_power(ao_overlap, 0.5)
-
-    renormalized_paos = s_half @ truncated_paos
+    renormalized_paos = truncated_paos
     renormalized_paos = renormalized_paos / np.sqrt(
         np.einsum("ij,ij->j", renormalized_paos, renormalized_paos)
     )
@@ -121,7 +118,7 @@ def _localize_virtual_spin_pao(
 
     logger.debug(f"{eigvecs.shape=}")
     # How to transform the truncated paos?
-    final_paos = renormalized_paos[:, eigvals > overlap_cutoff]
+    final_paos = renormalized_paos[:, np.abs(eigvals) > overlap_cutoff]
     logger.debug(f"{final_paos.shape=}")
 
     if (n_paos := final_paos.shape[-1]) == 0:
