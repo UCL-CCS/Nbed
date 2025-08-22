@@ -41,17 +41,26 @@ class PAOLocalizer(VirtualLocalizer):
                     self.c_loc_occ[0],
                     ao_overlap,
                     n_act_aos,
+                    self.global_scf.get_fock(),
                     self.norm_cutoff,
                     self.overlap_cutoff,
                 )
                 logger.debug(f"{virtuals.shape=}")
+                n_aos = self.global_scf.mo_coeff.shape[0]
+                n_virtuals = (
+                    self.global_scf.mo_coeff.shape[-1] - self.c_loc_occ[0].shape[-1]
+                )
+                n_empty_virtuals = n_virtuals - virtuals.shape[-1]
+                virtuals = np.hstack((virtuals, np.zeros(n_aos, n_empty_virtuals)))
 
             case 3:  # Restricted open shell
+                fock_alpha, fock_beta = self.global_scf.get_fock()
                 logger.debug("Running PAO for each spin separately.")
                 alpha_virtuals = _localize_virtual_spin_pao(
                     self.c_loc_occ[0],
                     ao_overlap,
                     n_act_aos,
+                    fock_alpha,
                     self.norm_cutoff,
                     self.overlap_cutoff,
                 )
@@ -59,11 +68,30 @@ class PAOLocalizer(VirtualLocalizer):
                     self.c_loc_occ[1],
                     ao_overlap,
                     n_act_aos,
+                    fock_beta,
                     self.norm_cutoff,
                     self.overlap_cutoff,
                 )
                 logger.debug(f"{alpha_virtuals.shape=}")
                 logger.debug(f"{beta_virtuals.shape=}")
+                n_aos = self.global_scf.mo_coeff.shape[0]
+                alpha_empty_virtuals = (
+                    self.global_scf.mo_coeff[0].shape[-1]
+                    - self.c_loc_occ[0].shape[-1]
+                    - alpha_virtuals.shape[-1]
+                )
+                beta_empty_virtuals = (
+                    self.global_scf.mo_coeff[1].shape[-1]
+                    - self.c_loc_occ[1].shape[-1]
+                    - beta_virtuals.shape[-1]
+                )
+                alpha_virtuals = np.hstack(
+                    (alpha_virtuals, np.zeros(n_aos, alpha_empty_virtuals))
+                )
+                beta_virtuals = np.hstack(
+                    (beta_virtuals, np.zeros(n_aos, beta_empty_virtuals))
+                )
+
                 virtuals = np.array([alpha_virtuals, beta_virtuals])
 
         return virtuals
@@ -75,6 +103,7 @@ def _localize_virtual_spin_pao(
     c_loc_occ: NDArray,
     ao_overlap: NDArray,
     n_act_aos: int,
+    fock: NDArray,
     norm_cutoff: float = 0.05,
     overlap_cutoff: float = 1e-5,
 ) -> NDArray:
@@ -118,8 +147,13 @@ def _localize_virtual_spin_pao(
 
     logger.debug(f"{eigvecs.shape=}")
     # How to transform the truncated paos?
-    final_paos = renormalized_paos[:, np.abs(eigvals) > overlap_cutoff]
-    logger.debug(f"{final_paos.shape=}")
+    reduced_paos = renormalized_paos @ eigvecs[:, np.abs(eigvals) > overlap_cutoff]
+    reduced_paos /= eigvals[np.abs(eigvals) > overlap_cutoff]
+    logger.debug(f"{reduced_paos.shape=}")
+
+    # canonicalise
+    _, rotation = np.linalg.eigh(reduced_paos.T @ fock @ reduced_paos)
+    final_paos = reduced_paos @ rotation
 
     if (n_paos := final_paos.shape[-1]) == 0:
         logger.warning("No projected atomic orbitals!")
