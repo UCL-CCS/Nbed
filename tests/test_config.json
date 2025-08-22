@@ -5,6 +5,7 @@
   "xc_functional":"b3lyp",
   "projector":"mu",
   "localization":"spade",
+  "virtual_localization":"cl",
   "convergence":1e-6,
   "charge":0,
   "spin":0,
@@ -22,6 +23,7 @@
   "init_huzinaga_rhf_with_mu":false,
   "max_hf_cycles":50,
   "max_dft_cycles":50,
+  "force_unrestricted":false,
   "mm_coords":null,
   "mm_charges":null,
   "mm_radii":null
