@@ -47,9 +47,7 @@ class PAOLocalizer(VirtualLocalizer):
                 )
                 logger.debug(f"{virtuals.shape=}")
                 n_aos = self.global_scf.mo_coeff.shape[0]
-                n_virtuals = (
-                    self.global_scf.mo_coeff.shape[-1] - self.c_loc_occ[0].shape[-1]
-                )
+                n_virtuals = np.sum(self.global_scf.mo_occ == 0)
                 n_empty_virtuals = n_virtuals - virtuals.shape[-1]
                 virtuals = np.hstack((virtuals, np.zeros(n_aos, n_empty_virtuals)))
 
@@ -74,16 +72,13 @@ class PAOLocalizer(VirtualLocalizer):
                 )
                 logger.debug(f"{alpha_virtuals.shape=}")
                 logger.debug(f"{beta_virtuals.shape=}")
-                n_aos = self.global_scf.mo_coeff.shape[0]
+                n_aos = self.global_scf.mo_coeff.shape[-2]
+                # TODO this isn't going to work, fix after the weekend.
                 alpha_empty_virtuals = (
-                    self.global_scf.mo_coeff[0].shape[-1]
-                    - self.c_loc_occ[0].shape[-1]
-                    - alpha_virtuals.shape[-1]
+                    np.sum(self.global_scf.mo_occ[0]) - alpha_virtuals.shape[-1]
                 )
                 beta_empty_virtuals = (
-                    self.global_scf.mo_coeff[1].shape[-1]
-                    - self.c_loc_occ[1].shape[-1]
-                    - beta_virtuals.shape[-1]
+                    np.sum(self.global_scf.mo_occ[1]) - beta_virtuals.shape[-1]
                 )
                 alpha_virtuals = np.hstack(
                     (alpha_virtuals, np.zeros(n_aos, alpha_empty_virtuals))
