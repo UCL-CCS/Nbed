@@ -27,8 +27,8 @@ class SPADELocalizer(OccupiedLocalizer):
         c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
         dm_active (np.array): active system density matrix
         dm_enviro (np.array): environment system density matrix
-        active_mo_inds (np.array): 1D array of active occupied MO indices
-        enviro_mo_inds (np.array): 1D array of environment occupied MO indices
+        active_occ_inds (np.array): 1D array of active occupied MO indices
+        enviro_occ_inds (np.array): 1D array of environment occupied MO indices
         c_loc_occ (np.array): C matrix of localized occupied MOs
 
     Methods:
@@ -125,8 +125,13 @@ class SPADELocalizer(OccupiedLocalizer):
         logger.debug(f"{n_env_mos} environment MOs.")
 
         # get active and enviro indices
-        active_mo_inds = np.arange(n_act_mos)
-        enviro_mo_inds = np.arange(n_act_mos, n_act_mos + n_env_mos)
+        active_occ_inds = np.array([False] * occupancy.shape[-1])
+        for i in range(n_act_mos):
+            active_occ_inds[i] = True
+
+        enviro_occ_inds = np.array([False] * occupancy.shape[-1])
+        for i in range(n_act_mos, n_act_mos + n_env_mos):
+            enviro_occ_inds[i] = True
 
         # Defining active and environment orbitals and density
         c_active = occupied_orbitals @ right_vectors.T[:, :n_act_mos]
@@ -143,5 +148,9 @@ class SPADELocalizer(OccupiedLocalizer):
             )
 
         return LocalizedSystem(
-            active_mo_inds, enviro_mo_inds, c_active, c_enviro, c_loc_occ
+            active_occ_inds,
+            enviro_occ_inds,
+            c_active,
+            c_enviro,
+            c_loc_occ,
         )

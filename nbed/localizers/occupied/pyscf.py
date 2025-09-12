@@ -39,8 +39,8 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
         dm_active (np.array): active system density matrix
         dm_enviro (np.array): environment system density matrix
-        active_mo_inds (np.array): 1D array of active occupied MO indices
-        enviro_mo_inds (np.array): 1D array of environment occupied MO indices
+        active_occ_inds (np.array): 1D array of active occupied MO indices
+        enviro_occ_inds (np.array): 1D array of environment occupied MO indices
         c_loc_occ (np.array): C matrix of localized occupied MOs
 
     Methods:
@@ -131,8 +131,8 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(mo_active_share, 4)}")
         logger.debug(f"threshold for active part: {self.occ_cutoff}")
 
-        active_mo_inds = np.where(mo_active_share > self.occ_cutoff)[0]
-        # print(active_mo_inds)
+        active_occ_inds = np.where(mo_active_share > self.occ_cutoff)[0]
+        # print(active_occ_inds)
 
         all_ao_shares_same_bool = np.allclose(
             np.zeros_like(mo_active_share),
@@ -148,35 +148,35 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
                 "AO subsystem selection % same everywhere. Splitting half and half"
             )
             print(f"mo_active_share: {mo_active_share}")
-            active_mo_inds = np.array(range(0, c_loc_occ.shape[1] // 2), dtype=int)
-        elif len(active_mo_inds) == 0:
+            active_occ_inds = np.array(range(0, c_loc_occ.shape[1] // 2), dtype=int)
+        elif len(active_occ_inds) == 0:
             # if no active indices, then take largest possible overlap
             mo_active_percentage_inshare = mo_active_share.argsort()[::-1]
-            active_mo_inds = mo_active_percentage_inshare[:1]  # take first element
+            active_occ_inds = mo_active_percentage_inshare[:1]  # take first element
             logger.warning("no active AOs - forcing one to be active")
-            print(f"active system %: {mo_active_share[active_mo_inds][0]} \n")
+            print(f"active system %: {mo_active_share[active_occ_inds][0]} \n")
 
-        enviro_mo_inds = np.array(
-            [i for i in range(c_loc_occ.shape[1]) if i not in active_mo_inds]
+        enviro_occ_inds = np.array(
+            [i for i in range(c_loc_occ.shape[1]) if i not in active_occ_inds]
         )
 
         # define active MO orbs and environment
         #    take MO (columns of C_matrix) that have high dependence from active AOs
-        c_active = c_loc_occ[:, active_mo_inds]
+        c_active = c_loc_occ[:, active_occ_inds]
 
-        if len(enviro_mo_inds) == 0:
+        if len(enviro_occ_inds) == 0:
             # case for when no environement
             logger.warning("No environment electronic density")
             c_enviro = np.zeros((c_active.shape[0], 1))
         else:
-            c_enviro = c_loc_occ[:, enviro_mo_inds]
+            c_enviro = c_loc_occ[:, enviro_occ_inds]
 
         # storing condition used to select env system
         self.enviro_selection_condition = mo_active_share
 
         logger.debug("PySCF localization complete.")
         return LocalizedSystem(
-            active_mo_inds, enviro_mo_inds, c_active, c_enviro, c_loc_occ
+            active_occ_inds, enviro_occ_inds, c_active, c_enviro, c_loc_occ
         )
 
     def _localize_virtual_spin(
@@ -281,8 +281,8 @@ class PMLocalizer(PySCFLocalizer):
         c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
         dm_active (np.array): active system density matrix
         dm_enviro (np.array): environment system density matrix
-        active_mo_inds (np.array): 1D array of active occupied MO indices
-        enviro_mo_inds (np.array): 1D array of environment occupied MO indices
+        active_occ_inds (np.array): 1D array of active occupied MO indices
+        enviro_occ_inds (np.array): 1D array of environment occupied MO indices
         c_loc_occ (np.array): C matrix of localized occupied MOs
 
     Methods:
@@ -344,8 +344,8 @@ class BOYSLocalizer(PySCFLocalizer):
         c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
         dm_active (np.array): active system density matrix
         dm_enviro (np.array): environment system density matrix
-        active_mo_inds (np.array): 1D array of active occupied MO indices
-        enviro_mo_inds (np.array): 1D array of environment occupied MO indices
+        active_occ_inds (np.array): 1D array of active occupied MO indices
+        enviro_occ_inds (np.array): 1D array of environment occupied MO indices
         c_loc_occ (np.array): C matrix of localized occupied MOs
 
     Methods:
@@ -398,8 +398,8 @@ class IBOLocalizer(PySCFLocalizer):
         c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
         dm_active (np.array): active system density matrix
         dm_enviro (np.array): environment system density matrix
-        active_mo_inds (np.array): 1D array of active occupied MO indices
-        enviro_mo_inds (np.array): 1D array of environment occupied MO indices
+        active_occ_inds (np.array): 1D array of active occupied MO indices
+        enviro_occ_inds (np.array): 1D array of environment occupied MO indices
         c_loc_occ (np.array): C matrix of localized occupied MOs
 
     Methods:

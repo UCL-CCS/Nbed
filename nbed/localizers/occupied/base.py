@@ -31,8 +31,8 @@ class OccupiedLocalizer(ABC):
         c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
         dm_active (np.array): active system density matrix
         dm_enviro (np.array): environment system density matrix
-        active_mo_inds (np.array): 1D array of active occupied MO indices
-        enviro_mo_inds (np.array): 1D array of environment occupied MO indices
+        active_occ_inds (np.array): 1D array of active occupied MO indices
+        enviro_occ_inds (np.array): 1D array of environment occupied MO indices
         c_loc_occ (np.array): C matrix of localized occupied MOs
 
     Methods:
@@ -67,8 +67,8 @@ class OccupiedLocalizer(ABC):
         """Localise orbitals using SPADE.
 
         Returns:
-            active_mo_inds (np.array): 1D array of active occupied MO indices
-            enviro_mo_inds (np.array): 1D array of environment occupied MO indices
+            active_occ_inds (np.array): 1D array of active occupied MO indices
+            enviro_occ_inds (np.array): 1D array of environment occupied MO indices
             c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
             c_enviro (np.array): C matrix of localized occupied ennironment MOs
             c_loc_occ (np.array): full C matrix of localized occupied MOs
@@ -95,45 +95,52 @@ class OccupiedLocalizer(ABC):
                 self._global_scf.mo_occ[1],
                 self.n_mo_overwrite[1],
             )
+
             # to ensure the same number of alpha and beta orbitals are included
             # use the sum of occupancies
-            if set(alpha.active_mo_inds) != set(beta.active_mo_inds) or set(
-                alpha.enviro_mo_inds
-            ) != set(beta.enviro_mo_inds):
+            if np.all(alpha.active_occ_inds == beta.active_occ_inds) and np.all(
+                alpha.enviro_occ_inds == beta.enviro_occ_inds
+            ):
+                localized_system = LocalizedSystem(
+                    np.array([alpha.active_occ_inds, beta.active_occ_inds]),
+                    np.array([alpha.enviro_occ_inds, beta.enviro_occ_inds]),
+                    np.array([alpha.c_active, beta.c_active]),
+                    np.array([alpha.c_enviro, beta.c_enviro]),
+                    np.array([alpha.c_loc_occ, beta.c_loc_occ]),
+                )
+            else:
                 logger.debug(
                     "Recalculating occupied embedded C matrices to enforce equal number between spins."
                 )
                 # We now use the smaller of the two for the NMO overwrite
-                n_mo_overwrite = (
-                    beta.active_mo_inds.size
-                    if beta.active_mo_inds.size <= alpha.active_mo_inds.size
-                    else alpha.active_mo_inds.size
-                )
+                alpha_act_occ = np.sum(alpha.active_occ_inds)
+                beta_act_occ = np.sum(beta.active_occ_inds)
+                n_mo_overwrite = np.min([alpha_act_occ, beta_act_occ])
 
                 mo_occ_sum = np.sum(self._global_scf.mo_occ, axis=0)
-                alpha = self._localize_spin(
+                alpha_consistent = self._localize_spin(
                     self._global_scf.mo_coeff[0],
                     mo_occ_sum,
                     n_mo_overwrite,
                 )
-                beta = self._localize_spin(
+                beta_consistent = self._localize_spin(
                     self._global_scf.mo_coeff[1],
                     mo_occ_sum,
                     n_mo_overwrite,
                 )
 
-            localized_system = LocalizedSystem(
-                np.array([alpha.active_mo_inds, beta.active_mo_inds]),
-                np.array([alpha.enviro_mo_inds, beta.enviro_mo_inds]),
-                np.array([alpha.c_active, beta.c_active]),
-                np.array([alpha.c_enviro, beta.c_enviro]),
-                np.array([alpha.c_loc_occ, beta.c_loc_occ]),
-            )
+                localized_system = LocalizedSystem(
+                    np.array([alpha.active_occ_inds, beta.active_occ_inds]),
+                    np.array([alpha.enviro_occ_inds, beta.enviro_occ_inds]),
+                    np.array([alpha_consistent.c_active, beta_consistent.c_active]),
+                    np.array([alpha_consistent.c_enviro, beta_consistent.c_enviro]),
+                    np.array([alpha_consistent.c_loc_occ, beta_consistent.c_loc_occ]),
+                )
 
         logger.debug("Localization complete.")
         logger.debug("Localized orbitals:")
-        logger.debug(f"{localized_system.active_mo_inds=}")
-        logger.debug(f"{localized_system.enviro_mo_inds=}")
+        logger.debug(f"{localized_system.active_occ_inds=}")
+        logger.debug(f"{localized_system.enviro_occ_inds=}")
         logger.debug(f"{localized_system.c_active.shape=}")
         logger.debug(f"{localized_system.c_enviro.shape=}")
         logger.debug(f"{localized_system.c_loc_occ.shape=}")
@@ -172,16 +179,16 @@ def check_values(
     """
     logger.debug("Running localizer sense check.")
     warn_flag = False
-    if localized_system.active_mo_inds.ndim == 2:
+    if localized_system.active_occ_inds.ndim == 2:
         logger.debug("Checking spin does not affect localization.")
         active_number_match = (
-            localized_system.active_mo_inds[0].shape
-            == localized_system.active_mo_inds[1].shape
+            localized_system.active_occ_inds[0].shape
+            == localized_system.active_occ_inds[1].shape
         )
         logger.debug(f"{active_number_match=}")
         enviro_number_match = (
-            localized_system.enviro_mo_inds[0].shape
-            == localized_system.enviro_mo_inds[1].shape
+            localized_system.enviro_occ_inds[0].shape
+            == localized_system.enviro_occ_inds[1].shape
         )
         logger.debug(f"{enviro_number_match=}")
         if not active_number_match or not enviro_number_match:

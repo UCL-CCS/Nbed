@@ -9,8 +9,8 @@ from numpy.typing import NDArray
 class LocalizedSystem:
     """Required data from localized system.
 
-    active_mo_inds (np.array): 1D array of active occupied MO indices
-    enviro_mo_inds (np.array): 1D array of environment occupied MO indices
+    active_occ_inds (np.array[bool]): 1D array, true for active occupied MO indices
+    enviro_occ_inds (np.array[bool]): 1D array, true for of environment occupied MO indices
     c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
     c_enviro (np.array): C matrix of localized occupied ennironment MOs
     c_loc_occ (np.array): C matrix of localized occupied MOs
@@ -19,8 +19,8 @@ class LocalizedSystem:
     dm_enviro (np.array): environment system density matrix
     """
 
-    active_mo_inds: NDArray
-    enviro_mo_inds: NDArray
+    active_occ_inds: NDArray[bool]
+    enviro_occ_inds: NDArray[bool]
     c_active: NDArray
     c_enviro: NDArray
     c_loc_occ: NDArray

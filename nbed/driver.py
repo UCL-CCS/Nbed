@@ -266,9 +266,9 @@ class NbedDriver:
             gto.Mole: An embedded molecule object.
         """
         embedded_mol: gto.Mole = self._build_mol()
-        match self.localized_system.active_mo_inds.ndim:
+        match self.localized_system.active_occ_inds.ndim:
             case 1:
-                n_elec = len(self.localized_system.active_mo_inds)
+                n_elec = np.sum(self.localized_system.active_occ_inds)
                 logger.debug(f"embedded nelec {n_elec}")
 
                 embedded_mol.nelectron = 2 * n_elec
@@ -276,8 +276,8 @@ class NbedDriver:
                 embedded_mol.spin = 0
                 self._electron = embedded_mol.nelectron
             case 2:
-                n_elec_alpha = len(self.localized_system.active_mo_inds[0, :])
-                n_elec_beta = len(self.localized_system.active_mo_inds[1, :])
+                n_elec_alpha = np.sum(self.localized_system.active_occ_inds[0, :])
+                n_elec_beta = np.sum(self.localized_system.active_occ_inds[1, :])
                 logger.debug(f"embedded nelec {n_elec_alpha, n_elec_beta}")
 
                 embedded_mol.nelectron = n_elec_alpha + n_elec_beta
@@ -668,9 +668,10 @@ class NbedDriver:
                 )
             case 3:
                 #
-                n_env_mos = len(
-                    set(localized_system.enviro_mo_inds[0]).union(
-                        localized_system.enviro_mo_inds[1]
+                n_env_mos = np.sum(
+                    np.bitwise_and(
+                        localized_system.enviro_occ_inds[0],
+                        localized_system.enviro_occ_inds[1],
                     )
                 )
                 logger.debug(f"{n_env_mos=}")
@@ -765,6 +766,7 @@ class NbedDriver:
                     mo_i for mo_i in range(shift, mo_coeff.shape[-1])
                 ]
 
+        logger.debug(f"{frozen_enviro_orb_inds=}")
         active_MOs_occ_and_virt_embedded = [
             mo_i
             for mo_i in range(mo_coeff.shape[-1])
@@ -833,8 +835,8 @@ class NbedDriver:
 
         self.localized_system = self._localize()
         logger.info("Indices of embedded electrons:")
-        logger.info(self.localized_system.active_mo_inds)
-        logger.info(self.localized_system.enviro_mo_inds)
+        logger.info(self.localized_system.active_occ_inds)
+        logger.info(self.localized_system.enviro_occ_inds)
 
         # Run subsystem DFT (calls localized rks)
         self.e_act, self.e_env, self.two_e_cross = self._subsystem_dft(
@@ -1031,9 +1033,10 @@ class NbedDriver:
             did = self._dft_in_dft(projector)
             result.update(did)
 
-        # Build second quantised Hamiltonian
-        hb = HamiltonianBuilder(result["scf"], result["classical_energy"])
-        result["second_quantised"] = hb.build()
+        if self.config.build_hamiltonian is True:
+            # Build second quantised Hamiltonian
+            hb = HamiltonianBuilder(result["scf"], result["classical_energy"])
+            result["second_quantised"] = hb.build()
 
         logger.debug(f"Found result for {projector}")
         logger.debug(result)
@@ -1153,6 +1156,7 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
 
     local_rks_same_functional = driver._init_local_ks(driver._global_ks.xc)
     hcore_std = local_rks_same_functional.get_hcore()
+    projection_method = ProjectorTypes(projection_method)
     match projection_method:
         case ProjectorTypes.MU:
             result["scf_dft"], result["v_emb_dft"] = driver._mu_embed(

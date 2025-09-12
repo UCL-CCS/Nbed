@@ -144,6 +144,8 @@ class NbedConfig(BaseModel):
     max_hf_cycles: PositiveInt = Field(default=50)
     max_dft_cycles: PositiveInt = Field(default=50)
 
+    build_hamiltonian: bool = True
+
 
 def overwrite_config_kwargs(config: NbedConfig, **config_kwargs) -> NbedConfig:
     """Overwrites config values with key-words and revalidates.

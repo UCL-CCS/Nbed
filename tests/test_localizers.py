@@ -129,18 +129,18 @@ def test_PM_mo_indices(global_rks, global_uks) -> None:
         virt_cutoff=virt_cutoff,
     ).localize()
     assert np.all(
-        restricted_loc_system.active_mo_inds == unrestricted_loc_system.active_mo_inds[0]
+        restricted_loc_system.active_occ_inds == unrestricted_loc_system.active_occ_inds[0]
     )
     assert np.all(
-        restricted_loc_system.enviro_mo_inds == unrestricted_loc_system.enviro_mo_inds[1]
+        restricted_loc_system.enviro_occ_inds == unrestricted_loc_system.enviro_occ_inds[1]
     )
     assert np.all(
-        unrestricted_loc_system.active_mo_inds[0]
-        == unrestricted_loc_system.active_mo_inds[1]
+        unrestricted_loc_system.active_occ_inds[0]
+        == unrestricted_loc_system.active_occ_inds[1]
     )
     assert np.all(
-        unrestricted_loc_system.enviro_mo_inds[0]
-        == unrestricted_loc_system.enviro_mo_inds[1]
+        unrestricted_loc_system.enviro_occ_inds[0]
+        == unrestricted_loc_system.enviro_occ_inds[1]
     )
 
 
@@ -155,18 +155,18 @@ def test_SPADE_mo_indices(global_rks, global_uks) -> None:
         n_active_atoms=n_active_atoms,
     ).localize()
     assert np.all(
-        restricted_loc_system.active_mo_inds == unrestricted_loc_system.active_mo_inds[0]
+        restricted_loc_system.active_occ_inds == unrestricted_loc_system.active_occ_inds[0]
     )
     assert np.all(
-        restricted_loc_system.enviro_mo_inds == unrestricted_loc_system.enviro_mo_inds[0]
+        restricted_loc_system.enviro_occ_inds == unrestricted_loc_system.enviro_occ_inds[0]
     )
     assert np.all(
-        unrestricted_loc_system.active_mo_inds[0]
-        == unrestricted_loc_system.active_mo_inds[1]
+        unrestricted_loc_system.active_occ_inds[0]
+        == unrestricted_loc_system.active_occ_inds[1]
     )
     assert np.all(
-        unrestricted_loc_system.enviro_mo_inds[0]
-        == unrestricted_loc_system.enviro_mo_inds[1]
+        unrestricted_loc_system.enviro_occ_inds[0]
+        == unrestricted_loc_system.enviro_occ_inds[1]
     )
 
 
@@ -208,10 +208,10 @@ def test_spade_spins_match(global_rks, global_uks) -> None:
         n_active_atoms=n_active_atoms,
     ).localize()
 
-    # assert loc_system.active_mo_inds
-    assert restricted.active_mo_inds.ndim == 1
-    assert np.all(unrestricted.active_mo_inds[0] == unrestricted.active_mo_inds[1])
-    assert np.all(restricted.active_mo_inds == unrestricted.active_mo_inds[0])
+    # assert loc_system.active_occ_inds
+    assert restricted.active_occ_inds.ndim == 1
+    assert np.all(unrestricted.active_occ_inds[0] == unrestricted.active_occ_inds[1])
+    assert np.all(restricted.active_occ_inds == unrestricted.active_occ_inds[0])
 
 
 def test_cl_shell_numbers(global_rks, global_uks) -> None:
