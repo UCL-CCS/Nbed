@@ -267,8 +267,11 @@ class NbedDriver:
         """
         embedded_mol: gto.Mole = self._build_mol()
         if self.config.retain_spin_charge is True:
+            active_atom_xyz = "\n".join(
+                self.config.geometry[2:].splitlines()[2 : 2 + 2]
+            )
             active_atom_mol = gto.Mole(
-                atom=self.config.geometry[2 : 2 + self.config.n_active_atoms + 1],
+                atom=active_atom_xyz,
                 basis=self.config.basis,
                 charge=self.config.charge,
                 unit=self.config.unit,
