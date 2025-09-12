@@ -73,6 +73,7 @@ class PAOLocalizer(VirtualLocalizer):
                 logger.debug(f"{alpha_virtuals.shape=}")
                 logger.debug(f"{beta_virtuals.shape=}")
                 n_aos = self.global_scf.mo_coeff.shape[-2]
+
                 # TODO this isn't going to work, fix after the weekend.
                 alpha_empty_virtuals = (
                     np.sum(self.global_scf.mo_occ[0]) - alpha_virtuals.shape[-1]
