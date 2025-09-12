@@ -114,6 +114,7 @@ class NbedConfig(BaseModel):
     spin: NonNegativeInt = Field(default=0)
     unit: str = "angstrom"
     symmetry: bool = False
+    retain_spin_charge: bool = True
 
     savefile: FilePath | None = None
 

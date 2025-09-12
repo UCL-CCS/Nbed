@@ -266,24 +266,38 @@ class NbedDriver:
             gto.Mole: An embedded molecule object.
         """
         embedded_mol: gto.Mole = self._build_mol()
-        match self.localized_system.active_occ_inds.ndim:
-            case 1:
-                n_elec = np.sum(self.localized_system.active_occ_inds)
-                logger.debug(f"embedded nelec {n_elec}")
+        if self.config.retain_spin_charge is True:
+            active_atom_mol = gto.Mole(
+                atom=self.config.geometry[2 : 2 + self.config.n_active_atoms + 1],
+                basis=self.config.basis,
+                charge=self.config.charge,
+                unit=self.config.unit,
+                spin=self.config.spin,
+            ).build()
+            embedded_mol.nelectron = active_atom_mol.nelectron
+            embedded_mol.nelec = active_atom_mol.nelec
+            embedded_mol.spin = active_atom_mol.spin
+            embedded_mol.charge = active_atom_mol.charge
+            self._electron = embedded_mol.nelectron
+        else:
+            match self.localized_system.active_occ_inds.ndim:
+                case 1:
+                    n_elec = np.sum(self.localized_system.active_occ_inds)
+                    logger.debug(f"embedded nelec {n_elec}")
 
-                embedded_mol.nelectron = 2 * n_elec
-                embedded_mol.nelec = (n_elec, n_elec)
-                embedded_mol.spin = 0
-                self._electron = embedded_mol.nelectron
-            case 2:
-                n_elec_alpha = np.sum(self.localized_system.active_occ_inds[0, :])
-                n_elec_beta = np.sum(self.localized_system.active_occ_inds[1, :])
-                logger.debug(f"embedded nelec {n_elec_alpha, n_elec_beta}")
+                    embedded_mol.nelectron = 2 * n_elec
+                    embedded_mol.nelec = (n_elec, n_elec)
+                    embedded_mol.spin = 0
+                    self._electron = embedded_mol.nelectron
+                case 2:
+                    n_elec_alpha = np.sum(self.localized_system.active_occ_inds[0, :])
+                    n_elec_beta = np.sum(self.localized_system.active_occ_inds[1, :])
+                    logger.debug(f"embedded nelec {n_elec_alpha, n_elec_beta}")
 
-                embedded_mol.nelectron = n_elec_alpha + n_elec_beta
-                embedded_mol.nelec = (n_elec_alpha, n_elec_beta)
-                embedded_mol.spin = n_elec_alpha - n_elec_beta
-                self._electron = embedded_mol.nelectron
+                    embedded_mol.nelectron = n_elec_alpha + n_elec_beta
+                    embedded_mol.nelec = (n_elec_alpha, n_elec_beta)
+                    embedded_mol.spin = n_elec_alpha - n_elec_beta
+                    self._electron = embedded_mol.nelectron
         return embedded_mol
 
     def _init_local_ks(self, xc_functional: str) -> Union[dft.uks.UKS, dft.ROKS]:
