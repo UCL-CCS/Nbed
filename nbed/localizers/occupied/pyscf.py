@@ -179,10 +179,16 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
 
         logger.debug("PySCF localization complete.")
         active_occ_inds = np.pad(
-            active_occ_inds, c_matrix.shape[-1] - active_occ_inds.size, [False]
+            active_occ_inds,
+            c_matrix.shape[-1] - active_occ_inds.size,
+            "constant",
+            constant_values=False,
         )
         enviro_occ_inds = np.pad(
-            enviro_occ_inds, c_matrix.shape[-1] - enviro_occ_inds.size, [False]
+            enviro_occ_inds,
+            c_matrix.shape[-1] - enviro_occ_inds.size,
+            "constant",
+            constant_values=False,
         )
         return LocalizedSystem(
             active_occ_inds, enviro_occ_inds, c_active, c_enviro, c_loc_occ
