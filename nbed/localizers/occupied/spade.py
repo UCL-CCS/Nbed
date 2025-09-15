@@ -224,14 +224,18 @@ class SPADELocalizer(OccupiedLocalizer):
                 max_delta_sigma: int = np.argmax(value_diffs) + 1
             return max_delta_sigma
 
-        max_delta_sigma = np.apply_along_axis(parition_occupied_spin, axis=1, arr=sigma)
+        max_delta_sigma: int = np.max(
+            np.apply_along_axis(parition_occupied_spin, axis=1, arr=sigma)
+        )
 
-        n_act_mos = max_delta_sigma
-        if n_mo_overwrite is not None:
-            n_act_mos: tuple[int, int] = (
-                n_mo_overwrite if n_mo_overwrite <= sigma.shape[-1] else sigma.shape[-1]
-            )
-            logger.debug(f"Enforcing use of {n_act_mos} MOs")
+        match n_mo_overwrite:
+            case int(n) if n <= sigma.shape[-1]:
+                n_act_mos = n_mo_overwrite
+                logger.debug(f"Enforcing use of {n_act_mos} MOs")
+            case int(n) if n > sigma.shape[-1]:
+                n_act_mos = sigma.shape[-1]
+            case None:
+                n_act_mos = max_delta_sigma
 
         n_env_mos = n_occupied_orbitals - n_act_mos
         logger.debug(f"{n_act_mos} active MOs.")
@@ -254,13 +258,7 @@ class SPADELocalizer(OccupiedLocalizer):
         c_loc_occ = occupied_orbitals @ right_vectors.T
 
         # storing condition used to select env system
-        if self.enviro_selection_condition is None:
-            self.enviro_selection_condition = (sigma, np.zeros(len(sigma)))
-        else:
-            self.enviro_selection_condition = (
-                self.enviro_selection_condition[0],
-                sigma,
-            )
+        self.enviro_selection_condition = sigma
 
         return LocalizedSystem(
             active_occ_inds,
