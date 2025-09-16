@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 import numpy as np
+import numpy.typing as npt
 from pyscf import lo
 from pyscf.lib import StreamObject
 from pyscf.lo import vvo
@@ -110,12 +111,6 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
 
         ao_slice_matrix = self._global_scf.mol.aoslice_by_atom()
 
-        # TODO: Check the following:
-        # S_ovlp = pyscf_scf.get_ovlp()
-        # S_half = sp.linalg.fractional_matrix_power(S_ovlp , 0.5)
-        # C_loc_occ_ORTHO = S_half@C_loc_occ_full
-        # run numerator_all and denominator_all in ortho basis
-
         # find indices of AO of active atoms
         ao_active_inds = np.arange(
             ao_slice_matrix[0, 2], ao_slice_matrix[self._n_active_atoms - 1, 3]
@@ -131,8 +126,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(mo_active_share, 4)}")
         logger.debug(f"threshold for active part: {self.occ_cutoff}")
 
-        active_occ_inds = mo_active_share > self.occ_cutoff
-        # print(active_occ_inds)
+        active_occ_inds: npt.NDArray[np.bool] = mo_active_share > self.occ_cutoff
 
         all_ao_shares_same_bool = np.allclose(
             np.zeros_like(mo_active_share),
@@ -148,16 +142,13 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
                 "AO subsystem selection % same everywhere. Splitting half and half"
             )
             print(f"mo_active_share: {mo_active_share}")
-            active_occ_inds = np.array(
-                [True] * c_loc_occ.shape[-1] // 2 + [False] * c_loc_occ.shape[-1] // 2
-            )
+            active_occ_inds = np.zeros(c_loc_occ.shape[-1], dtype=np.bool)
+            active_occ_inds[:active_occ_inds.shape[0]//2] = True
         elif len(active_occ_inds) == 0:
             # if no active indices, then take largest possible overlap
             mo_active_percentage_inshare = mo_active_share.argsort()[::-1]
-            active_occ_inds = np.array([False] * c_loc_occ.shape[-1])
-            active_occ_inds[mo_active_percentage_inshare[0]] = (
-                True  # take first element
-            )
+            active_occ_inds = np.zeros(c_loc_occ.shape[-1], dtype=np.bool)
+            active_occ_inds[mo_active_percentage_inshare[0]] = True
             logger.warning("no active AOs - forcing one to be active")
             print(f"active system %: {mo_active_share[active_occ_inds][0]} \n")
 
@@ -178,18 +169,6 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         self.enviro_selection_condition = mo_active_share
 
         logger.debug("PySCF localization complete.")
-        active_occ_inds = np.pad(
-            active_occ_inds,
-            c_matrix.shape[-1] - active_occ_inds.size,
-            "constant",
-            constant_values=False,
-        )
-        enviro_occ_inds = np.pad(
-            enviro_occ_inds,
-            c_matrix.shape[-1] - enviro_occ_inds.size,
-            "constant",
-            constant_values=False,
-        )
         return LocalizedSystem(
             active_occ_inds, enviro_occ_inds, c_active, c_enviro, c_loc_occ
         )

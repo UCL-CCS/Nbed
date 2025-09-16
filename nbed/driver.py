@@ -277,10 +277,10 @@ class NbedDriver:
                 unit=self.config.unit,
                 spin=self.config.spin,
             ).build()
-            # embedded_mol.nelectron = active_atom_mol.nelectron
-            # embedded_mol.nelec = active_atom_mol.nelec
+            embedded_mol.nelectron = active_atom_mol.nelectron
+            embedded_mol.nelec = active_atom_mol.nelec
             embedded_mol.spin = active_atom_mol.spin
-            # embedded_mol.charge = active_atom_mol.charge
+            embedded_mol.charge = active_atom_mol.charge
             self._electron = embedded_mol.nelectron
         else:
             match self.localized_system.active_occ_inds.ndim:
