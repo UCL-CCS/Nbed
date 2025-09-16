@@ -80,7 +80,7 @@ def nbed_args(water_filepath) -> dict:
         "mu_level_shift": 1000000.0,
         "run_ccsd_emb": True,
         "run_fci_emb": True,
-        "n_mo_overwrite": (None, None),
+        "n_mo_overwrite": None,
         "run_dft_in_dft": False,
         "max_ram_memory": 4000,
         "occupied_threshold": 0.95,

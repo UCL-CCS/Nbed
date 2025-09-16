@@ -132,7 +132,7 @@ class NbedConfig(BaseModel):
     virtual_localization: VirtualLocalizerTypes = Field(
         default=VirtualLocalizerTypes.CONCENTRIC
     )
-    n_mo_overwrite: tuple[None | NonNegativeInt, None | NonNegativeInt] = (None, None)
+    n_mo_overwrite: None | NonNegativeInt = None
     occupied_threshold: float = Field(default=0.95, gt=0, lt=1)
     virtual_threshold: float = Field(default=0.95, gt=0, lt=1)
     max_shells: PositiveInt = 4

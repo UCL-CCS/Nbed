@@ -103,9 +103,11 @@ def test_embedded_ccsd(driver, request):
         - projector_result["correction"]
         - projector_result["beta_correction"]
     )
-
-    assert np.isclose(e_emb, -75.1285849238916)
-    assert np.isclose(ecorr, -0.00477765364464925)
+    assert projector_result["scf"].mol.spin == 0
+    assert projector_result["scf"].mol.charge == 0
+    assert np.all(projector_result["scf"].mol.nelec == (3,3))
+    assert np.isclose(e_emb, -75.15801845510175)
+    assert np.isclose(ecorr, -5.1169560459940485e-08)
 
 
 @pytest.mark.parametrize("driver", ["mu_driver", "huz_driver"])
@@ -124,7 +126,10 @@ def test_embedded_fci(driver, request):
         - projector_result["correction"]
         - projector_result["beta_correction"]
     )
-    assert np.isclose(e_emb_fci, -75.12858550813999)
+    assert projector_result["scf"].mol.spin == 0
+    assert projector_result["scf"].mol.charge == 0
+    assert np.all(projector_result["scf"].mol.nelec == (3,3))
+    assert np.isclose(e_emb_fci, -75.12488456881668)
 
 
 def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:

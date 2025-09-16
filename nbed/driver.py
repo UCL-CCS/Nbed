@@ -1,8 +1,8 @@
 """Module containg the NbedDriver Class."""
 
+import json
 import logging
 from functools import cached_property
-from json import dump as jdump
 from typing import Optional, Union
 
 import numpy as np
@@ -841,7 +841,7 @@ class NbedDriver:
         logger.debug("Embedding molecule.")
         self.e_nuc = self._global_ks.energy_nuc()
 
-        if n_mo_overwrite is not None and n_mo_overwrite != (None, None):
+        if n_mo_overwrite is not None:
             logger.debug(
                 "Setting n_mo_overwrite with value from embed args %s", n_mo_overwrite
             )
@@ -937,7 +937,7 @@ class NbedDriver:
         if filename := self.config.savefile is not None:
             logger.debug("Saving results to file %s", filename)
             with open(filename, "w") as f:
-                jdump({"mu": self.mu, "huzinaga": self.huzinaga}, f)
+                json.dump({"mu": self.mu, "huzinaga": self.huzinaga}, f)
 
         logger.info("Embedding complete.")
 
@@ -1248,5 +1248,5 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
         + e_nuc
     )
     result["emb_dft"] = rks_e_elec
-
+    logger.debug(json.dumps(result, default=str))
     return result

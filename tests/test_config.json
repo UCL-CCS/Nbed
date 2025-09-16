@@ -14,7 +14,7 @@
   "run_ccsd_emb":true,
   "run_fci_emb":true,
   "run_dft_in_dft":true,
-  "n_mo_overwrite":[null,null],
+  "n_mo_overwrite":null,
   "max_ram_memory":4000,
   "occupied_threshold":0.95,
   "virtual_threshold":0.95,

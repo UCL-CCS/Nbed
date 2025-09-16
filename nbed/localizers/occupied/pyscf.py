@@ -54,14 +54,12 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         n_active_atoms: int,
         occ_cutoff: Optional[float] = 0.95,
         virt_cutoff: Optional[float] = 0.95,
+        n_mo_overwrite: int | None = None,
     ):
         """Initialize PySCF Localizer."""
         self.occ_cutoff = self._valid_threshold(occ_cutoff)
         self.virt_cutoff = self._valid_threshold(virt_cutoff)
-        super().__init__(
-            global_scf,
-            n_active_atoms,
-        )
+        super().__init__(global_scf, n_active_atoms, n_mo_overwrite)
 
     def _valid_threshold(self, threshold: float):
         """Checks if threshold is within 0-1 range (percentage).
@@ -90,7 +88,6 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
 
     def localize(
         self,
-        n_mo_overwrite: int,
     ) -> LocalizedSystem:
         """Localise orbitals.
 
