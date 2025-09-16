@@ -55,7 +55,7 @@ def test_base_localizer(global_rks) -> None:
     with pytest.raises(TypeError) as excinfo:
         OccupiedLocalizer(global_rks, n_active_atoms=n_active_atoms).localize()
 
-    assert "_localize_spin" in str(excinfo.value)
+    assert "localize" in str(excinfo.value)
 
 
 def test_PM_arguments(global_rks) -> None:

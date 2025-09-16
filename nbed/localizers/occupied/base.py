@@ -43,7 +43,7 @@ class OccupiedLocalizer(ABC):
         self,
         global_scf: StreamObject,
         n_active_atoms: int,
-        n_mo_overwrite: int | None = None
+        n_mo_overwrite: int | None = None,
     ):
         """Initialise class."""
         logger.debug("Initialising OccupiedLocalizerTypes.")
@@ -61,6 +61,7 @@ class OccupiedLocalizer(ABC):
             self.spinless = False
         logger.debug(f"Global scf: {type(global_scf)}")
 
+    @abstractmethod
     def localize(
         self,
     ) -> LocalizedSystem:
@@ -72,89 +73,6 @@ class OccupiedLocalizer(ABC):
             c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
             c_enviro (np.array): C matrix of localized occupied ennironment MOs
             c_loc_occ (np.array): full C matrix of localized occupied MOs
-        """
-        if self.spinless:
-            logger.debug("Running SPADE for only one spin.")
-            localized_system = self._localize_spin(
-                self._global_scf.mo_coeff,
-                self._global_scf.mo_occ,
-                self.n_mo_overwrite,
-            )
-
-        else:
-            alpha = self._localize_spin(
-                self._global_scf.mo_coeff[0],
-                self._global_scf.mo_occ[0],
-                self.n_mo_overwrite,
-            )
-            beta = self._localize_spin(
-                self._global_scf.mo_coeff[0],
-                self._global_scf.mo_occ[0],
-                self.n_mo_overwrite,
-            )
-
-            # to ensure the same number of alpha and beta orbitals are included
-            # use the sum of occupancies
-            if np.all(alpha.active_occ_inds == beta.active_occ_inds) and np.all(
-                alpha.enviro_occ_inds == beta.enviro_occ_inds
-            ):
-                localized_system = LocalizedSystem(
-                    np.array([alpha.active_occ_inds, beta.active_occ_inds]),
-                    np.array([alpha.enviro_occ_inds, beta.enviro_occ_inds]),
-                    np.array([alpha.c_active, beta.c_active]),
-                    np.array([alpha.c_enviro, beta.c_enviro]),
-                    np.array([alpha.c_loc_occ, beta.c_loc_occ]),
-                )
-
-            else:
-                logger.debug(
-                    "Recalculating occupied embedded C matrices to enforce equal number of MOs.."
-                )
-                # We now use the smaller of the two for the NMO overwrite
-                alpha_act_occ = np.sum(alpha.active_occ_inds)
-                beta_act_occ = np.sum(beta.active_occ_inds)
-                n_mo_overwrite = np.max([alpha_act_occ, beta_act_occ])
-
-                mo_occ_sum = np.sum(self._global_scf.mo_occ, axis=0)
-                alpha_consistent = self._localize_spin(
-                    self._global_scf.mo_coeff[0],
-                    mo_occ_sum,
-                    self.n_mo_overwrite[0],
-                )
-                beta_consistent = self._localize_spin(
-                    self._global_scf.mo_coeff[1],
-                    mo_occ_sum,
-                    self.n_mo_overwrite[1],
-                )
-
-                localized_system = LocalizedSystem.from_spin_components(alpha_consistent, beta_consistent)
-
-        logger.debug("Localization complete.")
-        logger.debug("Localized orbitals:")
-        logger.debug(f"{localized_system.active_occ_inds=}")
-        logger.debug(f"{localized_system.enviro_occ_inds=}")
-        logger.debug(f"{localized_system.c_active.shape=}")
-        logger.debug(f"{localized_system.c_enviro.shape=}")
-        logger.debug(f"{localized_system.c_loc_occ.shape=}")
-
-        return localized_system
-
-    @abstractmethod
-    def _localize_spin(
-        self,
-        c_matrix: np.ndarray,
-        occupancy: np.ndarray,
-        n_mo_overwrite: int | None = None,
-    ) -> LocalizedSystem:
-        """Localize orbitals of one spin.
-
-        Args:
-            c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
-            occupancy (np.ndarray): Occupancy of orbitals.
-            n_mo_overwrite (int | None): Overwrite the number of active molecular orbitals.
-
-        Returns:
-            np.ndarray: Localized C matrix of occupied orbitals.
         """
         pass
 

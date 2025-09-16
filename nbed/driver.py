@@ -266,7 +266,7 @@ class NbedDriver:
             gto.Mole: An embedded molecule object.
         """
         embedded_mol: gto.Mole = self._build_mol()
-        if self.config.retain_spin_charge is True:
+        if self.config.enforce_embedded_spin_charge is True:
             active_atom_xyz = "\n".join(
                 self.config.geometry[2:].splitlines()[2 : 2 + 2]
             )

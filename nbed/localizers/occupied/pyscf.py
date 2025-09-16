@@ -88,6 +88,90 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         """
         pass
 
+    def localize(
+        self,
+        n_mo_overwrite: int,
+    ) -> LocalizedSystem:
+        """Localise orbitals.
+
+        Args:
+            n_mo_overwrite (int): Enforce a specific number of active molecular orbitals.
+
+        Returns:
+            active_occ_inds (np.array): 1D array of active occupied MO indices
+            enviro_occ_inds (np.array): 1D array of environment occupied MO indices
+            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
+            c_enviro (np.array): C matrix of localized occupied ennironment MOs
+            c_loc_occ (np.array): full C matrix of localized occupied MOs
+        """
+        if self.spinless:
+            logger.debug("Running SPADE for only one spin.")
+            localized_system = self._localize_spin(
+                self._global_scf.mo_coeff,
+                self._global_scf.mo_occ,
+                self.n_mo_overwrite,
+            )
+
+        else:
+            alpha = self._localize_spin(
+                self._global_scf.mo_coeff[0],
+                self._global_scf.mo_occ[0],
+                self.n_mo_overwrite,
+            )
+            beta = self._localize_spin(
+                self._global_scf.mo_coeff[0],
+                self._global_scf.mo_occ[0],
+                self.n_mo_overwrite,
+            )
+
+            # to ensure the same number of alpha and beta orbitals are included
+            # use the sum of occupancies
+            if np.all(alpha.active_occ_inds == beta.active_occ_inds) and np.all(
+                alpha.enviro_occ_inds == beta.enviro_occ_inds
+            ):
+                localized_system = LocalizedSystem(
+                    np.array([alpha.active_occ_inds, beta.active_occ_inds]),
+                    np.array([alpha.enviro_occ_inds, beta.enviro_occ_inds]),
+                    np.array([alpha.c_active, beta.c_active]),
+                    np.array([alpha.c_enviro, beta.c_enviro]),
+                    np.array([alpha.c_loc_occ, beta.c_loc_occ]),
+                )
+
+            else:
+                logger.debug(
+                    "Recalculating occupied embedded C matrices to enforce equal number of MOs.."
+                )
+                # We now use the smaller of the two for the NMO overwrite
+                alpha_act_occ = np.sum(alpha.active_occ_inds)
+                beta_act_occ = np.sum(beta.active_occ_inds)
+                n_mo_overwrite = np.max([alpha_act_occ, beta_act_occ])
+
+                mo_occ_sum = np.sum(self._global_scf.mo_occ, axis=0)
+                alpha_consistent = self._localize_spin(
+                    self._global_scf.mo_coeff[0],
+                    mo_occ_sum,
+                    n_mo_overwrite,
+                )
+                beta_consistent = self._localize_spin(
+                    self._global_scf.mo_coeff[1],
+                    mo_occ_sum,
+                    n_mo_overwrite,
+                )
+
+                localized_system = LocalizedSystem.from_spin_components(
+                    alpha_consistent, beta_consistent
+                )
+
+        logger.debug("Localization complete.")
+        logger.debug("Localized orbitals:")
+        logger.debug(f"{localized_system.active_occ_inds=}")
+        logger.debug(f"{localized_system.enviro_occ_inds=}")
+        logger.debug(f"{localized_system.c_active.shape=}")
+        logger.debug(f"{localized_system.c_enviro.shape=}")
+        logger.debug(f"{localized_system.c_loc_occ.shape=}")
+
+        return localized_system
+
     def _localize_spin(
         self,
         c_matrix: np.ndarray,
@@ -143,7 +227,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
             )
             print(f"mo_active_share: {mo_active_share}")
             active_occ_inds = np.zeros(c_loc_occ.shape[-1], dtype=np.bool)
-            active_occ_inds[:active_occ_inds.shape[0]//2] = True
+            active_occ_inds[: active_occ_inds.shape[0] // 2] = True
         elif len(active_occ_inds) == 0:
             # if no active indices, then take largest possible overlap
             mo_active_percentage_inshare = mo_active_share.argsort()[::-1]
