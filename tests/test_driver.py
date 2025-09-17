@@ -106,8 +106,8 @@ def test_embedded_ccsd(driver, request):
     assert projector_result["scf"].mol.spin == 0
     assert projector_result["scf"].mol.charge == 0
     assert np.all(projector_result["scf"].mol.nelec == (3,3))
-    assert np.isclose(e_emb, -75.15801845510175)
-    assert np.isclose(ecorr, -5.1169560459940485e-08)
+    assert np.isclose(e_emb, -75.1285849238916)
+    assert np.isclose(ecorr, -0.004777651141156543)
 
 
 @pytest.mark.parametrize("driver", ["mu_driver", "huz_driver"])
@@ -129,7 +129,7 @@ def test_embedded_fci(driver, request):
     assert projector_result["scf"].mol.spin == 0
     assert projector_result["scf"].mol.charge == 0
     assert np.all(projector_result["scf"].mol.nelec == (3,3))
-    assert np.isclose(e_emb_fci, -75.12488456881668)
+    assert np.isclose(e_emb_fci, -75.12858550813972)
 
 
 def test_restricted_projector_results_match(mu_driver, huz_driver) -> None:
@@ -194,11 +194,11 @@ def test_driver_standard_xyz_string_input(spinless_driver) -> None:
 
     assert isinstance(spinless_driver.embedded_scf, StreamObject)
     assert isclose(spinless_driver.classical_energy, -3.5867934952241356)
-    assert spinless_driver.embedded_scf.mo_coeff.shape == (2, 7, 7)
+    assert spinless_driver.embedded_scf.mo_coeff.shape == (2, 7, 6)
     logger.info(spinless_driver.embedded_scf.mo_coeff)
     assert np.all(
         spinless_driver.embedded_scf.mo_occ
-        == np.array([[1, 1, 1, 1, 0, 0, 0], [1, 1, 1, 1, 0, 0, 0]])
+        == np.array([[1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 0, 0]])
     )
 
 

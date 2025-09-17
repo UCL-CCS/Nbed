@@ -671,9 +671,9 @@ class NbedDriver:
         """
         logger.debug("Deleting environment from SCF object.")
 
+        n_env_mos = localized_system.c_enviro.shape[-1]
         match localized_system.c_enviro.ndim:
             case 2:
-                n_env_mos = localized_system.c_enviro.shape[-1]
                 logger.debug(f"{n_env_mos=}")
                 scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
                     projector,
@@ -684,13 +684,6 @@ class NbedDriver:
                     env_projector,
                 )
             case 3:
-                #
-                n_env_mos = np.sum(
-                    np.bitwise_and(
-                        localized_system.enviro_occ_inds[0],
-                        localized_system.enviro_occ_inds[1],
-                    )
-                )
                 logger.debug(f"{n_env_mos=}")
                 (
                     mo_coeff_alpha,

@@ -55,7 +55,7 @@ class SPADELocalizer(OccupiedLocalizer):
             n_mo_overwrite,
         )
 
-    def _localize_spin(self, c_matrix, occupancy, n_mo_overwrite = None):
+    def _localize_spin(self, c_matrix, occupancy, n_mo_overwrite=None):
         return super()._localize_spin(c_matrix, occupancy, n_mo_overwrite)
 
     def localize(
@@ -110,8 +110,10 @@ class SPADELocalizer(OccupiedLocalizer):
         )
         logger.debug(f"{rotated_orbitals.shape=}")
 
-        sigma = np.zeros((occupancy.shape[0], rotated_orbitals.shape[-1]))
-        right_vectors = np.zeros((occupancy.shape[0], n_occupied_orbitals, n_occupied_orbitals))
+        sigma = np.zeros((occupancy.shape[0], n_occupied_orbitals))
+        right_vectors = np.zeros(
+            (occupancy.shape[0], n_occupied_orbitals, n_occupied_orbitals)
+        )
         for i, orbs in enumerate(rotated_orbitals):
             _, sigma[i], right_vectors[i] = linalg.svd(orbs[:n_act_aos, :])
 
@@ -133,7 +135,9 @@ class SPADELocalizer(OccupiedLocalizer):
                 max_delta_sigma: int = np.argmax(value_diffs) + 1
             return max_delta_sigma
 
-        max_delta_sigma: npt.NDArray[np.int] = np.apply_along_axis(parition_occupied_spin, axis=-1, arr=sigma)
+        max_delta_sigma: npt.NDArray[np.int] = np.apply_along_axis(
+            parition_occupied_spin, axis=-1, arr=sigma
+        )
 
         match n_mo_overwrite:
             case int(n) if n <= sigma.shape[-1]:
@@ -151,20 +155,20 @@ class SPADELocalizer(OccupiedLocalizer):
         # get active and enviro indices
         active_occ_inds = np.zeros(occupancy.shape, dtype=np.bool)
         for i, cutoff in enumerate(max_delta_sigma):
-            active_occ_inds[i,:cutoff] = True
+            active_occ_inds[i, :cutoff] = True
 
         enviro_occ_inds = np.zeros(occupancy.shape, dtype=np.bool)
         match n_mo_overwrite:
             case None:
                 for i, cutoff in enumerate(max_delta_sigma):
-                    enviro_occ_inds[i,cutoff:n_occupied_orbitals] = True
+                    enviro_occ_inds[i, cutoff:n_occupied_orbitals] = True
             case int():
-                enviro_occ_inds[...,n_mo_overwrite:n_occupied_orbitals] = True
+                enviro_occ_inds[..., n_mo_overwrite:n_occupied_orbitals] = True
 
         # Defining active and environment orbitals and density
-        c_active = occupied_orbitals @ right_vectors.swapaxes(-2,-1)[..., :n_act_mos]
-        c_enviro = occupied_orbitals @ right_vectors.swapaxes(-2,-1)[..., n_act_mos:]
-        c_loc_occ = occupied_orbitals @ right_vectors.swapaxes(-2,-1)
+        c_active = occupied_orbitals @ right_vectors.swapaxes(-2, -1)[..., :n_act_mos]
+        c_enviro = occupied_orbitals @ right_vectors.swapaxes(-2, -1)[..., n_act_mos:]
+        c_loc_occ = occupied_orbitals @ right_vectors.swapaxes(-2, -1)
 
         # storing condition used to select env system
         self.enviro_selection_condition = sigma
@@ -174,7 +178,7 @@ class SPADELocalizer(OccupiedLocalizer):
             active_occ_inds = active_occ_inds[0]
             enviro_occ_inds = enviro_occ_inds[0]
 
-        if c_loc_occ.shape[0] ==1:
+        if c_loc_occ.shape[0] == 1:
             logger.debug("Returning single spin C Matrix.")
             c_active = c_active[0]
             c_enviro = c_enviro[0]
@@ -182,7 +186,7 @@ class SPADELocalizer(OccupiedLocalizer):
 
         return LocalizedSystem(
             active_occ_inds,
-            enviro_occ_inds, 
+            enviro_occ_inds,
             c_active,
             c_enviro,
             c_loc_occ,
