@@ -74,7 +74,7 @@ Your JSON config file should look something like this (which is taken from the `
   "run_fci_emb":false,
   "run_dft_in_dft":false,
   "run_virtual_localization":true,
-  "n_mo_overwrite":[null,null],
+  "n_mo_overwrite":null,
   "max_ram_memory":4000,
   "occupied_threshold":0.95,
   "virtual_threshold":0.95,

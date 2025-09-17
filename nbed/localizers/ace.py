@@ -21,7 +21,7 @@ class ACELocalizer:
         global_scf_list (list[lib.StreamObject]): List of unlocalized PySCF method objects.
         n_active_atoms (int): Number of active atoms.
         max_shells (int): Maximum number of shells to use in SPADE localization.
-        n_mo_overwrite (tuple[int, int]): Number of MOs to overwrite for alpha and beta spins.
+        n_mo_overwrite (int): Number of MOs to overwrite for alpha and beta spins.
         shells (list[int]): List of shell numbers.
         singular_values (list[np.ndarray[float]]): Singular values from SPADE for each geometry.
         enviro_selection_condition (list[np.ndarray[float]]): Environment selection condition for each geometry.

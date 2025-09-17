@@ -41,7 +41,7 @@ class SPADELocalizer(OccupiedLocalizer):
         global_scf: lib.StreamObject,
         n_active_atoms: int,
         max_shells: int = 4,
-        n_mo_overwrite: tuple[int | None, int | None] | None = None,
+        n_mo_overwrite: int | None = None,
     ):
         """Initialize SPADE Localizer object."""
         self.max_shells = max_shells
@@ -94,6 +94,11 @@ class SPADELocalizer(OccupiedLocalizer):
         if c_matrix.ndim == 2:
             c_matrix = c_matrix[np.newaxis]
 
+        # The first thing we do is construct the orbital rotation
+        # to transform to the SPADE basis.
+        # we use the occupancy of Molecular Orbitals, ignoring spin.
+        logger.debug("Constructing SPADE basis rotation.")
+
         # Find the number of orbitals which are at least partially occupied.
         n_occupied_orbitals = np.count_nonzero(np.sum(occupancy, axis=0))
 
@@ -105,21 +110,26 @@ class SPADELocalizer(OccupiedLocalizer):
 
         ao_overlap = self._global_scf.get_ovlp()
 
-        rotated_orbitals = (
-            linalg.fractional_matrix_power(ao_overlap, 0.5) @ occupied_orbitals
-        )
-        logger.debug(f"{rotated_orbitals.shape=}")
+        s_half = linalg.fractional_matrix_power(ao_overlap, 0.5)
+        logger.debug(f"{s_half.shape=}")
+        rotated_orbitals = s_half @ occupied_orbitals
 
-        sigma = np.zeros((occupancy.shape[0], n_occupied_orbitals))
+        sigma = np.zeros((c_matrix.shape[0], min(n_occupied_orbitals, n_act_aos)))
+        logger.debug(f"{sigma.shape=}")
         right_vectors = np.zeros(
-            (occupancy.shape[0], n_occupied_orbitals, n_occupied_orbitals)
+            (c_matrix.shape[0], n_occupied_orbitals, n_occupied_orbitals)
         )
+        _left_vectors = np.zeros((c_matrix.shape[0], n_act_aos, n_act_aos))
         for i, orbs in enumerate(rotated_orbitals):
-            _, sigma[i], right_vectors[i] = linalg.svd(orbs[:n_act_aos, :])
+            _left_vectors[i], sigma[i], right_vectors[i] = linalg.svd(
+                orbs[:n_act_aos, :]
+            )
 
-        logger.debug(f"Singular Values: {sigma}")
+        # The second part involves partitoning the system into active and environment
+        # occupied parts
+        # Here it is important that we let spade work on each spin independently.
+        logger.debug("Partitoning Electrons.")
 
-        # n_act_mos, n_env_mos = embed.orbital_partition(sigma)
         # Prevents an error with argmax
         # It is possible to choose an active subsystem for which all
         # singular values are 1 (i.e. the whole system)
@@ -135,9 +145,38 @@ class SPADELocalizer(OccupiedLocalizer):
                 max_delta_sigma: int = np.argmax(value_diffs) + 1
             return max_delta_sigma
 
-        max_delta_sigma: npt.NDArray[np.int] = np.apply_along_axis(
-            parition_occupied_spin, axis=-1, arr=sigma
-        )
+        # Closed shell.
+        if len(set(np.sum(occupancy, axis=1))) == 1:
+            logger.debug("Partitioning closed shell.")
+            logger.debug(f"Singular Values: {sigma}")
+            max_delta_sigma: npt.NDArray = np.apply_along_axis(
+                parition_occupied_spin, axis=-1, arr=sigma
+            )
+        # Open shell
+        else:
+            logger.debug("Partitioning Open shell.")
+            alpha_n_occupancy = np.count_nonzero(occupancy[0])
+            alpha_occupied_orbitals = c_matrix[0, :, : int(alpha_n_occupancy)]
+            logger.debug(f"{alpha_n_occupancy=}")
+            logger.debug(f"{alpha_occupied_orbitals.shape=}")
+            logger.debug(f"{ao_overlap.shape=}")
+            logger.debug(f"{n_act_aos=}")
+            alpha_rotated_orbitals = (s_half @ alpha_occupied_orbitals)[:n_act_aos, :]
+            alpha_sigma = linalg.svdvals(alpha_rotated_orbitals)
+
+            beta_n_occupancy = np.count_nonzero(occupancy[1])
+            beta_occupied_orbitals = c_matrix[1, :, : int(beta_n_occupancy)]
+            beta_rotated_orbitals = (s_half @ beta_occupied_orbitals)[:n_act_aos, :]
+            beta_sigma = linalg.svdvals(beta_rotated_orbitals)
+            logger.debug(f"Singular Values: {[alpha_sigma, beta_sigma]}")
+
+            max_delta_sigma = np.array(
+                [
+                    parition_occupied_spin(alpha_sigma),
+                    parition_occupied_spin(beta_sigma),
+                ]
+            )
+        logger.debug(f"Max Difference in Singular Values: {max_delta_sigma}")
 
         match n_mo_overwrite:
             case int(n) if n <= sigma.shape[-1]:
@@ -158,12 +197,10 @@ class SPADELocalizer(OccupiedLocalizer):
             active_occ_inds[i, :cutoff] = True
 
         enviro_occ_inds = np.zeros(occupancy.shape, dtype=np.bool)
-        match n_mo_overwrite:
-            case None:
-                for i, cutoff in enumerate(max_delta_sigma):
-                    enviro_occ_inds[i, cutoff:n_occupied_orbitals] = True
-            case int():
-                enviro_occ_inds[..., n_mo_overwrite:n_occupied_orbitals] = True
+        lower = max(max_delta_sigma) if n_mo_overwrite is None else n_mo_overwrite
+        for i, spin_occ in enumerate(occupancy):
+            upper = int(np.sum(spin_occ) - max_delta_sigma[i]) + lower
+            enviro_occ_inds[..., lower:upper] = True
 
         # Defining active and environment orbitals and density
         c_active = occupied_orbitals @ right_vectors.swapaxes(-2, -1)[..., :n_act_mos]
