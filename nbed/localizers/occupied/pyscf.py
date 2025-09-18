@@ -33,16 +33,6 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         virt_cutoff (float): Threshold for selecting unoccupied (virtual) active region (required for
                                 spade approach too!)
 
-    Attributes:
-        c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
-        c_enviro (np.array): C matrix of localized occupied ennironment MOs
-        c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
-        dm_active (np.array): active system density matrix
-        dm_enviro (np.array): environment system density matrix
-        active_occ_inds (np.array): 1D array of active occupied MO indices
-        enviro_occ_inds (np.array): 1D array of environment occupied MO indices
-        c_loc_occ (np.array): C matrix of localized occupied MOs
-
     Methods:
         run: Main function to run localization.
     """
@@ -163,6 +153,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         # define active MO orbs and environment
         #    take MO (columns of C_matrix) that have high dependence from active AOs
         c_active = c_loc_occ[:, active_occ_inds]
+        dm_active = c_active @ c_active.T
 
         if len(enviro_occ_inds) == 0:
             # case for when no environement
@@ -170,13 +161,14 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
             c_enviro = np.zeros((c_active.shape[0], 1))
         else:
             c_enviro = c_loc_occ[:, enviro_occ_inds]
+        dm_enviro = c_enviro @ c_enviro.T
 
         # storing condition used to select env system
         self.enviro_selection_condition = mo_active_share
 
         logger.debug("PySCF localization complete.")
         return LocalizedSystem(
-            active_occ_inds, enviro_occ_inds, c_active, c_enviro, c_loc_occ
+            active_occ_inds, enviro_occ_inds, c_loc_occ, dm_active, dm_enviro
         )
 
     def _localize_virtual_spin(

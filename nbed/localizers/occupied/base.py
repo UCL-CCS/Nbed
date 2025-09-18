@@ -25,16 +25,6 @@ class OccupiedLocalizer(ABC):
         global_scf (gto.Mole): PySCF molecule object
         n_active_atoms (int): Number of active atoms
 
-    Attributes:
-        c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
-        c_enviro (np.array): C matrix of localized occupied ennironment MOs
-        c_loc_occ_and_virt (np.array): Full localized C_matrix (occpuied and virtual)
-        dm_active (np.array): active system density matrix
-        dm_enviro (np.array): environment system density matrix
-        active_occ_inds (np.array): 1D array of active occupied MO indices
-        enviro_occ_inds (np.array): 1D array of environment occupied MO indices
-        c_loc_occ (np.array): C matrix of localized occupied MOs
-
     Methods:
         run: Main function to run localization.
     """
@@ -81,9 +71,6 @@ class OccupiedLocalizer(ABC):
                 self.n_mo_overwrite[0],
             )
 
-            localized_system.dm_active *= 2.0
-            localized_system.dm_enviro *= 2.0
-
         else:
             alpha = self._localize_spin(
                 self._global_scf.mo_coeff[0],
@@ -120,13 +107,6 @@ class OccupiedLocalizer(ABC):
                 )
 
         logger.debug("Localization complete.")
-        logger.debug("Localized orbitals:")
-        logger.debug(f"{localized_system.active_occ_inds=}")
-        logger.debug(f"{localized_system.enviro_occ_inds=}")
-        logger.debug(f"{localized_system.c_active.shape=}")
-        logger.debug(f"{localized_system.c_enviro.shape=}")
-        logger.debug(f"{localized_system.c_loc_occ.shape=}")
-
         return localized_system
 
     @abstractmethod

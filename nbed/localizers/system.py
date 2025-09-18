@@ -1,9 +1,12 @@
 """Class defining the data output from Localizers."""
 
+import logging
 from dataclasses import dataclass, field
 
 import numpy as np
 from numpy.typing import NDArray
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -22,19 +25,23 @@ class LocalizedSystem:
 
     active_occ_inds: NDArray
     enviro_occ_inds: NDArray
-    c_active: NDArray
-    c_enviro: NDArray
     c_loc_occ: NDArray
+    dm_active: NDArray
+    dm_enviro: NDArray
     c_loc_virt: NDArray | None = None
-    dm_active: NDArray = field(init=False)
-    dm_enviro: NDArray = field(init=False)
     dm_loc_occ: NDArray = field(init=False)
 
     def __post_init__(self):
         """Post init for derived attributes."""
-        self.dm_active = self.c_active @ self.c_active.swapaxes(-1, -2)
-        self.dm_enviro = self.c_enviro @ self.c_enviro.swapaxes(-1, -2)
         self.dm_loc_occ = self.c_loc_occ @ self.c_loc_occ.swapaxes(-1, -2)
+
+        if self.c_loc_occ.ndim == 2:
+            self.dm_active *= 2
+            self.dm_enviro *= 2
+            self.dm_loc_occ *= 2
+
+        logger.debug(f"{self.dm_active.shape=}")
+        logger.debug(f"{self.dm_enviro.shape=}")
 
     def from_spin_components(
         alpha: "LocalizedSystem", beta: "LocalizedSystem"
@@ -50,13 +57,18 @@ class LocalizedSystem:
         """
         active_occ_inds = np.array([alpha.active_occ_inds, beta.active_occ_inds])
         enviro_occ_inds = np.array([alpha.enviro_occ_inds, beta.enviro_occ_inds])
-        c_active = np.array([alpha.c_active, beta.c_active])
-        c_enviro = np.array([alpha.c_enviro, beta.c_enviro])
+        dm_active = 0.5 * np.array([alpha.dm_active, beta.dm_active])
+        dm_enviro = 0.5 * np.array([alpha.dm_enviro, beta.dm_enviro])
         c_loc_occ = np.array([alpha.c_loc_occ, beta.c_loc_occ])
         if alpha.c_loc_virt is not None and beta.c_loc_virt is not None:
             c_loc_virt = np.array([alpha.c_loc_virt, beta.c_loc_virt])
         else:
             c_loc_virt = None
         return LocalizedSystem(
-            active_occ_inds, enviro_occ_inds, c_active, c_enviro, c_loc_occ, c_loc_virt
+            active_occ_inds,
+            enviro_occ_inds,
+            c_loc_occ,
+            dm_active,
+            dm_enviro,
+            c_loc_virt,
         )

@@ -130,8 +130,14 @@ class SPADELocalizer(OccupiedLocalizer):
 
         # Defining active and environment orbitals and density
         c_active = occupied_orbitals @ right_vectors.T[:, :n_act_mos]
+        dm_active = c_active @ c_active.T
         c_enviro = occupied_orbitals @ right_vectors.T[:, n_act_mos:]
+        dm_enviro = c_enviro @ c_enviro.T
         c_loc_occ = occupied_orbitals @ right_vectors.T
+        logger.debug(f"{c_active.shape=}")
+        logger.debug(f"{c_enviro.shape=}")
+        logger.debug(f"{dm_active.shape=}")
+        logger.debug(f"{dm_enviro.shape=}")
 
         # storing condition used to select env system
         if self.enviro_selection_condition is None:
@@ -143,5 +149,9 @@ class SPADELocalizer(OccupiedLocalizer):
             )
 
         return LocalizedSystem(
-            active_occ_inds, enviro_occ_inds, c_active, c_enviro, c_loc_occ
+            active_occ_inds=active_occ_inds,
+            enviro_occ_inds=enviro_occ_inds,
+            c_loc_occ=c_loc_occ,
+            dm_active=dm_active,
+            dm_enviro=dm_enviro,
         )
