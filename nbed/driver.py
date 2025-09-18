@@ -266,9 +266,9 @@ class NbedDriver:
             gto.Mole: An embedded molecule object.
         """
         embedded_mol: gto.Mole = self._build_mol()
-        match self.localized_system.active_mo_inds.ndim:
+        match self.localized_system.active_occ_inds.ndim:
             case 1:
-                n_elec = len(self.localized_system.active_mo_inds)
+                n_elec = len(self.localized_system.active_occ_inds)
                 logger.debug(f"embedded nelec {n_elec}")
 
                 embedded_mol.nelectron = 2 * n_elec
@@ -276,8 +276,8 @@ class NbedDriver:
                 embedded_mol.spin = 0
                 self._electron = embedded_mol.nelectron
             case 2:
-                n_elec_alpha = len(self.localized_system.active_mo_inds[0, :])
-                n_elec_beta = len(self.localized_system.active_mo_inds[1, :])
+                n_elec_alpha = len(self.localized_system.active_occ_inds[0, :])
+                n_elec_beta = len(self.localized_system.active_occ_inds[1, :])
                 logger.debug(f"embedded nelec {n_elec_alpha, n_elec_beta}")
 
                 embedded_mol.nelectron = n_elec_alpha + n_elec_beta
@@ -669,8 +669,8 @@ class NbedDriver:
             case 3:
                 #
                 n_env_mos = len(
-                    set(localized_system.enviro_mo_inds[0]).union(
-                        localized_system.enviro_mo_inds[1]
+                    set(localized_system.enviro_occ_inds[0]).union(
+                        localized_system.enviro_occ_inds[1]
                     )
                 )
                 logger.debug(f"{n_env_mos=}")
@@ -833,8 +833,8 @@ class NbedDriver:
 
         self.localized_system = self._localize()
         logger.info("Indices of embedded electrons:")
-        logger.info(self.localized_system.active_mo_inds)
-        logger.info(self.localized_system.enviro_mo_inds)
+        logger.info(self.localized_system.active_occ_inds)
+        logger.info(self.localized_system.enviro_occ_inds)
 
         # Run subsystem DFT (calls localized rks)
         self.e_act, self.e_env, self.two_e_cross = self._subsystem_dft(
