@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 
+import numpy as np
 from numpy.typing import NDArray
 
 
@@ -34,3 +35,28 @@ class LocalizedSystem:
         self.dm_active = self.c_active @ self.c_active.swapaxes(-1, -2)
         self.dm_enviro = self.c_enviro @ self.c_enviro.swapaxes(-1, -2)
         self.dm_loc_occ = self.c_loc_occ @ self.c_loc_occ.swapaxes(-1, -2)
+
+    def from_spin_components(
+        alpha: "LocalizedSystem", beta: "LocalizedSystem"
+    ) -> "LocalizedSystem":
+        """Construct a spin-aware LocalizedSystem from two spinless ones.
+
+        Args:
+            alpha (LocalizedSystem): The localized alpha spins
+            beta (LocalizedSystem): The localized beta spins.
+
+        Returns:
+            LocalizedSystem: A combined localized system with spins (alpha, beta).
+        """
+        active_occ_inds = np.array([alpha.active_occ_inds, beta.active_occ_inds])
+        enviro_occ_inds = np.array([alpha.enviro_occ_inds, beta.enviro_occ_inds])
+        c_active = np.array([alpha.c_active, beta.c_active])
+        c_enviro = np.array([alpha.c_enviro, beta.c_enviro])
+        c_loc_occ = np.array([alpha.c_loc_occ, beta.c_loc_occ])
+        if alpha.c_loc_virt is not None and beta.c_loc_virt is not None:
+            c_loc_virt = np.array([alpha.c_loc_virt, beta.c_loc_virt])
+        else:
+            c_loc_virt = None
+        return LocalizedSystem(
+            active_occ_inds, enviro_occ_inds, c_active, c_enviro, c_loc_occ, c_loc_virt
+        )
