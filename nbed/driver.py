@@ -268,7 +268,7 @@ class NbedDriver:
         embedded_mol: gto.Mole = self._build_mol()
         match self.localized_system.active_occ_inds.ndim:
             case 1:
-                n_elec = len(self.localized_system.active_occ_inds)
+                n_elec = np.count_nonzero(self.localized_system.active_occ_inds)
                 logger.debug(f"embedded nelec {n_elec}")
 
                 embedded_mol.nelectron = 2 * n_elec
@@ -276,8 +276,12 @@ class NbedDriver:
                 embedded_mol.spin = 0
                 self._electron = embedded_mol.nelectron
             case 2:
-                n_elec_alpha = len(self.localized_system.active_occ_inds[0, :])
-                n_elec_beta = len(self.localized_system.active_occ_inds[1, :])
+                n_elec_alpha = np.count_nonzero(
+                    self.localized_system.active_occ_inds[0, :]
+                )
+                n_elec_beta = np.count_nonzero(
+                    self.localized_system.active_occ_inds[1, :]
+                )
                 logger.debug(f"embedded nelec {n_elec_alpha, n_elec_beta}")
 
                 embedded_mol.nelectron = n_elec_alpha + n_elec_beta
@@ -656,7 +660,7 @@ class NbedDriver:
 
         match localized_system.dm_enviro.ndim:
             case 2:
-                n_env_mos = localized_system.c_enviro.shape[-1]
+                n_env_mos = np.sum(localized_system.c_enviro.shape)
                 logger.debug(f"{n_env_mos=}")
                 scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
                     projector,
@@ -669,8 +673,8 @@ class NbedDriver:
             case 3:
                 #
                 n_env_mos = [
-                    len(localized_system.enviro_occ_inds[0]),
-                    len(localized_system.enviro_occ_inds[1]),
+                    np.sum(localized_system.enviro_occ_inds[0]),
+                    np.sum(localized_system.enviro_occ_inds[1]),
                 ]
                 logger.debug(f"{n_env_mos=}")
                 (
@@ -831,9 +835,6 @@ class NbedDriver:
             self.n_mo_overwrite = self.config.n_mo_overwrite
 
         self.localized_system = self._localize()
-        logger.info("Indices of embedded electrons:")
-        logger.info(self.localized_system.active_occ_inds)
-        logger.info(self.localized_system.enviro_occ_inds)
 
         # Run subsystem DFT (calls localized rks)
         self.e_act, self.e_env, self.two_e_cross = self._subsystem_dft(

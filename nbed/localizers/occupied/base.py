@@ -57,11 +57,7 @@ class OccupiedLocalizer(ABC):
         """Localise orbitals using SPADE.
 
         Returns:
-            active_occ_inds (np.array): 1D array of active occupied MO indices
-            enviro_occ_inds (np.array): 1D array of environment occupied MO indices
-            c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
-            c_enviro (np.array): C matrix of localized occupied ennironment MOs
-            c_loc_occ (np.array): full C matrix of localized occupied MOs
+            LocalizedSystem: A dataclass describing the localization.
         """
         if self.spinless:
             logger.debug("Running SPADE for only one spin.")

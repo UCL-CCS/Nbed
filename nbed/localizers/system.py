@@ -40,6 +40,10 @@ class LocalizedSystem:
             self.dm_enviro *= 2
             self.dm_loc_occ *= 2
 
+        logger.debug("LocalizedSystem created.")
+        logger.debug(f"{self.active_occ_inds}")
+        logger.debug(f"{self.enviro_occ_inds}")
+        logger.debug(f"{self.c_loc_occ.shape=}")
         logger.debug(f"{self.dm_active.shape=}")
         logger.debug(f"{self.dm_enviro.shape=}")
 

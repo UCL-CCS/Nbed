@@ -121,8 +121,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(mo_active_share, 4)}")
         logger.debug(f"threshold for active part: {self.occ_cutoff}")
 
-        active_occ_inds = np.where(mo_active_share > self.occ_cutoff)[0]
-        # print(active_occ_inds)
+        active_occ_inds = np.zeros(mo_active_share.shape, dtype=np.bool)
 
         all_ao_shares_same_bool = np.allclose(
             np.zeros_like(mo_active_share),
@@ -138,17 +137,19 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
                 "AO subsystem selection % same everywhere. Splitting half and half"
             )
             print(f"mo_active_share: {mo_active_share}")
-            active_occ_inds = np.array(range(0, c_loc_occ.shape[1] // 2), dtype=int)
+            active_occ_inds[: len(active_occ_inds) // 2] = True
         elif len(active_occ_inds) == 0:
             # if no active indices, then take largest possible overlap
             mo_active_percentage_inshare = mo_active_share.argsort()[::-1]
-            active_occ_inds = mo_active_percentage_inshare[:1]  # take first element
+            active_occ_inds[mo_active_percentage_inshare[:1]] = (
+                True  # take first element
+            )
             logger.warning("no active AOs - forcing one to be active")
             print(f"active system %: {mo_active_share[active_occ_inds][0]} \n")
+        else:
+            active_occ_inds = mo_active_share > self.occ_cutoff
 
-        enviro_occ_inds = np.array(
-            [i for i in range(c_loc_occ.shape[1]) if i not in active_occ_inds]
-        )
+        enviro_occ_inds = np.array([act is False for act in active_occ_inds])
 
         # define active MO orbs and environment
         #    take MO (columns of C_matrix) that have high dependence from active AOs

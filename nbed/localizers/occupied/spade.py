@@ -125,8 +125,10 @@ class SPADELocalizer(OccupiedLocalizer):
         logger.debug(f"{n_env_mos} environment MOs.")
 
         # get active and enviro indices
-        active_occ_inds = np.arange(n_act_mos)
-        enviro_occ_inds = np.arange(n_act_mos, n_act_mos + n_env_mos)
+        active_occ_inds = np.zeros(n_occupied_orbitals, dtype=np.bool)
+        active_occ_inds[:n_act_mos] = True
+        enviro_occ_inds = np.zeros(n_occupied_orbitals, dtype=np.bool)
+        enviro_occ_inds[n_act_mos:] = True
 
         # Defining active and environment orbitals and density
         c_active = occupied_orbitals @ right_vectors.T[:, :n_act_mos]
