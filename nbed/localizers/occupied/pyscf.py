@@ -93,8 +93,11 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         Returns:
             np.ndarray: Localized C matrix of occupied orbitals.
         """
+        logger.debug("Running PySCF Localization.")
         n_occupied_orbitals = np.count_nonzero(occupancy)
+        logger.debug(f"{n_occupied_orbitals=}")
         c_std_occ = c_matrix[:, :n_occupied_orbitals]
+        logger.debug(f"{c_std_occ.shape=}")
 
         c_loc_occ = self._pyscf_method(c_std_occ)
 
@@ -149,7 +152,9 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         else:
             active_occ_inds = mo_active_share > self.occ_cutoff
 
-        enviro_occ_inds = np.array([act is False for act in active_occ_inds])
+        enviro_occ_inds = np.bitwise_not(active_occ_inds)
+        logger.debug(f"{active_occ_inds=}")
+        logger.debug(f"{enviro_occ_inds=}")
 
         # define active MO orbs and environment
         #    take MO (columns of C_matrix) that have high dependence from active AOs
