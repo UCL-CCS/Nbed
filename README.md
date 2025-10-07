@@ -7,6 +7,14 @@ This package implements projection-based embedding methods to reduce the size of
 
 Nbed uses PySCF as a backend for chemistry caluculations, which is not supported on Windows. Alternative chemistry backends are planned, however in the mean time this package will work only for Linux and MacOS.
 
+## Roadmap
+
+|In\Out | Restricted | Restricted-Open | Unrestricted |
+|---|---|---|---|
+|Restricted       |:x:|:x:|:x:|
+|Restricted-Open  |:x:|:x:|:x:|
+|Unrestricted     |:x:|:x:|:x:|
+
 ## Documentation
 Full documentation is available at [https://nbed.readthedocs.io](https://nbed.readthedocs.io).
 
