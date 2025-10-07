@@ -1,16 +1,20 @@
 """Class defining the data output from Localizers."""
 
+import logging
 from dataclasses import dataclass, field
 
-from numpy.typing import NDArray
+import numpy as np
+from numpy import dtype
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class LocalizedSystem:
     """Required data from localized system.
 
-    active_mo_inds (np.array): 1D array of active occupied MO indices
-    enviro_mo_inds (np.array): 1D array of environment occupied MO indices
+    active_occ_inds (np.array): 1D array of active occupied MO indices
+    enviro_occ_inds (np.array): 1D array of environment occupied MO indices
     c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
     c_enviro (np.array): C matrix of localized occupied ennironment MOs
     c_loc_occ (np.array): C matrix of localized occupied MOs
@@ -19,18 +23,55 @@ class LocalizedSystem:
     dm_enviro (np.array): environment system density matrix
     """
 
-    active_mo_inds: NDArray
-    enviro_mo_inds: NDArray
-    c_active: NDArray
-    c_enviro: NDArray
-    c_loc_occ: NDArray
-    c_loc_virt: NDArray | None = None
-    dm_active: NDArray = field(init=False)
-    dm_enviro: NDArray = field(init=False)
-    dm_loc_occ: NDArray = field(init=False)
+    active_occ_inds: np.ndarray[tuple[int, ...], dtype[np.bool]]
+    enviro_occ_inds: np.ndarray[tuple[int, ...], dtype[np.bool]]
+    c_loc_occ: np.ndarray[tuple[int, ...], dtype[np.floating]]
+    dm_active: np.ndarray[tuple[int, ...], dtype[np.floating]]
+    dm_enviro: np.ndarray[tuple[int, ...], dtype[np.floating]]
+    c_loc_virt: np.ndarray[tuple[int, ...], dtype[np.floating]] | None = None
+    dm_loc_occ: np.ndarray[tuple[int, ...], dtype[np.floating]] = field(init=False)
 
     def __post_init__(self):
         """Post init for derived attributes."""
-        self.dm_active = self.c_active @ self.c_active.swapaxes(-1, -2)
-        self.dm_enviro = self.c_enviro @ self.c_enviro.swapaxes(-1, -2)
         self.dm_loc_occ = self.c_loc_occ @ self.c_loc_occ.swapaxes(-1, -2)
+
+        logger.debug("LocalizedSystem created.")
+        logger.debug(f"{self.active_occ_inds}")
+        logger.debug(f"{self.enviro_occ_inds}")
+        logger.debug(f"{self.c_loc_occ.shape=}")
+        logger.debug(f"{self.dm_active.shape=}")
+        logger.debug(f"{self.dm_enviro.shape=}")
+
+    @staticmethod
+    def unrestricted_from_spin_components(
+        alpha: "LocalizedSystem", beta: "LocalizedSystem"
+    ) -> "LocalizedSystem":
+        """Construct a spin-aware LocalizedSystem from two spinless ones.
+
+        Args:
+            alpha (LocalizedSystem): The localized alpha spins
+            beta (LocalizedSystem): The localized beta spins.
+
+        Returns:
+            LocalizedSystem: A combined localized system with spins (alpha, beta).
+        """
+        logger.debug("Creating LocalizedSystem from spin components.")
+        active_occ_inds = np.array([alpha.active_occ_inds, beta.active_occ_inds])
+        enviro_occ_inds = np.array([alpha.enviro_occ_inds, beta.enviro_occ_inds])
+        dm_active = np.array([alpha.dm_active, beta.dm_active])
+        dm_enviro = np.array([alpha.dm_enviro, beta.dm_enviro])
+        c_loc_occ = np.array([alpha.c_loc_occ, beta.c_loc_occ])
+
+        if alpha.c_loc_virt is not None and beta.c_loc_virt is not None:
+            c_loc_virt = np.array([alpha.c_loc_virt, beta.c_loc_virt])
+        else:
+            c_loc_virt = None
+
+        return LocalizedSystem(
+            active_occ_inds,
+            enviro_occ_inds,
+            c_loc_occ,
+            dm_active,
+            dm_enviro,
+            c_loc_virt,
+        )

@@ -266,9 +266,9 @@ class NbedDriver:
             gto.Mole: An embedded molecule object.
         """
         embedded_mol: gto.Mole = self._build_mol()
-        match self.localized_system.active_mo_inds.ndim:
+        match self.localized_system.active_occ_inds.ndim:
             case 1:
-                n_elec = len(self.localized_system.active_mo_inds)
+                n_elec = np.count_nonzero(self.localized_system.active_occ_inds)
                 logger.debug(f"embedded nelec {n_elec}")
 
                 embedded_mol.nelectron = 2 * n_elec
@@ -276,8 +276,12 @@ class NbedDriver:
                 embedded_mol.spin = 0
                 self._electron = embedded_mol.nelectron
             case 2:
-                n_elec_alpha = len(self.localized_system.active_mo_inds[0, :])
-                n_elec_beta = len(self.localized_system.active_mo_inds[1, :])
+                n_elec_alpha = np.count_nonzero(
+                    self.localized_system.active_occ_inds[0, :]
+                )
+                n_elec_beta = np.count_nonzero(
+                    self.localized_system.active_occ_inds[1, :]
+                )
                 logger.debug(f"embedded nelec {n_elec_alpha, n_elec_beta}")
 
                 embedded_mol.nelectron = n_elec_alpha + n_elec_beta
@@ -596,7 +600,7 @@ class NbedDriver:
         v_emb = huzinaga_op_std + embedding_potential
         active_scf.get_hcore = lambda *args: hcore_std + v_emb
 
-        if localized_system.c_active.ndim == 3:
+        if localized_system.dm_active.ndim == 3:
             active_scf.energy_elec = lambda *args: energy_elec(active_scf, *args)
 
         active_scf.mo_occ = active_scf.get_occ(mo_embedded_energy, c_active_embedded)
@@ -654,9 +658,9 @@ class NbedDriver:
         """
         logger.debug("Deleting environment from SCF object.")
 
-        match localized_system.c_enviro.ndim:
+        match localized_system.dm_enviro.ndim:
             case 2:
-                n_env_mos = localized_system.c_enviro.shape[-1]
+                n_env_mos = np.sum(localized_system.c_enviro.shape)
                 logger.debug(f"{n_env_mos=}")
                 scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
                     projector,
@@ -668,11 +672,10 @@ class NbedDriver:
                 )
             case 3:
                 #
-                n_env_mos = len(
-                    set(localized_system.enviro_mo_inds[0]).union(
-                        localized_system.enviro_mo_inds[1]
-                    )
-                )
+                n_env_mos = [
+                    np.sum(localized_system.enviro_occ_inds[0]),
+                    np.sum(localized_system.enviro_occ_inds[1]),
+                ]
                 logger.debug(f"{n_env_mos=}")
                 (
                     mo_coeff_alpha,
@@ -680,7 +683,7 @@ class NbedDriver:
                     mo_occ_alpha,
                 ) = self._delete_spin_environment(
                     projector,
-                    n_env_mos,
+                    n_env_mos[0],
                     scf.mo_coeff[0],
                     scf.mo_energy[0],
                     scf.mo_occ[0],
@@ -689,7 +692,7 @@ class NbedDriver:
                 (mo_coeff_beta, mo_energy_beta, mo_occ_beta) = (
                     self._delete_spin_environment(
                         projector,
-                        n_env_mos,
+                        n_env_mos[1],
                         scf.mo_coeff[1],
                         scf.mo_energy[1],
                         scf.mo_occ[1],
@@ -832,9 +835,6 @@ class NbedDriver:
             self.n_mo_overwrite = self.config.n_mo_overwrite
 
         self.localized_system = self._localize()
-        logger.info("Indices of embedded electrons:")
-        logger.info(self.localized_system.active_mo_inds)
-        logger.info(self.localized_system.enviro_mo_inds)
 
         # Run subsystem DFT (calls localized rks)
         self.e_act, self.e_env, self.two_e_cross = self._subsystem_dft(
