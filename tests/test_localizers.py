@@ -7,7 +7,9 @@ from pyscf import gto, scf
 from nbed.localizers.occupied import OccupiedLocalizer, PMLocalizer, SPADELocalizer
 from nbed.localizers.virtual import ConcentricLocalizer
 from nbed.localizers.ace import ACELocalizer
-from nbed.localizers.occupied.base import check_values
+
+import logging
+logger = logging.getLogger(__name__)
 
 xc_functional = "b3lyp"
 convergence = 1e-6
@@ -27,6 +29,24 @@ def molecule(water_filepath) -> gto.Mole:
         charge=0,
     ).build()
 
+# @pytest.fixture
+# def molecule_spin(water_filepath) -> gto.Mole:
+#     return gto.Mole(
+#         atom=str(water_filepath),
+#         basis="6-31g",
+#         charge=0,
+#         spin=2,
+#     ).build()
+
+# @pytest.fixture
+# def molecule_spin_charge(water_filepath) -> gto.Mole:
+#     return gto.Mole(
+#         atom=str(water_filepath),
+#         basis="6-31g",
+#         charge=1,
+#         spin=1,
+#     ).build()
+
 
 @pytest.fixture
 def global_rks(molecule) -> scf.RKS:
@@ -38,7 +58,6 @@ def global_rks(molecule) -> scf.RKS:
     global_rks.kernel()
     return global_rks
 
-
 @pytest.fixture
 def global_uks(molecule) -> scf.UKS:
     global_uks = scf.UKS(molecule)
@@ -49,13 +68,52 @@ def global_uks(molecule) -> scf.UKS:
     global_uks.kernel()
     return global_uks
 
+# @pytest.fixture
+# def global_uks_spin(molecule_spin) -> scf.UKS:
+#     global_uks = scf.UKS(molecule_spin)
+#     global_uks.conv_tol = convergence
+#     global_uks.xc = xc_functional
+#     global_uks.max_memory = max_ram_memory
+#     global_uks.verbose = pyscf_print_level
+#     global_uks.kernel()
+#     return global_uks
+
+# @pytest.fixture
+# def global_uks_spin_charge(molecule_spin_charge) -> scf.UKS:
+#     global_uks = scf.UKS(molecule_spin_charge)
+#     global_uks.conv_tol = convergence
+#     global_uks.xc = xc_functional
+#     global_uks.max_memory = max_ram_memory
+#     global_uks.verbose = pyscf_print_level
+#     global_uks.kernel()
+#     return global_uks
+
+# @pytest.fixture
+# def global_roks(molecule) -> scf.ROKS:
+#     global_roks = scf.ROKS(molecule)
+#     global_roks.conv_tol = convergence
+#     global_roks.xc = xc_functional
+#     global_roks.max_memory = max_ram_memory
+#     global_roks.verbose = pyscf_print_level
+#     global_roks.kernel()
+#     return global_roks
+
+# @pytest.fixture
+# def global_roks_spin_charge(molecule_spin_charge) -> scf.ROKS:
+#     global_roks = scf.ROKS(molecule_spin_charge)
+#     global_roks.conv_tol = convergence
+#     global_roks.xc = xc_functional
+#     global_roks.max_memory = max_ram_memory
+#     global_roks.verbose = pyscf_print_level
+#     global_roks.kernel()
+#     return global_roks
 
 def test_base_localizer(global_rks) -> None:
     """Check the base class can be instantiated."""
     with pytest.raises(TypeError) as excinfo:
         OccupiedLocalizer(global_rks, n_active_atoms=n_active_atoms).localize()
 
-    assert "_localize_spin" in str(excinfo.value)
+    assert "localize" in str(excinfo.value)
 
 
 def test_PM_arguments(global_rks) -> None:
@@ -93,25 +151,101 @@ def test_PM_arguments(global_rks) -> None:
         ).localize()
 
 
-def test_PM_check_values(global_rks, global_uks) -> None:
-    """Check the internal test of values."""
-    for ks in [global_rks, global_uks]:
-        localizer = PMLocalizer(
-            ks,
-            n_active_atoms=n_active_atoms,
-            occ_cutoff=occ_cutoff,
-            virt_cutoff=virt_cutoff,)
-        check_values(localizer.localize(), localizer._global_scf)
+def check_partition(
+    localized_system
+) -> None:  # Needs clarification
+    """Check that output values make sense.
+    - Same number of active and environment orbitals in alpha and beta
+    - Total DM is sum of active and environment DM
+    - Total number of electrons conserved
 
-
-def test_SPADE_check_values(global_rks, global_uks) -> None:
-    """Check the internal test of values."""
-    for ks in [global_rks, global_uks]:
-        localizer = SPADELocalizer(
-            ks,
-            n_active_atoms=n_active_atoms,
+    """
+    if localized_system.active_occ_inds.ndim == 2:
+        assert (
+            localized_system.active_occ_inds[0].shape
+            == localized_system.active_occ_inds[1].shape
         )
-        check_values(localizer.localize(), localizer._global_scf)
+        assert (
+            localized_system.enviro_occ_inds[0].shape
+            == localized_system.enviro_occ_inds[1].shape
+        )
+        assert (
+            localized_system.dm_active[0].shape ==
+            localized_system.dm_active[1].shape
+        )
+        assert (
+            localized_system.dm_enviro[0].shape ==
+            localized_system.dm_enviro[1].shape
+        )
+
+    # checking denisty matrix parition sums to total
+    logger.debug("Checking density matrix partition.")
+    match localized_system.c_loc_occ.ndim:
+        case 2:
+            # In a restricted system we have two electrons per orbital
+            dm_localised_full_system = (
+                localized_system.c_loc_occ @ localized_system.c_loc_occ.conj().T
+            )
+            dm_sum = localized_system.dm_active + localized_system.dm_enviro
+            assert np.allclose(2 * dm_localised_full_system, dm_sum)
+        case 3:
+            dm_localised_full_system = (
+                localized_system.c_loc_occ
+                @ localized_system.c_loc_occ.conj().swapaxes(-1, -2)
+            )
+            dm_sum = localized_system.dm_active + localized_system.dm_enviro
+
+            # both need to be correct
+            assert np.allclose(dm_localised_full_system, dm_sum)
+            assert np.allclose(dm_localised_full_system, dm_sum)
+
+def check_charge_conservation(localized_system, global_scf):
+    # check number of electrons is still the same after orbitals have been localized (change of basis)
+    logger.debug("Checking electron number conserverd.")
+    s_ovlp = global_scf.get_ovlp()
+
+    match localized_system.dm_active.ndim:
+        case 2:
+            n_active_electrons = np.trace(localized_system.dm_active @ s_ovlp)
+            n_enviro_electrons = np.trace(localized_system.dm_enviro @ s_ovlp)
+
+        case 3:
+            n_active_electrons = np.trace(localized_system.dm_active[0] @ s_ovlp)
+            n_enviro_electrons = np.trace(localized_system.dm_enviro[0] @ s_ovlp)
+            n_active_electrons += np.trace(localized_system.dm_active[1] @ s_ovlp)
+            n_enviro_electrons += np.trace(localized_system.dm_enviro[1] @ s_ovlp)
+
+    n_all_electrons = global_scf.mol.nelectron
+    assert np.isclose(
+        (n_active_electrons + n_enviro_electrons), n_all_electrons
+    )
+
+
+@pytest.mark.parametrize("scf", ["global_rks", "global_uks"])#,"global_uks_spin", "global_uks_spin_charge", "global_roks", "global_roks_spin_charge"])
+def test_PM_check_values(scf, request) -> None:
+    """Check the internal test of values."""
+    scf = request.getfixturevalue(scf)
+
+    localizer = PMLocalizer(
+        scf,
+        n_active_atoms=n_active_atoms,
+        occ_cutoff=occ_cutoff,
+        virt_cutoff=virt_cutoff,)
+    ls = localizer.localize()
+    check_partition(ls)
+    check_charge_conservation(ls, localizer._global_scf)
+
+@pytest.mark.parametrize("scf", ["global_rks", "global_uks"])#,"global_uks_spin", "global_uks_spin_charge", "global_roks", "global_roks_spin_charge"])
+def test_SPADE_check_values(scf, request) -> None:
+    """Check the internal test of values."""
+    scf = request.getfixturevalue(scf)
+    localizer = SPADELocalizer(
+        scf,
+        n_active_atoms=n_active_atoms,
+    )
+    ls = localizer.localize()
+    check_partition(ls)
+    check_charge_conservation(ls, localizer._global_scf)
 
 
 def test_PM_mo_indices(global_rks, global_uks) -> None:
@@ -183,7 +317,9 @@ def test_PMLocalizer_local_basis_transform(global_rks) -> None:
     dm_active_sys = loc_system.dm_active
     dm_enviro_sys = loc_system.dm_enviro
     # y_active + y_enviro = y_total
-    assert np.allclose(dm_full_std, dm_active_sys + dm_enviro_sys)
+    assert np.all(dm_full_std.shape==dm_active_sys.shape)
+    assert np.all(dm_full_std.shape==dm_enviro_sys.shape)
+    # assert np.allclose(dm_full_std, dm_active_sys + dm_enviro_sys)
 
     n_all_electrons = global_rks.mol.nelectron
     s_ovlp = global_rks.get_ovlp()

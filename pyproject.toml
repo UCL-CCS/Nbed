@@ -11,9 +11,8 @@ dependencies = [
     "openfermion (>=1.1.0, <2.0.0)",
     "PyYAML (>=6.0.0, <7.0.0)",
     "qiskit-nature (>=0.7.0,<1.0.0)",
-    "symmer (>=0.0.7, <1.0.0)",
     "pyscf (>=2.3.0, <3.0.0)",
-    "numpy (>2.0.0, <3.0.0)",
+    "numpy>=2.3.0",
     "pydantic>=2.11.7",
     "pytest-xdist>=3.8.0",
 ]

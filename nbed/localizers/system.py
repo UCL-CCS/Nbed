@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass, field
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy import dtype
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +23,13 @@ class LocalizedSystem:
     dm_enviro (np.array): environment system density matrix
     """
 
-    active_occ_inds: NDArray
-    enviro_occ_inds: NDArray
-    c_loc_occ: NDArray
-    dm_active: NDArray
-    dm_enviro: NDArray
-    c_loc_virt: NDArray | None = None
-    dm_loc_occ: NDArray = field(init=False)
+    active_occ_inds: np.ndarray[tuple[int, ...], dtype[np.bool]]
+    enviro_occ_inds: np.ndarray[tuple[int, ...], dtype[np.bool]]
+    c_loc_occ: np.ndarray[tuple[int, ...], dtype[np.floating]]
+    dm_active: np.ndarray[tuple[int, ...], dtype[np.floating]]
+    dm_enviro: np.ndarray[tuple[int, ...], dtype[np.floating]]
+    c_loc_virt: np.ndarray[tuple[int, ...], dtype[np.floating]] | None = None
+    dm_loc_occ: np.ndarray[tuple[int, ...], dtype[np.floating]] = field(init=False)
 
     def __post_init__(self):
         """Post init for derived attributes."""
@@ -47,7 +47,8 @@ class LocalizedSystem:
         logger.debug(f"{self.dm_active.shape=}")
         logger.debug(f"{self.dm_enviro.shape=}")
 
-    def from_spin_components(
+    @staticmethod
+    def unrestricted_from_spin_components(
         alpha: "LocalizedSystem", beta: "LocalizedSystem"
     ) -> "LocalizedSystem":
         """Construct a spin-aware LocalizedSystem from two spinless ones.
@@ -59,15 +60,18 @@ class LocalizedSystem:
         Returns:
             LocalizedSystem: A combined localized system with spins (alpha, beta).
         """
+        logger.debug("Creating LocalizedSystem from spin components.")
         active_occ_inds = np.array([alpha.active_occ_inds, beta.active_occ_inds])
         enviro_occ_inds = np.array([alpha.enviro_occ_inds, beta.enviro_occ_inds])
         dm_active = 0.5 * np.array([alpha.dm_active, beta.dm_active])
         dm_enviro = 0.5 * np.array([alpha.dm_enviro, beta.dm_enviro])
         c_loc_occ = np.array([alpha.c_loc_occ, beta.c_loc_occ])
+
         if alpha.c_loc_virt is not None and beta.c_loc_virt is not None:
             c_loc_virt = np.array([alpha.c_loc_virt, beta.c_loc_virt])
         else:
             c_loc_virt = None
+
         return LocalizedSystem(
             active_occ_inds,
             enviro_occ_inds,

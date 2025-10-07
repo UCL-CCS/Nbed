@@ -6,7 +6,6 @@ from abc import ABC, abstractmethod
 import numpy as np
 from pyscf.lib import StreamObject
 
-from ...exceptions import NbedLocalizerError
 from ..system import LocalizedSystem
 
 logger = logging.getLogger(__name__)
@@ -78,7 +77,9 @@ class OccupiedLocalizer(ABC):
                 self._global_scf.mo_occ[1],
                 self.n_mo_overwrite[1],
             )
-            localized_system = LocalizedSystem.from_spin_components(alpha, beta)
+            localized_system = LocalizedSystem.unrestricted_from_spin_components(
+                alpha, beta
+            )
             # to ensure the same number of alpha and beta orbitals are included
             # use the sum of occupancies
             if set(alpha.active_occ_inds) != set(beta.active_occ_inds) or set(
@@ -98,7 +99,7 @@ class OccupiedLocalizer(ABC):
                     mo_occ_sum,
                     self.n_mo_overwrite[1],
                 )
-                localized_system = LocalizedSystem.from_spin_components(
+                localized_system = LocalizedSystem.unrestricted_from_spin_components(
                     alpha_consistent, beta_consistent
                 )
 
@@ -123,92 +124,3 @@ class OccupiedLocalizer(ABC):
             np.ndarray: Localized C matrix of occupied orbitals.
         """
         pass
-
-
-def check_values(
-    localized_system: LocalizedSystem, global_scf: StreamObject
-) -> None:  # Needs clarification
-    """Check that output values make sense.
-
-    - Same number of active and environment orbitals in alpha and beta
-    - Total DM is sum of active and environment DM
-    - Total number of electrons conserved
-
-    """
-    logger.debug("Running localizer sense check.")
-    warn_flag = False
-    if localized_system.active_occ_inds.ndim == 2:
-        logger.debug("Checking spin does not affect localization.")
-        active_number_match = (
-            localized_system.active_occ_inds[0].shape
-            == localized_system.active_occ_inds[1].shape
-        )
-        logger.debug(f"{active_number_match=}")
-        enviro_number_match = (
-            localized_system.enviro_occ_inds[0].shape
-            == localized_system.enviro_occ_inds[1].shape
-        )
-        logger.debug(f"{enviro_number_match=}")
-        if not active_number_match or not enviro_number_match:
-            logger.error("Number of alpha and beta orbitals do not match.")
-            warn_flag = True
-
-    # checking denisty matrix parition sums to total
-    logger.debug("Checking density matrix partition.")
-    match localized_system.c_loc_occ.ndim:
-        case 2:
-            # In a restricted system we have two electrons per orbital
-            dm_localised_full_system = (
-                localized_system.c_loc_occ @ localized_system.c_loc_occ.conj().T
-            )
-            dm_sum = localized_system.dm_active + localized_system.dm_enviro
-            density_match = np.allclose(2 * dm_localised_full_system, dm_sum)
-            logger.debug(f"Restricted {density_match=}")
-        case 3:
-            dm_localised_full_system = (
-                localized_system.c_loc_occ
-                @ localized_system.c_loc_occ.conj().swapaxes(-1, -2)
-            )
-            dm_sum = localized_system.dm_active + localized_system.dm_enviro
-
-            # both need to be correct
-            alpha_density_match = np.allclose(dm_localised_full_system, dm_sum)
-            logger.debug(f"Unrestricted {alpha_density_match=}")
-            density_match = np.allclose(dm_localised_full_system, dm_sum)
-            logger.debug(f"Unrestricted {density_match=}")
-            density_match = alpha_density_match and density_match
-
-    if not density_match:
-        logger.error("Density matrix partition does not sum to total.")
-        warn_flag = True
-
-    # check number of electrons is still the same after orbitals have been localized (change of basis)
-    logger.debug("Checking electron number conserverd.")
-    s_ovlp = global_scf.get_ovlp()
-
-    match localized_system.dm_active.ndim:
-        case 2:
-            n_active_electrons = np.trace(localized_system.dm_active @ s_ovlp)
-            n_enviro_electrons = np.trace(localized_system.dm_enviro @ s_ovlp)
-
-        case 3:
-            n_active_electrons = np.trace(localized_system.dm_active[0] @ s_ovlp)
-            n_enviro_electrons = np.trace(localized_system.dm_enviro[0] @ s_ovlp)
-            n_active_electrons += np.trace(localized_system.dm_active[1] @ s_ovlp)
-            n_enviro_electrons += np.trace(localized_system.dm_enviro[1] @ s_ovlp)
-
-    n_all_electrons = global_scf.mol.nelectron
-    electron_number_match = np.isclose(
-        (n_active_electrons + n_enviro_electrons), n_all_electrons
-    )
-    logger.debug(f"{electron_number_match=}")
-    if not electron_number_match:
-        logger.error("Number of electrons in localized orbitals is not consistent.")
-        logger.debug(f"N total electrons: {n_all_electrons}")
-        warn_flag = True
-
-    if warn_flag:
-        logger.error("Localizer sense check failed.")
-        raise NbedLocalizerError("Localizer sense check failed.\n")
-    else:
-        logger.debug("Localizer sense check passed.")
