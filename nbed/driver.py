@@ -297,27 +297,37 @@ class NbedDriver:
         """Run the localizer class."""
         logger.debug(f"Getting localized system using {self.localization}.")
 
-        localizers = {
-            "spade": SPADELocalizer,
-            "boys": BOYSLocalizer,
-            "ibo": IBOLocalizer,
-            "pipek-mezey": PMLocalizer,
-        }
+        match self.localization:
+            case "spade":
+                localizer = SPADELocalizer(
+                    self._global_ks,
+                    self.n_active_atoms,
+                    max_shells=self.max_shells,
+                    n_mo_overwrite=self.n_mo_overwrite,
+                )
+            case "boys":
+                localizer = BOYSLocalizer(
+                    self._global_ks,
+                    self.n_active_atoms,
+                    occ_cutoff=self.occupied_threshold,
+                    virt_cutoff=self.virtual_threshold,
+                )
+            case "ibo":
+                localizer = IBOLocalizer(
+                    self._global_ks,
+                    self.n_active_atoms,
+                    occ_cutoff=self.occupied_threshold,
+                    virt_cutoff=self.virtual_threshold,
+                )
+            case "pipek-mezey" | "pm":
+                localizer = PMLocalizer(
+                    self._global_ks,
+                    self.n_active_atoms,
+                    occ_cutoff=self.occupied_threshold,
+                    virt_cutoff=self.virtual_threshold,
+                )
 
-        if self.localization == "spade":
-            localized_system = localizers[self.localization](
-                self._global_ks,
-                self.n_active_atoms,
-                max_shells=self.max_shells,
-                n_mo_overwrite=self.n_mo_overwrite,
-            )
-        else:
-            localized_system = localizers[self.localization](
-                self._global_ks,
-                self.n_active_atoms,
-                occ_cutoff=self.occupied_threshold,
-                virt_cutoff=self.virtual_threshold,
-            )
+        localized_system = localizer.run()
         return localized_system
 
     def _init_local_hf(self) -> Union[scf.uhf.UHF, scf.rhf.RHF]:

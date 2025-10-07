@@ -9,6 +9,7 @@ from pyscf import lo
 from pyscf.lib import StreamObject
 from pyscf.lo import vvo
 
+from ..system import LocalizedSystem
 from .base import OccupiedLocalizer
 
 logger = logging.getLogger(__name__)
@@ -88,7 +89,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
 
     def _localize_spin(
         self, c_matrix: np.ndarray, occupancy: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> LocalizedSystem:
         """Localize orbitals of one spin using PySCF.
 
         Args:
@@ -170,7 +171,13 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         self.enviro_selection_condition = mo_active_share
 
         logger.debug("PySCF localization complete.")
-        return active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ
+        return LocalizedSystem(
+            active_MO_inds=active_MO_inds,
+            enviro_MO_inds=enviro_MO_inds,
+            c_active=c_active,
+            c_enviro=c_enviro,
+            c_loc_occ=c_loc_occ,
+        )
 
     def _localize_virtual_spin(
         self, c_matrix: np.ndarray, virt_threshold: float

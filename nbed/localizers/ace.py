@@ -62,7 +62,7 @@ class ACELocalizer:
         logger.debug("Running ACE of SPADE across reaction coordinates.")
         localized_systems = []
         for scf_object in self.global_scf_list:
-            loc = SPADELocalizer(scf_object, self.n_active_atoms, self.max_shells)
+            loc = SPADELocalizer(scf_object, self.n_active_atoms, self.max_shells).run()
             localized_systems.append(loc)
 
         # only does restricted atm

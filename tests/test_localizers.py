@@ -52,7 +52,7 @@ def global_uks(molecule) -> scf.UKS:
 def test_base_localizer(global_rks) -> None:
     """Check the base class can be instantiated."""
     with pytest.raises(TypeError) as excinfo:
-        OccupiedLocalizer(global_rks, n_active_atoms=n_active_atoms)
+        OccupiedLocalizer(global_rks, n_active_atoms=n_active_atoms).run()
 
     assert "_localize_spin" in str(excinfo.value)
 
@@ -65,7 +65,7 @@ def test_PM_arguments(global_rks) -> None:
             n_active_atoms=n_active_atoms,
             occ_cutoff=1.1,
             virt_cutoff=virt_cutoff,
-        )
+        ).run()
 
     with pytest.raises(ValueError):
         PMLocalizer(
@@ -73,7 +73,7 @@ def test_PM_arguments(global_rks) -> None:
             n_active_atoms=n_active_atoms,
             occ_cutoff=occ_cutoff,
             virt_cutoff=1.1,
-        )
+        ).run()
 
     with pytest.raises(ValueError):
         PMLocalizer(
@@ -81,7 +81,7 @@ def test_PM_arguments(global_rks) -> None:
             n_active_atoms=n_active_atoms,
             occ_cutoff=-0.1,
             virt_cutoff=virt_cutoff,
-        )
+        ).run()
 
     with pytest.raises(ValueError):
         PMLocalizer(
@@ -89,7 +89,7 @@ def test_PM_arguments(global_rks) -> None:
             n_active_atoms=n_active_atoms,
             occ_cutoff=occ_cutoff,
             virt_cutoff=-0.1,
-        )
+        ).run()
 
 
 def test_PM_check_values(global_rks, global_uks) -> None:
@@ -118,7 +118,7 @@ def test_PM_mo_indices(global_rks, global_uks) -> None:
         n_active_atoms=n_active_atoms,
         occ_cutoff=occ_cutoff,
         virt_cutoff=virt_cutoff,
-    )
+    ).run()
     assert restricted_loc_system.beta_active_MO_inds is None
     assert restricted_loc_system.beta_enviro_MO_inds is None
     assert restricted_loc_system.beta_c_active is None
@@ -130,7 +130,7 @@ def test_PM_mo_indices(global_rks, global_uks) -> None:
         n_active_atoms=n_active_atoms,
         occ_cutoff=occ_cutoff,
         virt_cutoff=virt_cutoff,
-    )
+    ).run()
     assert np.all(
         restricted_loc_system.active_MO_inds == unrestricted_loc_system.active_MO_inds
     )
@@ -151,7 +151,7 @@ def test_SPADE_mo_indices(global_rks, global_uks) -> None:
     restricted_loc_system = SPADELocalizer(
         global_rks,
         n_active_atoms=n_active_atoms,
-    )
+    ).run()
     assert restricted_loc_system.beta_active_MO_inds is None
     assert restricted_loc_system.beta_enviro_MO_inds is None
     assert restricted_loc_system.beta_c_active is None
@@ -161,7 +161,7 @@ def test_SPADE_mo_indices(global_rks, global_uks) -> None:
     unrestricted_loc_system = SPADELocalizer(
         global_uks,
         n_active_atoms=n_active_atoms,
-    )
+    ).run()
     assert np.all(
         restricted_loc_system.active_MO_inds == unrestricted_loc_system.active_MO_inds
     )
@@ -186,7 +186,7 @@ def test_PMLocalizer_local_basis_transform(global_rks) -> None:
         n_active_atoms=n_active_atoms,
         occ_cutoff=occ_cutoff,
         virt_cutoff=virt_cutoff,
-    )
+    ).run()
     dm_full_std = global_rks.make_rdm1()
     dm_active_sys = loc_system.dm_active
     dm_enviro_sys = loc_system.dm_enviro
@@ -209,12 +209,12 @@ def test_spade_spins_match(global_rks, global_uks) -> None:
     restricted = SPADELocalizer(
         global_rks,
         n_active_atoms=n_active_atoms,
-    )
+    ).run()
 
     unrestricted = SPADELocalizer(
         global_uks,
         n_active_atoms=n_active_atoms,
-    )
+    ).run()
 
     # assert loc_system.active_MO_inds
     assert restricted.beta_active_MO_inds is None
@@ -226,14 +226,14 @@ def test_cl_shell_numbers(global_rks, global_uks) -> None:
     restricted_occ = SPADELocalizer(
         global_rks,
         n_active_atoms=n_active_atoms,
-    )
+    ).run()
     restricted_virt = ConcentricLocalizer(restricted_occ._global_scf, n_active_atoms=n_active_atoms)
     restricted_virt.localize_virtual(restricted = restricted_occ._restricted)
 
     unrestricted_occ = SPADELocalizer(
         global_uks,
         n_active_atoms=n_active_atoms,
-    )
+    ).run()
     unrestricted_virt = ConcentricLocalizer(unrestricted_occ._global_scf, n_active_atoms=n_active_atoms)
     unrestricted_virt.localize_virtual(restricted = unrestricted_occ._restricted)
 
@@ -248,13 +248,13 @@ def test_ace_localizer(global_rks, global_uks) -> None:
         global_rks,
         n_active_atoms=n_active_atoms,
         n_mo_overwrite=restricted,
-    )
+    ).run()
 
     unrestricted_spade = SPADELocalizer(
         global_uks,
         n_active_atoms=n_active_atoms,
         n_mo_overwrite=unrestricted,
-    )
+    ).run()
     print(restricted_spade.enviro_selection_condition)
     print(unrestricted_spade.enviro_selection_condition)
     assert restricted == unrestricted == (3,3)

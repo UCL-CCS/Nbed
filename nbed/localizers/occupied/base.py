@@ -2,13 +2,13 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Tuple, Union
 
 import numpy as np
 from pyscf import dft, scf
 from pyscf.lib import StreamObject
 
 from ...exceptions import NbedLocalizerError
+from ..system import LocalizedSystem
 
 # from ..utils import restricted_float_percentage
 
@@ -59,12 +59,9 @@ class OccupiedLocalizer(ABC):
         self._restricted = isinstance(self._global_scf, (scf.rhf.RHF, dft.rks.RKS))
         logger.debug(f"Global scf: {type(global_scf)}")
 
-        # Run the localization procedure
-        self.run()
-
     def _localize(
         self,
-    ) -> tuple[Tuple, Union[Tuple, None]]:
+    ) -> tuple[LocalizedSystem, LocalizedSystem | None]:
         """Localise orbitals using SPADE.
 
         Returns:
@@ -92,7 +89,7 @@ class OccupiedLocalizer(ABC):
     @abstractmethod
     def _localize_spin(
         self, c_matrix: np.ndarray, occupancy: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> LocalizedSystem:
         """Localize orbitals of one spin.
 
         Args:
@@ -200,10 +197,17 @@ class OccupiedLocalizer(ABC):
             self.c_active,
             self.c_enviro,
             self._c_loc_occ,
-        ) = alpha
-
-        self.dm_active = self.c_active @ self.c_active.T
-        self.dm_enviro = self.c_enviro @ self.c_enviro.T
+            self.dm_active,
+            self.dm_enviro,
+        ) = (
+            alpha.active_MO_inds,
+            alpha.enviro_MO_inds,
+            alpha.c_active,
+            alpha.c_enviro,
+            alpha.c_loc_occ,
+            alpha.dm_active,
+            alpha.dm_enviro,
+        )
 
         # For resticted methods
         if beta is None:
@@ -223,10 +227,17 @@ class OccupiedLocalizer(ABC):
                 self.beta_c_active,
                 self.beta_c_enviro,
                 self._beta_c_loc_occ,
-            ) = beta
-
-            self.beta_dm_active = self.beta_c_active @ self.beta_c_active.T
-            self.beta_dm_enviro = self.beta_c_enviro @ self.beta_c_enviro.T
+                self.beta_dm_active,
+                self.beta_dm_enviro,
+            ) = (
+                beta.active_MO_inds,
+                beta.enviro_MO_inds,
+                beta.c_active,
+                beta.c_enviro,
+                beta.c_loc_occ,
+                beta.dm_active,
+                beta.dm_enviro,
+            )
 
         if check_values is True:
             self._check_values()
@@ -237,3 +248,4 @@ class OccupiedLocalizer(ABC):
         logger.debug(f"beta_active_MO_inds: {self.beta_active_MO_inds}")
         logger.debug(f"enviro_MO_inds: {self.enviro_MO_inds}")
         logger.debug(f"beta_enviro_MO_inds: {self.beta_enviro_MO_inds}")
+        return self

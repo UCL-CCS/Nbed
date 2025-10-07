@@ -6,6 +6,7 @@ import numpy as np
 from pyscf import lib
 from scipy import linalg
 
+from ..system import LocalizedSystem
 from .base import OccupiedLocalizer
 
 logger = logging.getLogger(__name__)
@@ -92,7 +93,7 @@ class SPADELocalizer(OccupiedLocalizer):
         c_matrix: np.ndarray,
         occupancy: np.ndarray,
         n_mo_overwrite: int | None = None,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> LocalizedSystem:
         """Localize orbitals of one spin using SPADE.
 
         Args:
@@ -162,4 +163,10 @@ class SPADELocalizer(OccupiedLocalizer):
                 sigma,
             )
 
-        return (active_MO_inds, enviro_MO_inds, c_active, c_enviro, c_loc_occ)
+        return LocalizedSystem(
+            active_MO_inds=active_MO_inds,
+            enviro_MO_inds=enviro_MO_inds,
+            c_active=c_active,
+            c_enviro=c_enviro,
+            c_loc_occ=c_loc_occ,
+        )
