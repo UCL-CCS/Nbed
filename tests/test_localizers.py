@@ -180,23 +180,17 @@ def check_partition(
 
     # checking denisty matrix parition sums to total
     logger.debug("Checking density matrix partition.")
+    dm_localised_full_system = (
+        localized_system.c_loc_occ
+        @ localized_system.c_loc_occ.conj().swapaxes(-1, -2)
+    )
+    dm_sum = localized_system.dm_active + localized_system.dm_enviro
     match localized_system.c_loc_occ.ndim:
         case 2:
             # In a restricted system we have two electrons per orbital
-            dm_localised_full_system = (
-                localized_system.c_loc_occ @ localized_system.c_loc_occ.conj().T
-            )
-            dm_sum = localized_system.dm_active + localized_system.dm_enviro
             assert np.allclose(2 * dm_localised_full_system, dm_sum)
         case 3:
-            dm_localised_full_system = (
-                localized_system.c_loc_occ
-                @ localized_system.c_loc_occ.conj().swapaxes(-1, -2)
-            )
-            dm_sum = localized_system.dm_active + localized_system.dm_enviro
-
             # both need to be correct
-            assert np.allclose(dm_localised_full_system, dm_sum)
             assert np.allclose(dm_localised_full_system, dm_sum)
 
 def check_charge_conservation(localized_system, global_scf):

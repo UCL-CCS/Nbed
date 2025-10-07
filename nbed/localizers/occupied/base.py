@@ -66,6 +66,10 @@ class OccupiedLocalizer(ABC):
                 self.n_mo_overwrite[0],
             )
 
+            localized_system.dm_active *= 2
+            localized_system.dm_enviro *= 2
+            localized_system.dm_loc_occ *= 2
+
         else:
             alpha = self._localize_spin(
                 self._global_scf.mo_coeff[0],
@@ -82,26 +86,6 @@ class OccupiedLocalizer(ABC):
             )
             # to ensure the same number of alpha and beta orbitals are included
             # use the sum of occupancies
-            if set(alpha.active_occ_inds) != set(beta.active_occ_inds) or set(
-                alpha.enviro_occ_inds
-            ) != set(beta.enviro_occ_inds):
-                logger.debug(
-                    "Recalculating occupied embedded C matrices to enforce equal number between spins."
-                )
-                mo_occ_sum = np.sum(self._global_scf.mo_occ, axis=0)
-                alpha_consistent = self._localize_spin(
-                    self._global_scf.mo_coeff[0],
-                    mo_occ_sum,
-                    self.n_mo_overwrite[0],
-                )
-                beta_consistent = self._localize_spin(
-                    self._global_scf.mo_coeff[1],
-                    mo_occ_sum,
-                    self.n_mo_overwrite[1],
-                )
-                localized_system = LocalizedSystem.unrestricted_from_spin_components(
-                    alpha_consistent, beta_consistent
-                )
 
         logger.debug("Localization complete.")
         return localized_system

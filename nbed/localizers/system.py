@@ -35,11 +35,6 @@ class LocalizedSystem:
         """Post init for derived attributes."""
         self.dm_loc_occ = self.c_loc_occ @ self.c_loc_occ.swapaxes(-1, -2)
 
-        if self.c_loc_occ.ndim == 2:
-            self.dm_active *= 2
-            self.dm_enviro *= 2
-            self.dm_loc_occ *= 2
-
         logger.debug("LocalizedSystem created.")
         logger.debug(f"{self.active_occ_inds}")
         logger.debug(f"{self.enviro_occ_inds}")
@@ -63,8 +58,8 @@ class LocalizedSystem:
         logger.debug("Creating LocalizedSystem from spin components.")
         active_occ_inds = np.array([alpha.active_occ_inds, beta.active_occ_inds])
         enviro_occ_inds = np.array([alpha.enviro_occ_inds, beta.enviro_occ_inds])
-        dm_active = 0.5 * np.array([alpha.dm_active, beta.dm_active])
-        dm_enviro = 0.5 * np.array([alpha.dm_enviro, beta.dm_enviro])
+        dm_active = np.array([alpha.dm_active, beta.dm_active])
+        dm_enviro = np.array([alpha.dm_enviro, beta.dm_enviro])
         c_loc_occ = np.array([alpha.c_loc_occ, beta.c_loc_occ])
 
         if alpha.c_loc_virt is not None and beta.c_loc_virt is not None:
