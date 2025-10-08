@@ -6,7 +6,7 @@ from typing import Optional
 import numpy as np
 import scipy as sp
 from pyscf import dft, scf
-from pyscf.lib import StreamObject, diis
+from pyscf.lib import diis
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ def calculate_hf_energy(
     """Calculate the Hartree-Fock Energy.
 
     Args:
-        scf_method (StreamObject): PySCF HF method
+        scf_method (scf.hf.SCF): PySCF HF method
         embedding_potential (np.ndarray): DFT embedding potential
         density_matrix (np.ndarray): Embedded region density matrix (updates each cycle)
         vhf (np.ndarray): Mean field potential
@@ -39,7 +39,7 @@ def calculate_ks_energy(
     """Calculate the Hartree-Fock Energy.
 
     Args:
-        scf_method (StreamObject): PySCF Kohn-sham method
+        scf_method (scf.hf.SCF): PySCF Kohn-sham method
         embedding_potential (np.ndarray): DFT embedding potential
         density_matrix (np.ndarray): Embedded region density matrix (updates each cycle)
         huzinaga_op_occ (np.ndarray): Huzinaga Fock operator
@@ -91,7 +91,7 @@ def get_huzinaga_operator(
 
 
 def huzinaga_scf(
-    scf_method: StreamObject,
+    scf_method: scf.hf.SCF,
     embedding_potential: np.ndarray,
     dm_environment_occupied: np.ndarray,
     dm_environment_virtual: np.ndarray | None = None,
@@ -108,7 +108,7 @@ def huzinaga_scf(
     can occur due to DIIS and other clever PySCF methods not being available.
 
     Args:
-        scf_method (StreamObjecty):PySCF RHF object (containing info about max cycles and convergence tolerence)
+        scf_method (scf.hf.SCFy):PySCF RHF object (containing info about max cycles and convergence tolerence)
         embedding_potential (np.ndarray): DFT active and environment two body terms - DFT active environemnt two body term
         dm_environment_occupied (np.ndarray): Density matrix of the environment occupied orbitals.
         dm_environment_virtual (np.ndarray | None): Density matrix of the environment virtual orbitals.

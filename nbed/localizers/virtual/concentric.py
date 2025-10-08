@@ -4,7 +4,6 @@ import logging
 
 import numpy as np
 from pyscf import gto, scf
-from pyscf.lib import StreamObject
 
 from .base import VirtualLocalizer
 
@@ -24,20 +23,20 @@ class ConcentricLocalizer(VirtualLocalizer):
         singular_values (list): List of singular values from SVD.
 
     Methods:
-        localize_virtual(StreamObject): Localize virtual orbitals using concentric localization.
+        localize_virtual(scf.hf.SCF): Localize virtual orbitals using concentric localization.
         _localize_virtual_spin(np.ndarray, np.ndarray, np.ndarray): Run concentric localization for each spin separately.
     """
 
     def __init__(
         self,
-        embedded_scf: StreamObject,
+        embedded_scf: scf.hf.SCF,
         n_active_atoms: int,
         max_shells: int = 4,
     ):
         """Initialize Concentric Localization object.
 
         Args:
-            embedded_scf (StreamObject): SCF object with occupied orbitals localized.
+            embedded_scf (scf.hf.SCF): SCF object with occupied orbitals localized.
             n_active_atoms (int): Number of active atoms in the system.
             max_shells (int): Maximum number of shells to localize.
         """
@@ -50,7 +49,7 @@ class ConcentricLocalizer(VirtualLocalizer):
         self.shells = None
         self.singular_values = None
 
-    def localize_virtual(self) -> StreamObject:
+    def localize_virtual(self) -> scf.hf.SCF:
         """Localise virtual (unoccupied) obitals using concentric localization.
 
         [1] D. Claudino and N. J. Mayhall, "Simple and Efficient Truncation of Virtual
@@ -59,7 +58,7 @@ class ConcentricLocalizer(VirtualLocalizer):
         doi: 10.1021/ACS.JCTC.9B00682.
 
         Returns:
-            StreamObject: Fully Localized SCF object.
+            scf.hf.SCF: Fully Localized SCF object.
         """
         logger.debug("Localising virtual orbital spin with concentric localization.")
 

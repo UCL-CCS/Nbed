@@ -3,12 +3,12 @@
 import logging
 from functools import cached_property
 from json import dump as jdump
-from typing import Optional, Union
+from typing import Literal, Union, assert_never
 
 import numpy as np
 from numpy.typing import NDArray
-from pyscf import cc, dft, fci, gto, qmmm, scf
-from pyscf.lib import StreamObject
+from pyscf import cc, dft, fci, gto, mcscf, qmmm, scf
+from pyscf.lib import NPArrayWithTag
 
 from nbed.localizers import (
     BOYSLocalizer,
@@ -31,6 +31,18 @@ from .ham_builder import HamiltonianBuilder
 from .scf import energy_elec
 from .scf.huzinaga_scf import huzinaga_scf
 
+type OneSpinMatrix[M: int] = np.ndarray[tuple[M, M], np.dtype[np.floating]]
+type TwoSpinMatrix[M: int] = np.ndarray[tuple[Literal[2], M, M], np.dtype[np.floating]]
+type AnySpinMatrix[M: int] = Union[OneSpinMatrix[M], TwoSpinMatrix[M]]
+
+type FCISolver = (
+    fci.direct_nosym.FCISolver
+    | fci.direct_spin0.FCISolver
+    | fci.direct_spin0_symm.FCISolver
+    | fci.direct_spin1.FCISolver
+    | fci.direct_spin1_symm.FCISolver
+)
+
 # Create the Logger
 logger = logging.getLogger(__name__)
 
@@ -42,7 +54,7 @@ class NbedDriver:
         config (NbedConfig): A validated config model.
 
     Attributes:
-        _global_fci (StreamObject): A Qubit Hamiltonian of some kind
+        _global_fci (scf.hf.SCF): A Qubit Hamiltonian of some kind
         e_act (float): Active energy from subsystem DFT calculation
         e_env (float): Environment energy from subsystem DFT calculation
         two_e_cross (float): two electron energy from cross terms (includes exchange correlation
@@ -58,10 +70,10 @@ class NbedDriver:
         logger.debug(config.model_dump_json())
         self.config = config
         self.localized_system: LocalizedSystem
-        self.two_e_cross: np.typing.NDArray
+        self.two_e_cross: OneSpinMatrix | TwoSpinMatrix
         self.electron: int
-        self.mu: dict = None
-        self.huzinaga: dict = None
+        self.mu: dict = {}
+        self.huzinaga: dict = {}
         self.active_geometry = f"{self.config.n_active_atoms}\n\n" + "\n".join(
             self.config.geometry.splitlines()[2 : 2 + self.config.n_active_atoms]
         )
@@ -84,7 +96,7 @@ class NbedDriver:
             config.mm_radii,
         ]
 
-    def _build_mol(self) -> gto.mole:
+    def _build_mol(self) -> gto.Mole:
         """Function to build PySCF molecule.
 
         Returns:
@@ -104,7 +116,7 @@ class NbedDriver:
         return full_mol
 
     @cached_property
-    def _global_hf(self, **hf_kwargs) -> StreamObject:
+    def _global_hf(self, **hf_kwargs) -> scf.hf.SCF:
         """Run full system Hartree-Fock."""
         logger.debug("Running full system HF.")
         mol_full = self._build_mol()
@@ -114,13 +126,13 @@ class NbedDriver:
         global_hf.max_memory = self.config.max_ram_memory
         global_hf.max_cycle = self.config.max_hf_cycles
         global_hf.verbose = 1
-        global_hf.kernel()
+        global_hf.run()
         logger.info(f"Global HF: {global_hf.e_tot}")
 
         return global_hf
 
     @cached_property
-    def _global_ccsd(self, **ccsd_kwargs) -> StreamObject:
+    def _global_ccsd(self, **ccsd_kwargs) -> scf.hf.SCF:
         """Function to run full molecule CCSD calculation."""
         logger.debug("Running full system CC.")
         # run CCSD after HF
@@ -135,7 +147,7 @@ class NbedDriver:
         return global_cc
 
     @cached_property
-    def _global_fci(self, **fci_kwargs) -> StreamObject:
+    def _global_fci(self, **fci_kwargs) -> FCISolver:
         """Function to run full molecule FCI calculation.
 
         WARNING: FACTORIAL SCALING IN BASIS STATES!
@@ -153,14 +165,14 @@ class NbedDriver:
         return global_fci
 
     @cached_property
-    def _global_ks(self, **ks_kwargs) -> StreamObject:
+    def _global_ks(self, **ks_kwargs) -> dft.uks.UKS:
         """Method to run full cheap molecule UKS DFT calculation.
 
         Note this is necessary to perform localization procedure.
         """
         logger.debug("Running full system KS DFT.")
         mol_full = self._build_mol()
-        global_ks = dft.UKS(mol_full, **ks_kwargs)
+        global_ks: dft.uks.UKS = dft.uks.UKS(mol_full, **ks_kwargs)
         logger.debug(f"{type(global_ks)=}")
         global_ks.conv_tol = self.config.convergence
         global_ks.xc = self.config.xc_functional
@@ -172,15 +184,15 @@ class NbedDriver:
             logger.debug(
                 "QM/MM: running full system KS DFT in presence of point charges."
             )
-            global_ks = qmmm.mm_charge(
+            global_ks: dft.uks.UKS = qmmm.itrf.mm_charge(
                 global_ks,
                 self.config.mm_coords,
                 self.config.mm_charges,
                 self.config.mm_radii,
-            )
-        global_ks.kernel()
-        logger.debug(f"{global_ks.mo_coeff.shape=}")
-        logger.debug(f"{global_ks.mo_occ.shape=}")
+            )  # type: ignore
+        global_ks.run()
+        logger.debug(f"{global_ks.mo_coeff.shape=}")  # type: ignore
+        logger.debug(f"{global_ks.mo_occ.shape=}")  # type:ignore
         logger.debug(f"{global_ks.get_veff().shape=}")
         logger.debug(f"{global_ks.get_hcore().shape=}")
         logger.info(f"Global UKS: {global_ks.e_tot}")
@@ -224,10 +236,15 @@ class NbedDriver:
                     occ_cutoff=self.config.occupied_threshold,
                     virt_cutoff=self.config.virtual_threshold,
                 )
+            case _:
+                raise ValueError(
+                    "Invalid Localizer in config %s", self.config.localization
+                )
+
         self.localizer = localizer
         return localizer.localize()
 
-    def _init_local_hf(self) -> Union[scf.uhf.UHF, scf.ROHF]:
+    def _init_local_hf(self) -> scf.hf.HF:
         """Function to build embedded HF object for active subsystem.
 
         Note this function overwrites the total number of electrons to only include active number.
@@ -245,7 +262,7 @@ class NbedDriver:
 
         if self.run_qmmm:
             logger.debug("QM/MM: running local SCF in presence of point charges.")
-            local_hf = qmmm.mm_charge(
+            local_hf: scf.uhf.UHF = qmmm.itrf.mm_charge(
                 local_hf,
                 self.config.mm_coords,
                 self.config.mm_charges,
@@ -286,11 +303,11 @@ class NbedDriver:
 
                 embedded_mol.nelectron = n_elec_alpha + n_elec_beta
                 embedded_mol.nelec = (n_elec_alpha, n_elec_beta)
-                embedded_mol.spin = n_elec_alpha - n_elec_beta
+                embedded_mol.spin = int(n_elec_alpha - n_elec_beta)
                 self._electron = embedded_mol.nelectron
         return embedded_mol
 
-    def _init_local_ks(self, xc_functional: str) -> Union[dft.uks.UKS, dft.ROKS]:
+    def _init_local_ks(self, xc_functional: str) -> scf.hf.SCF:
         """Function to build embedded Hartree Fock object for active subsystem.
 
         Note this function overwrites the total number of electrons to only include active number.
@@ -304,7 +321,7 @@ class NbedDriver:
         logger.debug("Initialising localised RKS object.")
         embedded_mol: gto.Mole = self._init_embedded_mol()
 
-        local_ks: dft.UKS.UKS = dft.UKS(embedded_mol)
+        local_ks: dft.uks.UKS = dft.uks.UKS(embedded_mol)
         logger.debug(f"{embedded_mol.nelectron=}")
         logger.debug(f"{embedded_mol.nelec=}")
         logger.debug(f"{embedded_mol.spin=}")
@@ -317,15 +334,15 @@ class NbedDriver:
         return local_ks
 
     def _subsystem_dft(
-        self, global_ks, localized_system
+        self, global_ks: dft.uks.UKS, localized_system: LocalizedSystem
     ) -> tuple[float, float, np.typing.NDArray]:
         """Function to perform subsystem UKS DFT calculation."""
         logger.debug("Calculating active and environment subsystem terms.")
 
-        def _ks_components(
-            ks_system: dft.KohnShamDFT,
-            subsystem_dm: np.ndarray,
-        ) -> tuple[float, np.ndarray, np.ndarray]:
+        def _ks_components[Shape, DType](
+            ks_system: dft.uks.UKS,
+            subsystem_dm: AnySpinMatrix,
+        ) -> tuple[float, NPArrayWithTag, AnySpinMatrix]:
             """Calculate the components of subsystem energy from a UKS DFT calculation.
 
             For a given density matrix this function returns the electronic energy, exchange correlation energy and
@@ -345,7 +362,7 @@ class NbedDriver:
             # It seems that PySCF lumps J and K in the J array
             # need to access the potential for the right subsystem for unrestricted
             logger.debug(f"{subsystem_dm.shape=}")
-            two_e_term = ks_system.get_veff(dm=subsystem_dm)
+            two_e_term: NPArrayWithTag = ks_system.get_veff(dm=subsystem_dm)
             j_mat = ks_system.get_j(dm=subsystem_dm)
             # k_mat = np.zeros_like(j_mat) not needed for PySCF.
 
@@ -362,10 +379,10 @@ class NbedDriver:
             #     + 0.5 * (np.einsum("ij,ji->", j_tot, dm_tot))
             #     + two_e_term.exc
             # )
-            e_act = (
+            e_act: float = (
                 np.einsum("ij,ji->", ks_system.get_hcore(), dm_tot)
-                + two_e_term.ecoul
-                + two_e_term.exc
+                + two_e_term.ecoul  # type: ignore
+                + two_e_term.exc  # type: ignore
             )
 
             # if check_E_with_pyscf:
@@ -392,10 +409,10 @@ class NbedDriver:
         if localized_system.dm_active.ndim == 3:
             total_dm = total_dm[0, :, :] + total_dm[1, :, :]
 
-        two_e_term_total = global_ks.get_veff(dm=total_dm)
+        two_e_term_total: NPArrayWithTag = global_ks.get_veff(dm=total_dm)
         logger.debug(f"{total_dm.shape=}")
         logger.debug(f"{two_e_term_total.shape=}")
-        e_xc_total = two_e_term_total.exc
+        e_xc_total: float = two_e_term_total.exc  # type: ignore
 
         match localized_system.dm_active.ndim:
             case 2:
@@ -414,15 +431,18 @@ class NbedDriver:
                     + np.einsum("ij,ij", localized_system.dm_active[1], j_env[0])
                     + np.einsum("ij,ij", localized_system.dm_enviro[1], j_act[0])
                 )
+            case _:
+                raise ValueError("Active density matrix not valid shape.")
+
         logger.debug(f"{j_cross=}")
 
         # Because of projection we expect kinetic term to be zero
         k_cross = 0.0
 
-        xc_cross = e_xc_total - two_e_act.exc - two_e_env.exc
+        xc_cross: float = e_xc_total - two_e_act.exc - two_e_env.exc  # type: ignore
         logger.debug(f"{e_xc_total=}")
-        logger.debug(f"{two_e_act.exc=}")
-        logger.debug(f"{two_e_env.exc=}")
+        logger.debug(f"{two_e_act.exc=}")  # type: ignore
+        logger.debug(f"{two_e_env.exc=}")  # type: ignore
 
         # overall two_electron cross energy
         two_e_cross = j_cross + k_cross + xc_cross
@@ -435,10 +455,10 @@ class NbedDriver:
         return e_act, e_env, two_e_cross
 
     @cached_property
-    def _env_projector(self) -> np.ndarray:
+    def _env_projector(self) -> OneSpinMatrix | TwoSpinMatrix:
         """Return a projector onto the environment in orthogonal basis."""
         logger.debug("Getting Environment Projector.")
-        s_mat = self._global_ks.get_ovlp()
+        s_mat: OneSpinMatrix = self._global_ks.get_ovlp()
         logger.debug(f"{s_mat.shape=}")
         env_projector_alpha = s_mat @ self.localized_system.dm_enviro[0] @ s_mat
 
@@ -449,25 +469,28 @@ class NbedDriver:
             case 3:
                 env_projector_beta = s_mat @ self.localized_system.dm_enviro[1] @ s_mat
                 env_projector = np.array([env_projector_alpha, env_projector_beta])
+            case _:
+                raise ValueError("Environment density matrix shape not valid.")
+
         logger.debug(f"{env_projector.shape=}")
         return env_projector
 
     def _run_emb_ccsd(
         self,
-        emb_pyscf_scf_rhf: Union[scf.ROHF, scf.UHF],
-        frozen: Optional[list] = None,
-    ) -> tuple[cc.CCSD, float]:
+        emb_pyscf_scf_rhf: scf.hf.SCF,
+        frozen: list[int] | None = None,
+    ) -> tuple[cc.ccsd.CCSDBase, float]:
         """Function run CCSD on embedded restricted Hartree Fock object.
 
         Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
         (see get_embedded_rhf method)
 
         Args:
-            emb_pyscf_scf_rhf (scf.ROHF): PySCF restricted Hartree Fock object of active embedded subsystem
-            frozen (List): A path to an .xyz file describing molecular geometry.
+            emb_pyscf_scf_rhf (pyscf.scf.hf.SCF): PySCF restricted Hartree Fock object of active embedded subsystem
+            frozen (list[int]): A path to an .xyz file describing molecular geometry.
 
         Returns:
-            ccsd (cc.CCSD): PySCF CCSD object
+            ccsd (pyscf.cc.ccsd.CCSDBase): PySCF CCSD object
             e_ccsd_corr (float): electron correlation CCSD energy
         """
         return run_emb_ccsd(
@@ -479,9 +502,9 @@ class NbedDriver:
 
     def _run_emb_fci(
         self,
-        emb_pyscf_scf_rhf: Union[scf.ROHF, scf.UHF],
-        frozen: Optional[list] = None,
-    ) -> fci.FCI:
+        emb_pyscf_scf_rhf: scf.hf.SCF,
+        frozen: list[int] | None = None,
+    ) -> FCISolver:
         """Function run FCI on embedded restricted Hartree Fock object.
 
         Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
@@ -502,17 +525,17 @@ class NbedDriver:
         )
 
     def _mu_embed(
-        self, localized_scf: StreamObject, embedding_potential: np.ndarray
-    ) -> tuple[StreamObject, np.ndarray]:
+        self, localized_scf: scf.hf.SCF, embedding_potential: np.ndarray
+    ) -> tuple[scf.hf.SCF, np.ndarray]:
         """Embed using the Mu-shift projector.
 
         Args:
-            localized_scf (StreamObject): A PySCF scf method with the correct number of electrons for the active region.
+            localized_scf (scf.hf.SCF): A PySCF scf method with the correct number of electrons for the active region.
             embedding_potential (np.ndarray): Potential calculated from two electron terms in dft.
 
         Returns:
             np.ndarray: Matrix form of the embedding potential.
-            StreamObject: The embedded scf object.
+            scf.hf.SCF: The embedded scf object.
         """
         logger.debug("Running mu embedded scf calculation.")
 
@@ -543,22 +566,22 @@ class NbedDriver:
 
     def _huzinaga_embed(
         self,
-        active_scf: StreamObject,
+        active_scf: scf.hf.SCF,
         embedding_potential: np.ndarray,
         localized_system: LocalizedSystem,
-        dmat_initial_guess: Optional[tuple[np.ndarray]] = None,
-    ) -> tuple[StreamObject, np.ndarray]:
+        dmat_initial_guess: OneSpinMatrix | TwoSpinMatrix | None = None,
+    ) -> tuple[scf.hf.SCF, OneSpinMatrix | TwoSpinMatrix]:
         """Embed using Huzinaga projector.
 
         Args:
-            active_scf (StreamObject): A PySCF scf method with the correct number of electrons for the active region.
+            active_scf (scf.hf.SCF): A PySCF scf method with the correct number of electrons for the active region.
             embedding_potential (np.ndarray): Potential calculated from two electron terms in dft.
             localized_system (LocalizedSystem): Dataclass describing the MOs of a localized system.
             dmat_initial_guess (bool): If True, use the initial guess for the density matrix.
 
         Returns:
             np.ndarray: Matrix form of the embedding potential.
-            StreamObject: The embedded scf object.
+            scf.hf.SCF: The embedded scf object.
         """
         logger.debug("Starting Huzinaga embedding method.")
         # We need to run our own SCF method here to update the potential.
@@ -607,7 +630,7 @@ class NbedDriver:
 
         if localized_system.c_loc_virt is not None:
             logger.debug("Overwriting embedded virtuals with result from localizer.")
-            logger.debug(f"{ np.sum(active_scf.mo_occ, axis=0)}")
+            logger.debug(f"{np.sum(active_scf.mo_occ, axis=0)}")
             logger.debug(
                 f"{c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0)> 0].shape=}"
             )
@@ -638,10 +661,10 @@ class NbedDriver:
     def _delete_environment(
         self,
         projector: ProjectorTypes,
-        scf: StreamObject,
+        scf: scf.hf.SCF,
         localized_system: LocalizedSystem,
         env_projector: NDArray,
-    ) -> StreamObject:
+    ) -> scf.hf.SCF:
         """Remove enironment orbit from embedded ROHF object.
 
         This function removes (in fact deletes completely) the molecular orbitals
@@ -649,18 +672,18 @@ class NbedDriver:
 
         Args:
             projector (ProjectorTypes): The projector used to embed the system.
-            scf (StreamObject): The embedded SCF object.
+            scf (scf.hf.SCF): The embedded SCF object.
             localized_system (LocalizedSystem): Occupied Localization results for a molecule.
             env_projector (NDArray): Projector onto the environment region.
 
         Returns:
-            StreamObject: Returns input, but with environment orbitals deleted.
+            scf.hf.SCF: Returns input, but with environment orbitals deleted.
         """
         logger.debug("Deleting environment from SCF object.")
 
         match localized_system.dm_enviro.ndim:
             case 2:
-                n_env_mos = np.sum(localized_system.c_enviro.shape)
+                n_env_mos = np.sum(localized_system.enviro_occ_inds, dtype=int)
                 logger.debug(f"{n_env_mos=}")
                 scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
                     projector,
@@ -736,7 +759,7 @@ class NbedDriver:
             environment_projector (np.ndarray): Matrix to project mo_coeff onto environment.
 
         Returns:
-            embedded_rhf (StreamObject): Returns input, but with environment orbitals deleted
+            embedded_rhf (scf.hf.SCF): Returns input, but with environment orbitals deleted
         """
         logger.debug("Deleting environment for spin.")
         logger.debug(f"{projector=}")
@@ -746,17 +769,18 @@ class NbedDriver:
         logger.debug(f"{mo_occ=}")
         logger.debug(f"{environment_projector.shape=}")
 
+        frozen_enviro_orb_inds: list[int] = []
         match projector:
             case ProjectorTypes.HUZ:
                 # MOs which have the greatest overlap with the
-                overlap = np.einsum(
+                overlap: NDArray[np.floating] = np.einsum(
                     "ij, ki -> i",
                     mo_coeff.swapaxes(-1, -2),
                     environment_projector @ mo_coeff,
                 )
-                overlap_by_size = overlap.argsort()[::-1]
+                overlap_by_size: NDArray[np.integer] = overlap.argsort()[::-1]
                 logger.debug(f"{overlap_by_size=}")
-                frozen_enviro_orb_inds = overlap_by_size[:n_env_mo]
+                frozen_enviro_orb_inds = list(overlap_by_size[:n_env_mo])
 
             case ProjectorTypes.MU:
                 # Orbitals which have been shifted to have energy mu are removed
@@ -767,6 +791,10 @@ class NbedDriver:
                 frozen_enviro_orb_inds = [
                     mo_i for mo_i in range(shift, mo_coeff.shape[-1])
                 ]
+            case ProjectorTypes.BOTH:
+                raise ValueError("Projector must be specified to delete environment.")
+            case _:
+                assert_never(projector)
 
         active_MOs_occ_and_virt_embedded = [
             mo_i
@@ -871,7 +899,7 @@ class NbedDriver:
         if self.config.projector in [ProjectorTypes.HUZ, ProjectorTypes.BOTH]:
             local_hf = self._init_local_hf()
 
-            dmat_initial_guess: Optional[tuple[NDArray]] = (
+            dmat_initial_guess: NDArray | None = (
                 self.mu["scf"].make_rdm1() if init_huzinaga_rhf_with_mu else None
             )
 
@@ -923,12 +951,12 @@ class NbedDriver:
         logger.info("Embedding complete.")
 
     def post_embed(
-        self, embedded_scf: StreamObject, v_emb: NDArray, projector: ProjectorTypes
+        self, embedded_scf: scf.hf.SCF, v_emb: NDArray, projector: ProjectorTypes
     ) -> dict:
         """Projector-dependent components of the embedding procedure.
 
         Args:
-            embedded_scf (StreamObject): An embedded pyscf scf object.
+            embedded_scf (scf.hf.SCF): An embedded pyscf scf object.
             v_emb (NDArray): Embedding Potential
             projector (ProjectorTypes): Which projector the result should use.
 
@@ -1042,11 +1070,11 @@ class NbedDriver:
 
 
 def run_emb_fci(
-    emb_pyscf_scf_rhf: Union[scf.ROHF, scf.UHF],
-    frozen: Optional[list] = None,
-    convergence: Optional[float] = 1e-6,
-    max_ram_memory: Optional[int] = 4000,
-) -> fci.FCI:
+    emb_pyscf_scf_rhf: scf.hf.SCF,
+    frozen: list | None = None,
+    convergence: float | None = 1e-6,
+    max_ram_memory: int | None = 4000,
+) -> scf.hf.SCF:
     """Function run FCI on embedded restricted Hartree Fock object.
 
     Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
@@ -1068,10 +1096,12 @@ def run_emb_fci(
     logger.debug(f"{max_ram_memory=}")
 
     if frozen is None:
-        fci_scf = fci.FCI(emb_pyscf_scf_rhf)
+        fci_scf = mcscf.CASSCF(
+            emb_pyscf_scf_rhf,
+            emb_pyscf_scf_rhf.mol.nelec,
+            emb_pyscf_scf_rhf.mol.nao,
+        )
     else:
-        from pyscf import mcscf
-
         fci_scf = mcscf.CASSCF(
             emb_pyscf_scf_rhf,
             emb_pyscf_scf_rhf.mol.nelec,
@@ -1104,10 +1134,10 @@ def run_emb_fci(
 
 def run_emb_ccsd(
     emb_pyscf_scf_rhf: Union[scf.ROHF, scf.UHF],
-    frozen: Optional[list] = None,
+    frozen: list | None = None,
     convergence: float = 1e-6,
     max_ram_memory: int = 4000,
-) -> tuple[cc.CCSD, float]:
+) -> tuple[cc.ccsd.CCSDBase, float]:
     """Function run CCSD on embedded restricted Hartree Fock object.
 
     Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
@@ -1129,6 +1159,7 @@ def run_emb_ccsd(
     ccsd.max_memory = max_ram_memory
     ccsd.verbose = 2
 
+    e_ccsd_corr: float
     e_ccsd_corr, _, _ = ccsd.kernel()
     logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
     logger.info(f"CCSD Converged {ccsd.converged}")
@@ -1217,6 +1248,8 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
                     y_emb_beta,
                 )
             )
+        case _:
+            raise ValueError("Active DM Shape not valid.")
 
     result["e_dft_in_dft"] = (
         rks_e_elec

@@ -7,7 +7,6 @@ import numpy as np
 from numpy.typing import NDArray
 from openfermion.config import EQ_TOLERANCE
 from pyscf import ao2mo, dft, lib, scf
-from pyscf.lib import StreamObject
 
 from nbed.exceptions import HamiltonianBuilderError
 
@@ -19,7 +18,7 @@ class HamiltonianBuilder:
 
     def __init__(
         self,
-        scf_method: StreamObject,
+        scf_method: scf.hf.SCF,
         constant_e_shift: float = 0,
         n_frozen_core: int = 0,
         n_frozen_virt: int = 0,
@@ -254,15 +253,15 @@ class HamiltonianBuilder:
         return self.constant_e_shift, one_body_coefficients, 0.5 * two_body_coefficients
 
 
-def reduce_virtuals(scf_method, n_frozen_virt: int) -> lib.StreamObject:
+def reduce_virtuals(scf_method, n_frozen_virt: int) -> lib.scf.hf.SCF:
     """Reduce the number of virtual orbitals.
 
     Args:
-        scf_method (StreamObject): A PySCF scf object.
+        scf_method (scf.hf.SCF): A PySCF scf object.
         n_frozen_virt (int):  Number of virtual orbitals to freeze.
 
     Return:
-        StreamObject: A new scf object with fewer virtual orbitals.
+        scf.hf.SCF: A new scf object with fewer virtual orbitals.
     """
     reduced_scf_method = scf_method.copy()
     if n_frozen_virt <= 0:

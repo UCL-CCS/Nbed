@@ -2,11 +2,9 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
 
 import numpy as np
-from pyscf import lo
-from pyscf.lib import StreamObject
+from pyscf import lo, scf
 from pyscf.lo import vvo
 
 from ..system import LocalizedSystem
@@ -39,10 +37,10 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
-        occ_cutoff: Optional[float] = 0.95,
-        virt_cutoff: Optional[float] = 0.95,
+        occ_cutoff: float = 0.95,
+        virt_cutoff: float = 0.95,
     ):
         """Initialize PySCF Localizer."""
         self.occ_cutoff = self._valid_threshold(occ_cutoff)
@@ -183,7 +181,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
 
         Args:
-            global_scf (StreamObject): PySCF molecule object
+            global_scf (scf.hf.SCF): PySCF molecule object
             c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
             virt_threshold (float): Threshold for selecting unoccupied (virtual) active MOs.
 
@@ -220,8 +218,8 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         active_percentage_MO = numerator_all / denominator_all
 
         logger.debug("Virtual orbitals localized.")
-        logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(active_percentage_MO,4)}")
-        logger.debug(f"threshold for active part: {self._virt_cutoff}")
+        logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(active_percentage_MO, 4)}")
+        logger.debug(f"threshold for active part: {self.virt_cutoff}")
 
         # NOT IN USE
         # add constant occupied index
@@ -240,7 +238,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
 
         return c_virtual_loc
 
-    def localize_virtual(self, local_scf: StreamObject) -> StreamObject:
+    def localize_virtual(self, local_scf: scf.hf.SCF) -> scf.hf.SCF:
         """Localise virtual (unoccupied) obitals using PySCF method.
 
         [1] D. Claudino and N. J. Mayhall, "Simple and Efficient Truncation of Virtual
@@ -249,10 +247,10 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         doi: 10.1021/ACS.JCTC.9B00682.
 
         Args:
-            local_scf (StreamObject): SCF object with occupied orbitals localized.
+            local_scf (scf.hf.SCF): SCF object with occupied orbitals localized.
 
         Returns:
-            StreamObject: Fully Localized SCF object.
+            scf.hf.SCF: Fully Localized SCF object.
         """
         raise NotImplementedError(
             "Virtual orbital localization not implemented for PySCF methods."
@@ -289,10 +287,10 @@ class PMLocalizer(PySCFLocalizer):
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
-        occ_cutoff: Optional[float] = 0.95,
-        virt_cutoff: Optional[float] = 0.95,
+        occ_cutoff: float = 0.95,
+        virt_cutoff: float = 0.95,
     ):
         """Initialize Localizer."""
         super().__init__(
@@ -352,10 +350,10 @@ class BOYSLocalizer(PySCFLocalizer):
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
-        occ_cutoff: Optional[float] = 0.95,
-        virt_cutoff: Optional[float] = 0.95,
+        occ_cutoff: float = 0.95,
+        virt_cutoff: float = 0.95,
     ):
         """Initialize Localizer."""
         super().__init__(
@@ -406,10 +404,10 @@ class IBOLocalizer(PySCFLocalizer):
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
-        occ_cutoff: Optional[float] = 0.95,
-        virt_cutoff: Optional[float] = 0.95,
+        occ_cutoff: float = 0.95,
+        virt_cutoff: float = 0.95,
     ):
         """Initialise Localizer."""
         super().__init__(

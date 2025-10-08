@@ -4,7 +4,7 @@ import logging
 
 import numpy as np
 from numpy.typing import NDArray
-from pyscf.lib import StreamObject
+from pyscf import scf
 
 from nbed.localizers.virtual.base import VirtualLocalizer
 
@@ -16,7 +16,7 @@ class PAOLocalizer(VirtualLocalizer):
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
         c_loc_occ: NDArray,
         norm_cutoff: float = 0.05,
@@ -29,7 +29,7 @@ class PAOLocalizer(VirtualLocalizer):
         self.overlap_cutoff = overlap_cutoff
         self.c_loc_occ = c_loc_occ
 
-    def localize_virtual(self) -> StreamObject:
+    def localize_virtual(self) -> scf.hf.SCF:
         """Run projected atomic orbitals localization."""
         n_act_aos = self.global_scf.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         ao_overlap = self.global_scf.get_ovlp()

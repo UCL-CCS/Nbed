@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import pytest
 from numpy import isclose
-from pyscf.lib.misc import StreamObject
+
 
 from nbed.driver import NbedDriver
 from nbed.config import NbedConfig, ProjectorTypes
@@ -187,7 +187,7 @@ def test_incorrect_geometry_path() -> None:
 def test_driver_standard_xyz_string_input(spinless_driver) -> None:
     """test to check driver works... raw xyz string given"""
 
-    assert isinstance(spinless_driver.embedded_scf, StreamObject)
+    assert isinstance(spinless_driver.embedded_scf, scf.hf.SCF)
     assert isclose(spinless_driver.classical_energy, -3.5867934952241356)
     assert spinless_driver.embedded_scf.mo_coeff.shape == (2, 7, 6)
     logger.info(spinless_driver.embedded_scf.mo_coeff)

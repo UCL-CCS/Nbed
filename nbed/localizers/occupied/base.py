@@ -4,7 +4,7 @@ import logging
 from abc import ABC, abstractmethod
 
 import numpy as np
-from pyscf.lib import StreamObject
+from pyscf import scf
 
 from ..system import LocalizedSystem
 
@@ -30,7 +30,7 @@ class OccupiedLocalizer(ABC):
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
         n_mo_overwrite: tuple[int | None, int | None] | None = None,
     ):
