@@ -4,7 +4,7 @@ import logging
 from abc import ABC, abstractmethod
 
 import numpy as np
-from pyscf.lib import StreamObject
+from pyscf import scf  # type:ignore
 
 from ..system import LocalizedSystem
 
@@ -30,7 +30,7 @@ class OccupiedLocalizer(ABC):
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
         n_mo_overwrite: tuple[int | None, int | None] | None = None,
     ):
@@ -44,10 +44,15 @@ class OccupiedLocalizer(ABC):
         self.n_mo_overwrite = (None, None) if n_mo_overwrite is None else n_mo_overwrite
         self._global_scf = global_scf
         self._n_active_atoms = n_active_atoms
-        if global_scf.mo_coeff.ndim == 2:
-            self.spinless = True
-        else:
-            self.spinless = False
+
+        match global_scf.mo_coeff.ndim:  # type: ignore
+            case 2:
+                self.spinless = True
+            case 3:
+                self.spinless = False
+            case _:
+                raise ValueError("SCF C matrix shape not valid.")
+
         logger.debug(f"Global scf: {type(global_scf)}")
 
     def localize(
@@ -61,8 +66,8 @@ class OccupiedLocalizer(ABC):
         if self.spinless:
             logger.debug("Running SPADE for only one spin.")
             localized_system = self._localize_spin(
-                self._global_scf.mo_coeff,
-                self._global_scf.mo_occ,
+                self._global_scf.mo_coeff,  # type:ignore
+                self._global_scf.mo_occ,  # type:ignore
                 self.n_mo_overwrite[0],
             )
 
@@ -72,13 +77,13 @@ class OccupiedLocalizer(ABC):
 
         else:
             alpha = self._localize_spin(
-                self._global_scf.mo_coeff[0],
-                self._global_scf.mo_occ[0],
+                self._global_scf.mo_coeff[0],  # type:ignore
+                self._global_scf.mo_occ[0],  # type:ignore
                 self.n_mo_overwrite[0],
             )
             beta = self._localize_spin(
-                self._global_scf.mo_coeff[1],
-                self._global_scf.mo_occ[1],
+                self._global_scf.mo_coeff[1],  # type:ignore
+                self._global_scf.mo_occ[1],  # type:ignore
                 self.n_mo_overwrite[1],
             )
             localized_system = LocalizedSystem.unrestricted_from_spin_components(

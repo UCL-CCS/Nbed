@@ -2,18 +2,18 @@
 
 from abc import ABC, abstractmethod
 
-from pyscf import gto
+from pyscf import scf  # type:ignore
 
 
 class VirtualLocalizer(ABC):
     """Base class for virtual localizers.
 
     Args:
-        embedded_scf (StreamObject): SCF object with occupied orbitals localized.
+        embedded_scf (scf.hf.SCF): SCF object with occupied orbitals localized.
         n_active_atoms (int): Number of active atoms in the system.
 
     Attributes:
-        embedded_scf (StreamObject): SCF object with occupied orbitals localized.
+        embedded_scf (scf.hf.SCF): SCF object with occupied orbitals localized.
         n_active_atoms (int): Number of active atoms in the system.
     """
 
@@ -21,13 +21,13 @@ class VirtualLocalizer(ABC):
         """Initialize VirtualLocalizer.
 
         Args:
-            embedded_scf (StreamObject): A pyscf SCF object.
+            embedded_scf (scf.hf.SCF): A pyscf SCF object.
             n_active_atoms (int): The number of atoms in the active region.
         """
         self._n_active_atoms = n_active_atoms
 
     @abstractmethod
-    def localize_virtual(self) -> gto.Mole:
+    def localize_virtual(self) -> scf.hf.SCF:
         """Localize virtual orbitals.
 
         Returns:

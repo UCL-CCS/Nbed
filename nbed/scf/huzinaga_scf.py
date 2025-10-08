@@ -4,9 +4,9 @@ import logging
 from typing import Optional
 
 import numpy as np
-import scipy as sp
-from pyscf import dft, scf
-from pyscf.lib import StreamObject, diis
+from pyscf import dft, scf  # type:ignore
+from pyscf.lib import diis  # type:ignore
+from scipy import linalg  # type:ignore
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ def calculate_hf_energy(
     """Calculate the Hartree-Fock Energy.
 
     Args:
-        scf_method (StreamObject): PySCF HF method
+        scf_method (scf.hf.SCF): PySCF HF method
         embedding_potential (np.ndarray): DFT embedding potential
         density_matrix (np.ndarray): Embedded region density matrix (updates each cycle)
         vhf (np.ndarray): Mean field potential
@@ -39,7 +39,7 @@ def calculate_ks_energy(
     """Calculate the Hartree-Fock Energy.
 
     Args:
-        scf_method (StreamObject): PySCF Kohn-sham method
+        scf_method (scf.hf.SCF): PySCF Kohn-sham method
         embedding_potential (np.ndarray): DFT embedding potential
         density_matrix (np.ndarray): Embedded region density matrix (updates each cycle)
         huzinaga_op_occ (np.ndarray): Huzinaga Fock operator
@@ -91,7 +91,7 @@ def get_huzinaga_operator(
 
 
 def huzinaga_scf(
-    scf_method: StreamObject,
+    scf_method: scf.hf.SCF,
     embedding_potential: np.ndarray,
     dm_environment_occupied: np.ndarray,
     dm_environment_virtual: np.ndarray | None = None,
@@ -108,7 +108,7 @@ def huzinaga_scf(
     can occur due to DIIS and other clever PySCF methods not being available.
 
     Args:
-        scf_method (StreamObjecty):PySCF RHF object (containing info about max cycles and convergence tolerence)
+        scf_method (scf.hf.SCFy):PySCF RHF object (containing info about max cycles and convergence tolerence)
         embedding_potential (np.ndarray): DFT active and environment two body terms - DFT active environemnt two body term
         dm_environment_occupied (np.ndarray): Density matrix of the environment occupied orbitals.
         dm_environment_virtual (np.ndarray | None): Density matrix of the environment virtual orbitals.
@@ -125,7 +125,7 @@ def huzinaga_scf(
     logger.debug("Initializising Huzinaga HF calculation")
     s_mat = scf_method.get_ovlp()
     logger.debug(f"{s_mat.shape=}")
-    s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
+    s_neg_half = linalg.fractional_matrix_power(s_mat, -0.5)
 
     adiis = diis.DIIS() if use_DIIS else None
 
@@ -145,11 +145,11 @@ def huzinaga_scf(
         mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
         mo_coeff_std = s_neg_half @ mo_coeff_ortho
         mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
-        dm_initial_guess = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
+        dm_initial_guess = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)  # type: ignore
 
     density_matrix = dm_initial_guess
     conv_flag = False
-    scf_energy_prev = 0
+    scf_energy_prev = 0.0
 
     for i in range(scf_method.max_cycle):
         # build fock matrix
@@ -159,7 +159,7 @@ def huzinaga_scf(
         huzinaga_op = get_huzinaga_operator(fock, dm_occ_S, dm_virt_S)
         fock += huzinaga_op
 
-        if use_DIIS and (i > 1):
+        if isinstance(adiis, diis.DIIS) and (i > 1):
             # DIIS update of Fock matrix
             fock = adiis.update(fock)
 
@@ -171,8 +171,8 @@ def huzinaga_scf(
 
         dm_mat_old = density_matrix
 
-        density_matrix = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
-
+        density_matrix = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)  # type: ignore
+        scf_energy: float
         if isinstance(scf_method, (dft.rks.RKS, dft.uks.UKS)):
             # Find RKS energy
             scf_energy = calculate_ks_energy(

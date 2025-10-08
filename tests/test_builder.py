@@ -5,6 +5,7 @@ from logging import getLogger
 import numpy as np
 import pytest
 import scipy as sp
+import scipy.sparse.linalg as linalg
 from openfermion import count_qubits, get_sparse_operator
 from openfermion.ops import InteractionOperator
 from openfermion.transforms.opconversions import jordan_wigner
@@ -54,7 +55,8 @@ def ubuilder(unrestricted_scf):
 
 def test_restricted_groundstate(restricted_scf, rbuilder) -> None:
     """Use the full system to check that output hamiltonian diagonalises to fci value for a restricted calculation."""
-    e_fci = FCI(restricted_scf).kernel()[0] - restricted_scf.energy_nuc()
+    fci_scf = FCI(restricted_scf)
+    e_fci = fci_scf.kernel()[0] - restricted_scf.energy_nuc()
 
     logger.info(f"FCI energy of unrestricted driver test: {e_fci}")
 
@@ -63,7 +65,7 @@ def test_restricted_groundstate(restricted_scf, rbuilder) -> None:
     qham = jordan_wigner(intop)
 
     assert count_qubits(qham) == 14
-    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(qham), k=1, which="SA")
+    diag, _ = linalg.eigsh(get_sparse_operator(qham), k=1, which="SA")
     logger.info(f"Ground state via diagonalisation: {diag}")
     assert np.isclose(e_fci, diag)
 

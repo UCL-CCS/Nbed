@@ -2,12 +2,11 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
 
 import numpy as np
-from pyscf import lo
-from pyscf.lib import StreamObject
-from pyscf.lo import vvo
+from numpy.typing import NDArray
+from pyscf import lo, scf  # type:ignore
+from pyscf.lo import vvo  # type:ignore
 
 from ..system import LocalizedSystem
 from .base import OccupiedLocalizer
@@ -39,10 +38,10 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
-        occ_cutoff: Optional[float] = 0.95,
-        virt_cutoff: Optional[float] = 0.95,
+        occ_cutoff: float = 0.95,
+        virt_cutoff: float = 0.95,
     ):
         """Initialize PySCF Localizer."""
         self.occ_cutoff = self._valid_threshold(occ_cutoff)
@@ -69,11 +68,14 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
             raise ValueError(f"threshold: {threshold} is not in range [0,1] inclusive")
 
     @abstractmethod
-    def _pyscf_method(self, c_std_occ):
+    def _pyscf_method(self, c_std_occ) -> NDArray:
         """Abstract method containing the PySCF method to use.
 
         Args:
             c_std_occ (np.ndarray): Unlocalized C matrix of occupied orbitals.
+
+        Returns:
+            np.ndarray: Localized C Matrix
         """
         pass
 
@@ -99,7 +101,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         c_std_occ = c_matrix[:, :n_occupied_orbitals]
         logger.debug(f"{c_std_occ.shape=}")
 
-        c_loc_occ = self._pyscf_method(c_std_occ)
+        c_loc_occ: NDArray = self._pyscf_method(c_std_occ)
 
         ao_slice_matrix = self._global_scf.mol.aoslice_by_atom()
 
@@ -183,7 +185,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         """Localise virtual (unoccupied) orbitals using different localization schemes in PySCF.
 
         Args:
-            global_scf (StreamObject): PySCF molecule object
+            global_scf (scf.hf.SCF): PySCF molecule object
             c_matrix (np.ndarray): Unlocalized C matrix of occupied orbitals.
             virt_threshold (float): Threshold for selecting unoccupied (virtual) active MOs.
 
@@ -192,8 +194,10 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         """
         logger.debug("Localizing virtual orbitals.")
         n_occupied_orbitals = np.count_nonzero(self._global_scf.mo_occ == 2)
-        c_std_occ = self._global_scf.mo_coeff[:, :n_occupied_orbitals]
-        c_std_virt = self._global_scf.mo_coeff[:, self._global_scf.mo_occ < 2]
+        c_std_occ: NDArray
+        c_std_occ = self._global_scf.mo_coeff[:, :n_occupied_orbitals]  # type:ignore
+        c_std_virt: NDArray
+        c_std_virt = self._global_scf.mo_coeff[:, self._global_scf.mo_occ < 2]  # type:ignore
 
         c_virtual_loc = vvo.vvo(
             self._global_scf.mol, c_std_occ, c_std_virt, iaos=None, s=None, verbose=None
@@ -220,8 +224,8 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         active_percentage_MO = numerator_all / denominator_all
 
         logger.debug("Virtual orbitals localized.")
-        logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(active_percentage_MO,4)}")
-        logger.debug(f"threshold for active part: {self._virt_cutoff}")
+        logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(active_percentage_MO, 4)}")
+        logger.debug(f"threshold for active part: {self.virt_cutoff}")
 
         # NOT IN USE
         # add constant occupied index
@@ -240,7 +244,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
 
         return c_virtual_loc
 
-    def localize_virtual(self, local_scf: StreamObject) -> StreamObject:
+    def localize_virtual(self, local_scf: scf.hf.SCF) -> scf.hf.SCF:
         """Localise virtual (unoccupied) obitals using PySCF method.
 
         [1] D. Claudino and N. J. Mayhall, "Simple and Efficient Truncation of Virtual
@@ -249,10 +253,10 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         doi: 10.1021/ACS.JCTC.9B00682.
 
         Args:
-            local_scf (StreamObject): SCF object with occupied orbitals localized.
+            local_scf (scf.hf.SCF): SCF object with occupied orbitals localized.
 
         Returns:
-            StreamObject: Fully Localized SCF object.
+            scf.hf.SCF: Fully Localized SCF object.
         """
         raise NotImplementedError(
             "Virtual orbital localization not implemented for PySCF methods."
@@ -289,10 +293,10 @@ class PMLocalizer(PySCFLocalizer):
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
-        occ_cutoff: Optional[float] = 0.95,
-        virt_cutoff: Optional[float] = 0.95,
+        occ_cutoff: float = 0.95,
+        virt_cutoff: float = 0.95,
     ):
         """Initialize Localizer."""
         super().__init__(
@@ -352,10 +356,10 @@ class BOYSLocalizer(PySCFLocalizer):
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
-        occ_cutoff: Optional[float] = 0.95,
-        virt_cutoff: Optional[float] = 0.95,
+        occ_cutoff: float = 0.95,
+        virt_cutoff: float = 0.95,
     ):
         """Initialize Localizer."""
         super().__init__(
@@ -406,10 +410,10 @@ class IBOLocalizer(PySCFLocalizer):
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
-        occ_cutoff: Optional[float] = 0.95,
-        virt_cutoff: Optional[float] = 0.95,
+        occ_cutoff: float = 0.95,
+        virt_cutoff: float = 0.95,
     ):
         """Initialise Localizer."""
         super().__init__(
@@ -430,7 +434,8 @@ class IBOLocalizer(PySCFLocalizer):
         iaos = lo.iao.iao(self._global_scf.mol, c_std_occ)
         # Orthogonalize IAO
         iaos = lo.vec_lowdin(iaos, self._global_scf.get_ovlp())
+        c_loc_occ: NDArray
         c_loc_occ = lo.ibo.ibo(
             self._global_scf.mol, c_std_occ, locmethod="IBO", iaos=iaos
-        )
+        )  # type:ignore
         return c_loc_occ
