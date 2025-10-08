@@ -4,9 +4,9 @@ import logging
 from typing import Optional
 
 import numpy as np
-from pyscf import dft, scf
-from pyscf.lib import diis
-from scipy import linalg
+from pyscf import dft, scf  # type:ignore
+from pyscf.lib import diis  # type:ignore
+from scipy import linalg  # type:ignore
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +172,6 @@ def huzinaga_scf(
         dm_mat_old = density_matrix
 
         density_matrix = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)  # type: ignore
-
         scf_energy: float
         if isinstance(scf_method, (dft.rks.RKS, dft.uks.UKS)):
             # Find RKS energy

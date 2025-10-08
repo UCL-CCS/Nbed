@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from pyscf import scf
+from pyscf import scf  # type:ignore
 
 
 class VirtualLocalizer(ABC):

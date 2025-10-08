@@ -1,12 +1,11 @@
 """Class to build qubit Hamiltonians from scf object."""
 
 import logging
-from numbers import Number
 
 import numpy as np
 from numpy.typing import NDArray
 from openfermion.config import EQ_TOLERANCE
-from pyscf import ao2mo, dft, scf
+from pyscf import ao2mo, dft, scf  # type:ignore
 
 from nbed.exceptions import HamiltonianBuilderError
 
@@ -40,20 +39,14 @@ class HamiltonianBuilder:
         self.n_frozen_core = n_frozen_core
         self.n_frozen_virt = n_frozen_virt
         self._restricted = isinstance(scf_method, (scf.rhf.RHF, dft.rks.RKS))
-        if isinstance(self.scf_method.mo_occ[0], Number):
-            self.occupancy = self.scf_method.mo_occ
-        elif isinstance(self.scf_method.mo_occ[0], np.ndarray):
-            self.occupancy = np.vstack(
-                (self.scf_method.mo_occ[0], self.scf_method.mo_occ[1])
-            )
-        else:
-            raise HamiltonianBuilderError("occupancy dimension error")
+        self.occupancy = self.scf_method.mo_occ
 
     @property
     def _one_body_integrals(self) -> NDArray:
         """Get the one electron integrals."""
         logger.debug("Calculating one body integrals.")
-        c_matrix_active = self.scf_method.mo_coeff
+        c_matrix_active: NDArray
+        c_matrix_active = self.scf_method.mo_coeff  # type: ignore
         logger.debug(f"{c_matrix_active.shape=}")
         logger.debug(f"{c_matrix_active[0].shape=}")
 
@@ -61,12 +54,11 @@ class HamiltonianBuilder:
 
         # Embedding procedure creates two different hcores
         # Using different v_eff
+        # We need to cast the unchanged version to 2*M*M
+        hcore = self.scf_method.get_hcore()
         if self.scf_method.get_hcore().ndim == 2:
             # Driver has not been used.
-            hcore = [self.scf_method.get_hcore()] * 2
-        elif self.scf_method.get_hcore().ndim == 3:
-            # Driver has been used.
-            hcore = self.scf_method.get_hcore()
+            hcore = np.array([self.scf_method.get_hcore()] * 2)
 
         # one body terms
         if not self._restricted:
@@ -98,8 +90,10 @@ class HamiltonianBuilder:
     def _two_body_integrals(self) -> NDArray:
         """Get the two electron integrals."""
         logger.debug("Calculating two body integrals.")
-        c_matrix_active = self.scf_method.mo_coeff
+        c_matrix_active: NDArray
+        c_matrix_active = self.scf_method.mo_coeff  # type: ignore
 
+        eri: NDArray
         if not self._restricted:
             n_orbs_alpha = c_matrix_active[0].shape[1]
             n_orbs_beta = c_matrix_active[1].shape[1]
@@ -127,7 +121,7 @@ class HamiltonianBuilder:
                 two_body_compressed = ao2mo.kernel(
                     self.scf_method.mol, spin_options[spin]
                 )
-                eri = ao2mo.restore(1, two_body_compressed, n_orbs_alpha)
+                eri = ao2mo.restore(1, two_body_compressed, n_orbs_alpha)  # type: ignore
                 ints_list.append(np.asarray(eri.transpose(0, 2, 3, 1), order="C"))
             two_body_integrals = np.stack(ints_list, axis=0)
 
@@ -139,7 +133,7 @@ class HamiltonianBuilder:
             # get electron repulsion integrals
             eri = ao2mo.restore(
                 1, two_body_compressed, n_orbs
-            )  # no permutation symmetry
+            )  # no permutation symmetry # type:ignore
 
             # Copy this 4 times so that we have the same number as
             # the unrestricted case
@@ -274,11 +268,11 @@ def reduce_virtuals(scf_method, n_frozen_virt: int) -> scf.hf.SCF:
     logger.debug(f"Reducing virtuals by {n_frozen_virt}.")
 
     if isinstance(reduced_scf_method, (scf.uhf.UHF)):
-        reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :, :-n_frozen_virt]
-        reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:, :-n_frozen_virt]
+        reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :, :-n_frozen_virt]  # type: ignore
+        reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:, :-n_frozen_virt]  # type: ignore
 
     elif isinstance(reduced_scf_method, (scf.hf.RHF)):
-        reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :-n_frozen_virt]
-        reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:-n_frozen_virt]
+        reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :-n_frozen_virt]  # type: ignore
+        reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:-n_frozen_virt]  # type: ignore
 
     return reduced_scf_method

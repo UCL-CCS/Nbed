@@ -4,7 +4,7 @@ import logging
 
 import numpy as np
 from numpy.typing import NDArray
-from pyscf import gto, scf
+from pyscf import gto, scf  # type:ignore
 
 from .base import VirtualLocalizer
 
@@ -92,9 +92,9 @@ class ConcentricLocalizer(VirtualLocalizer):
 
         if spinless:
             localised_virts = self._localize_virtual_spin(
-                embedded_scf.mo_occ,
-                embedded_scf.mo_coeff,
-                embedded_scf.get_fock(),  # type: ignore
+                embedded_scf.mo_occ,  # type: ignore
+                embedded_scf.mo_coeff,  # type: ignore
+                embedded_scf.get_fock(),
             )
             embedded_scf.mo_coeff = localised_virts[0]  # type:ignore
             self.shells = localised_virts[1]
@@ -126,7 +126,7 @@ class ConcentricLocalizer(VirtualLocalizer):
 
     def _localize_virtual_spin(
         self, occ: np.ndarray, mo_coeff: np.ndarray, fock_operator: np.ndarray
-    ) -> tuple[NDArray[np.floating], NDArray[np.uint], NDArray[np.floating]]:
+    ) -> tuple[NDArray, NDArray[np.uint], NDArray]:
         """Run concentric localization for each spin separately.
 
         NOTE: These cant be done together as the number of occupied orbitals may be different between the two spins.
@@ -263,8 +263,6 @@ class ConcentricLocalizer(VirtualLocalizer):
 
         logger.debug(f"Shell indices: {shells}")
 
-        mo_coeff = c_total
+        logger.debug(f"{c_total, shells, singular_values}")
 
-        logger.debug(f"{mo_coeff, shells, singular_values}")
-
-        return mo_coeff, np.array(shells, dtype=np.uint), singular_values
+        return c_total, np.array(shells, dtype=np.uint), np.array(singular_values)

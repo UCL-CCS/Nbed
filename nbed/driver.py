@@ -1,14 +1,14 @@
 """Module containg the NbedDriver Class."""
 
 import logging
-from functools import cached_property
+from functools import cached_property, partial
 from json import dump as jdump
-from typing import Literal, Union, assert_never
+from typing import Any, Literal, Union, assert_never
 
 import numpy as np
 from numpy.typing import NDArray
-from pyscf import cc, dft, fci, gto, mcscf, qmmm, scf
-from pyscf.lib import NPArrayWithTag
+from pyscf import cc, dft, fci, gto, mcscf, qmmm, scf  # type:ignore
+from pyscf.lib import NPArrayWithTag  # type:ignore
 
 from nbed.localizers import (
     BOYSLocalizer,
@@ -132,7 +132,7 @@ class NbedDriver:
         return global_hf
 
     @cached_property
-    def _global_ccsd(self, **ccsd_kwargs) -> scf.hf.SCF:
+    def _global_ccsd(self, **ccsd_kwargs) -> cc.ccsd.CCSDBase:
         """Function to run full molecule CCSD calculation."""
         logger.debug("Running full system CC.")
         # run CCSD after HF
@@ -184,7 +184,7 @@ class NbedDriver:
             logger.debug(
                 "QM/MM: running full system KS DFT in presence of point charges."
             )
-            global_ks: dft.uks.UKS = qmmm.itrf.mm_charge(
+            global_ks = qmmm.itrf.mm_charge(
                 global_ks,
                 self.config.mm_coords,
                 self.config.mm_charges,
@@ -262,12 +262,12 @@ class NbedDriver:
 
         if self.run_qmmm:
             logger.debug("QM/MM: running local SCF in presence of point charges.")
-            local_hf: scf.uhf.UHF = qmmm.itrf.mm_charge(
+            local_hf = qmmm.itrf.mm_charge(
                 local_hf,
                 self.config.mm_coords,
                 self.config.mm_charges,
                 self.config.mm_radii,
-            )
+            )  # type: ignore
 
         local_hf.max_memory = self.config.max_ram_memory
         local_hf.conv_tol = self.config.convergence
@@ -504,7 +504,7 @@ class NbedDriver:
         self,
         emb_pyscf_scf_rhf: scf.hf.SCF,
         frozen: list[int] | None = None,
-    ) -> FCISolver:
+    ) -> FCISolver | scf.hf.SCF | mcscf.casci.CASBase:
         """Function run FCI on embedded restricted Hartree Fock object.
 
         Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
@@ -546,18 +546,27 @@ class NbedDriver:
         logger.debug(f"{v_emb.shape=}")
 
         if v_emb.ndim == 3:
-            localized_scf.energy_elec = lambda *args: energy_elec(localized_scf, *args)
+            # localized_scf.energy_elec = lambda **kwargs: energy_elec(
+            #     localized_scf, **kwargs
+            # )
+            localized_scf.energy_elec = partial(energy_elec, localized_scf)
 
         logger.debug(f"{v_emb.shape=}")
         logger.debug(f"{self._env_projector.shape=}")
         logger.debug(f"{embedding_potential.shape=}")
         hcore_std = localized_scf.get_hcore
         logger.debug(f"{hcore_std().shape=}")
-        localized_scf.get_hcore = lambda *args: hcore_std(*args) + v_emb
+        setattr(localized_scf, "get_hcore_std", hcore_std)
+        if not hasattr(localized_scf, "v_emb"):
+            setattr(localized_scf, "v_emb", v_emb)
+        else:
+            raise ValueError("Localized SCF already has v_emb attribute.")
+
+        localized_scf.get_hcore = lambda *args: hcore_std(*args) + v_emb  # type:ignore
         # veff_std = localized_scf.get_veff
         # localized_scf.get_veff = lambda *args: veff_std(*args) + v_emb
         logger.debug(f"embedded hcore shape {localized_scf.get_hcore().shape}")
-        localized_scf.kernel()
+        localized_scf.kernel()  # type:ignore
         logger.info(
             f"Embedded scf energy MU_SHIFT: {localized_scf.e_tot}, converged: {localized_scf.converged}"
         )
@@ -619,12 +628,12 @@ class NbedDriver:
 
         # write results to pyscf object
         logger.debug("Writing results to PySCF object.")
-        hcore_std = active_scf.get_hcore()
+        hcore_std = active_scf.get_hcore
         v_emb = huzinaga_op_std + embedding_potential
-        active_scf.get_hcore = lambda *args: hcore_std + v_emb
+        active_scf.get_hcore = lambda *args: hcore_std(*args) + v_emb  # type:ignore
 
         if localized_system.dm_active.ndim == 3:
-            active_scf.energy_elec = lambda *args: energy_elec(active_scf, *args)
+            active_scf.energy_elec = partial(energy_elec, active_scf)
 
         active_scf.mo_occ = active_scf.get_occ(mo_embedded_energy, c_active_embedded)
 
@@ -643,14 +652,14 @@ class NbedDriver:
                     ],
                 ),
                 axis=2,
-            )
+            )  # type:ignore
             active_scf.mo_occ = active_scf.mo_occ[: active_scf.mo_coeff.shape[-1]]
         else:
-            active_scf.mo_coeff = c_active_embedded
+            active_scf.mo_coeff = c_active_embedded  # type:ignore
 
         logger.debug(f"{active_scf.mo_occ=}")
-        logger.debug(f"{active_scf.mo_coeff.shape=}")
-        active_scf.mo_energy = mo_embedded_energy
+        logger.debug(f"{active_scf.mo_coeff.shape=}")  # type:ignore
+        active_scf.mo_energy = mo_embedded_energy  # type:ignore
         active_scf.e_tot = active_scf.energy_tot(dm=dm_active_embedded)
         # active_scf.conv_check = huz_scf_conv_flag
         active_scf.converged = huz_scf_conv_flag
@@ -685,12 +694,12 @@ class NbedDriver:
             case 2:
                 n_env_mos = np.sum(localized_system.enviro_occ_inds, dtype=int)
                 logger.debug(f"{n_env_mos=}")
-                scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(
+                scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(  # type:ignore
                     projector,
                     n_env_mos,
-                    scf.mo_coeff,
-                    scf.mo_energy,
-                    scf.mo_occ,
+                    scf.mo_coeff,  # type:ignore
+                    scf.mo_energy,  # type:ignore
+                    scf.mo_occ,  # type:ignore
                     env_projector,
                 )
             case 3:
@@ -707,31 +716,31 @@ class NbedDriver:
                 ) = self._delete_spin_environment(
                     projector,
                     n_env_mos[0],
-                    scf.mo_coeff[0],
-                    scf.mo_energy[0],
-                    scf.mo_occ[0],
+                    scf.mo_coeff[0],  # type:ignore
+                    scf.mo_energy[0],  # type:ignore
+                    scf.mo_occ[0],  # type:ignore
                     env_projector[0],
                 )
                 (mo_coeff_beta, mo_energy_beta, mo_occ_beta) = (
                     self._delete_spin_environment(
                         projector,
                         n_env_mos[1],
-                        scf.mo_coeff[1],
-                        scf.mo_energy[1],
-                        scf.mo_occ[1],
+                        scf.mo_coeff[1],  # type:ignore
+                        scf.mo_energy[1],  # type:ignore
+                        scf.mo_occ[1],  # type:ignore
                         env_projector[1],
                     )
                 )
                 # Need to do it this way or there are broadcasting issues
                 scf.mo_coeff = np.array(
                     [mo_coeff_alpha, mo_coeff_beta]
-                )  # np.array([mo_coeff[0], mo_coeff[1]])
+                )  # np.array([mo_coeff[0], mo_coeff[1]]) #type:ignore
                 scf.mo_energy = np.array(
                     [mo_energy_alpha, mo_energy_beta]
-                )  # np.array([mo_energy[0], mo_energy[1]])
+                )  # np.array([mo_energy[0], mo_energy[1]]) #type:ignore
                 scf.mo_occ = np.array(
                     [mo_occ_alpha, mo_occ_beta]
-                )  # np.array([mo_occ[0], mo_occ[1]])
+                )  # np.array([mo_occ[0], mo_occ[1]]) #type:ignore
 
         logger.debug("Environment deleted.")
         return scf
@@ -963,7 +972,7 @@ class NbedDriver:
         Returns:
             dict: A dict of results.
         """
-        result = {}
+        result: dict[str, Any] = {}
         result["scf"] = embedded_scf.copy()
         result["v_emb"] = v_emb
         result["mo_energies_emb_pre_del"] = result["scf"].mo_energy
@@ -1044,12 +1053,12 @@ class NbedDriver:
             logger.debug("Performing FCI-in-DFT embedding.")
             fci_emb = self._run_emb_fci(result["scf"])
             result["e_fci"] = (
-                (fci_emb.e_tot)
-                + self.e_env
+                (fci_emb.e_tot)  # type:ignore
+                + self.e_env  # type:ignore
                 + self.two_e_cross
                 - result["correction"]
                 - result["beta_correction"]
-            )
+            )  # type:ignore
             logger.info(f"FCI Energy {projector}:\t{result['e_fci']}")
 
             result["fci_emb"] = fci_emb.e_tot - self.e_nuc
@@ -1074,7 +1083,7 @@ def run_emb_fci(
     frozen: list | None = None,
     convergence: float | None = 1e-6,
     max_ram_memory: int | None = 4000,
-) -> scf.hf.SCF:
+) -> scf.hf.SCF | FCISolver | mcscf.casci.CASBase:
     """Function run FCI on embedded restricted Hartree Fock object.
 
     Note emb_pyscf_scf_rhf is ROHF object for the active embedded subsystem (defined in localized basis)
@@ -1103,33 +1112,37 @@ def run_emb_fci(
             emb_pyscf_scf_rhf.mol.nelec,
             emb_pyscf_scf_rhf.mol.nao - len(frozen),
         )
-        fci_scf.sort_mo(
+        fci_scf.sort_mo(  # type:ignore
             [i + 1 for i in range(emb_pyscf_scf_rhf.mol.nao) if i not in frozen]
-        )
-    fci_scf.conv_tol = convergence
-    fci_scf.max_memory = max_ram_memory
-    fci_scf.verbose = 1
+        )  # type:ignore
+        if not isinstance(fci_scf, mcscf.casci.CASBase):
+            raise NotImplementedError("Check Embedded FCI parameters.")
+
+    fci_scf.conv_tol = convergence  # type:ignore
+    fci_scf.max_memory = max_ram_memory  # type:ignore
+    fci_scf.verbose = 1  # type:ignore
 
     # For UHF, PySCF assumes that hcore is spinless and 2D
     # Because we update hcore for embedding, we need to calculate our own h1e term.
     from functools import reduce
 
-    if np.ndim(hcore := emb_pyscf_scf_rhf.get_hcore()) == 3 and frozen is None:
+    h_core = emb_pyscf_scf_rhf.get_hcore()
+    if np.ndim(h_core) == 3 and frozen is None:
         mo: NDArray = emb_pyscf_scf_rhf.mo_coeff  # type: ignore
         h1e = [
-            reduce(np.dot, (mo[0].T, hcore[0], mo[0])),
-            reduce(np.dot, (mo[1].T, hcore[1], mo[1])),
+            reduce(np.dot, (mo[0].T, h_core[0], mo[0])),
+            reduce(np.dot, (mo[1].T, h_core[1], mo[1])),
         ]
-        fci_scf.kernel(h1e=h1e)
+        fci_scf.kernel(h1e=h1e)  # type:ignore
     else:
         # kernel function default value is passed in
-        fci_scf.kernel()
-    logger.info(f"FCI embedding energy: {fci_scf.e_tot}")
+        fci_scf.kernel()  # type:ignore
+    logger.info(f"FCI embedding energy: {fci_scf.e_tot}")  # type:ignore
     return fci_scf
 
 
 def run_emb_ccsd(
-    emb_pyscf_scf_rhf: Union[scf.ROHF, scf.UHF],
+    emb_pyscf_scf_rhf: scf.hf.SCF,
     frozen: list | None = None,
     convergence: float = 1e-6,
     max_ram_memory: int = 4000,
@@ -1156,10 +1169,10 @@ def run_emb_ccsd(
     ccsd.verbose = 2
 
     e_ccsd_corr: float
-    e_ccsd_corr, _, _ = ccsd.kernel()
+    e_ccsd_corr, _, _ = ccsd.kernel()  # type:ignore
     logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
     logger.info(f"CCSD Converged {ccsd.converged}")
-    return ccsd, e_ccsd_corr
+    return ccsd, e_ccsd_corr  # type:ignore
 
 
 def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
@@ -1175,45 +1188,57 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
     Returns:
         dict: DFT-in-DFT embedding results.
     """
-    result = {}
+    result: dict[str, Any] = {}
     e_nuc = driver._global_ks.energy_nuc()
 
     local_rks_same_functional = driver._init_local_ks(driver._global_ks.xc)
     hcore_std = local_rks_same_functional.get_hcore()
     match projection_method:
         case ProjectorTypes.MU:
-            result["scf_dft"], result["v_emb_dft"] = driver._mu_embed(
+            scf, v_emb_dft = driver._mu_embed(
                 local_rks_same_functional, driver.embedding_potential
             )
+            result["v_emb_dft"] = v_emb_dft
+            result["scf_dft"] = driver._delete_environment(
+                projection_method,
+                scf,
+                driver.localized_system,
+                driver._env_projector,
+            )
         case ProjectorTypes.HUZ:
-            result["scf_dft"], result["v_emb_dft"] = driver._huzinaga_embed(
+            scf, v_emb_dft = driver._huzinaga_embed(
                 local_rks_same_functional,
                 driver.embedding_potential,
                 driver.localized_system,
             )
-    result["scf_dft"] = driver._delete_environment(
-        projection_method,
-        result["scf_dft"],
-        driver.localized_system,
-        driver._env_projector,
-    )
+            result["v_emb_dft"] = v_emb_dft
+            result["scf_dft"] = driver._delete_environment(
+                projection_method,
+                scf,
+                driver.localized_system,
+                driver._env_projector,
+            )
+        case ProjectorTypes.BOTH:
+            raise ValueError("Cannot use BOTH projector for DFT-in-DFT.")
+        case _:
+            assert_never(projection_method)
 
     match driver.localized_system.dm_active.ndim:
         case 2:
-            y_emb = result["scf_dft"].make_rdm1()
+            y_emb = result["scf_dft"].make_rdm1()  # type:ignore
 
             # calculate correction
             result["dft_correction"] = np.einsum(
                 "ij,ij",
                 result["v_emb_dft"],
                 (y_emb - driver.localized_system.dm_active),
-            )
-            veff = result["scf_dft"].get_veff(dm=y_emb)
-            result["dft_correction_beta"] = 0
+            )  # type:ignore
+            veff = result["scf_dft"].get_veff(dm=y_emb)  # type:ignore
+            result["dft_correction_beta"] = 0.0
             rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
 
         case 3:
-            y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()
+            y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()  # type:ignore
 
             # calculate correction
             result["dft_correction"] = np.einsum(
@@ -1228,7 +1253,7 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
                 (y_emb_beta - driver.localized_system.dm_active[1]),
             )
 
-            veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])
+            veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])  # type:ignore
 
             rks_e_elec = (
                 veff.exc

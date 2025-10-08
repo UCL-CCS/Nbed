@@ -4,8 +4,9 @@ import logging
 from abc import ABC, abstractmethod
 
 import numpy as np
-from pyscf import lo, scf
-from pyscf.lo import vvo
+from numpy.typing import NDArray
+from pyscf import lo, scf  # type:ignore
+from pyscf.lo import vvo  # type:ignore
 
 from ..system import LocalizedSystem
 from .base import OccupiedLocalizer
@@ -67,11 +68,14 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
             raise ValueError(f"threshold: {threshold} is not in range [0,1] inclusive")
 
     @abstractmethod
-    def _pyscf_method(self, c_std_occ):
+    def _pyscf_method(self, c_std_occ) -> NDArray:
         """Abstract method containing the PySCF method to use.
 
         Args:
             c_std_occ (np.ndarray): Unlocalized C matrix of occupied orbitals.
+
+        Returns:
+            np.ndarray: Localized C Matrix
         """
         pass
 
@@ -97,7 +101,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         c_std_occ = c_matrix[:, :n_occupied_orbitals]
         logger.debug(f"{c_std_occ.shape=}")
 
-        c_loc_occ = self._pyscf_method(c_std_occ)
+        c_loc_occ: NDArray = self._pyscf_method(c_std_occ)
 
         ao_slice_matrix = self._global_scf.mol.aoslice_by_atom()
 
@@ -190,8 +194,10 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         """
         logger.debug("Localizing virtual orbitals.")
         n_occupied_orbitals = np.count_nonzero(self._global_scf.mo_occ == 2)
-        c_std_occ = self._global_scf.mo_coeff[:, :n_occupied_orbitals]
-        c_std_virt = self._global_scf.mo_coeff[:, self._global_scf.mo_occ < 2]
+        c_std_occ: NDArray
+        c_std_occ = self._global_scf.mo_coeff[:, :n_occupied_orbitals]  # type:ignore
+        c_std_virt: NDArray
+        c_std_virt = self._global_scf.mo_coeff[:, self._global_scf.mo_occ < 2]  # type:ignore
 
         c_virtual_loc = vvo.vvo(
             self._global_scf.mol, c_std_occ, c_std_virt, iaos=None, s=None, verbose=None
@@ -428,7 +434,8 @@ class IBOLocalizer(PySCFLocalizer):
         iaos = lo.iao.iao(self._global_scf.mol, c_std_occ)
         # Orthogonalize IAO
         iaos = lo.vec_lowdin(iaos, self._global_scf.get_ovlp())
+        c_loc_occ: NDArray
         c_loc_occ = lo.ibo.ibo(
             self._global_scf.mol, c_std_occ, locmethod="IBO", iaos=iaos
-        )
+        )  # type:ignore
         return c_loc_occ

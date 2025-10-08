@@ -4,8 +4,8 @@ import logging
 
 import numpy as np
 from numpy.typing import NDArray
-from pyscf import scf
-from scipy import linalg
+from pyscf import scf  # type:ignore
+from scipy import linalg  # type:ignore
 
 from ..system import LocalizedSystem
 from .base import OccupiedLocalizer
@@ -127,9 +127,9 @@ class SPADELocalizer(OccupiedLocalizer):
 
         # get active and enviro indices
         active_occ_inds = np.zeros(n_occupied_orbitals, dtype=np.bool)
-        active_occ_inds[:n_act_mos] = True
+        active_occ_inds[:n_act_mos] = np.True_
         enviro_occ_inds = np.zeros(n_occupied_orbitals, dtype=np.bool)
-        enviro_occ_inds[n_act_mos:] = True
+        enviro_occ_inds[n_act_mos:] = np.True_
 
         # Defining active and environment orbitals and density
         c_active = occupied_orbitals @ right_vectors.T[:, :n_act_mos]

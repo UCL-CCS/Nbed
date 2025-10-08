@@ -28,8 +28,14 @@ class LocalizedSystem:
     dm_enviro (np.array): environment system density matrix
     """
 
-    active_occ_inds: np.ndarray[tuple[int, ...], dtype[np.bool]]
-    enviro_occ_inds: np.ndarray[tuple[int, ...], dtype[np.bool]]
+    active_occ_inds: (
+        np.ndarray[tuple[int], dtype[np.bool]]
+        | np.ndarray[tuple[int, int], dtype[np.bool]]
+    )
+    enviro_occ_inds: (
+        np.ndarray[tuple[int], dtype[np.bool]]
+        | np.ndarray[tuple[int, int], dtype[np.bool]]
+    )
     c_loc_occ: OneSpinMatrix | TwoSpinMatrix
     dm_active: OneSpinMatrix | TwoSpinMatrix
     dm_enviro: OneSpinMatrix | TwoSpinMatrix

@@ -4,7 +4,7 @@ import logging
 
 import numpy as np
 from numpy.typing import NDArray
-from pyscf import ao2mo
+from pyscf import ao2mo  # type:ignore
 
 logger = logging.getLogger(__name__)
 
