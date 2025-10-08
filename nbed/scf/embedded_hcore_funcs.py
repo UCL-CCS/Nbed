@@ -3,6 +3,7 @@
 import logging
 
 import numpy as np
+from numpy.typing import NDArray
 from pyscf import ao2mo
 
 logger = logging.getLogger(__name__)
@@ -56,9 +57,9 @@ def _absorb_h1e(h1e, eri, norb, nelec, fac=1):
     h1e_b = np.einsum("jik->jk", h1e_b)
     print("h1e_a", h1e_a.shape)
     print("h1e_b", h1e_b.shape)
-    h2e_aa = ao2mo.restore(1, eri[0], norb).copy()
-    h2e_ab = ao2mo.restore(1, eri[1], norb).copy()
-    h2e_bb = ao2mo.restore(1, eri[2], norb).copy()
+    h2e_aa: NDArray = ao2mo.restore(1, eri[0], norb).copy()  # type: ignore
+    h2e_ab: NDArray = ao2mo.restore(1, eri[1], norb).copy()  # type: ignore
+    h2e_bb: NDArray = ao2mo.restore(1, eri[2], norb).copy()  # type: ignore
     print("x1", h2e_aa.shape)
     print("y2", h2e_bb.shape)
     x = np.einsum("jiik->jk", h2e_aa) * 0.5
@@ -77,7 +78,7 @@ def _absorb_h1e(h1e, eri, norb, nelec, fac=1):
         h2e_bb[:, :, k, k] += f1e_b
         h2e_bb[k, k, :, :] += f1e_b
     return (
-        ao2mo.restore(4, h2e_aa, norb) * fac,
-        ao2mo.restore(4, h2e_ab, norb) * fac,
-        ao2mo.restore(4, h2e_bb, norb) * fac,
+        ao2mo.restore(4, h2e_aa, norb) * fac,  # type: ignore
+        ao2mo.restore(4, h2e_ab, norb) * fac,  # type: ignore
+        ao2mo.restore(4, h2e_bb, norb) * fac,  # type: ignore
     )

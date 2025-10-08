@@ -2,11 +2,14 @@
 
 import logging
 from dataclasses import dataclass, field
+from typing import Literal, Union
 
 import numpy as np
 from numpy import dtype
 
-from nbed import OneSpinMatrix, TwoSpinMatrix
+type OneSpinMatrix[M: int] = np.ndarray[tuple[M, M], np.dtype[np.floating]]
+type TwoSpinMatrix[M: int] = np.ndarray[tuple[Literal[2], M, M], np.dtype[np.floating]]
+type AnySpinMatrix[M: int] = Union[OneSpinMatrix[M], TwoSpinMatrix[M]]
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +28,8 @@ class LocalizedSystem:
     dm_enviro (np.array): environment system density matrix
     """
 
-    type M = int
-    active_occ_inds: np.ndarray[tuple[int, M], dtype[np.bool]]
-    enviro_occ_inds: np.ndarray[tuple[int, M], dtype[np.bool]]
+    active_occ_inds: np.ndarray[tuple[int, ...], dtype[np.bool]]
+    enviro_occ_inds: np.ndarray[tuple[int, ...], dtype[np.bool]]
     c_loc_occ: OneSpinMatrix | TwoSpinMatrix
     dm_active: OneSpinMatrix | TwoSpinMatrix
     dm_enviro: OneSpinMatrix | TwoSpinMatrix

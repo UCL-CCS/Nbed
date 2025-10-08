@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from pyscf import gto
+from pyscf import scf
 
 
 class VirtualLocalizer(ABC):
@@ -27,7 +27,7 @@ class VirtualLocalizer(ABC):
         self._n_active_atoms = n_active_atoms
 
     @abstractmethod
-    def localize_virtual(self) -> gto.Mole:
+    def localize_virtual(self) -> scf.hf.SCF:
         """Localize virtual orbitals.
 
         Returns:

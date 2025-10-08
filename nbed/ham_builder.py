@@ -6,7 +6,7 @@ from numbers import Number
 import numpy as np
 from numpy.typing import NDArray
 from openfermion.config import EQ_TOLERANCE
-from pyscf import ao2mo, dft, lib, scf
+from pyscf import ao2mo, dft, scf
 
 from nbed.exceptions import HamiltonianBuilderError
 
@@ -253,7 +253,7 @@ class HamiltonianBuilder:
         return self.constant_e_shift, one_body_coefficients, 0.5 * two_body_coefficients
 
 
-def reduce_virtuals(scf_method, n_frozen_virt: int) -> lib.scf.hf.SCF:
+def reduce_virtuals(scf_method, n_frozen_virt: int) -> scf.hf.SCF:
     """Reduce the number of virtual orbitals.
 
     Args:

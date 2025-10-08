@@ -365,10 +365,11 @@ def test_cl_shell_numbers(global_rks, global_uks) -> None:
     )
     unrestricted_virt.localize_virtual()
 
-    assert restricted_virt.shells == [12, 13]
-    assert (
+    assert np.all(restricted_virt.shells == [12, 13])
+    assert np.all(
         restricted_virt.shells
-        == unrestricted_virt.shells[0]
+        == unrestricted_virt.shells[0])
+    assert np.all( restricted_virt.shells
         == unrestricted_virt.shells[1]
     )
 

@@ -244,7 +244,7 @@ class NbedDriver:
         self.localizer = localizer
         return localizer.localize()
 
-    def _init_local_hf(self) -> scf.hf.HF:
+    def _init_local_hf(self) -> scf.hf.SCF:
         """Function to build embedded HF object for active subsystem.
 
         Note this function overwrites the total number of electrons to only include active number.
@@ -1096,11 +1096,7 @@ def run_emb_fci(
     logger.debug(f"{max_ram_memory=}")
 
     if frozen is None:
-        fci_scf = mcscf.CASSCF(
-            emb_pyscf_scf_rhf,
-            emb_pyscf_scf_rhf.mol.nelec,
-            emb_pyscf_scf_rhf.mol.nao,
-        )
+        fci_scf = fci.FCI(emb_pyscf_scf_rhf)
     else:
         fci_scf = mcscf.CASSCF(
             emb_pyscf_scf_rhf,
@@ -1118,8 +1114,8 @@ def run_emb_fci(
     # Because we update hcore for embedding, we need to calculate our own h1e term.
     from functools import reduce
 
-    if np.ndim(hcore := emb_pyscf_scf_rhf.get_hcore()) == 3:
-        mo = emb_pyscf_scf_rhf.mo_coeff
+    if np.ndim(hcore := emb_pyscf_scf_rhf.get_hcore()) == 3 and frozen is None:
+        mo: NDArray = emb_pyscf_scf_rhf.mo_coeff  # type: ignore
         h1e = [
             reduce(np.dot, (mo[0].T, hcore[0], mo[0])),
             reduce(np.dot, (mo[1].T, hcore[1], mo[1])),

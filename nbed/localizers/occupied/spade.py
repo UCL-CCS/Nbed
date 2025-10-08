@@ -3,7 +3,8 @@
 import logging
 
 import numpy as np
-from pyscf import lib
+from numpy.typing import NDArray
+from pyscf import scf
 from scipy import linalg
 
 from ..system import LocalizedSystem
@@ -18,7 +19,7 @@ class SPADELocalizer(OccupiedLocalizer):
     Running localization returns active and environment systems.
 
     Args:
-        global_scf (scf.scf.hf.SCF): PySCF method object.
+        global_scf (scf.hf.SCF): PySCF method object.
         n_active_atoms (int): Number of active atoms
 
     Attributes:
@@ -37,16 +38,16 @@ class SPADELocalizer(OccupiedLocalizer):
 
     def __init__(
         self,
-        global_scf: lib.scf.hf.SCF,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
         max_shells: int = 4,
         n_mo_overwrite: tuple[int | None, int | None] | None = None,
     ):
         """Initialize SPADE Localizer object."""
         self.max_shells = max_shells
-        self.shells = None
-        self.singular_values = None
-        self.enviro_selection_condition = (None, None)
+        self.shells: NDArray[np.integer]
+        self.singular_values: NDArray[np.floating]
+        self.enviro_selection_condition: NDArray[np.floating] | None = None
 
         super().__init__(
             global_scf,
@@ -118,7 +119,7 @@ class SPADELocalizer(OccupiedLocalizer):
             if np.allclose(value_diffs, [0] * len(value_diffs)):
                 n_act_mos = len(sigma)
             else:
-                n_act_mos = np.argmax(value_diffs) + 1
+                n_act_mos = int(np.argmax(value_diffs)) + 1
 
         n_env_mos = n_occupied_orbitals - n_act_mos
         logger.debug(f"{n_act_mos} active MOs.")
@@ -142,12 +143,11 @@ class SPADELocalizer(OccupiedLocalizer):
         logger.debug(f"{dm_enviro.shape=}")
 
         # storing condition used to select env system
-        if self.enviro_selection_condition == (None, None):
-            self.enviro_selection_condition = (sigma, np.zeros(len(sigma)))
-        else:
-            self.enviro_selection_condition = (
-                self.enviro_selection_condition[0],
-                sigma,
+        if self.enviro_selection_condition is None:
+            self.enviro_selection_condition = np.array([sigma, np.zeros(sigma.shape)])
+        elif isinstance(self.enviro_selection_condition[0], np.ndarray):
+            self.enviro_selection_condition = np.array(
+                [self.enviro_selection_condition[0], sigma]
             )
 
         return LocalizedSystem(

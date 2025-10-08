@@ -49,7 +49,7 @@ def setup_logs() -> None:
     logger.debug("Logging initialised.")
 
 
-def parse():
+def parse() -> NbedConfig:
     """Parse arguments from command line interface."""
     logger.debug("Adding CLI arguments.")
     parser = argparse.ArgumentParser(description="Output embedded Qubit Hamiltonian.")
@@ -69,11 +69,11 @@ def parse():
     logger.debug(f"Input data:\n{config_data=}")
 
     try:
-        config = NbedConfig(config_data)
+        config = NbedConfig(**config_data)
     except ValidationError as e:
         logger.error("Could not validate input data against NbedConfig model.")
         logger.error(e)
-
+        raise ValidationError(e)
     return config
 
 

@@ -3,6 +3,7 @@
 import logging
 
 import numpy as np
+from numpy.typing import NDArray
 from pyscf import gto, scf
 
 from .base import VirtualLocalizer
@@ -43,11 +44,11 @@ class ConcentricLocalizer(VirtualLocalizer):
         super().__init__(n_active_atoms)
         self.embedded_scf = embedded_scf
         self.max_shells = max_shells
-        self.projected_overlap = None
-        self.overlap_two_basis = None
-        self.n_act_proj_aos = None
-        self.shells = None
-        self.singular_values = None
+        self.projected_overlap: NDArray[np.floating]
+        self.overlap_two_basis: NDArray[np.floating]
+        self.n_act_proj_aos: NDArray[np.floating]
+        self.shells: NDArray[np.integer]
+        self.singular_values: NDArray[np.floating]
 
     def localize_virtual(self) -> scf.hf.SCF:
         """Localise virtual (unoccupied) obitals using concentric localization.
@@ -87,32 +88,36 @@ class ConcentricLocalizer(VirtualLocalizer):
         )[:n_act_proj_aos, :]
         self.n_act_proj_aos = n_act_proj_aos
 
-        spinless = embedded_scf.mo_coeff.ndim == 2
+        spinless = embedded_scf.mo_coeff.ndim == 2  # type: ignore
 
         if spinless:
             localised_virts = self._localize_virtual_spin(
-                embedded_scf.mo_occ, embedded_scf.mo_coeff, embedded_scf.get_fock()
+                embedded_scf.mo_occ,
+                embedded_scf.mo_coeff,
+                embedded_scf.get_fock(),  # type: ignore
             )
-            embedded_scf.mo_coeff = localised_virts[0]
+            embedded_scf.mo_coeff = localised_virts[0]  # type:ignore
             self.shells = localised_virts[1]
             self.singular_values = localised_virts[2]
         else:
             localised_virts_alpha = self._localize_virtual_spin(
-                embedded_scf.mo_occ[0],
-                embedded_scf.mo_coeff[0],
+                embedded_scf.mo_occ[0],  # type: ignore
+                embedded_scf.mo_coeff[0],  # type: ignore
                 embedded_scf.get_fock()[0],
             )
             localised_virts_beta = self._localize_virtual_spin(
-                embedded_scf.mo_occ[1],
-                embedded_scf.mo_coeff[1],
+                embedded_scf.mo_occ[1],  # type: ignore
+                embedded_scf.mo_coeff[1],  # type: ignore
                 embedded_scf.get_fock()[1],
             )
             embedded_scf.mo_coeff = np.array(
                 [localised_virts_alpha[0], localised_virts_beta[0]]
-            )
+            )  # type: ignore
 
-            self.shells = (localised_virts_alpha[1], localised_virts_beta[1])
-            self.singular_values = (localised_virts_alpha[2], localised_virts_beta[2])
+            self.shells = np.array([localised_virts_alpha[1], localised_virts_beta[1]])
+            self.singular_values = np.array(
+                [localised_virts_alpha[2], localised_virts_beta[2]]
+            )
 
         logger.debug("Completed Concentric Localization.")
         logger.debug(f"{self.shells=}")
@@ -121,7 +126,7 @@ class ConcentricLocalizer(VirtualLocalizer):
 
     def _localize_virtual_spin(
         self, occ: np.ndarray, mo_coeff: np.ndarray, fock_operator: np.ndarray
-    ) -> np.ndarray:
+    ) -> tuple[NDArray[np.floating], NDArray[np.uint], NDArray[np.floating]]:
         """Run concentric localization for each spin separately.
 
         NOTE: These cant be done together as the number of occupied orbitals may be different between the two spins.
@@ -164,9 +169,11 @@ class ConcentricLocalizer(VirtualLocalizer):
         logger.debug(f"{shell_size=}")
 
         right_vectors = np.swapaxes(right_vectors, -1, -2)
-        v_span, v_ker = np.split(
-            right_vectors, [shell_size], axis=-1
-        )  # 0 but instability
+        # v_span, v_ker = np.split(
+        #     right_vectors, [shell_size], axis=-1
+        # )  # 0 but instability
+        v_span = right_vectors[..., :shell_size]
+        v_ker = right_vectors[..., shell_size:]
 
         logger.debug(f"{v_span.shape=}")
         logger.debug(f"{v_ker.shape=}")
@@ -216,9 +223,11 @@ class ConcentricLocalizer(VirtualLocalizer):
                     break
 
                 right_vectors = np.swapaxes(right_vectors, -1, -2)
-                v_span, v_ker = np.split(
-                    right_vectors, [shell_size], axis=-1
-                )  # 0 but instability
+                # v_span, v_ker = np.split(
+                #     right_vectors, [shell_size], axis=-1
+                # )  # 0 but instability
+                v_span = right_vectors[..., :shell_size]
+                v_ker = right_vectors[..., shell_size:]
 
                 logger.debug(f"{v_span.shape=}")
                 logger.debug(f"{v_ker.shape=}")
@@ -258,4 +267,4 @@ class ConcentricLocalizer(VirtualLocalizer):
 
         logger.debug(f"{mo_coeff, shells, singular_values}")
 
-        return mo_coeff, shells, singular_values
+        return mo_coeff, np.array(shells, dtype=np.uint), singular_values

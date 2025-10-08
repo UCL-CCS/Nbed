@@ -4,9 +4,9 @@ import logging
 from typing import Optional
 
 import numpy as np
-import scipy as sp
 from pyscf import dft, scf
 from pyscf.lib import diis
+from scipy import linalg
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,7 @@ def huzinaga_scf(
     logger.debug("Initializising Huzinaga HF calculation")
     s_mat = scf_method.get_ovlp()
     logger.debug(f"{s_mat.shape=}")
-    s_neg_half = sp.linalg.fractional_matrix_power(s_mat, -0.5)
+    s_neg_half = linalg.fractional_matrix_power(s_mat, -0.5)
 
     adiis = diis.DIIS() if use_DIIS else None
 
@@ -145,11 +145,11 @@ def huzinaga_scf(
         mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
         mo_coeff_std = s_neg_half @ mo_coeff_ortho
         mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
-        dm_initial_guess = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
+        dm_initial_guess = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)  # type: ignore
 
     density_matrix = dm_initial_guess
     conv_flag = False
-    scf_energy_prev = 0
+    scf_energy_prev = 0.0
 
     for i in range(scf_method.max_cycle):
         # build fock matrix
@@ -159,7 +159,7 @@ def huzinaga_scf(
         huzinaga_op = get_huzinaga_operator(fock, dm_occ_S, dm_virt_S)
         fock += huzinaga_op
 
-        if use_DIIS and (i > 1):
+        if isinstance(adiis, diis.DIIS) and (i > 1):
             # DIIS update of Fock matrix
             fock = adiis.update(fock)
 
@@ -171,8 +171,9 @@ def huzinaga_scf(
 
         dm_mat_old = density_matrix
 
-        density_matrix = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)
+        density_matrix = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)  # type: ignore
 
+        scf_energy: float
         if isinstance(scf_method, (dft.rks.RKS, dft.uks.UKS)):
             # Find RKS energy
             scf_energy = calculate_ks_energy(

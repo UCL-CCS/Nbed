@@ -6,7 +6,7 @@ Based on 10.1021/acs.jctc.3c00653
 import logging
 
 import numpy as np
-from pyscf import dft, lib, scf
+from pyscf import dft, scf
 from scipy.optimize import curve_fit, minimize
 
 from nbed.localizers.occupied.spade import SPADELocalizer
@@ -18,7 +18,7 @@ class ACELocalizer:
     """Implements ACE of SPADE along coordinate path.
 
     Attributes:
-        global_scf_list (list[lib.scf.hf.SCF]): List of unlocalized PySCF method objects.
+        global_scf_list (list[scf.hf.SCF]): List of unlocalized PySCF method objects.
         n_active_atoms (int): Number of active atoms.
         max_shells (int): Maximum number of shells to use in SPADE localization.
         n_mo_overwrite (tuple[int, int]): Number of MOs to overwrite for alpha and beta spins.
@@ -33,14 +33,14 @@ class ACELocalizer:
 
     def __init__(
         self,
-        global_scf_list: lib.scf.hf.SCF,
+        global_scf_list: scf.hf.SCF,
         n_active_atoms: int,
         max_shells: int = 4,
     ):
         """Initialize.
 
         Args:
-            global_scf_list (list[lib.scf.hf.SCF]): List of unlocalized PySCF method objects.
+            global_scf_list (list[scf.hf.SCF]): List of unlocalized PySCF method objects.
             n_active_atoms (int): Number of active atoms.
             max_shells (int): Maximum number of shells to use in SPADE localization.
         """
