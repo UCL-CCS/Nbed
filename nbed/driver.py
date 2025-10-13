@@ -20,7 +20,6 @@ from nbed.localizers import (
     PMLocalizer,
     SPADELocalizer,
 )
-from nbed.localizers.system import RestrictedLS, UnrestrictedLS
 
 from .config import (
     NbedConfig,
@@ -849,16 +848,16 @@ class NbedDriver:
 
         logger.info(f"DFT potential average {np.mean(embedding_potential)}.")
 
-        logger.debug("converting localized system")
-        if self.config.restricted_global and isinstance(
-            self.localized_system, RestrictedLS
-        ):
-            self.localized_system = UnrestrictedLS.from_spin_components(
-                self.localized_system, self.localized_system
-            )
-            self.embedding_potential = np.array(
-                [self.embedding_potential, self.embedding_potential]
-            )
+        # logger.debug("converting localized system")
+        # if self.config.restricted_global and isinstance(
+        #     self.localized_system, RestrictedLS
+        # ):
+        #     self.localized_system = UnrestrictedLS.from_spin_components(
+        #         self.localized_system, self.localized_system
+        #     )
+        #     self.embedding_potential = np.array(
+        #         [self.embedding_potential, self.embedding_potential]
+        #     )
 
         logger.debug("Beginning Projection.")
         if (
