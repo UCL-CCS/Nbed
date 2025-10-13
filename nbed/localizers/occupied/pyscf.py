@@ -8,6 +8,8 @@ from numpy.typing import NDArray
 from pyscf import lo, scf  # type:ignore
 from pyscf.lo import vvo  # type:ignore
 
+from nbed.localizers.system import RestrictedLS
+
 from ..system import LocalizedSystem
 from .base import OccupiedLocalizer
 
@@ -175,7 +177,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         self.enviro_selection_condition = mo_active_share
 
         logger.debug("PySCF localization complete.")
-        return LocalizedSystem(
+        return RestrictedLS(
             active_occ_inds, enviro_occ_inds, c_loc_occ, dm_active, dm_enviro
         )
 

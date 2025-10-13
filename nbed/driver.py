@@ -20,6 +20,7 @@ from nbed.localizers import (
     PMLocalizer,
     SPADELocalizer,
 )
+from nbed.localizers.system import RestrictedLS, UnrestrictedLS
 
 from .config import (
     NbedConfig,
@@ -284,12 +285,16 @@ class NbedDriver:
                 self.config.mm_radii,
             )  # type: ignore
 
+        local_hf.run()  # type: ignore
         local_hf.max_memory = self.config.max_ram_memory  # type:ignore
         local_hf.conv_tol = self.config.convergence  # type:ignore
         local_hf.max_cycle = self.config.max_hf_cycles  # type:ignore
         local_hf.verbose = 1  # type:ignore
 
         return local_hf  # type:ignore
+
+    def _convert_localized_system(self, ls: LocalizedSystem):
+        """Convert a Localized system between spin restriction types."""
 
     def _init_embedded_mol(self) -> gto.Mole:
         """Create a pyscf molecule for the embedded system.
@@ -843,6 +848,17 @@ class NbedDriver:
         self.embedding_potential = embedding_potential
 
         logger.info(f"DFT potential average {np.mean(embedding_potential)}.")
+
+        logger.debug("converting localized system")
+        if self.config.restricted_global and isinstance(
+            self.localized_system, RestrictedLS
+        ):
+            self.localized_system = UnrestrictedLS.from_spin_components(
+                self.localized_system, self.localized_system
+            )
+            self.embedding_potential = np.array(
+                [self.embedding_potential, self.embedding_potential]
+            )
 
         logger.debug("Beginning Projection.")
         if (

@@ -7,6 +7,8 @@ from numpy.typing import NDArray
 from pyscf import scf  # type:ignore
 from scipy import linalg  # type:ignore
 
+from nbed.localizers.system import RestrictedLS
+
 from ..system import LocalizedSystem
 from .base import OccupiedLocalizer
 
@@ -150,7 +152,7 @@ class SPADELocalizer(OccupiedLocalizer):
                 [self.enviro_selection_condition[0], sigma]
             )
 
-        return LocalizedSystem(
+        return RestrictedLS(
             active_occ_inds=active_occ_inds,
             enviro_occ_inds=enviro_occ_inds,
             c_loc_occ=c_loc_occ,

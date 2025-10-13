@@ -123,19 +123,36 @@ def test_delete_spin_environment(both_driver):
     pass
 
 @pytest.mark.parametrize("projector", [ProjectorTypes.MU, ProjectorTypes.HUZ])
-def test_restricted_restricted(nbed_config, projector):
+def test_restricted_to_restricted(nbed_config, projector):
     nbed_config.projector = projector
 
     nbed_config.restricted_global = True
     nbed_config.restricted_active = True
     driver = NbedDriver(nbed_config)
     driver.embed()
+    assert isinstance(driver._global_ks, dft.rks.RKS)
     assert isinstance(driver.embedded_scf, scf.hf.RHF)
+
+@pytest.mark.parametrize("projector", [ProjectorTypes.MU, ProjectorTypes.HUZ])
+def test_unrestricted_to_unrestricted(nbed_config, projector):
+    nbed_config.projector = projector
 
     nbed_config.restricted_global = False
     nbed_config.restricted_active = False
     driver = NbedDriver(nbed_config)
     driver.embed()
+    assert isinstance(driver._global_ks, dft.uks.UKS)
+    assert isinstance(driver.embedded_scf, scf.uhf.UHF)
+
+@pytest.mark.parametrize("projector", [ProjectorTypes.MU, ProjectorTypes.HUZ])
+def test_restricted_to_unrestricted(nbed_config, projector):
+    nbed_config.projector = projector
+
+    nbed_config.restricted_global = True
+    nbed_config.restricted_active = False
+    driver = NbedDriver(nbed_config)
+    driver.embed()
+    assert isinstance(driver._global_ks, dft.rks.RKS)
     assert isinstance(driver.embedded_scf, scf.uhf.UHF)
 
 @pytest.mark.parametrize("restricted", [True, False])

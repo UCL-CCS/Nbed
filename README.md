@@ -11,7 +11,7 @@ Nbed uses PySCF as a backend for chemistry caluculations, which is not supported
 
 |In\Out | Restricted | Restricted-Open | Unrestricted |
 |---|---|---|---|
-|Restricted       |:x:|:x:|:x:|
+|Restricted       |:white_check_mark:|:x:|:x:|
 |Restricted-Open  |:x:|:x:|:x:|
 |Unrestricted     |:x:|:x:|:x:|
 
