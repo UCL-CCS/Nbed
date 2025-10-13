@@ -105,7 +105,7 @@ class NbedDriver:
             full_mol (gto.mol): built PySCF molecule object
         """
         logger.debug("Constructing molecule.")
-        logger.info("Molecule input geometry: %s", self.config.geometry)
+        logger.debug("Molecule input geometry: %s", self.config.geometry)
         # geometry is raw xyz string
         full_mol = gto.Mole(
             atom=self.config.geometry[2:],
@@ -120,7 +120,7 @@ class NbedDriver:
     @cached_property
     def _global_hf(self, **hf_kwargs) -> scf.hf.SCF:
         """Run full system Hartree-Fock."""
-        logger.debug("Running full system HF.")
+        logger.info("Running full system HF.")
         mol_full = self._build_mol()
         # run Hartree-Fock
         if self.config.restricted_global:
@@ -139,7 +139,7 @@ class NbedDriver:
     @cached_property
     def _global_ccsd(self, **ccsd_kwargs) -> cc.ccsd.CCSDBase:
         """Function to run full molecule CCSD calculation."""
-        logger.debug("Running full system CC.")
+        logger.info("Running full system CC.")
         # run CCSD after HF
 
         global_cc = cc.CCSD(self._global_hf, **ccsd_kwargs)
@@ -157,7 +157,7 @@ class NbedDriver:
 
         WARNING: FACTORIAL SCALING IN BASIS STATES!
         """
-        logger.debug("Running full system FCI.")
+        logger.info("Running full system FCI.")
         # run FCI after HF
         global_fci = fci.FCI(self._global_hf, **fci_kwargs)
         global_fci.conv_tol = self.config.convergence
@@ -175,7 +175,7 @@ class NbedDriver:
 
         Note this is necessary to perform localization procedure.
         """
-        logger.debug("Running full system KS DFT.")
+        logger.info("Running full system KS DFT.")
         mol_full = self._build_mol()
 
         if self.config.restricted_global:
@@ -592,7 +592,7 @@ class NbedDriver:
             np.ndarray: Matrix form of the embedding potential.
             scf.hf.SCF: The embedded scf object.
         """
-        logger.debug("Starting Huzinaga embedding method.")
+        logger.info("Starting Huzinaga embedding method...")
         # We need to run our own SCF method here to update the potential.
 
         if localized_system.c_loc_virt is not None:
@@ -814,10 +814,10 @@ class NbedDriver:
             init_huzinaga_rhf_with_mu (bool): Will run mu-shift projector even when input projector='huzinaga'.
             n_mo_overwrite (tuple[int, int]): Enforces a specific number of MOs are included in the active region. Used for ACE-of-SPADE reaction path localization.
         """
+        logger.info("Beginning embedding...")
         if self.config.virtual_localization is VirtualLocalizerTypes.PROJECTED_AO:
             raise NotImplementedError("PAO not yet fully implemented.")
 
-        logger.debug("Embedding molecule.")
         self.e_nuc = self._global_ks.energy_nuc()
 
         if n_mo_overwrite is not None and n_mo_overwrite != (None, None):
@@ -829,8 +829,10 @@ class NbedDriver:
             logger.debug("Setting n_mo_overwrite with value from config.")
             self.n_mo_overwrite = self.config.n_mo_overwrite
 
+        logger.info("Localizing occupied orbitals...")
         self.localized_system = self._localize()
 
+        logger.info("Projecting out environment...")
         # Run subsystem DFT (calls localized rks)
         self.e_act, self.e_env, self.two_e_cross = self._subsystem_dft(
             self._global_ks, self.localized_system
@@ -846,7 +848,7 @@ class NbedDriver:
         embedding_potential = g_act_and_env - g_act
         self.embedding_potential = embedding_potential
 
-        logger.info(f"DFT potential average {np.mean(embedding_potential)}.")
+        logger.debug(f"DFT potential average {np.mean(embedding_potential)}.")
 
         # logger.debug("converting localized system")
         # if self.config.restricted_global and isinstance(
@@ -944,6 +946,7 @@ class NbedDriver:
         Returns:
             dict: A dict of results.
         """
+        logger.info("Deleting environment orbitals...")
         result: dict[str, Any] = {}
         result["scf"] = embedded_scf.copy()
         result["v_emb"] = v_emb
@@ -973,7 +976,7 @@ class NbedDriver:
         # Post-embedding Virtual localization
         match self.config.virtual_localization:
             case VirtualLocalizerTypes.CONCENTRIC:
-                logger.debug("Performing virtual Concentric Localization.")
+                logger.info("Performing Concentric Localization of virtuals ...")
                 result["cl"] = ConcentricLocalizer(
                     result["scf"],
                     self.config.n_active_atoms,
@@ -987,6 +990,7 @@ class NbedDriver:
                     f"Driver does not have a method implemented for {self.config.virtual_localization}"
                 )
 
+        logger.info("Collcting results...")
         result["e_rhf"] = (
             result["scf"].e_tot
             + self.e_env

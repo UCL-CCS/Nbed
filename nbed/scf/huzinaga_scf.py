@@ -128,7 +128,7 @@ def huzinaga_scf(
         huzinaga_op_occ (np.ndarray): Huzinaga operator in standard basis (same basis as Fock operator).
         conv_flag (bool): Flag to indicate whether SCF has converged or not
     """
-    logger.debug("Initializising Huzinaga HF calculation")
+    logger.info("Running Huzinaga HF calculation...")
     s_mat = scf_method.get_ovlp()
     match scf_method:
         case scf.rhf.RHF() | dft.rks.RKS():

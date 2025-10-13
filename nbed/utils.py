@@ -35,7 +35,7 @@ def setup_logs() -> None:
             },
             "stream_handler": {
                 "class": "logging.StreamHandler",
-                "level": "WARNING",
+                "level": "INFO",
                 "formatter": "standard",
             },
         },
