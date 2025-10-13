@@ -1,12 +1,16 @@
 """Tests for localization functions."""
 
+from pubchempy import request
 import numpy as np
 import pytest
-from pyscf import gto, scf
+from pyscf import gto, scf, dft
 
-from nbed.localizers.occupied import OccupiedLocalizer, PMLocalizer, SPADELocalizer
+from nbed.localizers import occupied
+from nbed.localizers.occupied import OccupiedLocalizer, PMLocalizer, SPADELocalizer, BOYSLocalizer, IBOLocalizer
+from nbed.localizers.occupied.pyscf import PySCFLocalizer
 from nbed.localizers.virtual import ConcentricLocalizer
 from nbed.localizers.ace import ACELocalizer
+from nbed.localizers import LocalizedSystem
 
 import logging
 logger = logging.getLogger(__name__)
@@ -112,8 +116,7 @@ def test_base_localizer(global_rks) -> None:
     """Check the base class can be instantiated."""
     with pytest.raises(TypeError) as excinfo:
         OccupiedLocalizer(global_rks, n_active_atoms=n_active_atoms).localize()
-
-    assert "localize" in str(excinfo.value)
+    assert "localize_spin" in str(excinfo.value)
 
 
 def test_PM_arguments(global_rks) -> None:
@@ -238,6 +241,7 @@ def test_SPADE_check_values(scf, request) -> None:
         n_active_atoms=n_active_atoms,
     )
     ls = localizer.localize()
+    assert isinstance(ls, LocalizedSystem)
     check_partition(ls)
     check_charge_conservation(ls, localizer._global_scf)
 
@@ -416,6 +420,46 @@ def test_ace_localizer(global_rks, global_uks) -> None:
             - unrestricted_spade.enviro_selection_condition[0][1:]
         )
     )
+
+def test_pyscf_subtypes():
+    assert issubclass(PMLocalizer, PySCFLocalizer)
+    assert issubclass(BOYSLocalizer, PySCFLocalizer)
+    assert issubclass(IBOLocalizer, PySCFLocalizer)
+
+@pytest.mark.parametrize("localizer", [PMLocalizer, SPADELocalizer])
+@pytest.mark.parametrize("scf",["global_rks", "global_uks"])
+def test_localized_system(localizer, scf, request):
+    scf = request.getfixturevalue(scf)
+
+    match localizer:
+        case occupied.PMLocalizer | occupied.BOYSLocalizer | occupied.IBOLocalizer:
+            ls = localizer(scf, n_active_atoms, occ_cutoff, virt_cutoff).localize()
+        case occupied.SPADELocalizer:
+            ls = localizer(scf, n_active_atoms).localize()
+        case _:
+            raise ValueError("Invalid localizer.")
+
+    assert isinstance(ls, LocalizedSystem)
+    if isinstance(scf, dft.rks.RKS):
+        assert ls.active_occ_inds.ndim == 1
+        assert ls.enviro_occ_inds.ndim == 1
+        assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+
+        assert ls.c_loc_occ.ndim == 2
+        assert ls.c_loc_occ.shape[0] == scf.mo_coeff.shape[0]
+        assert ls.c_loc_occ.shape[1] <= scf.mo_coeff.shape[1]
+
+    elif isinstance(scf, dft.uks.UKS):
+        assert ls.active_occ_inds.ndim == 2
+        assert ls.enviro_occ_inds.ndim == 2
+        assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+
+        assert ls.c_loc_occ.ndim == 3
+        assert ls.c_loc_occ.shape[0] == 2
+        assert ls.c_loc_occ.shape[0] == scf.mo_coeff.shape[0]
+        assert ls.c_loc_occ.shape[1] == scf.mo_coeff.shape[1]
+        assert ls.c_loc_occ.shape[2] <= scf.mo_coeff.shape[2]
+
 
 
 if __name__ == "__main__":

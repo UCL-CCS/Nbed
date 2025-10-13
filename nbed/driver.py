@@ -43,6 +43,8 @@ type FCISolver = (
     | fci.direct_spin1_symm.FCISolver
 )
 
+type AnyKS = dft.rks.RKS | dft.uks.UKS
+
 # Create the Logger
 logger = logging.getLogger(__name__)
 
@@ -68,7 +70,7 @@ class NbedDriver:
         """Initialise NbedDriver."""
         logger.debug("Initialising NbedDriver with config:")
         logger.debug(config.model_dump_json())
-        self.config = config
+        self.config = config.model_validate(config)
         self.localized_system: LocalizedSystem
         self.two_e_cross: OneSpinMatrix | TwoSpinMatrix
         self.electron: int
@@ -121,7 +123,10 @@ class NbedDriver:
         logger.debug("Running full system HF.")
         mol_full = self._build_mol()
         # run Hartree-Fock
-        global_hf = scf.UHF(mol_full, **hf_kwargs)
+        if self.config.restricted_global:
+            global_hf = scf.RHF(mol_full, **hf_kwargs)
+        else:
+            global_hf = scf.UHF(mol_full, **hf_kwargs)
         global_hf.conv_tol = self.config.convergence
         global_hf.max_memory = self.config.max_ram_memory
         global_hf.max_cycle = self.config.max_hf_cycles
@@ -165,14 +170,19 @@ class NbedDriver:
         return global_fci
 
     @cached_property
-    def _global_ks(self, **ks_kwargs) -> dft.uks.UKS:
+    def _global_ks(self, **ks_kwargs) -> AnyKS:
         """Method to run full cheap molecule UKS DFT calculation.
 
         Note this is necessary to perform localization procedure.
         """
         logger.debug("Running full system KS DFT.")
         mol_full = self._build_mol()
-        global_ks: dft.uks.UKS = dft.uks.UKS(mol_full, **ks_kwargs)
+
+        if self.config.restricted_global:
+            global_ks = dft.rks.RKS(mol_full, **ks_kwargs)
+        else:
+            global_ks = dft.uks.UKS(mol_full, **ks_kwargs)
+
         logger.debug(f"{type(global_ks)=}")
         global_ks.conv_tol = self.config.convergence
         global_ks.xc = self.config.xc_functional
@@ -190,17 +200,18 @@ class NbedDriver:
                 self.config.mm_charges,
                 self.config.mm_radii,
             )  # type: ignore
-        global_ks.run()
+
+        global_ks.run()  # type: ignore
         logger.debug(f"{global_ks.mo_coeff.shape=}")  # type: ignore
         logger.debug(f"{global_ks.mo_occ.shape=}")  # type:ignore
-        logger.debug(f"{global_ks.get_veff().shape=}")
-        logger.debug(f"{global_ks.get_hcore().shape=}")
-        logger.info(f"Global UKS: {global_ks.e_tot}")
+        logger.debug(f"{global_ks.get_veff().shape=}")  # type: ignore
+        logger.debug(f"{global_ks.get_hcore().shape=}")  # type: ignore
+        logger.info(f"Global UKS: {global_ks.e_tot}")  # type: ignore
 
-        if global_ks.converged is not True:
+        if global_ks.converged is not True:  # type: ignore
             logger.warning("(cheap) global DFT calculation has NOT converged!")
 
-        return global_ks
+        return global_ks  # type: ignore
 
     def _localize(self) -> LocalizedSystem:
         """Run the localizer class."""
@@ -255,7 +266,11 @@ class NbedDriver:
         logger.debug("Constructing localised HF object.")
         embedded_mol: gto.Mole = self._init_embedded_mol()
 
-        local_hf: scf.uhf.UHF = scf.UHF(embedded_mol)
+        if self.config.restricted_active:
+            local_hf = scf.RHF(embedded_mol)
+        else:
+            local_hf = scf.UHF(embedded_mol)
+
         logger.debug(f"{embedded_mol.nelectron=}")
         logger.debug(f"{embedded_mol.nelec=}")
         logger.debug(f"{embedded_mol.spin=}")
@@ -269,12 +284,12 @@ class NbedDriver:
                 self.config.mm_radii,
             )  # type: ignore
 
-        local_hf.max_memory = self.config.max_ram_memory
-        local_hf.conv_tol = self.config.convergence
-        local_hf.max_cycle = self.config.max_hf_cycles
-        local_hf.verbose = 1
+        local_hf.max_memory = self.config.max_ram_memory  # type:ignore
+        local_hf.conv_tol = self.config.convergence  # type:ignore
+        local_hf.max_cycle = self.config.max_hf_cycles  # type:ignore
+        local_hf.verbose = 1  # type:ignore
 
-        return local_hf
+        return local_hf  # type:ignore
 
     def _init_embedded_mol(self) -> gto.Mole:
         """Create a pyscf molecule for the embedded system.
@@ -307,7 +322,7 @@ class NbedDriver:
                 self._electron = embedded_mol.nelectron
         return embedded_mol
 
-    def _init_local_ks(self, xc_functional: str) -> scf.hf.SCF:
+    def _init_local_ks(self, xc_functional: str) -> AnyKS:
         """Function to build embedded Hartree Fock object for active subsystem.
 
         Note this function overwrites the total number of electrons to only include active number.
@@ -321,7 +336,10 @@ class NbedDriver:
         logger.debug("Initialising localised RKS object.")
         embedded_mol: gto.Mole = self._init_embedded_mol()
 
-        local_ks: dft.uks.UKS = dft.uks.UKS(embedded_mol)
+        if self.config.restricted_active:
+            local_ks = dft.rks.RKS(embedded_mol)
+        else:
+            local_ks = dft.uks.UKS(embedded_mol)
         logger.debug(f"{embedded_mol.nelectron=}")
         logger.debug(f"{embedded_mol.nelec=}")
         logger.debug(f"{embedded_mol.spin=}")
@@ -334,13 +352,13 @@ class NbedDriver:
         return local_ks
 
     def _subsystem_dft(
-        self, global_ks: dft.uks.UKS, localized_system: LocalizedSystem
+        self, global_ks: AnyKS, localized_system: LocalizedSystem
     ) -> tuple[float, float, np.typing.NDArray]:
         """Function to perform subsystem UKS DFT calculation."""
         logger.debug("Calculating active and environment subsystem terms.")
 
         def _ks_components[Shape, DType](
-            ks_system: dft.uks.UKS,
+            ks_system: AnyKS,
             subsystem_dm: AnySpinMatrix,
         ) -> tuple[float, NPArrayWithTag, AnySpinMatrix]:
             """Calculate the components of subsystem energy from a UKS DFT calculation.
@@ -364,9 +382,6 @@ class NbedDriver:
             logger.debug(f"{subsystem_dm.shape=}")
             two_e_term: NPArrayWithTag = ks_system.get_veff(dm=subsystem_dm)
             j_mat = ks_system.get_j(dm=subsystem_dm)
-            # k_mat = np.zeros_like(j_mat) not needed for PySCF.
-
-            # v_xc = two_e_term - j_mat
 
             if subsystem_dm.ndim == 3:
                 dm_tot = subsystem_dm[0] + subsystem_dm[1]
@@ -374,11 +389,6 @@ class NbedDriver:
                 dm_tot = subsystem_dm
             logger.debug(f"{dm_tot.shape=}")
 
-            # e_act = (
-            #     np.einsum("ij,ji->", ks_system.get_hcore(), dm_tot)
-            #     + 0.5 * (np.einsum("ij,ji->", j_tot, dm_tot))
-            #     + two_e_term.exc
-            # )
             e_act: float = (
                 np.einsum("ij,ji->", ks_system.get_hcore(), dm_tot)
                 + two_e_term.ecoul  # type: ignore
@@ -457,23 +467,9 @@ class NbedDriver:
     @cached_property
     def _env_projector(self) -> OneSpinMatrix | TwoSpinMatrix:
         """Return a projector onto the environment in orthogonal basis."""
-        logger.debug("Getting Environment Projector.")
-        s_mat: OneSpinMatrix = self._global_ks.get_ovlp()
-        logger.debug(f"{s_mat.shape=}")
-        env_projector_alpha = s_mat @ self.localized_system.dm_enviro[0] @ s_mat
-
-        match self.localized_system.dm_enviro.ndim:
-            case 2:
-                env_projector = env_projector_alpha
-
-            case 3:
-                env_projector_beta = s_mat @ self.localized_system.dm_enviro[1] @ s_mat
-                env_projector = np.array([env_projector_alpha, env_projector_beta])
-            case _:
-                raise ValueError("Environment density matrix shape not valid.")
-
-        logger.debug(f"{env_projector.shape=}")
-        return env_projector
+        return _env_projector(
+            self._global_ks.get_ovlp(), self.localized_system.dm_enviro
+        )
 
     def _run_emb_ccsd(
         self,
@@ -670,7 +666,7 @@ class NbedDriver:
     def _delete_environment(
         self,
         projector: ProjectorTypes,
-        scf: scf.hf.SCF,
+        scf_object: scf.hf.SCF,
         localized_system: LocalizedSystem,
         env_projector: NDArray,
     ) -> scf.hf.SCF:
@@ -681,7 +677,7 @@ class NbedDriver:
 
         Args:
             projector (ProjectorTypes): The projector used to embed the system.
-            scf (scf.hf.SCF): The embedded SCF object.
+            scf_object (scf.hf.SCF): The embedded SCF object.
             localized_system (LocalizedSystem): Occupied Localization results for a molecule.
             env_projector (NDArray): Projector onto the environment region.
 
@@ -690,19 +686,59 @@ class NbedDriver:
         """
         logger.debug("Deleting environment from SCF object.")
 
-        match localized_system.dm_enviro.ndim:
-            case 2:
+        match scf_object:
+            # Restricted Closed
+            case scf.rhf.RHF() | dft.rks.RKS():
                 n_env_mos = np.sum(localized_system.enviro_occ_inds, dtype=int)
                 logger.debug(f"{n_env_mos=}")
-                scf.mo_coeff, scf.mo_energy, scf.mo_occ = self._delete_spin_environment(  # type:ignore
-                    projector,
-                    n_env_mos,
-                    scf.mo_coeff,  # type:ignore
-                    scf.mo_energy,  # type:ignore
-                    scf.mo_occ,  # type:ignore
-                    env_projector,
+                scf_object.mo_coeff, scf_object.mo_energy, scf_object.mo_occ = (  # type:ignore
+                    _delete_spin_environment(  # type:ignore
+                        projector,
+                        n_env_mos,
+                        scf_object.mo_coeff,  # type:ignore
+                        scf_object.mo_energy,  # type:ignore
+                        scf_object.mo_occ,  # type:ignore
+                        env_projector,
+                    )
                 )
-            case 3:
+            # Resticted Open
+            case scf.rohf.ROHF() | dft.roks.ROKS():
+                n_env_mos = [
+                    np.sum(localized_system.enviro_occ_inds[0]),
+                    np.sum(localized_system.enviro_occ_inds[1]),
+                ]
+                logger.debug(f"{n_env_mos=}")
+                (
+                    mo_coeff_alpha,
+                    mo_energy_alpha,
+                    mo_occ_alpha,
+                ) = _delete_spin_environment(
+                    projector,
+                    n_env_mos[0],
+                    scf_object.mo_coeff,  # type:ignore
+                    scf_object.mo_energy,  # type:ignore
+                    scf_object.mo_occ[0],  # type:ignore
+                    env_projector[0],
+                )
+                (mo_coeff_beta, mo_energy_beta, mo_occ_beta) = _delete_spin_environment(
+                    projector,
+                    n_env_mos[1],
+                    scf_object.mo_coeff,  # type:ignore
+                    scf_object.mo_energy,  # type:ignore
+                    scf_object.mo_occ[1],  # type:ignore
+                    env_projector[1],
+                )
+                # Need to do it this way or there are broadcasting issues
+                scf_object.mo_coeff = np.array(
+                    [mo_coeff_alpha, mo_coeff_beta]
+                )  # np.array([mo_coeff[0], mo_coeff[1]]) #type:ignore
+                scf_object.mo_energy = np.array(
+                    [mo_energy_alpha, mo_energy_beta]
+                )  # np.array([mo_energy[0], mo_energy[1]]) #type:ignore
+                scf_object.mo_occ = np.array(
+                    [mo_occ_alpha, mo_occ_beta]
+                )  # np.array([mo_occ[0], mo_occ[1]]) #type:ignore            # Unrestrected
+            case scf.uhf.UHF() | dft.uks.UKS():
                 #
                 n_env_mos = [
                     np.sum(localized_system.enviro_occ_inds[0]),
@@ -713,122 +749,40 @@ class NbedDriver:
                     mo_coeff_alpha,
                     mo_energy_alpha,
                     mo_occ_alpha,
-                ) = self._delete_spin_environment(
+                ) = _delete_spin_environment(
                     projector,
                     n_env_mos[0],
-                    scf.mo_coeff[0],  # type:ignore
-                    scf.mo_energy[0],  # type:ignore
-                    scf.mo_occ[0],  # type:ignore
+                    scf_object.mo_coeff[0],  # type:ignore
+                    scf_object.mo_energy[0],  # type:ignore
+                    scf_object.mo_occ[0],  # type:ignore
                     env_projector[0],
                 )
-                (mo_coeff_beta, mo_energy_beta, mo_occ_beta) = (
-                    self._delete_spin_environment(
-                        projector,
-                        n_env_mos[1],
-                        scf.mo_coeff[1],  # type:ignore
-                        scf.mo_energy[1],  # type:ignore
-                        scf.mo_occ[1],  # type:ignore
-                        env_projector[1],
-                    )
+                (mo_coeff_beta, mo_energy_beta, mo_occ_beta) = _delete_spin_environment(
+                    projector,
+                    n_env_mos[1],
+                    scf_object.mo_coeff[1],  # type:ignore
+                    scf_object.mo_energy[1],  # type:ignore
+                    scf_object.mo_occ[1],  # type:ignore
+                    env_projector[1],
                 )
                 # Need to do it this way or there are broadcasting issues
-                scf.mo_coeff = np.array(
+                scf_object.mo_coeff = np.array(
                     [mo_coeff_alpha, mo_coeff_beta]
                 )  # np.array([mo_coeff[0], mo_coeff[1]]) #type:ignore
-                scf.mo_energy = np.array(
+                scf_object.mo_energy = np.array(
                     [mo_energy_alpha, mo_energy_beta]
                 )  # np.array([mo_energy[0], mo_energy[1]]) #type:ignore
-                scf.mo_occ = np.array(
+                scf_object.mo_occ = np.array(
                     [mo_occ_alpha, mo_occ_beta]
                 )  # np.array([mo_occ[0], mo_occ[1]]) #type:ignore
+            case _:
+                logger.error("Combination of C matrix and occupancy shape not valid.")
+                raise ValueError(
+                    "SCF Object not instance of Restricted or Unrestrictd."
+                )
 
         logger.debug("Environment deleted.")
-        return scf
-
-    def _delete_spin_environment(
-        self,
-        projector: ProjectorTypes,
-        n_env_mo: int,
-        mo_coeff: np.ndarray,
-        mo_energy: np.ndarray,
-        mo_occ: np.ndarray,
-        environment_projector: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Remove enironment orbit from embedded ROHF object.
-
-        This function removes (in fact deletes completely) the molecular orbitals
-        defined by the environment of the localized system
-
-        Args:
-            projector (ProjectorTypes): The projector used to embed the system.
-            n_env_mo (int): The number of molecular orbitals in the environment.
-            mo_coeff (np.ndarray): The molecular orbitals.
-            mo_energy (np.ndarray): The molecular orbital energies.
-            mo_occ (np.ndarray): The molecular orbital occupation numbers.
-            environment_projector (np.ndarray): Matrix to project mo_coeff onto environment.
-
-        Returns:
-            embedded_rhf (scf.hf.SCF): Returns input, but with environment orbitals deleted
-        """
-        logger.debug("Deleting environment for spin.")
-        logger.debug(f"{projector=}")
-        logger.debug(f"{n_env_mo=}")
-        logger.debug(f"{mo_coeff.shape=}")
-        logger.debug(f"{mo_energy=}")
-        logger.debug(f"{mo_occ=}")
-        logger.debug(f"{environment_projector.shape=}")
-
-        frozen_enviro_orb_inds: list[int] = []
-        match projector:
-            case ProjectorTypes.HUZ:
-                # MOs which have the greatest overlap with the
-                overlap: NDArray[np.floating] = np.einsum(
-                    "ij, ki -> i",
-                    mo_coeff.swapaxes(-1, -2),
-                    environment_projector @ mo_coeff,
-                )
-                overlap_by_size: NDArray[np.integer] = overlap.argsort()[::-1]
-                logger.debug(f"{overlap_by_size=}")
-                frozen_enviro_orb_inds = list(overlap_by_size[:n_env_mo])
-
-            case ProjectorTypes.MU:
-                # Orbitals which have been shifted to have energy mu are removed
-                shift = mo_coeff.shape[-1] - n_env_mo
-                logger.debug(f"{shift=}")
-                logger.debug(f"{mo_coeff.shape=}")
-                logger.debug(f"{n_env_mo=}")
-                frozen_enviro_orb_inds = [
-                    mo_i for mo_i in range(shift, mo_coeff.shape[-1])
-                ]
-            case ProjectorTypes.BOTH:
-                raise ValueError("Projector must be specified to delete environment.")
-            case _:
-                assert_never(projector)
-
-        active_MOs_occ_and_virt_embedded = [
-            mo_i
-            for mo_i in range(mo_coeff.shape[-1])
-            if mo_i not in frozen_enviro_orb_inds
-        ]
-
-        logger.info(
-            f"Orbital indices for embedded system: {active_MOs_occ_and_virt_embedded}"
-        )
-        logger.info(
-            f"Orbital indices removed from embedded system: {frozen_enviro_orb_inds}"
-        )
-
-        # delete enviroment orbitals and associated energies
-        # overwrites varibles keeping only active part (both occupied and virtual)
-        active_mo_coeff = mo_coeff[:, active_MOs_occ_and_virt_embedded]
-        active_mo_energy = mo_energy[active_MOs_occ_and_virt_embedded]
-        active_mo_occ = mo_occ[active_MOs_occ_and_virt_embedded]
-
-        logger.debug("Spin environment deleted.")
-        logger.debug(f"{active_mo_coeff=}")
-        logger.debug(f"{active_mo_energy=}")
-        logger.debug(f"{active_mo_occ=}")
-        return active_mo_coeff, active_mo_energy, active_mo_occ
+        return scf_object
 
     def _dft_in_dft(self, projection_method: ProjectorTypes) -> dict:
         """Return energy of DFT in DFT embedding.
@@ -949,8 +903,11 @@ class NbedDriver:
                     self.huzinaga["classical_energy"],
                 )
             case _:
-                logger.debug("Projector did not match any know case.")
+                logger.error("Projector did not match any know case.")
                 logger.warning("Not assigning embedded_scf or classial_energy")
+                raise ValueError(
+                    "Projector %s did not match any know case.", self.config.projector
+                )
 
         if filename := self.config.savefile is not None:
             logger.debug("Saving results to file %s", filename)
@@ -1175,6 +1132,107 @@ def run_emb_ccsd(
     return ccsd, e_ccsd_corr  # type:ignore
 
 
+def _env_projector(
+    s_mat: np.ndarray[tuple[int, int]],
+    dm_enviro: np.ndarray[tuple[int, int] | tuple[int, int, int]],
+):
+    """Return a projector onto the environment in orthogonal basis.
+
+    Args:
+        s_mat (np.ndarray): The AO overlap matrix.
+        dm_enviro (np.ndarray): Environment Density Matrix
+
+    Returns:
+        np.ndaray: Projector onto the environment.
+    """
+    logger.debug("Getting Environment Projector.")
+    logger.debug(f"{s_mat.shape=}")
+    env_projector = np.einsum("ij,...jk,kl->...il", s_mat, dm_enviro, s_mat)
+    logger.debug(f"{env_projector.shape=}")
+    return env_projector
+
+
+def _delete_spin_environment(
+    projector: ProjectorTypes,
+    n_env_mo: int,
+    mo_coeff: np.ndarray[tuple[int, int]],
+    mo_energy: np.ndarray[tuple[int]],
+    mo_occ: np.ndarray[tuple[int]],
+    environment_projector: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Remove enironment orbit from embedded ROHF object.
+
+    This function removes (in fact deletes completely) the molecular orbitals
+    defined by the environment of the localized system
+
+    Args:
+        projector (ProjectorTypes): The projector used to embed the system.
+        n_env_mo (int): The number of molecular orbitals in the environment.
+        mo_coeff (np.ndarray): The molecular orbitals.
+        mo_energy (np.ndarray): The molecular orbital energies.
+        mo_occ (np.ndarray): The molecular orbital occupation numbers.
+        environment_projector (np.ndarray): Matrix to project mo_coeff onto environment.
+
+    Returns:
+        embedded_rhf (scf.hf.SCF): Returns input, but with environment orbitals deleted
+    """
+    logger.debug("Deleting environment for spin.")
+    logger.debug(f"{projector=}")
+    logger.debug(f"{n_env_mo=}")
+    logger.debug(f"{mo_coeff.shape=}")
+    logger.debug(f"{mo_energy=}")
+    logger.debug(f"{mo_occ=}")
+    logger.debug(f"{environment_projector.shape=}")
+
+    frozen_enviro_orb_inds: list[int] = []
+    match projector:
+        case ProjectorTypes.HUZ:
+            # MOs which have the greatest overlap with the
+            overlap: NDArray[np.floating] = np.einsum(
+                "ij, ki -> i",
+                mo_coeff.swapaxes(-1, -2),
+                environment_projector @ mo_coeff,
+            )
+            overlap_by_size: NDArray[np.integer] = overlap.argsort()[::-1]
+            logger.debug(f"{overlap_by_size=}")
+            frozen_enviro_orb_inds = list(overlap_by_size[:n_env_mo])
+
+        case ProjectorTypes.MU:
+            # Orbitals which have been shifted to have energy mu are removed
+            shift = mo_coeff.shape[-1] - n_env_mo
+            logger.debug(f"{shift=}")
+            logger.debug(f"{mo_coeff.shape=}")
+            logger.debug(f"{n_env_mo=}")
+            frozen_enviro_orb_inds = [mo_i for mo_i in range(shift, mo_coeff.shape[-1])]
+        case ProjectorTypes.BOTH:
+            raise ValueError("Projector must be specified to delete environment.")
+        case _:
+            assert_never(projector)
+
+    active_MOs_occ_and_virt_embedded = [
+        mo_i for mo_i in range(mo_coeff.shape[-1]) if mo_i not in frozen_enviro_orb_inds
+    ]
+
+    logger.info(
+        f"Orbital indices for embedded system: {active_MOs_occ_and_virt_embedded}"
+    )
+    logger.info(
+        f"Orbital indices removed from embedded system: {frozen_enviro_orb_inds}"
+    )
+
+    # delete enviroment orbitals and associated energies
+    # overwrites varibles keeping only active part (both occupied and virtual)
+    active_mo_coeff = mo_coeff[..., active_MOs_occ_and_virt_embedded]
+    active_mo_energy = mo_energy[..., active_MOs_occ_and_virt_embedded]
+    active_mo_occ = mo_occ[active_MOs_occ_and_virt_embedded]
+
+    logger.debug("Spin environment deleted.")
+    logger.debug(f"{active_mo_coeff=}")
+    logger.debug(f"{active_mo_energy=}")
+    logger.debug(f"{active_mo_occ=}")
+    return active_mo_coeff, active_mo_energy, active_mo_occ
+
+
 def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
     """Return energy of DFT in DFT embedding.
 
@@ -1191,37 +1249,32 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
     result: dict[str, Any] = {}
     e_nuc = driver._global_ks.energy_nuc()
 
-    local_rks_same_functional = driver._init_local_ks(driver._global_ks.xc)
-    hcore_std = local_rks_same_functional.get_hcore()
+    scf_object = driver._init_local_ks(driver._global_ks.xc)
+    hcore_std = scf_object.get_hcore()
     match projection_method:
         case ProjectorTypes.MU:
-            scf, v_emb_dft = driver._mu_embed(
-                local_rks_same_functional, driver.embedding_potential
+            scf_object, v_emb_dft = driver._mu_embed(
+                scf_object, driver.embedding_potential
             )
             result["v_emb_dft"] = v_emb_dft
-            result["scf_dft"] = driver._delete_environment(
-                projection_method,
-                scf,
-                driver.localized_system,
-                driver._env_projector,
-            )
         case ProjectorTypes.HUZ:
-            scf, v_emb_dft = driver._huzinaga_embed(
-                local_rks_same_functional,
+            scf_object, v_emb_dft = driver._huzinaga_embed(
+                scf_object,
                 driver.embedding_potential,
                 driver.localized_system,
             )
             result["v_emb_dft"] = v_emb_dft
-            result["scf_dft"] = driver._delete_environment(
-                projection_method,
-                scf,
-                driver.localized_system,
-                driver._env_projector,
-            )
         case ProjectorTypes.BOTH:
             raise ValueError("Cannot use BOTH projector for DFT-in-DFT.")
         case _:
             assert_never(projection_method)
+
+    result["scf_dft"] = driver._delete_environment(
+        projection_method,
+        scf_object,
+        driver.localized_system,
+        driver._env_projector,
+    )
 
     match driver.localized_system.dm_active.ndim:
         case 2:

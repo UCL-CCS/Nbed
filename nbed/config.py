@@ -114,7 +114,7 @@ class NbedConfig(BaseModel):
     spin: NonNegativeInt = Field(default=0)
     unit: str = "angstrom"
     symmetry: bool = False
-    restricted_environment: bool = False
+    restricted_global: bool = False
     restricted_active: bool = False
 
     savefile: FilePath | None = None
