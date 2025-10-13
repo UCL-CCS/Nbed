@@ -4,32 +4,30 @@ import logging
 
 import numpy as np
 from numpy.typing import NDArray
-from pyscf.lib import StreamObject
-
-from nbed.localizers.virtual.base import VirtualLocalizer
+from pyscf import scf
 
 logger = logging.getLogger(__name__)
 
 
-class PAOLocalizer(VirtualLocalizer):
+class PAOLocalizer:
     """Projected Atomic Orbitals Localizer."""
 
     def __init__(
         self,
-        global_scf: StreamObject,
+        global_scf: scf.hf.SCF,
         n_active_atoms: int,
         c_loc_occ: NDArray,
         norm_cutoff: float = 0.05,
         overlap_cutoff=1e-5,
     ):
         """Init PAO Localizer."""
-        super().__init__(n_active_atoms)
+        self._n_active_atoms = n_active_atoms
         self.global_scf = global_scf
         self.norm_cutoff = norm_cutoff
         self.overlap_cutoff = overlap_cutoff
         self.c_loc_occ = c_loc_occ
 
-    def localize_virtual(self) -> StreamObject:
+    def localize_virtual(self) -> NDArray:
         """Run projected atomic orbitals localization."""
         n_act_aos = self.global_scf.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         ao_overlap = self.global_scf.get_ovlp()
@@ -65,6 +63,8 @@ class PAOLocalizer(VirtualLocalizer):
                 logger.debug(f"{alpha_virtuals.shape=}")
                 logger.debug(f"{beta_virtuals.shape=}")
                 virtuals = np.array([alpha_virtuals, beta_virtuals])
+            case _:
+                raise ValueError("Localized Occupied C matrix shape invalid.")
 
         return virtuals
 
