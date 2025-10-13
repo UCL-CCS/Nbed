@@ -48,7 +48,7 @@ class ConcentricLocalizer(VirtualLocalizer):
         self.overlap_two_basis: NDArray[np.floating]
         self.n_act_proj_aos: NDArray[np.floating]
         self.shells: NDArray[np.integer]
-        self.singular_values: NDArray[np.floating]
+        self.singular_values: list[list[int]] | tuple[list[list[int]], list[list[int]]]
 
     def localize_virtual(self) -> scf.hf.SCF:
         """Localise virtual (unoccupied) obitals using concentric localization.
@@ -115,8 +115,9 @@ class ConcentricLocalizer(VirtualLocalizer):
             )  # type: ignore
 
             self.shells = np.array([localised_virts_alpha[1], localised_virts_beta[1]])
-            self.singular_values = np.array(
-                [localised_virts_alpha[2], localised_virts_beta[2]]
+            self.singular_values = (
+                localised_virts_alpha[2],
+                localised_virts_beta[2],
             )
 
         logger.debug("Completed Concentric Localization.")
@@ -126,7 +127,7 @@ class ConcentricLocalizer(VirtualLocalizer):
 
     def _localize_virtual_spin(
         self, occ: np.ndarray, mo_coeff: np.ndarray, fock_operator: np.ndarray
-    ) -> tuple[NDArray, NDArray[np.uint], NDArray]:
+    ) -> tuple[NDArray, NDArray[np.uint], list[list[int]]]:
         """Run concentric localization for each spin separately.
 
         NOTE: These cant be done together as the number of occupied orbitals may be different between the two spins.
@@ -158,8 +159,8 @@ class ConcentricLocalizer(VirtualLocalizer):
         logger.debug(f"Singular values: {sigma}")
 
         # record singular values for analysis
-        singular_values = []
-        singular_values.append(sigma)
+        singular_values: list[list[int]] = []
+        singular_values.append(list(sigma))
 
         c_total = mo_coeff[:, occ > 0]
 
@@ -212,7 +213,7 @@ class ConcentricLocalizer(VirtualLocalizer):
                     np.swapaxes(c_total, -1, -2) @ fock_operator @ c_iker
                 )
                 logger.debug(f"Singular values: {sigma}")
-                singular_values.append(sigma)
+                singular_values.append(list(sigma))
                 logger.debug(f"{right_vectors.shape=}")
 
                 shell_size = np.sum(sigma[: self.n_act_proj_aos] >= 1e-15)
@@ -265,4 +266,4 @@ class ConcentricLocalizer(VirtualLocalizer):
 
         logger.debug(f"{c_total, shells, singular_values}")
 
-        return c_total, np.array(shells, dtype=np.uint), np.array(singular_values)
+        return c_total, np.array(shells, dtype=np.uint), singular_values

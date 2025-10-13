@@ -145,6 +145,7 @@ class NbedConfig(BaseModel):
     max_ram_memory: PositiveInt = 4000
     max_hf_cycles: PositiveInt = Field(default=50)
     max_dft_cycles: PositiveInt = Field(default=50)
+    build_hamiltonian: bool = False
 
 
 def overwrite_config_kwargs(config: NbedConfig, **config_kwargs) -> NbedConfig:

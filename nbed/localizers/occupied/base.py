@@ -65,6 +65,7 @@ class OccupiedLocalizer(ABC):
         Returns:
             LocalizedSystem: A dataclass describing the localization.
         """
+        localized_system: LocalizedSystem
         if self.spinless:
             logger.debug("Running SPADE for only one spin.")
             localized_system = self._localize_spin(

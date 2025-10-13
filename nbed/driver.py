@@ -1039,10 +1039,10 @@ class NbedDriver:
         if self.config.run_dft_in_dft is True:
             did = self._dft_in_dft(projector)
             result.update(did)
-
-        # Build second quantised Hamiltonian
-        hb = HamiltonianBuilder(result["scf"], result["classical_energy"])
-        result["second_quantised"] = hb.build()
+        if self.config.build_hamiltonian:
+            # Build second quantised Hamiltonian
+            hb = HamiltonianBuilder(result["scf"], result["classical_energy"])
+            result["second_quantised"] = hb.build()
 
         logger.debug(f"Found result for {projector}")
         logger.debug(result)

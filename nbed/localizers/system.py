@@ -16,7 +16,23 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class LocalizedSystem:
-    pass
+    """Required data from localized system.
+
+    active_occ_inds (np.array): 1D array of active occupied MO indices
+    enviro_occ_inds (np.array): 1D array of environment occupied MO indices
+    c_loc_occ (np.array): C matrix of localized occupied MOs
+    dm_active (np.array): active system density matrix
+    dm_enviro (np.array): environment system density matrix
+    c_loc_virt (np.array | None): C matrix of localized virual MOs.
+    """
+
+    active_occ_inds: np.ndarray
+    enviro_occ_inds: np.ndarray
+    c_loc_occ: np.ndarray
+    dm_active: np.ndarray
+    dm_enviro: np.ndarray
+    c_loc_virt: np.ndarray | None = None
+    dm_loc_occ: np.ndarray = field(init=False)
 
     def __post_init__(self):
         """Post init for derived attributes."""
@@ -53,6 +69,7 @@ class RestrictedLS(LocalizedSystem):
     dm_loc_occ: OneSpinMatrix = field(init=False)
 
     def __post_init__(self):
+        """post-init."""
         super().__post_init__()
 
 
@@ -79,6 +96,7 @@ class RestrictedOpenLS(LocalizedSystem):
     dm_loc_occ: OneSpinMatrix = field(init=False)
 
     def __post_init__(self):
+        """post-init."""
         super().__post_init__()
 
 
@@ -105,6 +123,7 @@ class UnrestrictedLS(LocalizedSystem):
     dm_loc_occ: TwoSpinMatrix = field(init=False)
 
     def __post_init__(self):
+        """post-init."""
         super().__post_init__()
 
     @staticmethod

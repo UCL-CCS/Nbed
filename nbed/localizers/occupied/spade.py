@@ -9,7 +9,6 @@ from scipy import linalg  # type:ignore
 
 from nbed.localizers.system import RestrictedLS
 
-from ..system import LocalizedSystem
 from .base import OccupiedLocalizer
 
 logger = logging.getLogger(__name__)
@@ -62,7 +61,7 @@ class SPADELocalizer(OccupiedLocalizer):
         c_matrix: np.ndarray,
         occupancy: np.ndarray,
         n_mo_overwrite: int | None = None,
-    ) -> LocalizedSystem:
+    ) -> RestrictedLS:
         """Localize orbitals of one spin using SPADE.
 
         Args:
