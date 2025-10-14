@@ -213,8 +213,11 @@ def test_embedded_fci(driver, request):
 
 
 def test_unrestricted_projector_results_match(mu_driver: NbedDriver, huz_driver: NbedDriver) -> None:
-    assert mu_driver.config.force_unrestricted is True
-    assert huz_driver.config.force_unrestricted is True
+    assert mu_driver.config.restricted_active is False
+    assert mu_driver.config.restricted_active is False
+    assert huz_driver.config.restricted_active is False
+    assert huz_driver.config.restricted_active is False
+
     assert mu_driver.mu != {} and mu_driver.huzinaga == {}
     assert huz_driver.huzinaga != {} and huz_driver.mu == {}
     assert mu_driver.mu.keys() == huz_driver.huzinaga.keys()

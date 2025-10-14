@@ -130,7 +130,7 @@ class SPADELocalizer(OccupiedLocalizer):
         active_occ_inds = np.zeros(occupancy.shape[-1], dtype=np.bool)
         active_occ_inds[:n_act_mos] = np.True_
         enviro_occ_inds = np.zeros(occupancy.shape[-1], dtype=np.bool)
-        enviro_occ_inds[n_act_mos:] = np.True_
+        enviro_occ_inds[n_act_mos : np.count_nonzero(occupancy)] = np.True_
 
         # Defining active and environment orbitals and density
         c_active = occupied_orbitals @ right_vectors.T[:, :n_act_mos]

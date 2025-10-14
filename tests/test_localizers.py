@@ -443,7 +443,7 @@ def test_pyscf_subtypes():
     assert issubclass(IBOLocalizer, PySCFLocalizer)
 
 @pytest.mark.parametrize("localizer", localizers)
-@pytest.mark.parametrize("spin,charge", even_spin_charge)
+@pytest.mark.parametrize("spin,charge", all_spin_charge)
 @pytest.mark.parametrize("scf_method", [dft.rks.RKS, dft.uks.UKS])
 def test_localized_system(localizer, spin, charge, scf_method, molecule, request):
     mol = molecule
