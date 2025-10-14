@@ -4,6 +4,7 @@ from pubchempy import request
 import numpy as np
 import pytest
 from pyscf import gto, scf, dft
+import itertools
 
 from nbed.localizers import occupied
 from nbed.localizers.occupied import OccupiedLocalizer, PMLocalizer, SPADELocalizer, BOYSLocalizer, IBOLocalizer
@@ -23,6 +24,17 @@ n_active_atoms = 1
 occ_cutoff = 0.95
 virt_cutoff = 0.95
 run_virtual_localization = False
+
+spins = range(-2,3)
+charges = range(-2,3)
+even_spin_charge = [(s,c) for s,c in itertools.product(spins, charges) if s%2==0 and c%2==0]
+odd_spin_charge = [(s,c) for s,c in itertools.product(spins, charges) if s%2==1 and c%2==1]
+
+all_spin_charge = even_spin_charge + odd_spin_charge
+
+
+localizers = [SPADELocalizer, PMLocalizer, BOYSLocalizer, IBOLocalizer]
+
 
 
 @pytest.fixture
@@ -53,6 +65,7 @@ def molecule(water_filepath) -> gto.Mole:
 
 
 @pytest.fixture
+# @pytest.mark.parametrize("charge", closed_charges)
 def global_rks(molecule) -> scf.RKS:
     global_rks = scf.RKS(molecule)
     global_rks.conv_tol = convergence
@@ -218,10 +231,11 @@ def check_charge_conservation(localized_system, global_scf):
     )
 
 
-@pytest.mark.parametrize("scf", ["global_rks", "global_uks"])#,"global_uks_spin", "global_uks_spin_charge", "global_roks", "global_roks_spin_charge"])
-def test_PM_check_values(scf, request) -> None:
+# @pytest.mark.parametrize("scf", ["global_rks", "global_uks"])#,"global_uks_spin", "global_uks_spin_charge", "global_roks", "global_roks_spin_charge"])
+def test_PM_check_values(global_rks, request) -> None:
     """Check the internal test of values."""
-    scf = request.getfixturevalue(scf)
+    # scf = request.getfixturevalue(scf)
+    scf=global_rks
 
     localizer = PMLocalizer(
         scf,
@@ -232,10 +246,12 @@ def test_PM_check_values(scf, request) -> None:
     check_partition(ls)
     check_charge_conservation(ls, localizer._global_scf)
 
-@pytest.mark.parametrize("scf", ["global_rks", "global_uks"])#,"global_uks_spin", "global_uks_spin_charge", "global_roks", "global_roks_spin_charge"])
-def test_SPADE_check_values(scf, request) -> None:
+
+# @pytest.mark.parametrize("scf", ["global_rks", "global_uks"])#,"global_uks_spin", "global_uks_spin_charge", "global_roks", "global_roks_spin_charge"])
+def test_SPADE_check_values(global_rks, request) -> None:
     """Check the internal test of values."""
-    scf = request.getfixturevalue(scf)
+    # scf = request.getfixturevalue(scf)
+    scf=global_rks
     localizer = SPADELocalizer(
         scf,
         n_active_atoms=n_active_atoms,
@@ -426,10 +442,16 @@ def test_pyscf_subtypes():
     assert issubclass(BOYSLocalizer, PySCFLocalizer)
     assert issubclass(IBOLocalizer, PySCFLocalizer)
 
-@pytest.mark.parametrize("localizer", [PMLocalizer, SPADELocalizer])
-@pytest.mark.parametrize("scf",["global_rks", "global_uks"])
-def test_localized_system(localizer, scf, request):
-    scf = request.getfixturevalue(scf)
+@pytest.mark.parametrize("localizer", localizers)
+@pytest.mark.parametrize("spin,charge", even_spin_charge)
+@pytest.mark.parametrize("scf_method", [dft.rks.RKS, dft.uks.UKS])
+def test_localized_system(localizer, spin, charge, scf_method, molecule, request):
+    mol = molecule
+    mol.charge=charge
+    mol.spin=spin
+    mol.build()
+
+    scf = scf_method(molecule)
 
     match localizer:
         case occupied.PMLocalizer | occupied.BOYSLocalizer | occupied.IBOLocalizer:

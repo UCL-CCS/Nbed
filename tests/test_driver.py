@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def mu_driver(nbed_config) -> NbedDriver:
     nbed_config.projector = ProjectorTypes.MU
-    nbed_config.force_unrestricted = True
+    nbed_config.restricted_global = False
+    nbed_config.restricted_active = False
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
@@ -28,7 +29,8 @@ def mu_driver(nbed_config) -> NbedDriver:
 @pytest.fixture
 def huz_driver(nbed_config) -> NbedDriver:
     nbed_config.projector = ProjectorTypes.HUZ
-    nbed_config.force_unrestricted = True
+    nbed_config.restricted_global=False
+    nbed_config.restricted_active=False
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
@@ -37,7 +39,8 @@ def huz_driver(nbed_config) -> NbedDriver:
 @pytest.fixture
 def both_driver(nbed_config) -> NbedDriver:
     nbed_config.projector = ProjectorTypes.BOTH
-    nbed_config.force_unrestricted = True
+    nbed_config.restricted_global=False
+    nbed_config.restricted_active=False
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver

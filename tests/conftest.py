@@ -139,7 +139,6 @@ def unrestricted_driver():
         "convergence": 1e-6,
         "run_ccsd_emb": False,
         "run_fci_emb": False,
-        "force_unrestricted": True,
     }
     config = NbedConfig(**args)
     driver = NbedDriver(config)
