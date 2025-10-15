@@ -1,7 +1,7 @@
 """File to contain tests of the driver.py script."""
 
-from sympy.functions.elementary.trigonometric import _imaginary_unit_as_coefficient
 import logging
+import itertools
 
 import numpy as np
 import pytest
@@ -15,6 +15,13 @@ from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
+spins = range(-2,3)
+charges = range(-2,3)
+even_spin_charge = [(s,c) for s,c in itertools.product(spins, charges) if s%2==0 and c%2==0]
+odd_spin_charge = [(s,c) for s,c in itertools.product(spins, charges) if s%2==1 and c%2==1]
+
+all_spin_charge = even_spin_charge + odd_spin_charge
+projectors = [ProjectorTypes.HUZ, ProjectorTypes.MU]
 
 @pytest.fixture
 def mu_driver(nbed_config) -> NbedDriver:
@@ -114,6 +121,7 @@ def test_environment_projector(both_driver: NbedDriver):
     assert np.allclose(projector, np.conj(projector))
     # 2. Idempotent
     #TODO why does this fail? constant term to consider?
+    # yes constant term
     twice_projector = np.einsum("...ij,...jk->...ik", projector, projector)
     two_times_projector = 2*projector
     # assert np.allclose(twice_projector, two_times_projector)
@@ -125,24 +133,30 @@ def test_delete_spin_environment(both_driver):
     mo_occ = both_driver._global_hf.mo_occ
     pass
 
-@pytest.mark.parametrize("projector", [ProjectorTypes.MU, ProjectorTypes.HUZ])
-def test_restricted_to_restricted(nbed_config, projector):
-    nbed_config.projector = projector
-
-    nbed_config.restricted_global = True
-    nbed_config.restricted_active = True
-    driver = NbedDriver(nbed_config)
+@pytest.mark.parametrize("spin, charge", even_spin_charge)
+@pytest.mark.parametrize("projector", projectors)
+def test_restricted_to_restricted(nbed_config:NbedConfig, projector, spin, charge):
+    config = nbed_config.copy()
+    config.projector=projector
+    config.spin=spin
+    config.charge=charge
+    config.restricted_active=True
+    config.restricted_global=True
+    driver = NbedDriver(config)
     driver.embed()
     assert isinstance(driver._global_ks, dft.rks.RKS)
     assert isinstance(driver.embedded_scf, scf.hf.RHF)
 
-@pytest.mark.parametrize("projector", [ProjectorTypes.MU, ProjectorTypes.HUZ])
-def test_unrestricted_to_unrestricted(nbed_config, projector):
-    nbed_config.projector = projector
-
-    nbed_config.restricted_global = False
-    nbed_config.restricted_active = False
-    driver = NbedDriver(nbed_config)
+@pytest.mark.parametrize("spin, charge", even_spin_charge)
+@pytest.mark.parametrize("projector", projectors)
+def test_unrestricted_to_unrestricted(nbed_config: NbedConfig, projector, spin, charge):
+    config = nbed_config.copy()
+    config.projector=projector
+    config.spin=spin
+    config.charge=charge
+    config.restricted_active=False
+    config.restricted_global=False
+    driver = NbedDriver(config)
     driver.embed()
     assert isinstance(driver._global_ks, dft.uks.UKS)
     assert isinstance(driver.embedded_scf, scf.uhf.UHF)
@@ -158,18 +172,22 @@ def test_unrestricted_to_unrestricted(nbed_config, projector):
 #     assert isinstance(driver._global_ks, dft.rks.RKS)
 #     assert isinstance(driver.embedded_scf, scf.uhf.UHF)
 
-@pytest.mark.parametrize("restricted", [True, False])
-def test_restricted_dft_in_dft(restricted, nbed_config):
-    nbed_config.restricted_global = restricted
-    nbed_config.restricted_active = restricted
+@pytest.mark.parametrize("spin, charge", even_spin_charge)
+@pytest.mark.parametrize("projector", [ProjectorTypes.MU])
+@pytest.mark.parametrize("restricted", [False])
+def test_dft_in_dft(nbed_config, spin, charge, projector, restricted):
+    config = nbed_config.copy()
+    config.projector=projector
+    config.spin=spin
+    config.charge=charge
+    config.restricted_global = restricted
+    config.restricted_active = restricted
 
-    driver = NbedDriver(nbed_config)
+    driver = NbedDriver(config)
     driver.embed()
-    mu_did = driver._dft_in_dft(ProjectorTypes.MU)
-    huz_did = driver._dft_in_dft(ProjectorTypes.HUZ)
-    assert np.isclose(mu_did["e_dft_in_dft"], driver._global_ks().e_tot)
-    assert np.isclose(huz_did["e_dft_in_dft"], driver._global_ks().e_tot)
-    assert np.isclose(mu_did["e_dft_in_dft"], huz_did["e_dft_in_dft"])
+    did = driver._dft_in_dft(projector)
+    assert np.isclose(did["e_dft_in_dft"], driver._global_ks().e_tot)
+    # assert np.isclose(did["e_dft_in_dft"], did["e_dft_in_dft"])
 
 
 

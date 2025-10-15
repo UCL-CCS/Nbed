@@ -80,16 +80,6 @@ class NbedDriver:
             self.config.geometry.splitlines()[2 : 2 + self.config.n_active_atoms]
         )
         logger.debug(f"{self.active_geometry=}")
-        self._restricted_scf = False
-        # if config.force_unrestricted:
-        #     logger.debug("Forcing unrestricted SCF")
-        #     self._restricted_scf = False
-        # elif self.config.charge % 2 == 1 or self.config.spin != 0:
-        #     logger.debug("Open shells, using unrestricted SCF.")
-        #     self._restricted_scf = False
-        # else:
-        #     logger.debug("Closed shells, using restricted SCF.")
-        #     self._restricted_scf = True
 
         # if we have values for all three, assume we want to run qmmm
         self.run_qmmm = None not in [
@@ -292,9 +282,6 @@ class NbedDriver:
 
         return local_hf  # type:ignore
 
-    def _convert_localized_system(self, ls: LocalizedSystem):
-        """Convert a Localized system between spin restriction types."""
-
     def _init_embedded_mol(self) -> gto.Mole:
         """Create a pyscf molecule for the embedded system.
 
@@ -360,53 +347,6 @@ class NbedDriver:
     ) -> tuple[float, float, np.typing.NDArray]:
         """Function to perform subsystem UKS DFT calculation."""
         logger.debug("Calculating active and environment subsystem terms.")
-
-        def _ks_components[Shape, DType](
-            ks_system: AnyKS,
-            subsystem_dm: AnySpinMatrix,
-        ) -> tuple[float, NPArrayWithTag, AnySpinMatrix]:
-            """Calculate the components of subsystem energy from a UKS DFT calculation.
-
-            For a given density matrix this function returns the electronic energy, exchange correlation energy and
-            J,K, V_xc matrices.
-
-            Args:
-                ks_system (pyscf.dft.KohnShamDFT): PySCF Kohn-Sham object
-                subsystem_dm (np.ndarray): density matrix (to calculate all matrices from)
-
-
-            Returns:
-                e_act (float): Active region energy.
-                two_e_term (npt.NDArray): Two electron potential term
-                j_mat (npt.NDArray): J_matrix defined by input density matrix
-            """
-            logger.debug("Finding subsystem UKS componenets.")
-            # It seems that PySCF lumps J and K in the J array
-            # need to access the potential for the right subsystem for unrestricted
-            logger.debug(f"{subsystem_dm.shape=}")
-            two_e_term: NPArrayWithTag = ks_system.get_veff(dm=subsystem_dm)
-            j_mat = ks_system.get_j(dm=subsystem_dm)
-
-            if subsystem_dm.ndim == 3:
-                dm_tot = subsystem_dm[0] + subsystem_dm[1]
-            else:
-                dm_tot = subsystem_dm
-            logger.debug(f"{dm_tot.shape=}")
-
-            e_act: float = (
-                np.einsum("ij,ji->", ks_system.get_hcore(), dm_tot)
-                + two_e_term.ecoul  # type: ignore
-                + two_e_term.exc  # type: ignore
-            )
-
-            # if check_E_with_pyscf:
-            #     energy_elec_pyscf = global_ks.energy_elec(dm=dm_matrix)[0]
-            #     if not np.isclose(energy_elec_pyscf, energy_elec):
-            #         raise ValueError("Energy calculation incorrect")
-            logger.debug("Subsystem UKS components found.")
-            logger.debug(f"{e_act=}")
-            logger.debug(f"{two_e_term.shape=}")
-            return e_act, two_e_term, j_mat
 
         dm_act = localized_system.dm_active
         dm_env = localized_system.dm_enviro
@@ -525,53 +465,30 @@ class NbedDriver:
         )
 
     def _mu_embed(
-        self, localized_scf: scf.hf.SCF, embedding_potential: np.ndarray
+        self,
+        localized_scf: scf.hf.SCF,
+        embedding_potential: np.ndarray,
+        environment_projector: np.ndarray,
+        mu_level_shift: float,
     ) -> tuple[scf.hf.SCF, np.ndarray]:
         """Embed using the Mu-shift projector.
 
         Args:
             localized_scf (scf.hf.SCF): A PySCF scf method with the correct number of electrons for the active region.
             embedding_potential (np.ndarray): Potential calculated from two electron terms in dft.
+            environment_projector (np.ndarray): Projector onto the environment orbitals.
+            mu_level_shift (float): Scaler for embedding potential.
 
         Returns:
             np.ndarray: Matrix form of the embedding potential.
             scf.hf.SCF: The embedded scf object.
         """
-        logger.debug("Running mu embedded scf calculation.")
-
-        # Modify the energy_elec function to handle different h_cores
-        # which we need for different embedding potentials
-
-        v_emb = (self.config.mu_level_shift * self._env_projector) + embedding_potential
-        logger.debug(f"{v_emb.shape=}")
-
-        if v_emb.ndim == 3:
-            # localized_scf.energy_elec = lambda **kwargs: energy_elec(
-            #     localized_scf, **kwargs
-            # )
-            localized_scf.energy_elec = partial(energy_elec, localized_scf)
-
-        logger.debug(f"{v_emb.shape=}")
-        logger.debug(f"{self._env_projector.shape=}")
-        logger.debug(f"{embedding_potential.shape=}")
-        hcore_std = localized_scf.get_hcore
-        logger.debug(f"{hcore_std().shape=}")
-        setattr(localized_scf, "get_hcore_std", hcore_std)
-        if not hasattr(localized_scf, "v_emb"):
-            setattr(localized_scf, "v_emb", v_emb)
-        else:
-            raise ValueError("Localized SCF already has v_emb attribute.")
-
-        localized_scf.get_hcore = lambda *args: hcore_std(*args) + v_emb  # type:ignore
-        # veff_std = localized_scf.get_veff
-        # localized_scf.get_veff = lambda *args: veff_std(*args) + v_emb
-        logger.debug(f"embedded hcore shape {localized_scf.get_hcore().shape}")
-        localized_scf.kernel()  # type:ignore
-        logger.info(
-            f"Embedded scf energy MU_SHIFT: {localized_scf.e_tot}, converged: {localized_scf.converged}"
+        return _mu_embed(
+            localized_scf=localized_scf,
+            embedding_potential=embedding_potential,
+            environment_projector=environment_projector,
+            mu_level_shift=mu_level_shift,
         )
-
-        return localized_scf, v_emb
 
     def _huzinaga_embed(
         self,
@@ -592,80 +509,12 @@ class NbedDriver:
             np.ndarray: Matrix form of the embedding potential.
             scf.hf.SCF: The embedded scf object.
         """
-        logger.info("Starting Huzinaga embedding method...")
-        # We need to run our own SCF method here to update the potential.
-
-        if localized_system.c_loc_virt is not None:
-            virtual_projector = np.einsum(
-                "...ij,...jk->...ik",
-                localized_system.c_loc_virt,
-                localized_system.c_loc_virt.swapaxes(-1, -2),
-            )
-            dm_environment_virtual = (
-                np.identity(localized_system.c_loc_virt.shape[-2])
-                - localized_system.dm_loc_occ
-                - virtual_projector
-            )
-        else:
-            dm_environment_virtual = None
-
-        (
-            c_active_embedded,
-            mo_embedded_energy,
-            dm_active_embedded,
-            huzinaga_op_std,
-            huz_scf_conv_flag,
-        ) = huzinaga_scf(
-            active_scf,
-            embedding_potential,
-            localized_system.dm_enviro,
-            dm_environment_virtual=dm_environment_virtual,
-            dm_conv_tol=1e-6,
-            dm_initial_guess=dmat_initial_guess,
+        return _huzinaga_embed(
+            active_scf=active_scf,
+            embedding_potential=embedding_potential,
+            localized_system=localized_system,
+            dmat_initial_guess=dmat_initial_guess,
         )
-
-        logger.debug(f"{c_active_embedded=}")
-
-        # write results to pyscf object
-        logger.debug("Writing results to PySCF object.")
-        hcore_std = active_scf.get_hcore
-        v_emb = huzinaga_op_std + embedding_potential
-        active_scf.get_hcore = lambda *args: hcore_std(*args) + v_emb  # type:ignore
-
-        if localized_system.dm_active.ndim == 3:
-            active_scf.energy_elec = partial(energy_elec, active_scf)
-
-        active_scf.mo_occ = active_scf.get_occ(mo_embedded_energy, c_active_embedded)
-
-        if localized_system.c_loc_virt is not None:
-            logger.debug("Overwriting embedded virtuals with result from localizer.")
-            logger.debug(f"{np.sum(active_scf.mo_occ, axis=0)}")
-            logger.debug(
-                f"{c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0)> 0].shape=}"
-            )
-            logger.debug(f"{localized_system.c_loc_virt.shape=}")
-            active_scf.mo_coeff = np.concatenate(
-                (
-                    c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0) > 0],
-                    c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0) == 0][
-                        : localized_system.c_loc_virt.shape[-1]
-                    ],
-                ),
-                axis=2,
-            )  # type:ignore
-            active_scf.mo_occ = active_scf.mo_occ[: active_scf.mo_coeff.shape[-1]]
-        else:
-            active_scf.mo_coeff = c_active_embedded  # type:ignore
-
-        logger.debug(f"{active_scf.mo_occ=}")
-        logger.debug(f"{active_scf.mo_coeff.shape=}")  # type:ignore
-        active_scf.mo_energy = mo_embedded_energy  # type:ignore
-        active_scf.e_tot = active_scf.energy_tot(dm=dm_active_embedded)
-        # active_scf.conv_check = huz_scf_conv_flag
-        active_scf.converged = huz_scf_conv_flag
-
-        logger.info(f"Embedded scf energy HUZINAGA: {active_scf.e_tot}")
-        return active_scf, v_emb
 
     def _delete_environment(
         self,
@@ -741,7 +590,8 @@ class NbedDriver:
                 )  # np.array([mo_energy[0], mo_energy[1]]) #type:ignore
                 scf_object.mo_occ = np.array(
                     [mo_occ_alpha, mo_occ_beta]
-                )  # np.array([mo_occ[0], mo_occ[1]]) #type:ignore            # Unrestrected
+                )  # np.array([mo_occ[0], mo_occ[1]]) #type:ignore
+                # Unrestrected
             case scf.uhf.UHF() | dft.uks.UKS():
                 #
                 n_env_mos = [
@@ -873,7 +723,12 @@ class NbedDriver:
                     "Projected Atomic Orbitals defined only for Huzinaga projector."
                 )
 
-            embedded_scf, v_emb = self._mu_embed(local_hf, embedding_potential)
+            embedded_scf, v_emb = self._mu_embed(
+                local_hf,
+                embedding_potential,
+                self._env_projector,
+                self.config.mu_level_shift,
+            )
             self.mu = self.post_embed(embedded_scf, v_emb, ProjectorTypes.MU)
 
         if self.config.projector in [ProjectorTypes.HUZ, ProjectorTypes.BOTH]:
@@ -1151,6 +1006,54 @@ def run_emb_ccsd(
     return ccsd, e_ccsd_corr  # type:ignore
 
 
+def _ks_components(
+    ks_system: AnyKS,
+    subsystem_dm: AnySpinMatrix,
+) -> tuple[float, NPArrayWithTag, AnySpinMatrix]:
+    """Calculate the components of subsystem energy from a UKS DFT calculation.
+
+    For a given density matrix this function returns the electronic energy, exchange correlation energy and
+    J,K, V_xc matrices.
+
+    Args:
+        ks_system (pyscf.dft.KohnShamDFT): PySCF Kohn-Sham object
+        subsystem_dm (np.ndarray): density matrix (to calculate all matrices from)
+
+
+    Returns:
+        e_act (float): Active region energy.
+        two_e_term (npt.NDArray): Two electron potential term
+        j_mat (npt.NDArray): J_matrix defined by input density matrix
+    """
+    logger.debug("Finding subsystem UKS componenets.")
+    # It seems that PySCF lumps J and K in the J array
+    # need to access the potential for the right subsystem for unrestricted
+    logger.debug(f"{subsystem_dm.shape=}")
+    two_e_term: NPArrayWithTag = ks_system.get_veff(dm=subsystem_dm)
+    j_mat = ks_system.get_j(dm=subsystem_dm)
+
+    if subsystem_dm.ndim == 3:
+        dm_tot = subsystem_dm[0] + subsystem_dm[1]
+    else:
+        dm_tot = subsystem_dm
+    logger.debug(f"{dm_tot.shape=}")
+
+    e_act: float = (
+        np.einsum("ij,ji->", ks_system.get_hcore(), dm_tot)
+        + two_e_term.ecoul  # type: ignore
+        + two_e_term.exc  # type: ignore
+    )
+
+    # if check_E_with_pyscf:
+    #     energy_elec_pyscf = global_ks.energy_elec(dm=dm_matrix)[0]
+    #     if not np.isclose(energy_elec_pyscf, energy_elec):
+    #         raise ValueError("Energy calculation incorrect")
+    logger.debug("Subsystem UKS components found.")
+    logger.debug(f"{e_act=}")
+    logger.debug(f"{two_e_term.shape=}")
+    return e_act, two_e_term, j_mat
+
+
 def _env_projector(
     s_mat: np.ndarray[tuple[int, int]],
     dm_enviro: np.ndarray[tuple[int, int] | tuple[int, int, int]],
@@ -1169,6 +1072,155 @@ def _env_projector(
     env_projector = np.einsum("ij,...jk,kl->...il", s_mat, dm_enviro, s_mat)
     logger.debug(f"{env_projector.shape=}")
     return env_projector
+
+
+def _mu_embed(
+    localized_scf: scf.hf.SCF,
+    embedding_potential: np.ndarray,
+    environment_projector: np.ndarray,
+    mu_level_shift: float = 1e6,
+) -> tuple[scf.hf.SCF, np.ndarray]:
+    """Embed using the Mu-shift projector.
+
+    Args:
+        localized_scf (scf.hf.SCF): A PySCF scf method with the correct number of electrons for the active region.
+        embedding_potential (np.ndarray): Potential calculated from two electron terms in dft.
+        environment_projector (np.ndarray): Projector onto the environment orbitals.
+        mu_level_shift (float): Scaler for embedding potential.
+
+    Returns:
+        np.ndarray: Matrix form of the embedding potential.
+        scf.hf.SCF: The embedded scf object.
+    """
+    logger.debug("Running mu embedded scf calculation.")
+
+    # Modify the energy_elec function to handle different h_cores
+    # which we need for different embedding potentials
+
+    v_emb = (mu_level_shift * environment_projector) + embedding_potential
+    logger.debug(f"{v_emb.shape=}")
+
+    if v_emb.ndim == 3:
+        # localized_scf.energy_elec = lambda **kwargs: energy_elec(
+        #     localized_scf, **kwargs
+        # )
+        localized_scf.energy_elec = partial(energy_elec, localized_scf)
+
+    logger.debug(f"{v_emb.shape=}")
+    logger.debug(f"{environment_projector.shape=}")
+    logger.debug(f"{embedding_potential.shape=}")
+    hcore_std = localized_scf.get_hcore
+    logger.debug(f"{hcore_std().shape=}")
+    setattr(localized_scf, "get_hcore_std", hcore_std)
+    if not hasattr(localized_scf, "v_emb"):
+        setattr(localized_scf, "v_emb", v_emb)
+    else:
+        raise ValueError("Localized SCF already has v_emb attribute.")
+
+    localized_scf.get_hcore = lambda *args: hcore_std(*args) + v_emb  # type:ignore
+    # veff_std = localized_scf.get_veff
+    # localized_scf.get_veff = lambda *args: veff_std(*args) + v_emb
+    logger.debug(f"embedded hcore shape {localized_scf.get_hcore().shape}")
+    localized_scf.kernel()  # type:ignore
+    logger.info(
+        f"Embedded scf energy MU_SHIFT: {localized_scf.e_tot}, converged: {localized_scf.converged}"
+    )
+
+    return localized_scf, v_emb
+
+
+def _huzinaga_embed(
+    active_scf: scf.hf.SCF,
+    embedding_potential: np.ndarray,
+    localized_system: LocalizedSystem,
+    dmat_initial_guess: OneSpinMatrix | TwoSpinMatrix | None = None,
+) -> tuple[scf.hf.SCF, OneSpinMatrix | TwoSpinMatrix]:
+    """Embed using Huzinaga projector.
+
+    Args:
+        active_scf (scf.hf.SCF): A PySCF scf method with the correct number of electrons for the active region.
+        embedding_potential (np.ndarray): Potential calculated from two electron terms in dft.
+        localized_system (LocalizedSystem): Dataclass describing the MOs of a localized system.
+        dmat_initial_guess (bool): If True, use the initial guess for the density matrix.
+
+    Returns:
+        np.ndarray: Matrix form of the embedding potential.
+        scf.hf.SCF: The embedded scf object.
+    """
+    logger.info("Starting Huzinaga embedding method...")
+    # We need to run our own SCF method here to update the potential.
+
+    if localized_system.c_loc_virt is not None:
+        virtual_projector = np.einsum(
+            "...ij,...jk->...ik",
+            localized_system.c_loc_virt,
+            localized_system.c_loc_virt.swapaxes(-1, -2),
+        )
+        dm_environment_virtual = (
+            np.identity(localized_system.c_loc_virt.shape[-2])
+            - localized_system.dm_loc_occ
+            - virtual_projector
+        )
+    else:
+        dm_environment_virtual = None
+
+    (
+        c_active_embedded,
+        mo_embedded_energy,
+        dm_active_embedded,
+        huzinaga_op_std,
+        huz_scf_conv_flag,
+    ) = huzinaga_scf(
+        active_scf,
+        embedding_potential,
+        localized_system.dm_enviro,
+        dm_environment_virtual=dm_environment_virtual,
+        dm_conv_tol=1e-6,
+        dm_initial_guess=dmat_initial_guess,
+    )
+
+    logger.debug(f"{c_active_embedded=}")
+
+    # write results to pyscf object
+    logger.debug("Writing results to PySCF object.")
+    hcore_std = active_scf.get_hcore
+    v_emb = huzinaga_op_std + embedding_potential
+    active_scf.get_hcore = lambda *args: hcore_std(*args) + v_emb  # type:ignore
+
+    if localized_system.dm_active.ndim == 3:
+        active_scf.energy_elec = partial(energy_elec, active_scf)
+
+    active_scf.mo_occ = active_scf.get_occ(mo_embedded_energy, c_active_embedded)
+
+    if localized_system.c_loc_virt is not None:
+        logger.debug("Overwriting embedded virtuals with result from localizer.")
+        logger.debug(f"{np.sum(active_scf.mo_occ, axis=0)}")
+        logger.debug(
+            f"{c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0)> 0].shape=}"
+        )
+        logger.debug(f"{localized_system.c_loc_virt.shape=}")
+        active_scf.mo_coeff = np.concatenate(
+            (
+                c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0) > 0],
+                c_active_embedded[..., np.sum(active_scf.mo_occ, axis=0) == 0][
+                    : localized_system.c_loc_virt.shape[-1]
+                ],
+            ),
+            axis=2,
+        )  # type:ignore
+        active_scf.mo_occ = active_scf.mo_occ[: active_scf.mo_coeff.shape[-1]]
+    else:
+        active_scf.mo_coeff = c_active_embedded  # type:ignore
+
+    logger.debug(f"{active_scf.mo_occ=}")
+    logger.debug(f"{active_scf.mo_coeff.shape=}")  # type:ignore
+    active_scf.mo_energy = mo_embedded_energy  # type:ignore
+    active_scf.e_tot = active_scf.energy_tot(dm=dm_active_embedded)
+    # active_scf.conv_check = huz_scf_conv_flag
+    active_scf.converged = huz_scf_conv_flag
+
+    logger.info(f"Embedded scf energy HUZINAGA: {active_scf.e_tot}")
+    return active_scf, v_emb
 
 
 def _delete_spin_environment(
@@ -1209,7 +1261,7 @@ def _delete_spin_environment(
             # MOs which have the greatest overlap with the
             overlap: NDArray[np.floating] = np.einsum(
                 "ij, ki -> i",
-                mo_coeff.swapaxes(-1, -2),
+                mo_coeff.T,
                 environment_projector @ mo_coeff,
             )
             overlap_by_size: NDArray[np.integer] = overlap.argsort()[::-1]
@@ -1273,7 +1325,10 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
     match projection_method:
         case ProjectorTypes.MU:
             scf_object, v_emb_dft = driver._mu_embed(
-                scf_object, driver.embedding_potential
+                scf_object,
+                driver.embedding_potential,
+                driver._env_projector,
+                driver.config.mu_level_shift,
             )
             result["v_emb_dft"] = v_emb_dft
         case ProjectorTypes.HUZ:
