@@ -110,8 +110,8 @@ class NbedConfig(BaseModel):
     projector: ProjectorTypes = Field(default=ProjectorTypes.MU)
     localization: OccupiedLocalizerTypes = Field(default=OccupiedLocalizerTypes.SPADE)
     convergence: PositiveFloat = 1e-6
-    charge: NonNegativeInt = Field(default=0)
-    spin: NonNegativeInt = Field(default=0)
+    charge: int = Field(default=0)
+    spin: int = Field(default=0)
     unit: str = "angstrom"
     symmetry: bool = False
     restricted_global: bool = False

@@ -200,7 +200,7 @@ class NbedDriver:
         logger.debug(f"{global_ks.mo_occ.shape=}")  # type:ignore
         logger.debug(f"{global_ks.get_veff().shape=}")  # type: ignore
         logger.debug(f"{global_ks.get_hcore().shape=}")  # type: ignore
-        logger.info(f"Global UKS: {global_ks.e_tot}")  # type: ignore
+        logger.info(f"Global KS: {global_ks.e_tot}")  # type: ignore
 
         if global_ks.converged is not True:  # type: ignore
             logger.warning("(cheap) global DFT calculation has NOT converged!")
@@ -335,6 +335,7 @@ class NbedDriver:
             local_ks = dft.rks.RKS(embedded_mol)
         else:
             local_ks = dft.uks.UKS(embedded_mol)
+        logger.debug(f"{type(local_ks)=}")
         logger.debug(f"{embedded_mol.nelectron=}")
         logger.debug(f"{embedded_mol.nelec=}")
         logger.debug(f"{embedded_mol.spin=}")
@@ -380,13 +381,13 @@ class NbedDriver:
                 )
             case 3:
                 j_cross = 0.5 * (
-                    np.einsum("ij,ij", localized_system.dm_active[0], j_env[0])
+                    np.einsum("ij,ij", localized_system.dm_active[0], j_env[0])  # aa
                     + np.einsum("ij,ij", localized_system.dm_enviro[0], j_act[0])
-                    + np.einsum("ij,ij", localized_system.dm_active[0], j_env[1])
+                    + np.einsum("ij,ij", localized_system.dm_active[0], j_env[1])  # ab
                     + np.einsum("ij,ij", localized_system.dm_enviro[0], j_act[1])
-                    + np.einsum("ij,ij", localized_system.dm_active[1], j_env[1])
+                    + np.einsum("ij,ij", localized_system.dm_active[1], j_env[1])  # bb
                     + np.einsum("ij,ij", localized_system.dm_enviro[1], j_act[1])
-                    + np.einsum("ij,ij", localized_system.dm_active[1], j_env[0])
+                    + np.einsum("ij,ij", localized_system.dm_active[1], j_env[0])  # ba
                     + np.einsum("ij,ij", localized_system.dm_enviro[1], j_act[0])
                 )
             case _:
@@ -546,6 +547,7 @@ class NbedDriver:
         match scf_object:
             # Restricted Closed
             case scf.rhf.RHF() | dft.rks.RKS():
+                logger.debug("Restricted SCF")
                 n_env_mos = np.sum(localized_system.enviro_occ_inds, dtype=int)
                 logger.debug(f"{n_env_mos=}")
                 scf_object.mo_coeff, scf_object.mo_energy, scf_object.mo_occ = (  # type:ignore
@@ -560,6 +562,7 @@ class NbedDriver:
                 )
             # Resticted Open
             case scf.rohf.ROHF() | dft.roks.ROKS():
+                logger.debug("Restricted Open SCF")
                 n_env_mos = [
                     np.sum(localized_system.enviro_occ_inds[0]),
                     np.sum(localized_system.enviro_occ_inds[1]),
@@ -597,6 +600,7 @@ class NbedDriver:
                 )  # np.array([mo_occ[0], mo_occ[1]]) #type:ignore
                 # Unrestrected
             case scf.uhf.UHF() | dft.uks.UKS():
+                logger.debug("Unrestricted SCF")
                 #
                 n_env_mos = [
                     np.sum(localized_system.enviro_occ_inds[0]),
@@ -1036,6 +1040,8 @@ def _ks_components(
     # need to access the potential for the right subsystem for unrestricted
     logger.debug(f"{subsystem_dm.shape=}")
     two_e_term: NPArrayWithTag = ks_system.get_veff(dm=subsystem_dm)
+    logger.debug(f"{two_e_term.ecoul=}")  # type: ignore
+    logger.debug(f"{two_e_term.exc=}")  # type: ignore
     j_mat = ks_system.get_j(dm=subsystem_dm)
 
     if subsystem_dm.ndim == 3:
@@ -1323,6 +1329,9 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
     Returns:
         dict: DFT-in-DFT embedding results.
     """
+    logger.info("Running DFT-in-DFT calculation.")
+    logger.debug(f"{projection_method=}")
+
     result: dict[str, Any] = {}
     e_nuc = driver._global_ks.energy_nuc()
 
@@ -1336,18 +1345,20 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
                 driver._env_projector,
                 driver.config.mu_level_shift,
             )
-            result["v_emb_dft"] = v_emb_dft
         case ProjectorTypes.HUZ:
             scf_object, v_emb_dft = driver._huzinaga_embed(
                 scf_object,
                 driver.embedding_potential,
                 driver.localized_system,
             )
-            result["v_emb_dft"] = v_emb_dft
         case ProjectorTypes.BOTH:
             raise ValueError("Cannot use BOTH projector for DFT-in-DFT.")
         case _:
             assert_never(projection_method)
+            raise  # unreachable but helps the type checker
+
+    result["v_emb_dft"] = v_emb_dft
+    logger.debug(f"{v_emb_dft.shape=}")
 
     result["scf_dft"] = driver._delete_environment(
         projection_method,
@@ -1356,63 +1367,49 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
         driver._env_projector,
     )
 
+    dm_embedded = result["scf_dft"].make_rdm1()  # type:ignore
+    dm_embedded_env = dm_embedded - driver.localized_system.dm_active
+    logger.debug(f"{dm_embedded.shape=}")
     match driver.localized_system.dm_active.ndim:
         case 2:
-            y_emb = result["scf_dft"].make_rdm1()  # type:ignore
-
             # calculate correction
             result["dft_correction"] = np.einsum(
                 "ij,ij",
-                result["v_emb_dft"],
-                (y_emb - driver.localized_system.dm_active),
+                v_emb_dft,
+                dm_embedded_env,
             )  # type:ignore
-            veff = result["scf_dft"].get_veff(dm=y_emb)  # type:ignore
-            result["dft_correction_beta"] = 0.0
-            rks_e_elec = veff.exc + veff.ecoul + np.einsum("ij,ij", hcore_std, y_emb)
-
+            veff = result["scf_dft"].get_veff(dm=dm_embedded)  # type:ignore
+            one_e = np.einsum("ij,ij", hcore_std, dm_embedded)
+            e_elec = veff.exc + veff.ecoul + one_e
         case 3:
-            y_emb_alpha, y_emb_beta = result["scf_dft"].make_rdm1()  # type:ignore
-
             # calculate correction
-            result["dft_correction"] = np.einsum(
+            dft_correction = np.einsum(
+                "ijk,ijk",
+                v_emb_dft,
+                dm_embedded_env,
+            )
+            result["dft_correction"] = dft_correction
+            logger.debug(f"{result["dft_correction"]=}")
+
+            veff = result["scf_dft"].get_veff(dm=dm_embedded)  # type:ignore
+
+            one_e = np.einsum(
                 "ij,ij",
-                result["v_emb_dft"][0],
-                (y_emb_alpha - driver.localized_system.dm_active[0]),
-            )
-
-            result["dft_correction_beta"] = np.einsum(
+                hcore_std,
+                dm_embedded[0],
+            ) + np.einsum(
                 "ij,ij",
-                result["v_emb_dft"][1],
-                (y_emb_beta - driver.localized_system.dm_active[1]),
+                hcore_std,
+                dm_embedded[1],
             )
-
-            veff = result["scf_dft"].get_veff(dm=[y_emb_alpha, y_emb_beta])  # type:ignore
-
-            rks_e_elec = (
-                veff.exc
-                + veff.ecoul
-                + np.einsum(
-                    "ij,ij",
-                    hcore_std,
-                    y_emb_alpha,
-                )
-                + np.einsum(
-                    "ij,ij",
-                    hcore_std,
-                    y_emb_beta,
-                )
-            )
+            e_elec = veff.exc + veff.ecoul + one_e
         case _:
             raise ValueError("Active DM Shape not valid.")
+    result["e1"] = one_e
+    result["emb_dft"] = e_elec
 
     result["e_dft_in_dft"] = (
-        rks_e_elec
-        + driver.e_env
-        + driver.two_e_cross
-        + result["dft_correction"]
-        + result["dft_correction_beta"]
-        + e_nuc
+        e_elec + driver.e_env + driver.two_e_cross + result["dft_correction"] + e_nuc
     )
-    result["emb_dft"] = rks_e_elec
 
     return result

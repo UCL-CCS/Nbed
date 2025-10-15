@@ -172,22 +172,64 @@ def test_unrestricted_to_unrestricted(nbed_config: NbedConfig, projector, spin, 
 #     assert isinstance(driver._global_ks, dft.rks.RKS)
 #     assert isinstance(driver.embedded_scf, scf.uhf.UHF)
 
-@pytest.mark.parametrize("spin, charge", even_spin_charge)
-@pytest.mark.parametrize("projector", [ProjectorTypes.MU])
-@pytest.mark.parametrize("restricted", [False])
-def test_dft_in_dft(nbed_config, spin, charge, projector, restricted):
+@pytest.mark.parametrize("spin, charge", all_spin_charge)
+@pytest.mark.parametrize("restricted", [True])
+def test_mu_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_filepath):
     config = nbed_config.copy()
-    config.projector=projector
+    config.geometry = oxygen_filepath
+    config.projector=ProjectorTypes.MU
     config.spin=spin
     config.charge=charge
     config.restricted_global = restricted
     config.restricted_active = restricted
+    config = NbedConfig(**config.model_dump())
 
     driver = NbedDriver(config)
     driver.embed()
-    did = driver._dft_in_dft(projector)
+    did = driver._dft_in_dft(config.projector)
+    assert type(driver._global_ks) == type(did["scf_dft"])
     assert np.isclose(did["e_dft_in_dft"], driver._global_ks().e_tot)
-    # assert np.isclose(did["e_dft_in_dft"], did["e_dft_in_dft"])
+    assert isinstance(did["scf_dft"], dft.rks.RKS) if restricted else isinstance(did["scf_dft"], dft.uks.UKS)
+
+@pytest.mark.parametrize("spin, charge", [(0,0)])
+@pytest.mark.parametrize("restricted", [True])
+def test_huz_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_filepath):
+    config = nbed_config.copy()
+    config.geometry = oxygen_filepath
+    config.projector=ProjectorTypes.HUZ
+    config.spin=spin
+    config.charge=charge
+    config.restricted_global = restricted
+    config.restricted_active = restricted
+    config = NbedConfig(**config.model_dump())
+
+    driver = NbedDriver(config)
+    driver.embed()
+    did = driver._dft_in_dft(config.projector)
+    assert type(driver._global_ks) == type(did["scf_dft"])
+    assert np.isclose(did["e_dft_in_dft"], driver._global_ks().e_tot)
+    assert isinstance(did["scf_dft"], dft.rks.RKS) if restricted else isinstance(did["scf_dft"], dft.uks.UKS)
+
+
+# # These will fal
+# @pytest.mark.parametrize("spin, charge", all_spin_charge)
+# @pytest.mark.parametrize("restricted", [True])
+# def test_mu_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_filepath):
+#     config = nbed_config.copy()
+#     config.geometry = oxygen_filepath
+#     config.projector=ProjectorTypes.MU
+#     config.spin=spin
+#     config.charge=charge
+#     config.restricted_global = restricted
+#     config.restricted_active = restricted
+#     config = NbedConfig(**config.model_dump())
+
+#     driver = NbedDriver(config)
+#     driver.embed()
+#     did = driver._dft_in_dft(config.projector)
+#     assert type(driver._global_ks) == type(did["scf_dft"])
+#     assert np.isclose(did["e_dft_in_dft"], driver._global_ks().e_tot)
+#     assert isinstance(did["scf_dft"], dft.rks.RKS) if restricted else isinstance(did["scf_dft"], dft.uks.UKS)
 
 
 

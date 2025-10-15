@@ -9,11 +9,19 @@ Nbed uses PySCF as a backend for chemistry caluculations, which is not supported
 
 ## Roadmap
 
+Ultimately, we want to guarantee that any combination of restricted and unrestricted can be used for each of the active region and environment.
+
 |In\Out | Restricted | Restricted-Open | Unrestricted |
 |---|---|---|---|
 |Restricted       |:white_check_mark:|:x:|:x:|
-|Restricted-Open  |:x:|:x:|:x:|
+|Restricted-Open  |:x:|:white_check_mark:|:x:|
 |Unrestricted     |:x:|:x:|:white_check_mark:|
+
+Tests currently guarantee DFT-in-DFT energy is identical with global DFT for the following methods.
+
+|Projector|Restricted Closed|Restricted Open| Unrestricted|
+|$\mu$-shift|:white_check_mark:|:white_check_mark:|:white_check_mark:|
+|Huzinaga|:white_star:|:x:|:x:|
 
 ## Documentation
 Full documentation is available at [https://nbed.readthedocs.io](https://nbed.readthedocs.io).

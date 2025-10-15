@@ -21,6 +21,11 @@ def water_filepath() -> Path:
 
 
 @pytest.fixture(scope="module")
+def oxygen_filepath() -> Path:
+    return Path("tests/molecules/o2.xyz").absolute()
+
+
+@pytest.fixture(scope="module")
 def pfoa_filepath() -> Path:
     return Path("tests/molecules/pfoa.xyz").absolute()
 

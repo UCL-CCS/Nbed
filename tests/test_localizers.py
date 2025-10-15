@@ -452,6 +452,7 @@ def test_localized_system(localizer, spin, charge, scf_method, molecule, request
     mol.build()
 
     scf = scf_method(molecule)
+    assert type(scf) ==scf_method
 
     match localizer:
         case occupied.PMLocalizer | occupied.BOYSLocalizer | occupied.IBOLocalizer:
@@ -462,14 +463,19 @@ def test_localized_system(localizer, spin, charge, scf_method, molecule, request
             raise ValueError("Invalid localizer.")
 
     assert isinstance(ls, LocalizedSystem)
+
     if isinstance(scf, dft.rks.RKS):
         assert ls.active_occ_inds.ndim == 1
         assert ls.enviro_occ_inds.ndim == 1
         assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
 
         assert ls.c_loc_occ.ndim == 2
-        assert ls.c_loc_occ.shape[0] == scf.mo_coeff.shape[0]
-        assert ls.c_loc_occ.shape[1] <= scf.mo_coeff.shape[1]
+    elif isinstance(scf, dft.roks.ROKS):
+        assert ls.active_occ_inds.ndim == 2
+        assert ls.enviro_occ_inds.ndim == 2
+        assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+
+        assert ls.c_loc_occ.ndim == 2
 
     elif isinstance(scf, dft.uks.UKS):
         assert ls.active_occ_inds.ndim == 2
@@ -477,11 +483,10 @@ def test_localized_system(localizer, spin, charge, scf_method, molecule, request
         assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
 
         assert ls.c_loc_occ.ndim == 3
-        assert ls.c_loc_occ.shape[0] == 2
-        assert ls.c_loc_occ.shape[0] == scf.mo_coeff.shape[0]
-        assert ls.c_loc_occ.shape[1] == scf.mo_coeff.shape[1]
-        assert ls.c_loc_occ.shape[2] <= scf.mo_coeff.shape[2]
+    else:
+        assert False, "scf dose not match RKS, ROKS or UKS."
 
+    assert ls.c_loc_occ.shape == scf.mo_coeff.shape
 
 
 if __name__ == "__main__":
