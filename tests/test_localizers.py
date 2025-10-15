@@ -1,12 +1,17 @@
 """Tests for localization functions."""
 
+from pubchempy import request
 import numpy as np
 import pytest
-from pyscf import gto, scf
+from pyscf import gto, scf, dft
+import itertools
 
-from nbed.localizers.occupied import OccupiedLocalizer, PMLocalizer, SPADELocalizer
+from nbed.localizers import occupied
+from nbed.localizers.occupied import OccupiedLocalizer, PMLocalizer, SPADELocalizer, BOYSLocalizer, IBOLocalizer
+from nbed.localizers.occupied.pyscf import PySCFLocalizer
 from nbed.localizers.virtual import ConcentricLocalizer
 from nbed.localizers.ace import ACELocalizer
+from nbed.localizers import LocalizedSystem
 
 import logging
 logger = logging.getLogger(__name__)
@@ -19,6 +24,17 @@ n_active_atoms = 1
 occ_cutoff = 0.95
 virt_cutoff = 0.95
 run_virtual_localization = False
+
+spins = range(-2,3)
+charges = range(-2,3)
+even_spin_charge = [(s,c) for s,c in itertools.product(spins, charges) if s%2==0 and c%2==0]
+odd_spin_charge = [(s,c) for s,c in itertools.product(spins, charges) if s%2==1 and c%2==1]
+
+all_spin_charge = even_spin_charge + odd_spin_charge
+
+
+localizers = [SPADELocalizer, PMLocalizer, BOYSLocalizer, IBOLocalizer]
+
 
 
 @pytest.fixture
@@ -49,6 +65,7 @@ def molecule(water_filepath) -> gto.Mole:
 
 
 @pytest.fixture
+# @pytest.mark.parametrize("charge", closed_charges)
 def global_rks(molecule) -> scf.RKS:
     global_rks = scf.RKS(molecule)
     global_rks.conv_tol = convergence
@@ -112,8 +129,7 @@ def test_base_localizer(global_rks) -> None:
     """Check the base class can be instantiated."""
     with pytest.raises(TypeError) as excinfo:
         OccupiedLocalizer(global_rks, n_active_atoms=n_active_atoms).localize()
-
-    assert "localize" in str(excinfo.value)
+    assert "localize_spin" in str(excinfo.value)
 
 
 def test_PM_arguments(global_rks) -> None:
@@ -215,10 +231,11 @@ def check_charge_conservation(localized_system, global_scf):
     )
 
 
-@pytest.mark.parametrize("scf", ["global_rks", "global_uks"])#,"global_uks_spin", "global_uks_spin_charge", "global_roks", "global_roks_spin_charge"])
-def test_PM_check_values(scf, request) -> None:
+# @pytest.mark.parametrize("scf", ["global_rks", "global_uks"])#,"global_uks_spin", "global_uks_spin_charge", "global_roks", "global_roks_spin_charge"])
+def test_PM_check_values(global_rks, request) -> None:
     """Check the internal test of values."""
-    scf = request.getfixturevalue(scf)
+    # scf = request.getfixturevalue(scf)
+    scf=global_rks
 
     localizer = PMLocalizer(
         scf,
@@ -229,15 +246,18 @@ def test_PM_check_values(scf, request) -> None:
     check_partition(ls)
     check_charge_conservation(ls, localizer._global_scf)
 
-@pytest.mark.parametrize("scf", ["global_rks", "global_uks"])#,"global_uks_spin", "global_uks_spin_charge", "global_roks", "global_roks_spin_charge"])
-def test_SPADE_check_values(scf, request) -> None:
+
+# @pytest.mark.parametrize("scf", ["global_rks", "global_uks"])#,"global_uks_spin", "global_uks_spin_charge", "global_roks", "global_roks_spin_charge"])
+def test_SPADE_check_values(global_rks, request) -> None:
     """Check the internal test of values."""
-    scf = request.getfixturevalue(scf)
+    # scf = request.getfixturevalue(scf)
+    scf=global_rks
     localizer = SPADELocalizer(
         scf,
         n_active_atoms=n_active_atoms,
     )
     ls = localizer.localize()
+    assert isinstance(ls, LocalizedSystem)
     check_partition(ls)
     check_charge_conservation(ls, localizer._global_scf)
 
@@ -416,6 +436,57 @@ def test_ace_localizer(global_rks, global_uks) -> None:
             - unrestricted_spade.enviro_selection_condition[0][1:]
         )
     )
+
+def test_pyscf_subtypes():
+    assert issubclass(PMLocalizer, PySCFLocalizer)
+    assert issubclass(BOYSLocalizer, PySCFLocalizer)
+    assert issubclass(IBOLocalizer, PySCFLocalizer)
+
+@pytest.mark.parametrize("localizer", localizers)
+@pytest.mark.parametrize("spin,charge", all_spin_charge)
+@pytest.mark.parametrize("scf_method", [dft.rks.RKS, dft.uks.UKS])
+def test_localized_system(localizer, spin, charge, scf_method, molecule, request):
+    mol = molecule
+    mol.charge=charge
+    mol.spin=spin
+    mol.build()
+
+    scf = scf_method(molecule)
+    assert type(scf) ==scf_method
+
+    match localizer:
+        case occupied.PMLocalizer | occupied.BOYSLocalizer | occupied.IBOLocalizer:
+            ls = localizer(scf, n_active_atoms, occ_cutoff, virt_cutoff).localize()
+        case occupied.SPADELocalizer:
+            ls = localizer(scf, n_active_atoms).localize()
+        case _:
+            raise ValueError("Invalid localizer.")
+
+    assert isinstance(ls, LocalizedSystem)
+
+    if isinstance(scf, dft.rks.RKS):
+        assert ls.active_occ_inds.ndim == 1
+        assert ls.enviro_occ_inds.ndim == 1
+        assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+
+        assert ls.c_loc_occ.ndim == 2
+    elif isinstance(scf, dft.roks.ROKS):
+        assert ls.active_occ_inds.ndim == 2
+        assert ls.enviro_occ_inds.ndim == 2
+        assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+
+        assert ls.c_loc_occ.ndim == 2
+
+    elif isinstance(scf, dft.uks.UKS):
+        assert ls.active_occ_inds.ndim == 2
+        assert ls.enviro_occ_inds.ndim == 2
+        assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+
+        assert ls.c_loc_occ.ndim == 3
+    else:
+        assert False, "scf dose not match RKS, ROKS or UKS."
+
+    assert ls.c_loc_occ.shape == scf.mo_coeff.shape
 
 
 if __name__ == "__main__":

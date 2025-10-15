@@ -75,6 +75,10 @@ def get_huzinaga_operator(
         dm_occ_S (np.ndarray): The density matrix (projector onto) the occupied environment orbitals.
         dm_virt_S (np.ndarray): The density matrix (projector onto) the virtual environment orbitals.
     """
+    logger.debug("Creating Huzinaga operator")
+    logger.debug(f"{fock.shape=}")
+    logger.debug(f"{dm_occ_S.shape=}")
+    logger.debug(f"{dm_virt_S.shape=}")
     fds_occ = np.einsum("...ij,...jk->...ik", fock, dm_occ_S)
     huzinaga_op_occ = fds_occ + np.swapaxes(fds_occ, -1, -2)
     huzinaga_op_occ *= (-0.5) if fds_occ.ndim == 2 else (-1.0)
@@ -87,6 +91,8 @@ def get_huzinaga_operator(
     )
     huzinaga_op_virt *= (-0.5) if fds_virt.ndim == 2 else (-1.0)
 
+    logger.debug(f"{huzinaga_op_occ.shape=}")
+    logger.debug(f"{huzinaga_op_virt.shape=}")
     return huzinaga_op_occ + huzinaga_op_virt
 
 
@@ -122,13 +128,22 @@ def huzinaga_scf(
         huzinaga_op_occ (np.ndarray): Huzinaga operator in standard basis (same basis as Fock operator).
         conv_flag (bool): Flag to indicate whether SCF has converged or not
     """
-    logger.debug("Initializising Huzinaga HF calculation")
+    logger.info("Running Huzinaga HF calculation...")
     s_mat = scf_method.get_ovlp()
+    match scf_method:
+        case scf.rhf.RHF() | dft.rks.RKS():
+            mo_coeff_std = np.empty(s_mat.shape)
+            mo_energy = np.empty(s_mat.shape[-1])
+        case scf.uhf.UHF() | dft.uks.UKS():
+            mo_coeff_std = np.empty((2, *s_mat.shape))
+            mo_energy = np.empty((2, s_mat.shape[-1]))
+        case _:
+            raise ValueError("SCF method is not Restricted or Unrestricted.")
+
     logger.debug(f"{s_mat.shape=}")
     s_neg_half = linalg.fractional_matrix_power(s_mat, -0.5)
 
     adiis = diis.DIIS() if use_DIIS else None
-
     dm_occ_S = np.einsum("...ij,jk->...ik", dm_environment_occupied, s_mat)
     if dm_environment_virtual is not None:
         dm_virt_S = np.einsum("...ij,jk->...ik", dm_environment_virtual, s_mat)
@@ -139,11 +154,13 @@ def huzinaga_scf(
     if dm_initial_guess is None:
         fock = scf_method.get_hcore() + embedding_potential
         fock += get_huzinaga_operator(fock, dm_occ_S, dm_virt_S)
-
+        logger.debug(f"{fock=}")
         # Create the orthogonal fock operator
         fock_ortho = s_neg_half @ fock @ s_neg_half
         mo_energy, mo_coeff_ortho = np.linalg.eigh(fock_ortho)
         mo_coeff_std = s_neg_half @ mo_coeff_ortho
+        logger.debug(f"{mo_energy.shape=}")
+        logger.debug(f"{mo_coeff_std.shape=}")
         mo_occ = scf_method.get_occ(mo_energy, mo_coeff_std)
         dm_initial_guess = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)  # type: ignore
 

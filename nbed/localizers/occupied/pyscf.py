@@ -8,7 +8,8 @@ from numpy.typing import NDArray
 from pyscf import lo, scf  # type:ignore
 from pyscf.lo import vvo  # type:ignore
 
-from ..system import LocalizedSystem
+from nbed.localizers.system import RestrictedLS
+
 from .base import OccupiedLocalizer
 
 logger = logging.getLogger(__name__)
@@ -84,7 +85,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         c_matrix: np.ndarray,
         occupancy: np.ndarray,
         n_mo_overwrite: int | None = None,
-    ) -> LocalizedSystem:
+    ) -> RestrictedLS:
         """Localize orbitals of one spin using PySCF.
 
         Args:
@@ -102,6 +103,8 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         logger.debug(f"{c_std_occ.shape=}")
 
         c_loc_occ: NDArray = self._pyscf_method(c_std_occ)
+        c_loc = np.zeros(c_matrix.shape)
+        c_loc[: c_loc_occ.shape[0], : c_loc_occ.shape[1]] += c_loc_occ
 
         ao_slice_matrix = self._global_scf.mol.aoslice_by_atom()
 
@@ -126,7 +129,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
         logger.debug(f"(active_AO^2)/(all_AO^2): {np.around(mo_active_share, 4)}")
         logger.debug(f"threshold for active part: {self.occ_cutoff}")
 
-        active_occ_inds = np.zeros(mo_active_share.shape, dtype=np.bool)
+        active_occ_inds = np.zeros(occupancy.shape[-1], dtype=np.bool)
 
         all_ao_shares_same_bool = np.allclose(
             np.zeros_like(mo_active_share),
@@ -142,7 +145,7 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
                 "AO subsystem selection % same everywhere. Splitting half and half"
             )
             print(f"mo_active_share: {mo_active_share}")
-            active_occ_inds[: len(active_occ_inds) // 2] = True
+            active_occ_inds[: n_occupied_orbitals // 2] = True
         elif len(active_occ_inds) == 0:
             # if no active indices, then take largest possible overlap
             mo_active_percentage_inshare = mo_active_share.argsort()[::-1]
@@ -152,15 +155,16 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
             logger.warning("no active AOs - forcing one to be active")
             print(f"active system %: {mo_active_share[active_occ_inds][0]} \n")
         else:
-            active_occ_inds = mo_active_share > self.occ_cutoff
+            active_occ_inds[: len(mo_active_share)] = mo_active_share >= self.occ_cutoff
 
-        enviro_occ_inds = np.bitwise_not(active_occ_inds)
+        enviro_occ_inds = np.zeros(active_occ_inds.shape, dtype=np.bool)
+        enviro_occ_inds[: len(mo_active_share)] = mo_active_share < self.occ_cutoff
         logger.debug(f"{active_occ_inds=}")
         logger.debug(f"{enviro_occ_inds=}")
 
         # define active MO orbs and environment
         #    take MO (columns of C_matrix) that have high dependence from active AOs
-        c_active = c_loc_occ[:, active_occ_inds]
+        c_active = c_loc_occ[:, active_occ_inds[: len(mo_active_share)]]
         dm_active = c_active @ c_active.T
 
         if len(enviro_occ_inds) == 0:
@@ -168,15 +172,15 @@ class PySCFLocalizer(OccupiedLocalizer, ABC):
             logger.warning("No environment electronic density")
             c_enviro = np.zeros((c_active.shape[0], 1))
         else:
-            c_enviro = c_loc_occ[:, enviro_occ_inds]
+            c_enviro = c_loc_occ[:, enviro_occ_inds[: len(mo_active_share)]]
         dm_enviro = c_enviro @ c_enviro.T
 
         # storing condition used to select env system
         self.enviro_selection_condition = mo_active_share
 
         logger.debug("PySCF localization complete.")
-        return LocalizedSystem(
-            active_occ_inds, enviro_occ_inds, c_loc_occ, dm_active, dm_enviro
+        return RestrictedLS(
+            active_occ_inds, enviro_occ_inds, c_loc, dm_active, dm_enviro
         )
 
     def _localize_virtual_spin(

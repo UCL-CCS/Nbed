@@ -7,7 +7,8 @@ from numpy.typing import NDArray
 from pyscf import scf  # type:ignore
 from scipy import linalg  # type:ignore
 
-from ..system import LocalizedSystem
+from nbed.localizers.system import RestrictedLS
+
 from .base import OccupiedLocalizer
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class SPADELocalizer(OccupiedLocalizer):
         self.max_shells = max_shells
         self.shells: NDArray[np.integer]
         self.singular_values: NDArray[np.floating]
-        self.enviro_selection_condition: NDArray[np.floating] | None = None
+        self.enviro_selection_condition: tuple[list[int], list[int]] = ([], [])
 
         super().__init__(
             global_scf,
@@ -60,7 +61,7 @@ class SPADELocalizer(OccupiedLocalizer):
         c_matrix: np.ndarray,
         occupancy: np.ndarray,
         n_mo_overwrite: int | None = None,
-    ) -> LocalizedSystem:
+    ) -> RestrictedLS:
         """Localize orbitals of one spin using SPADE.
 
         Args:
@@ -126,10 +127,10 @@ class SPADELocalizer(OccupiedLocalizer):
         logger.debug(f"{n_env_mos} environment MOs.")
 
         # get active and enviro indices
-        active_occ_inds = np.zeros(n_occupied_orbitals, dtype=np.bool)
+        active_occ_inds = np.zeros(occupancy.shape[-1], dtype=np.bool)
         active_occ_inds[:n_act_mos] = np.True_
-        enviro_occ_inds = np.zeros(n_occupied_orbitals, dtype=np.bool)
-        enviro_occ_inds[n_act_mos:] = np.True_
+        enviro_occ_inds = np.zeros(occupancy.shape[-1], dtype=np.bool)
+        enviro_occ_inds[n_act_mos : np.count_nonzero(occupancy)] = np.True_
 
         # Defining active and environment orbitals and density
         c_active = occupied_orbitals @ right_vectors.T[:, :n_act_mos]
@@ -137,23 +138,31 @@ class SPADELocalizer(OccupiedLocalizer):
         c_enviro = occupied_orbitals @ right_vectors.T[:, n_act_mos:]
         dm_enviro = c_enviro @ c_enviro.T
         c_loc_occ = occupied_orbitals @ right_vectors.T
+        c_loc = np.zeros(c_matrix.shape)
+        c_loc[: c_loc_occ.shape[0], : c_loc_occ.shape[1]] += c_loc_occ
+
         logger.debug(f"{c_active.shape=}")
         logger.debug(f"{c_enviro.shape=}")
         logger.debug(f"{dm_active.shape=}")
         logger.debug(f"{dm_enviro.shape=}")
 
         # storing condition used to select env system
-        if self.enviro_selection_condition is None:
-            self.enviro_selection_condition = np.array([sigma, np.zeros(sigma.shape)])
-        elif isinstance(self.enviro_selection_condition[0], np.ndarray):
-            self.enviro_selection_condition = np.array(
-                [self.enviro_selection_condition[0], sigma]
+        if len(self.enviro_selection_condition[0]) == 0:
+            self.enviro_selection_condition = (sigma, [])
+        elif len(self.enviro_selection_condition[1]) == 0:
+            self.enviro_selection_condition = (
+                self.enviro_selection_condition[0],
+                sigma,
+            )
+        else:
+            raise ValueError(
+                "Envio selection condition should be initialised to ([],[])"
             )
 
-        return LocalizedSystem(
+        return RestrictedLS(
             active_occ_inds=active_occ_inds,
             enviro_occ_inds=enviro_occ_inds,
-            c_loc_occ=c_loc_occ,
+            c_loc_occ=c_loc,
             dm_active=dm_active,
             dm_enviro=dm_enviro,
         )

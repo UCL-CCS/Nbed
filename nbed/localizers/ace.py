@@ -6,7 +6,6 @@ Based on 10.1021/acs.jctc.3c00653
 import logging
 
 import numpy as np
-from numpy._typing._array_like import NDArray
 from pyscf import dft, scf  # type:ignore
 from scipy.optimize import curve_fit, minimize  # type:ignore
 
@@ -68,9 +67,8 @@ class ACELocalizer:
             localized_systems.append(loc)
 
         # only does restricted atm
-        singular_values: NDArray = np.array(
-            [loc.enviro_selection_condition for loc in localized_systems]
-        )
+        singular_values = [loc.enviro_selection_condition for loc in localized_systems]
+
         logger.debug("Singular Values")
         logger.debug(singular_values)
 
@@ -87,7 +85,7 @@ class ACELocalizer:
         logger.debug("ACE-of-SPADE Complete: %s", (alpha, beta))
         return (alpha, beta)
 
-    def localize_spin(self, singular_values) -> int:
+    def localize_spin(self, singular_values: list[list[int]]) -> int:
         """Run ACE of SPADE for a single spin.
 
         Args:

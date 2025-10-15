@@ -1,6 +1,6 @@
 [project]
 name = "nbed"
-version = "0.0.9"
+version = "0.0.10"
 description = "Projection-based embedding methods for reducing quantum simulation resource requirements."
 authors = [
     { name = "Michael Williams de la Bastida", email = "michael.williams.20@ucl.ac.uk" },
@@ -30,6 +30,8 @@ dev = [
     "ruff>=0.8,<1",
     "py3dmol>=2.4.2,<3",
     "pyrefly>=0.36.1",
+    "pytest-watcher>=0.4.3",
+    "nb-clean>=4.0.1",
 ]
 docs = [
     "myst-nb>=1.3.0",
@@ -85,3 +87,12 @@ select = [
     "D", #pydocstyle
     "I", #isort
 ]
+
+[tool.pytest-watcher]
+now = false
+clear = true
+delay = 0.2
+runner = "pytest"
+runner_args = []
+patterns = ["*.py"]
+ignore_patterns = []

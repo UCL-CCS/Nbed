@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 from pyscf import scf  # type:ignore
 
+from nbed.localizers.system import RestrictedLS, UnrestrictedLS
+
 from ..system import LocalizedSystem
 
 logger = logging.getLogger(__name__)
@@ -63,6 +65,7 @@ class OccupiedLocalizer(ABC):
         Returns:
             LocalizedSystem: A dataclass describing the localization.
         """
+        localized_system: LocalizedSystem
         if self.spinless:
             logger.debug("Running SPADE for only one spin.")
             localized_system = self._localize_spin(
@@ -86,9 +89,7 @@ class OccupiedLocalizer(ABC):
                 self._global_scf.mo_occ[1],  # type:ignore
                 self.n_mo_overwrite[1],
             )
-            localized_system = LocalizedSystem.unrestricted_from_spin_components(
-                alpha, beta
-            )
+            localized_system = UnrestrictedLS.from_spin_components(alpha, beta)
             # to ensure the same number of alpha and beta orbitals are included
             # use the sum of occupancies
 
@@ -101,7 +102,7 @@ class OccupiedLocalizer(ABC):
         c_matrix: np.ndarray,
         occupancy: np.ndarray,
         n_mo_overwrite: int | None = None,
-    ) -> LocalizedSystem:
+    ) -> RestrictedLS:
         """Localize orbitals of one spin.
 
         Args:

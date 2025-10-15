@@ -21,6 +21,11 @@ def water_filepath() -> Path:
 
 
 @pytest.fixture(scope="module")
+def oxygen_filepath() -> Path:
+    return Path("tests/molecules/o2.xyz").absolute()
+
+
+@pytest.fixture(scope="module")
 def pfoa_filepath() -> Path:
     return Path("tests/molecules/pfoa.xyz").absolute()
 
@@ -139,7 +144,6 @@ def unrestricted_driver():
         "convergence": 1e-6,
         "run_ccsd_emb": False,
         "run_fci_emb": False,
-        "force_unrestricted": True,
     }
     config = NbedConfig(**args)
     driver = NbedDriver(config)

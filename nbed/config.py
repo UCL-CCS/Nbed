@@ -110,11 +110,11 @@ class NbedConfig(BaseModel):
     projector: ProjectorTypes = Field(default=ProjectorTypes.MU)
     localization: OccupiedLocalizerTypes = Field(default=OccupiedLocalizerTypes.SPADE)
     convergence: PositiveFloat = 1e-6
-    charge: NonNegativeInt = Field(default=0)
-    spin: NonNegativeInt = Field(default=0)
+    charge: int = Field(default=0)
+    spin: int = Field(default=0)
     unit: str = "angstrom"
     symmetry: bool = False
-    restricted_environment: bool = False
+    restricted_global: bool = False
     restricted_active: bool = False
 
     savefile: FilePath | None = None
@@ -145,6 +145,7 @@ class NbedConfig(BaseModel):
     max_ram_memory: PositiveInt = 4000
     max_hf_cycles: PositiveInt = Field(default=50)
     max_dft_cycles: PositiveInt = Field(default=50)
+    build_hamiltonian: bool = False
 
 
 def overwrite_config_kwargs(config: NbedConfig, **config_kwargs) -> NbedConfig:

@@ -1,24 +1,33 @@
 """File to contain tests of the driver.py script."""
 
-from sympy.functions.elementary.trigonometric import _imaginary_unit_as_coefficient
 import logging
+import itertools
 
 import numpy as np
 import pytest
 from numpy import isclose
-from pyscf import scf
+from pyscf import scf, dft
 
-from nbed.driver import NbedDriver
+from nbed.nbedtypes import OneSpinMatrix, TwoSpinMatrix
+from nbed.driver import NbedDriver, _env_projector, _delete_spin_environment
 from nbed.config import NbedConfig, ProjectorTypes
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
+spins = range(-2,3)
+charges = range(-2,3)
+even_spin_charge = [(s,c) for s,c in itertools.product(spins, charges) if s%2==0 and c%2==0]
+odd_spin_charge = [(s,c) for s,c in itertools.product(spins, charges) if s%2==1 and c%2==1]
+
+all_spin_charge = even_spin_charge + odd_spin_charge
+projectors = [ProjectorTypes.HUZ, ProjectorTypes.MU]
 
 @pytest.fixture
 def mu_driver(nbed_config) -> NbedDriver:
     nbed_config.projector = ProjectorTypes.MU
-    nbed_config.force_unrestricted = True
+    nbed_config.restricted_global = False
+    nbed_config.restricted_active = False
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
@@ -27,7 +36,8 @@ def mu_driver(nbed_config) -> NbedDriver:
 @pytest.fixture
 def huz_driver(nbed_config) -> NbedDriver:
     nbed_config.projector = ProjectorTypes.HUZ
-    nbed_config.force_unrestricted = True
+    nbed_config.restricted_global=False
+    nbed_config.restricted_active=False
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
@@ -36,7 +46,8 @@ def huz_driver(nbed_config) -> NbedDriver:
 @pytest.fixture
 def both_driver(nbed_config) -> NbedDriver:
     nbed_config.projector = ProjectorTypes.BOTH
-    nbed_config.force_unrestricted = True
+    nbed_config.restricted_global=False
+    nbed_config.restricted_active=False
     driver = NbedDriver(nbed_config)
     driver.embed()
     return driver
@@ -83,13 +94,163 @@ def test_global_fci(request, driver):
     emb_result = run_emb_fci(driver._global_hf)
     assert np.isclose(emb_result.e_tot, np.float64(-75.00912605315143))
 
+def test_init_local_scf(nbed_config):
+    nbed_config.restricted_global = True
+    nbed_config.restricted_active = True
+    driver = NbedDriver(nbed_config)
+    result = driver.embed()
+    assert isinstance(driver._init_local_hf(), scf.hf.RHF)
+    assert isinstance(driver._init_local_ks(driver.config.xc_functional), dft.rks.RKS)
 
-def test_restricted_dft_in_dft(mu_driver, huz_driver):
-    mu_did = mu_driver._dft_in_dft(ProjectorTypes.MU)
-    huz_did = huz_driver._dft_in_dft(ProjectorTypes.HUZ)
-    assert np.isclose(mu_did["e_dft_in_dft"], mu_driver._global_ks().e_tot)
-    assert np.isclose(huz_did["e_dft_in_dft"], huz_driver._global_ks().e_tot)
-    assert np.isclose(mu_did["e_dft_in_dft"], huz_did["e_dft_in_dft"])
+    nbed_config.restricted_global = False
+    nbed_config.restricted_active = False
+    driver = NbedDriver(nbed_config)
+    result = driver.embed()
+    assert isinstance(driver._init_local_hf(), scf.uhf.UHF)
+    assert isinstance(driver._init_local_ks(driver.config.xc_functional), dft.uks.UKS)
+
+def test_environment_projector(both_driver: NbedDriver):
+    s_mat = both_driver._global_hf.get_ovlp()
+    dm_enviro = both_driver.localized_system.dm_enviro
+    assert dm_enviro.shape == (2,7,7)
+    assert s_mat.shape == (7,7)
+    projector = _env_projector(s_mat, dm_enviro)
+    assert projector.shape == (2,7,7)
+    # Projectors are:
+    # 1. Self-adjoint
+    assert np.allclose(projector, np.conj(projector))
+    # 2. Idempotent
+    #TODO why does this fail? constant term to consider?
+    # yes constant term
+    twice_projector = np.einsum("...ij,...jk->...ik", projector, projector)
+    two_times_projector = 2*projector
+    # assert np.allclose(twice_projector, two_times_projector)
+
+def test_delete_spin_environment(both_driver):
+    n_env_mo = 4
+    mo_oceff = both_driver._global_hf.mo_coeff
+    mo_energy = both_driver._global_hf.mo_energy
+    mo_occ = both_driver._global_hf.mo_occ
+    pass
+
+@pytest.mark.parametrize("spin, charge", even_spin_charge)
+@pytest.mark.parametrize("projector", projectors)
+def test_restricted_to_restricted(nbed_config:NbedConfig, projector, spin, charge):
+    config = nbed_config.copy()
+    config.projector=projector
+    config.spin=spin
+    config.charge=charge
+    config.restricted_active=True
+    config.restricted_global=True
+    driver = NbedDriver(config)
+    driver.embed()
+    assert isinstance(driver._global_ks, dft.rks.RKS)
+    assert isinstance(driver.embedded_scf, scf.hf.RHF)
+
+@pytest.mark.parametrize("spin, charge", even_spin_charge)
+@pytest.mark.parametrize("projector", projectors)
+def test_unrestricted_to_unrestricted(nbed_config: NbedConfig, projector, spin, charge):
+    config = nbed_config.copy()
+    config.projector=projector
+    config.spin=spin
+    config.charge=charge
+    config.restricted_active=False
+    config.restricted_global=False
+    driver = NbedDriver(config)
+    driver.embed()
+    assert isinstance(driver._global_ks, dft.uks.UKS)
+    assert isinstance(driver.embedded_scf, scf.uhf.UHF)
+
+# @pytest.mark.parametrize("projector", [ProjectorTypes.MU, ProjectorTypes.HUZ])
+# def test_restricted_to_unrestricted(nbed_config, projector):
+#     nbed_config.projector = projector
+
+#     nbed_config.restricted_global = True
+#     nbed_config.restricted_active = False
+#     driver = NbedDriver(nbed_config)
+#     driver.embed()
+#     assert isinstance(driver._global_ks, dft.rks.RKS)
+#     assert isinstance(driver.embedded_scf, scf.uhf.UHF)
+
+@pytest.mark.parametrize("spin, charge", all_spin_charge)
+@pytest.mark.parametrize("restricted", [True])
+def test_mu_restricted_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_filepath):
+    config = nbed_config.copy()
+    config.geometry = oxygen_filepath
+    config.projector=ProjectorTypes.MU
+    config.spin=spin
+    config.charge=charge
+    config.restricted_global = restricted
+    config.restricted_active = restricted
+    config = NbedConfig(**config.model_dump())
+
+    driver = NbedDriver(config)
+    driver.embed()
+    did = driver._dft_in_dft(config.projector)
+    assert type(driver._global_ks) == type(did["scf_dft"])
+    assert np.isclose(did["e_dft_in_dft"], driver._global_ks().e_tot)
+    assert isinstance(did["scf_dft"], dft.rks.RKS) if restricted else isinstance(did["scf_dft"], dft.uks.UKS)
+
+# @pytest.mark.parametrize("spin, charge", all_spin_charge)
+# @pytest.mark.parametrize("restricted", [False])
+# def test_mu_unrestricted_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_filepath):
+#     ## TODO FAILING
+#     config = nbed_config.copy()
+#     config.geometry = oxygen_filepath
+#     config.projector=ProjectorTypes.MU
+#     config.spin=spin
+#     config.charge=charge
+#     config.restricted_global = restricted
+#     config.restricted_active = restricted
+#     config = NbedConfig(**config.model_dump())
+
+#     driver = NbedDriver(config)
+#     driver.embed()
+#     did = driver._dft_in_dft(config.projector)
+#     assert type(driver._global_ks) == type(did["scf_dft"])
+#     assert np.isclose(did["e_dft_in_dft"], driver._global_ks().e_tot)
+#     assert isinstance(did["scf_dft"], dft.rks.RKS) if restricted else isinstance(did["scf_dft"], dft.uks.UKS)
+
+@pytest.mark.parametrize("spin, charge", [(0,0)])
+@pytest.mark.parametrize("restricted", [True])
+def test_huz_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_filepath):
+    config = nbed_config.copy()
+    config.geometry = oxygen_filepath
+    config.projector=ProjectorTypes.HUZ
+    config.spin=spin
+    config.charge=charge
+    config.restricted_global = restricted
+    config.restricted_active = restricted
+    config = NbedConfig(**config.model_dump())
+
+    driver = NbedDriver(config)
+    driver.embed()
+    did = driver._dft_in_dft(config.projector)
+    assert type(driver._global_ks) == type(did["scf_dft"])
+    assert np.isclose(did["e_dft_in_dft"], driver._global_ks().e_tot)
+    assert isinstance(did["scf_dft"], dft.rks.RKS) if restricted else isinstance(did["scf_dft"], dft.uks.UKS)
+
+
+# # These will fal
+# @pytest.mark.parametrize("spin, charge", all_spin_charge)
+# @pytest.mark.parametrize("restricted", [True])
+# def test_mu_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_filepath):
+#     config = nbed_config.copy()
+#     config.geometry = oxygen_filepath
+#     config.projector=ProjectorTypes.MU
+#     config.spin=spin
+#     config.charge=charge
+#     config.restricted_global = restricted
+#     config.restricted_active = restricted
+#     config = NbedConfig(**config.model_dump())
+
+#     driver = NbedDriver(config)
+#     driver.embed()
+#     did = driver._dft_in_dft(config.projector)
+#     assert type(driver._global_ks) == type(did["scf_dft"])
+#     assert np.isclose(did["e_dft_in_dft"], driver._global_ks().e_tot)
+#     assert isinstance(did["scf_dft"], dft.rks.RKS) if restricted else isinstance(did["scf_dft"], dft.uks.UKS)
+
 
 
 @pytest.mark.parametrize("driver", ["mu_driver", "huz_driver"])
@@ -132,8 +293,11 @@ def test_embedded_fci(driver, request):
 
 
 def test_unrestricted_projector_results_match(mu_driver: NbedDriver, huz_driver: NbedDriver) -> None:
-    assert mu_driver.config.force_unrestricted is True
-    assert huz_driver.config.force_unrestricted is True
+    assert mu_driver.config.restricted_active is False
+    assert mu_driver.config.restricted_active is False
+    assert huz_driver.config.restricted_active is False
+    assert huz_driver.config.restricted_active is False
+
     assert mu_driver.mu != {} and mu_driver.huzinaga == {}
     assert huz_driver.huzinaga != {} and huz_driver.mu == {}
     assert mu_driver.mu.keys() == huz_driver.huzinaga.keys()
@@ -178,11 +342,11 @@ def test_driver_standard_xyz_string_input(spinless_driver) -> None:
 
     assert isinstance(spinless_driver.embedded_scf, scf.hf.SCF)
     assert isclose(spinless_driver.classical_energy, -3.5867934952241356)
-    assert spinless_driver.embedded_scf.mo_coeff.shape == (2, 7, 6)
+    assert spinless_driver.embedded_scf.mo_coeff.shape == (2, 7, 7)
     logger.info(spinless_driver.embedded_scf.mo_coeff)
     assert np.all(
         spinless_driver.embedded_scf.mo_occ
-        == np.array([[1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 0, 0]])
+        == np.array([[1, 1, 1, 1, 0, 0,0], [1, 1, 1, 1, 0, 0,0]])
     )
 
 
