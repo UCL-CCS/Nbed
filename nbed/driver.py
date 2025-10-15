@@ -1292,22 +1292,27 @@ def _delete_spin_environment(
         case _:
             assert_never(projector)
 
-    active_MOs_occ_and_virt_embedded = [
-        mo_i for mo_i in range(mo_coeff.shape[-1]) if mo_i not in frozen_enviro_orb_inds
-    ]
+    # active_MOs_occ_and_virt_embedded = [
+    #     mo_i for mo_i in range(mo_coeff.shape[-1]) if mo_i not in frozen_enviro_orb_inds
+    # ]
 
-    logger.info(
-        f"Orbital indices for embedded system: {active_MOs_occ_and_virt_embedded}"
-    )
+    # logger.info(
+    #     f"Orbital indices for embedded system: {active_MOs_occ_and_virt_embedded}"
+    # )
     logger.info(
         f"Orbital indices removed from embedded system: {frozen_enviro_orb_inds}"
     )
 
     # delete enviroment orbitals and associated energies
     # overwrites varibles keeping only active part (both occupied and virtual)
-    active_mo_coeff = mo_coeff[..., active_MOs_occ_and_virt_embedded]
-    active_mo_energy = mo_energy[..., active_MOs_occ_and_virt_embedded]
-    active_mo_occ = mo_occ[active_MOs_occ_and_virt_embedded]
+    active_mo_coeff = mo_coeff.copy()
+    active_mo_coeff[..., frozen_enviro_orb_inds] = 0
+
+    active_mo_energy = mo_energy.copy()
+    active_mo_energy[..., frozen_enviro_orb_inds] = 0
+
+    active_mo_occ = mo_occ.copy()
+    active_mo_occ[frozen_enviro_orb_inds] = 0
 
     logger.debug("Spin environment deleted.")
     logger.debug(f"{active_mo_coeff=}")

@@ -174,7 +174,7 @@ def test_unrestricted_to_unrestricted(nbed_config: NbedConfig, projector, spin, 
 
 @pytest.mark.parametrize("spin, charge", all_spin_charge)
 @pytest.mark.parametrize("restricted", [True])
-def test_mu_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_filepath):
+def test_mu_restricted_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_filepath):
     config = nbed_config.copy()
     config.geometry = oxygen_filepath
     config.projector=ProjectorTypes.MU
@@ -190,6 +190,26 @@ def test_mu_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_
     assert type(driver._global_ks) == type(did["scf_dft"])
     assert np.isclose(did["e_dft_in_dft"], driver._global_ks().e_tot)
     assert isinstance(did["scf_dft"], dft.rks.RKS) if restricted else isinstance(did["scf_dft"], dft.uks.UKS)
+
+# @pytest.mark.parametrize("spin, charge", all_spin_charge)
+# @pytest.mark.parametrize("restricted", [False])
+# def test_mu_unrestricted_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_filepath):
+#     ## TODO FAILING
+#     config = nbed_config.copy()
+#     config.geometry = oxygen_filepath
+#     config.projector=ProjectorTypes.MU
+#     config.spin=spin
+#     config.charge=charge
+#     config.restricted_global = restricted
+#     config.restricted_active = restricted
+#     config = NbedConfig(**config.model_dump())
+
+#     driver = NbedDriver(config)
+#     driver.embed()
+#     did = driver._dft_in_dft(config.projector)
+#     assert type(driver._global_ks) == type(did["scf_dft"])
+#     assert np.isclose(did["e_dft_in_dft"], driver._global_ks().e_tot)
+#     assert isinstance(did["scf_dft"], dft.rks.RKS) if restricted else isinstance(did["scf_dft"], dft.uks.UKS)
 
 @pytest.mark.parametrize("spin, charge", [(0,0)])
 @pytest.mark.parametrize("restricted", [True])
@@ -322,11 +342,11 @@ def test_driver_standard_xyz_string_input(spinless_driver) -> None:
 
     assert isinstance(spinless_driver.embedded_scf, scf.hf.SCF)
     assert isclose(spinless_driver.classical_energy, -3.5867934952241356)
-    assert spinless_driver.embedded_scf.mo_coeff.shape == (2, 7, 6)
+    assert spinless_driver.embedded_scf.mo_coeff.shape == (2, 7, 7)
     logger.info(spinless_driver.embedded_scf.mo_coeff)
     assert np.all(
         spinless_driver.embedded_scf.mo_occ
-        == np.array([[1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 0, 0]])
+        == np.array([[1, 1, 1, 1, 0, 0,0], [1, 1, 1, 1, 0, 0,0]])
     )
 
 

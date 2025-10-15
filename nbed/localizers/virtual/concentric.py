@@ -47,7 +47,7 @@ class ConcentricLocalizer(VirtualLocalizer):
         self.projected_overlap: NDArray[np.floating]
         self.overlap_two_basis: NDArray[np.floating]
         self.n_act_proj_aos: NDArray[np.floating]
-        self.shells: NDArray[np.integer]
+        self.shells: list[int] | list[list[int]]
         self.singular_values: list[list[int]] | tuple[list[list[int]], list[list[int]]]
 
     def localize_virtual(self) -> scf.hf.SCF:
@@ -97,7 +97,7 @@ class ConcentricLocalizer(VirtualLocalizer):
                 embedded_scf.get_fock(),
             )
             embedded_scf.mo_coeff = localised_virts[0]  # type:ignore
-            self.shells = localised_virts[1]
+            self.shells = list(localised_virts[1])
             self.singular_values = localised_virts[2]
         else:
             localised_virts_alpha = self._localize_virtual_spin(
@@ -114,7 +114,10 @@ class ConcentricLocalizer(VirtualLocalizer):
                 [localised_virts_alpha[0], localised_virts_beta[0]]
             )  # type: ignore
 
-            self.shells = np.array([localised_virts_alpha[1], localised_virts_beta[1]])
+            self.shells = [
+                list(localised_virts_alpha[1]),
+                list(localised_virts_beta[1]),
+            ]
             self.singular_values = (
                 localised_virts_alpha[2],
                 localised_virts_beta[2],
