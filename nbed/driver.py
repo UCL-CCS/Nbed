@@ -688,7 +688,7 @@ class NbedDriver:
 
         logger.info("Projecting out environment...")
         # Run subsystem DFT (calls localized rks)
-        self._e_act, self._e_env, self.two_e_cross = self._subsystem_dft(
+        self.e_act, self.e_env, self.two_e_cross = self._subsystem_dft(
             self._global_ks, self.localized_system
         )
         logger.debug("Getting global DFT embedding potential.")
@@ -809,8 +809,8 @@ class NbedDriver:
         result: dict[str, Any] = {}
         result["scf"] = embedded_scf.copy()
         result["v_emb"] = v_emb
-        result["e_act"] = self._e_act
-        result["e_env"] = self._e_env
+        result["e_act"] = self.e_act
+        result["e_env"] = self.e_env
         result["mo_energies_emb_pre_del"] = result["scf"].mo_energy
         result["scf"] = self._delete_environment(
             projector, result["scf"], self.localized_system, self._env_projector
@@ -854,7 +854,7 @@ class NbedDriver:
         logger.info("Collcting results...")
         result["e_rhf"] = (
             result["scf"].e_tot
-            + self._e_env
+            + self.e_env
             + self.two_e_cross
             - result["correction"]
             - result["beta_correction"]
@@ -863,7 +863,7 @@ class NbedDriver:
 
         # classical energy
         result["classical_energy"] = (
-            self._e_env
+            self.e_env
             + self.two_e_cross
             + self.e_nuc
             - result["correction"]
@@ -877,7 +877,7 @@ class NbedDriver:
             ccsd_emb, e_ccsd_corr = self._run_emb_ccsd(result["scf"])
             result["e_ccsd"] = (
                 ccsd_emb.e_tot
-                + self._e_env
+                + self.e_env
                 + self.two_e_cross
                 - result["correction"]
                 - result["beta_correction"]
@@ -891,7 +891,7 @@ class NbedDriver:
             fci_emb = self._run_emb_fci(result["scf"])
             result["e_fci"] = (
                 (fci_emb.e_tot)  # type:ignore
-                + self._e_env  # type:ignore
+                + self.e_env  # type:ignore
                 + self.two_e_cross
                 - result["correction"]
                 - result["beta_correction"]
@@ -1407,7 +1407,7 @@ def dft_in_dft(driver: "NbedDriver", projection_method: ProjectorTypes) -> dict:
 
     result["e_dft_in_dft"] = (
         rks_e_elec
-        + driver._e_env
+        + driver.e_env
         + driver.two_e_cross
         + result["dft_correction"]
         + result["dft_correction_beta"]
