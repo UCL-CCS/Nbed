@@ -128,7 +128,7 @@ class NbedConfig(BaseModel):
     mm_radii: list | None = None
 
     mu_level_shift: PositiveFloat = 1e6
-    init_huzinaga_rhf_with_mu: bool = False
+    init_huzinaga_rhf_with_mu: bool = True
 
     virtual_localization: VirtualLocalizerTypes = Field(
         default=VirtualLocalizerTypes.CONCENTRIC

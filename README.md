@@ -17,9 +17,14 @@ Ultimately, we want to guarantee that any combination of restricted and unrestri
 |Restricted-Open  |:x:|:white_check_mark:|:x:|
 |Unrestricted     |:x:|:x:|:white_check_mark:|
 
+## DFT-in-DFT Consistency
 Tests currently guarantee DFT-in-DFT energy is identical with global DFT for the following methods.
 
-|Projector|Restricted Closed|Restricted Open| Unrestricted|
+### Mu
+|$\mu$|Restricted| Unrestricted|
+|Zero-spin|:white_check_mark:|:x:|
+|Non-zero spin|:white_check_mark:|:x:|
+
 |$\mu$-shift|:white_check_mark:|:white_check_mark:|:white_check_mark:|
 |Huzinaga|:white_star:|:x:|:x:|
 
