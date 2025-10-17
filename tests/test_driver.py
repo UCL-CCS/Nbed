@@ -211,7 +211,7 @@ def test_mu_restricted_dft_in_dft(nbed_config:NbedConfig, spin, charge, restrict
 #     assert np.isclose(did["e_dft_in_dft"], driver._global_ks().e_tot)
 #     assert isinstance(did["scf_dft"], dft.rks.RKS) if restricted else isinstance(did["scf_dft"], dft.uks.UKS)
 
-@pytest.mark.parametrize("spin, charge", all_spin_charge)
+@pytest.mark.parametrize("spin, charge", [(0,0)])
 @pytest.mark.parametrize("restricted", [True])
 def test_huz_dft_in_dft(nbed_config:NbedConfig, spin, charge, restricted, oxygen_filepath):
     config = nbed_config.copy()

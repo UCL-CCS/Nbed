@@ -4,11 +4,11 @@ import logging
 from abc import ABC, abstractmethod
 
 import numpy as np
-from pyscf import scf  # type:ignore
+from pyscf import dft, scf  # type:ignore
 
-from nbed.localizers.system import RestrictedLS, UnrestrictedLS
+from nbed.localizers.system import RestrictedLS
 
-from ..system import LocalizedSystem
+from ..system import LocalizedSystem, UnrestrictedLS
 
 logger = logging.getLogger(__name__)
 
@@ -60,38 +60,59 @@ class OccupiedLocalizer(ABC):
     def localize(
         self,
     ) -> LocalizedSystem:
-        """Localise orbitals using SPADE.
+        """Localise occupied orbitals.
 
         Returns:
             LocalizedSystem: A dataclass describing the localization.
         """
         localized_system: LocalizedSystem
-        if self.spinless:
-            logger.debug("Running SPADE for only one spin.")
-            localized_system = self._localize_spin(
-                self._global_scf.mo_coeff,  # type:ignore
-                self._global_scf.mo_occ,  # type:ignore
-                self.n_mo_overwrite[0],
-            )
+        match type(self._global_scf):
+            case scf.rhf.RHF | dft.rks.RKS:
+                logger.debug("Localizing RHF.")
+                localized_system = self._localize_spin(
+                    self._global_scf.mo_coeff,  # type:ignore
+                    self._global_scf.mo_occ,  # type:ignore
+                    self.n_mo_overwrite[0],
+                )
 
-            localized_system.dm_active *= 2
-            localized_system.dm_enviro *= 2
-            localized_system.dm_loc_occ *= 2
+                localized_system.dm_active *= 2
+                localized_system.dm_enviro *= 2
+                localized_system.dm_loc_occ *= 2
 
-        else:
-            alpha = self._localize_spin(
-                self._global_scf.mo_coeff[0],  # type:ignore
-                self._global_scf.mo_occ[0],  # type:ignore
-                self.n_mo_overwrite[0],
-            )
-            beta = self._localize_spin(
-                self._global_scf.mo_coeff[1],  # type:ignore
-                self._global_scf.mo_occ[1],  # type:ignore
-                self.n_mo_overwrite[1],
-            )
-            localized_system = UnrestrictedLS.from_spin_components(alpha, beta)
-            # to ensure the same number of alpha and beta orbitals are included
-            # use the sum of occupancies
+            case scf.rohf.ROHF | dft.roks.ROKS:
+                raise NotImplementedError("Restricted Open is not implemented.")
+                # Need to work out how to handle case when there are 2/1 electrons ineach orbitals
+                # mo_occ is shared, with 2 and 1 in place but not showing which is alpha and which beta for spin value.
+                logger.debug("Localizing ROHF")
+                alpha = self._localize_spin(
+                    self._global_scf.mo_coeff,  # type:ignore
+                    self._global_scf.mo_occ,  # type:ignore
+                    self.n_mo_overwrite[0],
+                )
+                summed_occ = np.sum(self._global_scf.mo_occ, axis=0)
+                if summed_occ.shape != (
+                    spin_occ_shape := self._global_scf.mo_coeff.shape[1:]
+                ):
+                    error_string = f"Summed occupancy should have same shape {summed_occ.shape} as spin occupancies {spin_occ_shape}."
+                    logger.error(error_string)
+                    raise ValueError(error_string)
+                # to ensure the same number of alpha and beta orbitals are included
+                # use the sum of occupancies
+            case scf.uhf.UHF | dft.uks.UKS:
+                logger.debug("Localizing UKS")
+                alpha = self._localize_spin(
+                    self._global_scf.mo_coeff[0],  # type:ignore
+                    self._global_scf.mo_occ[0],  # type:ignore
+                    self.n_mo_overwrite[0],
+                )
+                beta = self._localize_spin(
+                    self._global_scf.mo_coeff[1],  # type:ignore
+                    self._global_scf.mo_occ[1],  # type:ignore
+                    self.n_mo_overwrite[1],
+                )
+                localized_system = UnrestrictedLS.from_spin_components(alpha, beta)
+                # to ensure the same number of alpha and beta orbitals are included
+                # use the sum of occupancies
 
         logger.debug("Localization complete.")
         return localized_system

@@ -87,6 +87,7 @@ class SPADELocalizer(OccupiedLocalizer):
         n_occupied_orbitals = np.count_nonzero(occupancy)
         occupied_orbitals = c_matrix[:, :n_occupied_orbitals]
         logger.debug(f"{n_occupied_orbitals} occupied AOs.")
+        logger.debug(f"{occupied_orbitals.shape=}")
 
         n_act_aos = self._global_scf.mol.aoslice_by_atom()[self._n_active_atoms - 1][-1]
         logger.debug(f"{n_act_aos} active AOs.")

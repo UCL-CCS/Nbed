@@ -9,6 +9,7 @@ import itertools
 from nbed.localizers import occupied
 from nbed.localizers.occupied import OccupiedLocalizer, PMLocalizer, SPADELocalizer, BOYSLocalizer, IBOLocalizer
 from nbed.localizers.occupied.pyscf import PySCFLocalizer
+from nbed.localizers.system import RestrictedLS, UnrestrictedLS
 from nbed.localizers.virtual import ConcentricLocalizer
 from nbed.localizers.ace import ACELocalizer
 from nbed.localizers import LocalizedSystem
@@ -444,49 +445,97 @@ def test_pyscf_subtypes():
 
 @pytest.mark.parametrize("localizer", localizers)
 @pytest.mark.parametrize("spin,charge", all_spin_charge)
-@pytest.mark.parametrize("scf_method", [dft.rks.RKS, dft.uks.UKS])
-def test_localized_system(localizer, spin, charge, scf_method, molecule, request):
+def test_unrestricted_localized_system(localizer, spin, charge, molecule, request):
+    logger.debug(f"{localizer=}, {spin=}, {charge=}")
     mol = molecule
     mol.charge=charge
     mol.spin=spin
     mol.build()
 
-    scf = scf_method(molecule)
-    assert type(scf) ==scf_method
+    scf_object = scf.uhf.UHF(molecule)
+    scf_object.run()
+
+    logger.debug(f"{scf_object.mo_occ=}")
 
     match localizer:
         case occupied.PMLocalizer | occupied.BOYSLocalizer | occupied.IBOLocalizer:
-            ls = localizer(scf, n_active_atoms, occ_cutoff, virt_cutoff).localize()
+            ls = localizer(scf_object, n_active_atoms, occ_cutoff, virt_cutoff).localize()
         case occupied.SPADELocalizer:
-            ls = localizer(scf, n_active_atoms).localize()
+            ls = localizer(scf_object, n_active_atoms).localize()
         case _:
             raise ValueError("Invalid localizer.")
 
     assert isinstance(ls, LocalizedSystem)
 
-    if isinstance(scf, dft.rks.RKS):
-        assert ls.active_occ_inds.ndim == 1
-        assert ls.enviro_occ_inds.ndim == 1
-        assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+    if spin != 0 and charge != 0:
+        assert not type(scf_object) == scf.hf.RHF
 
-        assert ls.c_loc_occ.ndim == 2
-    elif isinstance(scf, dft.roks.ROKS):
-        assert ls.active_occ_inds.ndim == 2
-        assert ls.enviro_occ_inds.ndim == 2
-        assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+    match (scf_object.mo_coeff.ndim, scf_object.mo_occ.ndim):
+        case (2,1):
+            assert type(scf_object) in [scf.rhf.RHF, dft.rks.RKS]
+            assert scf_object.mol.nelec[0] == scf_object.mol.nelec[1]
+            assert type(ls) == RestrictedLS
+            assert ls.active_occ_inds.ndim == 1
+            assert ls.enviro_occ_inds.ndim == 1
+            assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+            assert ls.c_loc_occ.ndim == 2
+        case (3,2):
+            assert type(ls) == UnrestrictedLS
+            assert ls.active_occ_inds.ndim == 2
+            assert ls.enviro_occ_inds.ndim == 2
+            assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+            assert ls.c_loc_occ.ndim == 3
+        case _:
+            assert False, "scf method should match to R/RO/U-HF/KS."
 
-        assert ls.c_loc_occ.ndim == 2
+    assert ls.c_loc_occ.shape == scf_object.mo_coeff.shape
 
-    elif isinstance(scf, dft.uks.UKS):
-        assert ls.active_occ_inds.ndim == 2
-        assert ls.enviro_occ_inds.ndim == 2
-        assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+@pytest.mark.parametrize("localizer", localizers)
+@pytest.mark.parametrize("spin,charge", [(0,0), (0,2),(0,-2)])
+def test_restricted_scf_localized_system(localizer, spin, charge, molecule, request):
+    logger.debug(f"{localizer=}, {spin=}, {charge=}")
+    mol = molecule
+    mol.charge=charge
+    mol.spin=spin
+    mol.build()
 
-        assert ls.c_loc_occ.ndim == 3
-    else:
-        assert False, "scf dose not match RKS, ROKS or UKS."
+    scf_object = scf.rhf.RHF(molecule)
+    scf_object.run()
 
-    assert ls.c_loc_occ.shape == scf.mo_coeff.shape
+    logger.debug(f"{scf_object.mo_occ=}")
+
+    match localizer:
+        case occupied.PMLocalizer | occupied.BOYSLocalizer | occupied.IBOLocalizer:
+            ls = localizer(scf_object, n_active_atoms, occ_cutoff, virt_cutoff).localize()
+        case occupied.SPADELocalizer:
+            ls = localizer(scf_object, n_active_atoms).localize()
+        case _:
+            raise ValueError("Invalid localizer.")
+
+    assert isinstance(ls, LocalizedSystem)
+
+    if spin != 0 and charge != 0:
+        assert not type(scf_object) == scf.hf.RHF
+
+    match (scf_object.mo_coeff.ndim, scf_object.mo_occ.ndim):
+        case (2,1):
+            assert type(scf_object) in [scf.rhf.RHF, dft.rks.RKS]
+            assert scf_object.mol.nelec[0] == scf_object.mol.nelec[1]
+            assert type(ls) == RestrictedLS
+            assert ls.active_occ_inds.ndim == 1
+            assert ls.enviro_occ_inds.ndim == 1
+            assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+            assert ls.c_loc_occ.ndim == 2
+        case (3,2):
+            assert type(ls) == UnrestrictedLS
+            assert ls.active_occ_inds.ndim == 2
+            assert ls.enviro_occ_inds.ndim == 2
+            assert ls.active_occ_inds.shape == ls.enviro_occ_inds.shape
+            assert ls.c_loc_occ.ndim == 3
+        case _:
+            assert False, "scf method should match to R/RO/U-HF/KS."
+
+    assert ls.c_loc_occ.shape == scf_object.mo_coeff.shape
 
 
 if __name__ == "__main__":

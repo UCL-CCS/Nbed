@@ -6,7 +6,7 @@ Based on 10.1021/acs.jctc.3c00653
 import logging
 
 import numpy as np
-from pyscf import dft, scf  # type:ignore
+from pyscf import scf  # type:ignore
 from scipy.optimize import curve_fit, minimize  # type:ignore
 
 from nbed.localizers.occupied.spade import SPADELocalizer
@@ -72,16 +72,17 @@ class ACELocalizer:
         logger.debug("Singular Values")
         logger.debug(singular_values)
 
-        if isinstance(scf_object, (scf.rhf.RHF, dft.rks.RKS)):
-            alpha = self.localize_spin([s[0] for s in singular_values])
-            beta = alpha
-        elif isinstance(scf_object, (scf.uhf.UHF, dft.uks.UKS)):
-            alpha = self.localize_spin([s[0] for s in singular_values])
-            beta = self.localize_spin([s[1] for s in singular_values])
-        else:
-            error_string = f"SCF object of type {type(scf_object)} cannot be used."
-            logger.error(error_string)
-            raise TypeError(error_string)
+        match (scf_object.mo_coeff.ndim, scf_object.mo_occ.ndim):
+            case (2, 1):
+                alpha = self.localize_spin([s[0] for s in singular_values])
+                beta = alpha
+            case (3, 2):
+                alpha = self.localize_spin([s[0] for s in singular_values])
+                beta = self.localize_spin([s[1] for s in singular_values])
+            case _:
+                error_string = f"SCF object of type {type(scf_object)} cannot be used."
+                logger.error(error_string)
+                raise TypeError(error_string)
         logger.debug("ACE-of-SPADE Complete: %s", (alpha, beta))
         return (alpha, beta)
 

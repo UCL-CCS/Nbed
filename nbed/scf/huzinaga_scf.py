@@ -190,12 +190,12 @@ def huzinaga_scf(
 
         density_matrix = scf_method.make_rdm1(mo_coeff=mo_coeff_std, mo_occ=mo_occ)  # type: ignore
         scf_energy: float
-        if isinstance(scf_method, (dft.rks.RKS, dft.uks.UKS)):
+        if type(scf_method) in [dft.rks.RKS, dft.roks.ROKS, dft.uks.UKS]:
             # Find RKS energy
             scf_energy = calculate_ks_energy(
                 scf_method, embedding_potential, density_matrix, huzinaga_op
             )
-        elif isinstance(scf_method, (scf.rhf.RHF, scf.uhf.UHF)):
+        elif type(scf_method) in [scf.hf.RHF, scf.rohf.ROHF, scf.uhf.UHF]:
             hamiltonian = (
                 scf_method.get_hcore() + embedding_potential + 0.5 * vhf + huzinaga_op
             )

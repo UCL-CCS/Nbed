@@ -74,33 +74,6 @@ class RestrictedLS(LocalizedSystem):
 
 
 @dataclass
-class RestrictedOpenLS(LocalizedSystem):
-    """Required data from localized system.
-
-    active_occ_inds (np.array): 1D array of active occupied MO indices
-    enviro_occ_inds (np.array): 1D array of environment occupied MO indices
-    c_active (np.array): C matrix of localized occupied active MOs (columns define MOs)
-    c_enviro (np.array): C matrix of localized occupied ennironment MOs
-    c_loc_occ (np.array): C matrix of localized occupied MOs
-    c_loc_virt (np.array | None): C matrix of localized virual MOs.
-    dm_active (np.array): active system density matrix
-    dm_enviro (np.array): environment system density matrix
-    """
-
-    active_occ_inds: np.ndarray[tuple[int, int], dtype[np.bool]]
-    enviro_occ_inds: np.ndarray[tuple[int, int], dtype[np.bool]]
-    c_loc_occ: OneSpinMatrix
-    dm_active: OneSpinMatrix
-    dm_enviro: OneSpinMatrix
-    c_loc_virt: OneSpinMatrix | None = None
-    dm_loc_occ: OneSpinMatrix = field(init=False)
-
-    def __post_init__(self):
-        """post-init."""
-        super().__post_init__()
-
-
-@dataclass
 class UnrestrictedLS(LocalizedSystem):
     """Required data from localized system.
 

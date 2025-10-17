@@ -20,6 +20,7 @@ from nbed.localizers import (
     PMLocalizer,
     SPADELocalizer,
 )
+from nbed.localizers.system import RestrictedLS, UnrestrictedLS
 
 from .config import (
     NbedConfig,
@@ -109,6 +110,10 @@ class NbedDriver:
             spin=self.config.spin,
         ).build()
         logger.debug("Molecule built.")
+        logger.debug(f"Geometry:\n{self.config.geometry[2:]}")
+        logger.debug(f"{full_mol.spin=}")
+        logger.debug(f"{full_mol.charge=}")
+        logger.debug(f"{full_mol.nelec=}")
         return full_mol
 
     @cached_property
@@ -197,7 +202,7 @@ class NbedDriver:
 
         global_ks.run()  # type: ignore
         logger.debug(f"{global_ks.mo_coeff.shape=}")  # type: ignore
-        logger.debug(f"{global_ks.mo_occ.shape=}")  # type:ignore
+        logger.debug(f"{global_ks.mo_occ}")  # type:ignore
         logger.debug(f"{global_ks.get_veff().shape=}")  # type: ignore
         logger.debug(f"{global_ks.get_hcore().shape=}")  # type: ignore
         logger.info(f"Global KS: {global_ks.e_tot}")  # type: ignore
@@ -265,10 +270,6 @@ class NbedDriver:
         else:
             local_hf = scf.UHF(embedded_mol)
 
-        logger.debug(f"{embedded_mol.nelectron=}")
-        logger.debug(f"{embedded_mol.nelec=}")
-        logger.debug(f"{embedded_mol.spin=}")
-
         if self.run_qmmm:
             logger.debug("QM/MM: running local SCF in presence of point charges.")
             local_hf = qmmm.itrf.mm_charge(
@@ -293,8 +294,8 @@ class NbedDriver:
             gto.Mole: An embedded molecule object.
         """
         embedded_mol: gto.Mole = self._build_mol()
-        match self.localized_system.active_occ_inds.ndim:
-            case 1:
+        match self.localized_system:
+            case RestrictedLS():
                 n_elec = np.count_nonzero(self.localized_system.active_occ_inds)
                 logger.debug(f"embedded nelec {n_elec}")
 
@@ -302,7 +303,7 @@ class NbedDriver:
                 embedded_mol.nelec = (n_elec, n_elec)
                 embedded_mol.spin = 0
                 self._electron = embedded_mol.nelectron
-            case 2:
+            case UnrestrictedLS():
                 n_elec_alpha = np.count_nonzero(
                     self.localized_system.active_occ_inds[0, :]
                 )
@@ -315,6 +316,26 @@ class NbedDriver:
                 embedded_mol.nelec = (n_elec_alpha, n_elec_beta)
                 embedded_mol.spin = int(n_elec_alpha - n_elec_beta)
                 self._electron = embedded_mol.nelectron
+            case _:
+                raise ValueError(
+                    "Localized system should be subtype of LocalizedSystem."
+                )
+
+        embedded_mol.build()
+
+        logger.debug(f"{embedded_mol.nelectron=}")
+        logger.debug(f"{embedded_mol.nelec=}")
+        logger.debug(f"{embedded_mol.spin=}")
+        logger.debug(f"{embedded_mol.charge=}")
+
+        if embedded_mol.spin != self.config.spin:
+            logger.warning(
+                f"Embedded spin {embedded_mol.spin} not equal to global {self.config.spin}"
+            )
+        if embedded_mol.charge != self.config.charge:
+            logger.warning(
+                f"Embedded charge {embedded_mol.charge} not equal to global {self.config.charge}"
+            )
         return embedded_mol
 
     def _init_local_ks(self, xc_functional: str) -> AnyKS:
@@ -336,9 +357,6 @@ class NbedDriver:
         else:
             local_ks = dft.uks.UKS(embedded_mol)
         logger.debug(f"{type(local_ks)=}")
-        logger.debug(f"{embedded_mol.nelectron=}")
-        logger.debug(f"{embedded_mol.nelec=}")
-        logger.debug(f"{embedded_mol.spin=}")
 
         local_ks.max_memory = self.config.max_ram_memory
         local_ks.conv_tol = self.config.convergence
@@ -365,7 +383,7 @@ class NbedDriver:
         logger.debug("Calculating two electron cross subsystem energy.")
         total_dm = localized_system.dm_active + localized_system.dm_enviro
 
-        if localized_system.dm_active.ndim == 3:
+        if isinstance(localized_system, UnrestrictedLS):
             total_dm = total_dm[0, :, :] + total_dm[1, :, :]
 
         two_e_term_total: NPArrayWithTag = global_ks.get_veff(dm=total_dm)
@@ -373,13 +391,13 @@ class NbedDriver:
         logger.debug(f"{two_e_term_total.shape=}")
         e_xc_total: float = two_e_term_total.exc  # type: ignore
 
-        match localized_system.dm_active.ndim:
-            case 2:
+        match localized_system:
+            case RestrictedLS():
                 j_cross = 0.5 * (
                     np.einsum("ij,ij", localized_system.dm_active, j_env)
                     + np.einsum("ij,ij", localized_system.dm_enviro, j_act)
                 )
-            case 3:
+            case UnrestrictedLS():
                 j_cross = 0.5 * (
                     np.einsum("ij,ij", localized_system.dm_active[0], j_env[0])  # aa
                     + np.einsum("ij,ij", localized_system.dm_enviro[0], j_act[0])
@@ -391,7 +409,7 @@ class NbedDriver:
                     + np.einsum("ij,ij", localized_system.dm_enviro[1], j_act[0])
                 )
             case _:
-                raise ValueError("Active density matrix not valid shape.")
+                raise ValueError("LocalizedSystem is not valid Subtype.")
 
         logger.debug(f"{j_cross=}")
 
@@ -824,19 +842,21 @@ class NbedDriver:
         logger.info(f"V emb mean {projector}: {np.mean(result['v_emb'])}")
 
         # calculate correction
-        match self.localized_system.dm_active.ndim:
-            case 2:
+        match self.localized_system:
+            case RestrictedLS():
                 result["correction"] = np.einsum(
                     "ij,ij", result["v_emb"], self.localized_system.dm_active
                 )
                 result["beta_correction"] = 0
-            case 3:
+            case UnrestrictedLS():
                 result["correction"] = np.einsum(
                     "ij,ij", result["v_emb"][0], self.localized_system.dm_active[0]
                 )
                 result["beta_correction"] = np.einsum(
                     "ij,ij", result["v_emb"][1], self.localized_system.dm_active[1]
                 )
+            case _:
+                raise ValueError("LocalizedSystem should be subtype.")
 
         # Post-embedding Virtual localization
         match self.config.virtual_localization:
@@ -1002,6 +1022,9 @@ def run_emb_ccsd(
     Returns:
         ccsd (cc.CCSD): PySCF CCSD object
         e_ccsd_corr (float): electron correlation CCSD energy
+
+    Raises:
+        np.linalg.LinalgError: If CCSD kernel can not be run.
     """
     logger.debug("Starting embedded CCSD calculation.")
     ccsd = cc.CCSD(emb_pyscf_scf_rhf, frozen=frozen)
@@ -1010,7 +1033,14 @@ def run_emb_ccsd(
     ccsd.verbose = 2
 
     e_ccsd_corr: float
-    e_ccsd_corr, _, _ = ccsd.kernel()  # type:ignore
+    try:
+        e_ccsd_corr, _, _ = ccsd.kernel()  # type:ignore
+    except np.linalg.LinAlgError as e:
+        logger.error("Embedded CCSD kernel could not be run.")
+        logger.error(e)
+        e_ccsd_corr = 0.0
+        ccsd.converged = False
+
     logger.info(f"Embedded CCSD energy: {e_ccsd_corr}")
     logger.info(f"CCSD Converged {ccsd.converged}")
     return ccsd, e_ccsd_corr  # type:ignore
@@ -1238,7 +1268,7 @@ def _huzinaga_embed(
 def _delete_spin_environment(
     projector: ProjectorTypes,
     n_env_mo: int,
-    mo_coeff: np.ndarray[tuple[int, int]],
+    mo_coeff: np.ndarray[tuple[int, int], np.dtype[np.floating]],
     mo_energy: np.ndarray[tuple[int]],
     mo_occ: np.ndarray[tuple[int]],
     environment_projector: np.ndarray,
@@ -1303,13 +1333,25 @@ def _delete_spin_environment(
         f"Orbital indices removed from embedded system: {frozen_enviro_orb_inds}"
     )
 
+    non_frozen = [
+        i for i in range(mo_coeff.shape[-1]) if i not in frozen_enviro_orb_inds
+    ]
     # delete enviroment orbitals and associated energies
     # overwrites varibles keeping only active part (both occupied and virtual)
     active_mo_coeff = mo_coeff.copy()
     active_mo_coeff[..., frozen_enviro_orb_inds] = 0
+    active_mo_coeff = np.hstack(
+        (active_mo_coeff[..., non_frozen], active_mo_coeff[..., frozen_enviro_orb_inds])
+    )
 
     active_mo_energy = mo_energy.copy()
     active_mo_energy[..., frozen_enviro_orb_inds] = 0
+    active_mo_energy = np.hstack(
+        (
+            active_mo_energy[..., non_frozen],
+            active_mo_energy[..., frozen_enviro_orb_inds],
+        )
+    )
 
     active_mo_occ = mo_occ.copy()
     active_mo_occ[frozen_enviro_orb_inds] = 0
