@@ -237,6 +237,23 @@ class HamiltonianBuilder:
         logger.info("Building Hamiltonian")
         one_body_integrals = self._one_body_integrals
         two_body_integrals = self._two_body_integrals
+        if self.n_frozen_core != 0:
+            occupied_indices = [*range(0, self.n_frozen_core)]
+        else:
+            occupied_indices = []
+
+        active_indices = [*range(one_body_integrals.shape[0])]
+        if self.n_frozen_virt != 0:
+            active_indices = active_indices[: -self.n_frozen_virt]
+
+        core_const, one_body_integrals, two_body_integrals = get_active_space_integrals(
+            one_body_integrals,
+            two_body_integrals,
+            occupied_indices=occupied_indices,
+            active_indices=active_indices,
+        )
+        self.constant_e_shift += core_const
+
         one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
             one_body_integrals, two_body_integrals
         )
@@ -276,3 +293,71 @@ def reduce_virtuals(scf_method, n_frozen_virt: int) -> scf.hf.SCF:
         reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:-n_frozen_virt]  # type: ignore
 
     return reduced_scf_method
+
+
+def get_active_space_integrals(
+    one_body_integrals: np.ndarray,
+    two_body_integrals: np.ndarray,
+    occupied_indices: list,
+    active_indices: list,
+) -> tuple[float, np.ndarray, np.ndarray]:
+    """Restricts a molecule at a spatial orbital level to an active space.
+
+    This function is from Openfermion, see additonal documentation there.
+
+    This active space may be defined by a list of active indices and
+        doubly occupied indices. Note that one_body_integrals and
+        two_body_integrals must be defined
+        n an orthonormal basis set.
+
+    Args:
+        one_body_integrals: One-body integrals of the target Hamiltonian
+        two_body_integrals: Two-body integrals of the target Hamiltonian
+        occupied_indices: A list of spatial orbital indices
+            indicating which orbitals should be considered doubly occupied.
+        active_indices: A list of spatial orbital indices indicating
+            which orbitals should be considered active.
+
+    Returns:
+        tuple: Tuple with the following entries:
+
+        **core_constant**: Adjustment to constant shift in Hamiltonian
+        from integrating out core orbitals
+
+        **one_body_integrals_new**: one-electron integrals over active
+        space.
+
+        **two_body_integrals_new**: two-electron integrals over active
+        space.
+    """
+    # Fix data type for a few edge cases
+    occupied_indices = [] if occupied_indices is None else occupied_indices
+    if len(active_indices) < 1:
+        raise ValueError("Some active indices required for reduction.")
+
+    # Determine core constant
+    core_constant = 0.0
+    for i in occupied_indices:
+        core_constant += 2 * one_body_integrals[i, i]
+        for j in occupied_indices:
+            core_constant += (
+                2 * two_body_integrals[i, j, j, i] - two_body_integrals[i, j, i, j]
+            )
+
+    # Modified one electron integrals
+    one_body_integrals_new = np.copy(one_body_integrals)
+    for u in active_indices:
+        for v in active_indices:
+            for i in occupied_indices:
+                one_body_integrals_new[u, v] += (
+                    2 * two_body_integrals[i, u, v, i] - two_body_integrals[i, u, i, v]
+                )
+
+    # Restrict integral ranges and change M appropriately
+    return (
+        core_constant,
+        one_body_integrals_new[np.ix_(active_indices, active_indices)],
+        two_body_integrals[
+            np.ix_(active_indices, active_indices, active_indices, active_indices)
+        ],
+    )
