@@ -231,9 +231,6 @@ class HamiltonianBuilder:
         Returns:
             (float, npt.NDArray, npt.NDArray): The one and two body spinorb coefficients
         """
-        if self.n_frozen_virt != 0:
-            self.scf_method = reduce_virtuals(self.scf_method, self.n_frozen_virt)
-
         logger.info("Building Hamiltonian")
         one_body_integrals = self._one_body_integrals
         two_body_integrals = self._two_body_integrals
@@ -262,37 +259,6 @@ class HamiltonianBuilder:
         logger.debug(f"{two_body_coefficients.shape=}")
 
         return self.constant_e_shift, one_body_coefficients, 0.5 * two_body_coefficients
-
-
-def reduce_virtuals(scf_method, n_frozen_virt: int) -> scf.hf.SCF:
-    """Reduce the number of virtual orbitals.
-
-    Args:
-        scf_method (scf.hf.SCF): A PySCF scf object.
-        n_frozen_virt (int):  Number of virtual orbitals to freeze.
-
-    Return:
-        scf.hf.SCF: A new scf object with fewer virtual orbitals.
-    """
-    reduced_scf_method = scf_method.copy()
-    if n_frozen_virt <= 0:
-        logger.debug("No virtual orbital reduction.")
-        return reduced_scf_method
-    elif n_frozen_virt >= np.count_nonzero(reduced_scf_method.mo_occ):
-        logger.error("Attempting to reduce the virtual space by more than exist.")
-        raise ValueError("Atempting to reduce virtual space by more than exist.")
-
-    logger.debug(f"Reducing virtuals by {n_frozen_virt}.")
-
-    if isinstance(reduced_scf_method, (scf.uhf.UHF)):
-        reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :, :-n_frozen_virt]  # type: ignore
-        reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:, :-n_frozen_virt]  # type: ignore
-
-    elif isinstance(reduced_scf_method, (scf.hf.RHF)):
-        reduced_scf_method.mo_coeff = reduced_scf_method.mo_coeff[:, :-n_frozen_virt]  # type: ignore
-        reduced_scf_method.mo_occ = reduced_scf_method.mo_occ[:-n_frozen_virt]  # type: ignore
-
-    return reduced_scf_method
 
 
 def get_active_space_integrals(
@@ -342,7 +308,7 @@ def get_active_space_integrals(
         for j in occupied_indices:
             core_constant += (
                 2 * two_body_integrals[i, j, j, i] - two_body_integrals[i, j, i, j]
-            )
+            )  # type: ignore
 
     # Modified one electron integrals
     one_body_integrals_new = np.copy(one_body_integrals)
@@ -360,4 +326,4 @@ def get_active_space_integrals(
         two_body_integrals[
             np.ix_(active_indices, active_indices, active_indices, active_indices)
         ],
-    )
+    )  # type: ignore
