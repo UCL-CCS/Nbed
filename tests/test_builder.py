@@ -10,6 +10,7 @@ from openfermion import count_qubits, get_sparse_operator
 from openfermion.ops import InteractionOperator
 from openfermion.transforms.opconversions import jordan_wigner
 from pyscf.fci import FCI
+from pyscf.mcscf import CASCI
 from pyscf.gto import Mole
 from pyscf.scf import RHF, UHF
 
@@ -111,6 +112,66 @@ def test_unrestricted_charged_groundstate(charged_scf) -> None:
     logger.info(f"FCI energy of unrestricted driver test: {e_fci}")
 
     builder = HamiltonianBuilder(charged_scf)
+    const, ones, twos = builder.build()
+    intop = InteractionOperator(const, ones, twos)
+    qham = jordan_wigner(intop)
+
+    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(qham), k=2, which="SA")
+
+    logger.info(f"Ground state via diagonalisation: {diag}")
+    # Ground state for this charge is 2nd eigenstate
+    assert np.isclose(e_fci, diag[1])
+
+def test_unrestricted_charged_groundstate_casci(charged_scf) -> None:
+    """Check the output hamiltonian diagonalises to fci value for an unrestricted calculation with spin and charge."""
+    casciob = CASCI(charged_scf, ncas=charged_scf.mo_coeff.shape[-2], nelecas=charged_scf.nelec)
+    logger.debug(f"{casciob.kernel()=}")
+    e_fci = casciob.kernel()[0] - charged_scf.energy_nuc()
+
+    logger.info(f"FCI energy of unrestricted driver test: {e_fci}")
+
+    builder = HamiltonianBuilder(charged_scf)
+    const, ones, twos = builder.build()
+    intop = InteractionOperator(const, ones, twos)
+    qham = jordan_wigner(intop)
+
+    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(qham), k=2, which="SA")
+
+    logger.info(f"Ground state via diagonalisation: {diag}")
+    # Ground state for this charge is 2nd eigenstate
+    assert np.isclose(e_fci, diag[1])
+
+def test_unrestricted_charged_groundstate_frozen_virt(charged_scf) -> None:
+    """Check the output hamiltonian diagonalises to fci value for an unrestricted calculation with spin and charge."""
+    casciob = CASCI(charged_scf, ncas=charged_scf.mo_coeff.shape[-2], nelecas=charged_scf.nelec)
+    casciob.frozen=[charged_scf.mo_coeff.shape[-2]-1]
+    logger.debug(f"{casciob.frozen=}")
+    logger.debug(f"{casciob.kernel()=}")
+    e_fci = casciob.kernel()[0] - charged_scf.energy_nuc()
+
+    logger.info(f"FCI energy of unrestricted driver test: {e_fci}")
+
+    builder = HamiltonianBuilder(charged_scf, n_frozen_virt=1)
+    const, ones, twos = builder.build()
+    intop = InteractionOperator(const, ones, twos)
+    qham = jordan_wigner(intop)
+
+    diag, _ = sp.sparse.linalg.eigsh(get_sparse_operator(qham), k=14, which="SA")
+
+    logger.info(f"Ground state via diagonalisation: {diag}")
+    # Ground state for this charge is 2nd eigenstate
+    assert np.isclose(e_fci, diag[1])
+
+def test_unrestricted_charged_groundstate_frozen_core(charged_scf) -> None:
+    """Check the output hamiltonian diagonalises to fci value for an unrestricted calculation with spin and charge."""
+    casciob = CASCI(charged_scf, ncas=7, nelecas=charged_scf.nelec)
+    casciob.frozen = [0]
+    logger.debug(f"{casciob.kernel()=}")
+    e_fci = casciob.kernel()[0] - charged_scf.energy_nuc()
+
+    logger.info(f"FCI energy of unrestricted driver test: {e_fci}")
+
+    builder = HamiltonianBuilder(charged_scf, n_frozen_core=1)
     const, ones, twos = builder.build()
     intop = InteractionOperator(const, ones, twos)
     qham = jordan_wigner(intop)
