@@ -234,26 +234,33 @@ class HamiltonianBuilder:
         logger.info("Building Hamiltonian")
         one_body_integrals = self._one_body_integrals
         two_body_integrals = self._two_body_integrals
+
+        one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
+            one_body_integrals, two_body_integrals
+        )
+
+        logger.debug(f"{self.n_frozen_core=}")
+        logger.debug(f"{self.n_frozen_virt=}")
         if self.n_frozen_core != 0:
             occupied_indices = [*range(0, self.n_frozen_core)]
         else:
             occupied_indices = []
 
-        active_indices = [*range(one_body_integrals.shape[0])]
+        active_indices = [*range(one_body_integrals.shape[1])]
         if self.n_frozen_virt != 0:
             active_indices = active_indices[: -self.n_frozen_virt]
+        logger.debug(f"{occupied_indices=}")
+        logger.debug(f"{active_indices=}")
 
-        core_const, one_body_integrals, two_body_integrals = get_active_space_integrals(
-            one_body_integrals,
-            two_body_integrals,
-            occupied_indices=occupied_indices,
-            active_indices=active_indices,
+        core_const, one_body_coefficients, two_body_coefficients = (
+            get_active_space_integrals(
+                one_body_coefficients,
+                two_body_coefficients,
+                occupied_indices=occupied_indices,
+                active_indices=active_indices,
+            )
         )
         self.constant_e_shift += core_const
-
-        one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
-            one_body_integrals, two_body_integrals
-        )
 
         logger.debug(f"{one_body_coefficients.shape=}")
         logger.debug(f"{two_body_coefficients.shape=}")
@@ -297,9 +304,22 @@ def get_active_space_integrals(
         space.
     """
     # Fix data type for a few edge cases
-    occupied_indices = [] if occupied_indices is None else occupied_indices
+    occupied_indices = (
+        [] if occupied_indices is None else [2 * i for i in occupied_indices]
+    )
+    occupied_indices += [i + 1 for i in occupied_indices]
+    occupied_indices.sort()
+    occupied_indices = np.array(occupied_indices)
+
     if len(active_indices) < 1:
         raise ValueError("Some active indices required for reduction.")
+
+    active_indices = [2 * a for a in active_indices]
+    active_indices += [a + 1 for a in active_indices]
+    active_indices.sort()
+    active_indices = np.array(active_indices)
+    logger.debug(f"{occupied_indices=}")
+    logger.debug(f"{active_indices=}")
 
     # Determine core constant
     core_constant = 0.0
@@ -318,7 +338,7 @@ def get_active_space_integrals(
                 one_body_integrals_new[u, v] += (
                     2 * two_body_integrals[i, u, v, i] - two_body_integrals[i, u, i, v]
                 )
-
+    logger.debug(f"{np.ix_(active_indices, active_indices)}")
     # Restrict integral ranges and change M appropriately
     return (
         core_constant,

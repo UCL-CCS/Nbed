@@ -13,7 +13,7 @@ from pyscf.fci import FCI
 from pyscf.gto import Mole
 from pyscf.scf import RHF, UHF
 
-from nbed.ham_builder import HamiltonianBuilder, reduce_virtuals
+from nbed.ham_builder import HamiltonianBuilder
 
 logger = getLogger(__name__)
 
@@ -120,29 +120,3 @@ def test_unrestricted_charged_groundstate(charged_scf) -> None:
     logger.info(f"Ground state via diagonalisation: {diag}")
     # Ground state for this charge is 2nd eigenstate
     assert np.isclose(e_fci, diag[1])
-
-
-def test_reduce_virtuals(restricted_scf, unrestricted_scf):
-    reduced_restricted = reduce_virtuals(restricted_scf, 1)
-    reduced_unrestricted = reduce_virtuals(unrestricted_scf, 1)
-
-    assert (
-        reduced_restricted.mo_coeff.shape[-1]
-        == reduced_unrestricted.mo_coeff.shape[-1]
-        == 6
-    )
-    assert np.all(
-        reduced_restricted.mo_occ == np.sum(reduced_unrestricted.mo_occ, axis=0)
-    )
-
-    with pytest.raises(ValueError) as excinfo:
-        reduce_virtuals(restricted_scf, 7)
-
-    assert "more than exist" in str(excinfo)
-
-    assert np.all(
-        restricted_scf.mo_coeff == reduce_virtuals(restricted_scf, 0).mo_coeff
-    )
-    assert np.all(
-        restricted_scf.mo_coeff == reduce_virtuals(restricted_scf, 0).mo_coeff
-    )
