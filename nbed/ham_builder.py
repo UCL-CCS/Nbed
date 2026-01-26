@@ -241,17 +241,23 @@ class HamiltonianBuilder:
             occupied_indices = [*range(0, self.n_frozen_core)]
         else:
             occupied_indices = []
-
-        active_indices = [*range(one_body_integrals.shape[0])]
+        logger.debug(f"{occupied_indices=}")
+        active_indices = [*range(one_body_integrals.shape[-1])]
         if self.n_frozen_virt != 0:
             active_indices = active_indices[: -self.n_frozen_virt]
+        logger.debug(f"{active_indices=}")
 
+        logger.debug(f"{one_body_integrals.shape=}")
+        logger.debug(f"{two_body_integrals.shape=}")
         core_const, one_body_integrals, two_body_integrals = get_active_space_integrals(
             one_body_integrals,
             two_body_integrals,
             occupied_indices=occupied_indices,
             active_indices=active_indices,
         )
+        logger.debug(f"{one_body_integrals.shape=}")
+        logger.debug(f"{two_body_integrals.shape=}")
+
         self.constant_e_shift += core_const
 
         one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
@@ -356,8 +362,14 @@ def get_active_space_integrals(
     # Restrict integral ranges and change M appropriately
     return (
         core_constant,
-        one_body_integrals_new[np.ix_(active_indices, active_indices)],
+        one_body_integrals_new[np.ix_([0, 1], active_indices, active_indices)],
         two_body_integrals[
-            np.ix_(active_indices, active_indices, active_indices, active_indices)
+            np.ix_(
+                [0, 1, 2, 3],
+                active_indices,
+                active_indices,
+                active_indices,
+                active_indices,
+            )
         ],
     )
