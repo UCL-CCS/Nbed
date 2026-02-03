@@ -231,20 +231,26 @@ class HamiltonianBuilder:
         Returns:
             (float, npt.NDArray, npt.NDArray): The one and two body spinorb coefficients
         """
-        if self.n_frozen_virt != 0:
-            self.scf_method = reduce_virtuals(self.scf_method, self.n_frozen_virt)
+
+        if self._restricted:
+
+            raise NotImplementedError(
+            "HamiltonianBuilder.build(): restricted (RHF/RKS) path is not implemented in this version."
+            )
 
         logger.info("Building Hamiltonian")
         one_body_integrals = self._one_body_integrals
         two_body_integrals = self._two_body_integrals
         if self.n_frozen_core != 0:
-            occupied_indices = [*range(0, self.n_frozen_core)]
+            occupied_indices = list(range(self.n_frozen_core))
         else:
             occupied_indices = []
         logger.debug(f"{occupied_indices=}")
-        active_indices = [*range(one_body_integrals.shape[-1])]
+        active_indices = list(range(one_body_integrals.shape[-1]))
         if self.n_frozen_virt != 0:
             active_indices = active_indices[: -self.n_frozen_virt]
+        if self.n_frozen_core != 0:
+            active_indices = active_indices[self.n_frozen_core:]
         logger.debug(f"{active_indices=}")
 
         logger.debug(f"{one_body_integrals.shape=}")
@@ -258,7 +264,7 @@ class HamiltonianBuilder:
         logger.debug(f"{one_body_integrals.shape=}")
         logger.debug(f"{two_body_integrals.shape=}")
 
-        self.constant_e_shift += core_const
+        total_const_shift = self.constant_e_shift + core_const
 
         one_body_coefficients, two_body_coefficients = self._spinorb_from_spatial(
             one_body_integrals, two_body_integrals
@@ -267,7 +273,7 @@ class HamiltonianBuilder:
         logger.debug(f"{one_body_coefficients.shape=}")
         logger.debug(f"{two_body_coefficients.shape=}")
 
-        return self.constant_e_shift, one_body_coefficients, 0.5 * two_body_coefficients
+        return total_const_shift, one_body_coefficients, 0.5 * two_body_coefficients
 
 
 def reduce_virtuals(scf_method, n_frozen_virt: int) -> scf.hf.SCF:
@@ -284,7 +290,7 @@ def reduce_virtuals(scf_method, n_frozen_virt: int) -> scf.hf.SCF:
     if n_frozen_virt <= 0:
         logger.debug("No virtual orbital reduction.")
         return reduced_scf_method
-    elif n_frozen_virt >= np.count_nonzero(reduced_scf_method.mo_occ):
+    elif n_frozen_virt >= len(reduced_scf_method.mo_occ) - np.count_nonzero(mo_occ):
         logger.error("Attempting to reduce the virtual space by more than exist.")
         raise ValueError("Atempting to reduce virtual space by more than exist.")
 
@@ -309,7 +315,8 @@ def get_active_space_integrals(
 ) -> tuple[float, np.ndarray, np.ndarray]:
     """Restricts a molecule at a spatial orbital level to an active space.
 
-    This function is from Openfermion, see additonal documentation there.
+    This function is from Openfermion, see additonal documentation there,
+    but adapted to the unrestricted case.
 
     This active space may be defined by a list of active indices and
         doubly occupied indices. Note that one_body_integrals and
@@ -341,35 +348,56 @@ def get_active_space_integrals(
     if len(active_indices) < 1:
         raise ValueError("Some active indices required for reduction.")
 
+    h_a = one_body_integrals[0]
+    h_b = one_body_integrals[1]
+
+    g_aaaa = two_body_integrals[0]
+    g_bbbb = two_body_integrals[1]
+    g_aabb = two_body_integrals[2]
+    g_bbaa = two_body_integrals[3]
+
     # Determine core constant
     core_constant = 0.0
     for i in occupied_indices:
-        core_constant += 2 * one_body_integrals[i, i]
+        core_constant += h_a[i, i] + h_b[i, i]
+
         for j in occupied_indices:
-            core_constant += (
-                2 * two_body_integrals[i, j, j, i] - two_body_integrals[i, j, i, j]
-            )
+            core_constant += 0.5 * (g_aaaa[i, j, j, i] - g_aaaa[i, j, i, j])
+            core_constant += 0.5 * (g_bbbb[i, j, j, i] - g_bbbb[i, j, i, j])
+            core_constant += g_aabb[i, j, j, i]
 
     # Modified one electron integrals
-    one_body_integrals_new = np.copy(one_body_integrals)
+    h_a_new = np.copy(h_a)
+    h_b_new = np.copy(h_b)
+
     for u in active_indices:
         for v in active_indices:
             for i in occupied_indices:
-                one_body_integrals_new[u, v] += (
-                    2 * two_body_integrals[i, u, v, i] - two_body_integrals[i, u, i, v]
-                )
+                # alpha effective one-body
+                h_a_new[u, v] += (g_aaaa[i, u, v, i] - g_aaaa[i, u, i, v])
+                h_a_new[u, v] += g_aabb[u, i, i, v]
+
+                # beta effective one-body
+                h_b_new[u, v] += (g_bbbb[i, u, v, i] - g_bbbb[i, u, i, v])
+                h_b_new[u, v] += g_bbaa[u, i, i, v]
 
     # Restrict integral ranges and change M appropriately
-    return (
-        core_constant,
-        one_body_integrals_new[np.ix_([0, 1], active_indices, active_indices)],
-        two_body_integrals[
-            np.ix_(
-                [0, 1, 2, 3],
-                active_indices,
-                active_indices,
-                active_indices,
-                active_indices,
-            )
+    one_body_integrals_new = np.stack(
+        [
+            h_a_new[np.ix_(active_indices, active_indices)],
+            h_b_new[np.ix_(active_indices, active_indices)],
         ],
+        axis=0,
     )
+
+    two_body_integrals_new = np.stack(
+        [
+            g_aaaa[np.ix_(active_indices, active_indices, active_indices, active_indices)],
+            g_bbbb[np.ix_(active_indices, active_indices, active_indices, active_indices)],
+            g_aabb[np.ix_(active_indices, active_indices, active_indices, active_indices)],
+            g_bbaa[np.ix_(active_indices, active_indices, active_indices, active_indices)],
+        ],
+        axis=0,
+    )
+
+    return core_constant, one_body_integrals_new, two_body_integrals_new
