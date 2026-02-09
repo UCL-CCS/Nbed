@@ -15,6 +15,24 @@ import numpy as np
 # ])
 ### this could be modified to make i go over active atom indices (rather than assuming hte first n are active!)
 
+# ## note we can also target particular AOs on specified atoms using:
+# ao_labels = mol.ao_labels()
+# ## atom symbol and idx!
+# target_atoms = [
+#     ('N', 0),
+#     ('H', 1),
+#     ("O", 2),
+# ]
+# ao_list = []
+# for ao in ao_labels:
+#     idx, sym, orb = ao.split()
+#     if (sym, int(idx)) in target_atoms and orb.startswith(('2s', '2p')): #<--- which AOs to target!
+#         ao_list.append(ao)
+
+# ### targets atom idxs AND particular AOs!!! (e.g. 2p on O)!!!
+# ao_idxs_of_interest = mol.search_ao_label(ao_list) # find which rows of C matrix are important!
+# ao_idxs_of_interest
+
 
 def mulliken_per_orbital(active_ao_idx: np.array, S: np.array, C: np.array) -> np.array:
     """
@@ -100,7 +118,7 @@ def direct_projector(active_ao_idx: np.array, S: np.array, C: np.array):
 
     # Q = np.eye(P.shape[0]) - P
     overlap_psi_and_psi_act_ao = []
-    for i in range(C.shape[0]):
+    for i in range(C.shape[1]):
 
         psi = C[:, i]
 
