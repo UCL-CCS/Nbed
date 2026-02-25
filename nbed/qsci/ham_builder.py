@@ -58,7 +58,11 @@ def build_integrals(mol:gto.Mole, C_mat:np.array, active_space_MO_idxs:np.array,
     eri_spin_mo[0::2,1::2,1::2,0::2] = phys_S1
     eri_spin_mo[1::2,0::2,0::2,1::2] = phys_S1
 
-    return energy_core, hcore_spin_mo, eri_spin_mo, h1std_mo_spin, energy_core_std
+    ## need to get WF correction info (in particular: emb_MO)
+    cas_emb.get_hcore = lambda *args: emb_core
+    emb_MO, emb_MO_shift = cas_emb.get_h1eff(mo_coeff=C_emb_ordered_subspace)
+
+    return energy_core, hcore_spin_mo, eri_spin_mo, h1std_mo_spin, energy_core_std, emb_MO, emb_MO_shift
 
 
 def build_molecular_H(energy_core: float, hcore_spin_mo:np.array, eri_spin_mo:np.array, 
@@ -84,7 +88,6 @@ def build_molecular_H(energy_core: float, hcore_spin_mo:np.array, eri_spin_mo:np
         H = get_fermion_operator(H)
     else:
         pass
-
     return H
 
 

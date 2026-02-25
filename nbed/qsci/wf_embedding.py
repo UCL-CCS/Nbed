@@ -1,10 +1,20 @@
 
 import numpy as np
+from pyscf import scf
 
+def get_embedding_potential(global_scf_cheap, dm_full, dm_act, ovlp_ao):
 
-def get_embedding_potential(global_scf_cheap, dm_full, dm_act):
-    v_eff_emb = global_scf_cheap.get_veff(dm=dm_full) - global_scf_cheap.get_veff(dm=dm_act)
-    return v_eff_emb
+    # v_eff_emb = global_scf_cheap.get_veff(dm=dm_full) - global_scf_cheap.get_veff(dm=dm_act)
+
+    ## note in get_roothaan_fock we are not including the core Hamiltonian... we just want the 2e- terms
+    veff_glob = global_scf_cheap.get_veff(dm=dm_full) 
+    G_glob = scf.rohf.get_roothaan_fock((veff_glob[0],veff_glob[1]), dm_full, ovlp_ao)
+
+    veff_act = global_scf_cheap.get_veff(dm=dm_act) 
+    G_act = scf.rohf.get_roothaan_fock((veff_act[0],veff_act[1]), dm_act, ovlp_ao)
+    G_EMB = G_glob - G_act
+
+    return G_EMB
 
 
 def get_mu_projector(C_env_occ:np.array, S:np.array):
