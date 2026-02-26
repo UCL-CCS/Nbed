@@ -35,13 +35,21 @@ def build_integrals(mol:gto.Mole, C_mat:np.array, active_space_MO_idxs:np.array,
     h1std_mo_spin = np.zeros((2*ncas, 2*ncas), dtype=float)
     h1std_mo_spin[0::2, 0::2] = h1std_mo_spin[1::2, 1::2] = h1std_mo 
 
+    C_core = C_emb_ordered_subspace[:,:cas_emb.ncore]
+    C_cas = C_emb_ordered_subspace[:,cas_emb.ncore:cas_emb.ncore+cas_emb.ncas]
 
-    ## build embedded Hamiltonian object!
-    hcore_std = cas_emb.get_hcore()
-    cas_emb.get_hcore = lambda *args: hcore_std + emb_core
+
+    emb_core_MO = C_cas.conj().T @ emb_core @ C_cas
+    core_dm = 2*C_core @ C_core.conj().T
+    energy_embedding_contant = np.einsum('ij,ji', core_dm, emb_core_MO).real
+    h1eff_mo = h1std_mo + emb_core_MO
+
+    # ## build embedded Hamiltonian object!
+    # hcore_std = cas_emb.get_hcore()
+    # cas_emb.get_hcore = lambda *args: hcore_std + emb_core
     
-    h1eff_mo, energy_core = cas_emb.get_h1eff(mo_coeff=C_emb_ordered_subspace)
-    ## energy_core: includes nuclear term & h1eff has been transformed to MO basis
+    # h1eff_mo, energy_core = cas_emb.get_h1eff(mo_coeff=C_emb_ordered_subspace)
+    # ## energy_core: includes nuclear term & h1eff has been transformed to MO basis
 
     eri_cas_mo_S1 = ao2mo.restore(1, 
                                   cas_emb.get_h2eff(mo_coeff=C_emb_ordered_subspace),
@@ -62,7 +70,7 @@ def build_integrals(mol:gto.Mole, C_mat:np.array, active_space_MO_idxs:np.array,
     cas_emb.get_hcore = lambda *args: emb_core
     emb_MO, emb_MO_shift = cas_emb.get_h1eff(mo_coeff=C_emb_ordered_subspace)
 
-    return energy_core, hcore_spin_mo, eri_spin_mo, h1std_mo_spin, energy_core_std, emb_MO, emb_MO_shift
+    return energy_embedding_contant, hcore_spin_mo, eri_spin_mo, h1std_mo_spin, energy_core_std, emb_MO, emb_MO_shift
 
 
 def build_molecular_H(energy_core: float, hcore_spin_mo:np.array, eri_spin_mo:np.array, 
