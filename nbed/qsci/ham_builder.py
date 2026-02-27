@@ -38,26 +38,18 @@ def build_integrals(mol:gto.Mole, C_mat:np.array, active_space_MO_idxs:np.array,
     C_core = C_emb_ordered_subspace[:,:cas_emb.ncore]
     C_cas = C_emb_ordered_subspace[:,cas_emb.ncore:cas_emb.ncore+cas_emb.ncas]
 
-
     emb_core_MO = C_cas.conj().T @ emb_core @ C_cas
     core_dm = 2*C_core @ C_core.conj().T
-    energy_embedding_contant = np.einsum('ij,ji', core_dm, emb_core_MO).real
-    h1eff_mo = h1std_mo + emb_core_MO
-
-    # ## build embedded Hamiltonian object!
-    # hcore_std = cas_emb.get_hcore()
-    # cas_emb.get_hcore = lambda *args: hcore_std + emb_core
+    energy_embedding_contant = np.einsum('ij,ji', core_dm, emb_core).real
+    energy_core_emb = energy_embedding_contant + energy_core_std
+    h1emb_mo = h1std_mo + emb_core_MO
     
-    # h1eff_mo, energy_core = cas_emb.get_h1eff(mo_coeff=C_emb_ordered_subspace)
-    # ## energy_core: includes nuclear term & h1eff has been transformed to MO basis
+    h1emb_mo_spin = np.zeros((2*ncas, 2*ncas), dtype=float)
+    h1emb_mo_spin[0::2, 0::2] = h1emb_mo_spin[1::2, 1::2] = h1emb_mo 
 
     eri_cas_mo_S1 = ao2mo.restore(1, 
-                                  cas_emb.get_h2eff(mo_coeff=C_emb_ordered_subspace),
-                                   cas_emb.ncas)
-
-    hcore_spin_mo = np.zeros((2*ncas, 2*ncas), dtype=float)
-    hcore_spin_mo[0::2, 0::2] = hcore_spin_mo[1::2, 1::2] = h1eff_mo 
-
+                                    cas_emb.get_h2eff(mo_coeff=C_emb_ordered_subspace),
+                                    cas_emb.ncas)
     eri_spin_mo = np.zeros((2*ncas, 2*ncas, 2*ncas, 2*ncas), dtype=float)
     phys_S1 = eri_cas_mo_S1.transpose(0, 3, 2, 1)
     eri_spin_mo[ ::2, ::2, ::2, ::2] = phys_S1
@@ -66,11 +58,7 @@ def build_integrals(mol:gto.Mole, C_mat:np.array, active_space_MO_idxs:np.array,
     eri_spin_mo[0::2,1::2,1::2,0::2] = phys_S1
     eri_spin_mo[1::2,0::2,0::2,1::2] = phys_S1
 
-    ## need to get WF correction info (in particular: emb_MO)
-    cas_emb.get_hcore = lambda *args: emb_core
-    emb_MO, emb_MO_shift = cas_emb.get_h1eff(mo_coeff=C_emb_ordered_subspace)
-
-    return energy_embedding_contant, hcore_spin_mo, eri_spin_mo, h1std_mo_spin, energy_core_std, emb_MO, emb_MO_shift
+    return energy_core_emb, h1emb_mo_spin, eri_spin_mo, h1std_mo_spin, energy_core_std, emb_core_MO, energy_embedding_contant
 
 
 def build_molecular_H(energy_core: float, hcore_spin_mo:np.array, eri_spin_mo:np.array, 
