@@ -206,6 +206,7 @@ class EmbedSCF():
                     fockb = h1e + vhf[1]
                     ## a restricted open-shell object can still be handed a spin-summed dm
                     ## (the initial guess is one), which get_roothaan_fock cannot unpack
+                    ## 0.5 is needed for the case when dm is spin-summed (restricted setting!... aka split into, dm_a, dm_b)
                     dm_ab = dm if np.ndim(dm) == 3 else np.array((np.asarray(dm) * 0.5,) * 2)
                     Fao = scf.rohf.get_roothaan_fock((focka,fockb), dm_ab, self.Sao)
                 else:
