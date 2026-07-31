@@ -3,7 +3,7 @@
 import numpy as np
 from pyscf import gto, scf, dft
 
-class EmbedDFT():
+class EmbedSCF():
 
     def __init__(self, global_scf_obj,
                  act_MO_idxs, env_MO_idxs, 
@@ -18,7 +18,8 @@ class EmbedDFT():
         assert len(act_MO_idxs) + len(env_MO_idxs) == len(mo_occ), "active and environment MO indices must sum to total number of MOs"
         assert len(act_MO_idxs) + len(env_MO_idxs) == global_scf_obj.mol.nao, "active and environment MO indices must equal number of MOs"
         
-        if np.any(mo_occ==1):
+        if np.any(mo_occ==1) or hasattr(global_scf_obj, "nelec"):
+            ## hasattr is needed as sometimes a user may pass in a open-shell SCF even if it is restricted (aka all double occupied) 
             self.SCF_type = "open-shell"
         else:
             self.SCF_type = "closed-shell"
@@ -75,10 +76,20 @@ class EmbedDFT():
         self.E_cross      = self.E_DFT_global - self.E_env - self.E_act
                                      
 
+        if self.SCF_type == "open-shell":
+            ## need to deal with spin in this approach!
+            veff_glob = self.global_scf_obj.get_veff(dm=self.dm_full) 
+            G_glob = scf.rohf.get_roothaan_fock((veff_glob[0],veff_glob[1]), self.dm_full, self.Sao)
+
+            veff_act = self.global_scf_obj.get_veff(dm=self.dm_act) 
+            G_act = scf.rohf.get_roothaan_fock((veff_act[0],veff_act[1]), self.dm_act, self.Sao)
+        else:
+            G_glob = self.global_scf_obj.get_veff(dm=self.dm_full)
+            G_act = self.global_scf_obj.get_veff(dm=self.dm_act)
+     
+
         # embedding potential in AO basis (note common hcore_ao term cancels!)
-        self.G_emb_ao = (self.global_scf_obj.get_veff(dm=self.dm_full) 
-                        - 
-                        self.global_scf_obj.get_veff(dm=self.dm_act))
+        self.G_emb_ao = G_glob - G_act
 
 
         assert np.allclose(self.dm_full, self.dm_act + self.dm_env), "density matrices of act and env do not match full one"
@@ -162,13 +173,27 @@ class EmbedDFT():
 
             def get_fock_huz(h1e=None, s1e=None, vhf=None, dm=None, cycle=-1,
                              diis=None, **kwargs):
+                
+                if dm is None:
+                    dm = dft_emb.make_rdm1()
+
                 if h1e is None:
                     h1e = hcore_mod
                 if vhf is None:
-                    vhf = dft_emb.get_veff(dm=dm) if dm is not None else dft_emb.get_veff()
+                    vhf = dft_emb.get_veff(dm=dm) # if dm is not None else dft_emb.get_veff()
+                
                 ## rebuild the shift from this cycle's fock, then let PySCF apply
                 ## DIIS/damping/level-shift to the already-shifted matrix
-                h1e_huz = h1e + self.get_huz_operator(h1e + vhf)
+                if len(vhf.shape) == 3:
+                    focka = h1e + vhf[0]
+                    fockb = h1e + vhf[1]
+                    Fao = scf.rohf.get_roothaan_fock((focka,fockb), dm, self.Sao)
+                else:
+                    Fao = h1e + vhf
+
+                h1e_huz = h1e + self.get_huz_operator(Fao)
+                
+                ## return using the standard function! But with modified h1e!
                 return get_fock_std(h1e=h1e_huz, s1e=s1e, vhf=vhf, dm=dm,
                                     cycle=cycle, diis=diis, **kwargs)
 
@@ -182,14 +207,22 @@ class EmbedDFT():
         ## *below* the active ones and aufbau locks onto the wrong (stable) state.
         if dm0 is None:
             dm0 = self.dm_act
+
+        # if len(dm0.shape) == 3:
+        #     dm0 = dm0 + dm0 ## add alpha and beta densities together
+
         dft_emb.kernel(dm0=dm0)
         ## modified - non-modified hcore
         v_emb = dft_emb.get_hcore() - hcore_std
 
         # correction given with respect to original active density (not new one)
-        emb_corr = np.einsum("ij,ji->", self.dm_act, v_emb) 
+        if self.SCF_type == "open-shell":
+            emb_corr = np.einsum("ij,ji->", self.dm_act[0], v_emb) + np.einsum("ij,ji->", self.dm_act[1], v_emb) 
+        else:
+            emb_corr = np.einsum("ij,ji->", self.dm_act, v_emb) 
+            
+        
         E_dft_in_dft = dft_emb.e_tot +  self.E_env + self.E_cross - emb_corr
         return E_dft_in_dft, dft_emb, emb_corr
-
 
 
