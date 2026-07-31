@@ -1,7 +1,7 @@
 ## build embedded SCF objects
 
 import numpy as np
-from pyscf import gto, scf, dft
+from pyscf import gto, scf, dft, mcscf
 
 class EmbedSCF():
 
@@ -131,7 +131,7 @@ class EmbedSCF():
         P_env_huz = C_env_occ @ C_env_occ.conj().T @ self.Sao
         return P_env_huz
 
-    def get_huz_operator(self, Fao, level_shift=0):
+    def get_huz_operator(self, Fao, level_shift:float=0):
         """The hermitian Huzinaga level shift -(F P + P^dag F) for a given Fock matrix.
 
         With P = D_env S, this annihilates the environment orbitals' own eigenvalues
@@ -153,7 +153,7 @@ class EmbedSCF():
             O_huz = O_huz + level_shift * self.get_mu_projector()
         return O_huz
 
-    def build_emb_dft(self, xc_expensive, proj_type="mu", dm0=None, huz_level_shift=0.0):
+    def build_emb_dft(self, xc_expensive, proj_type="mu", dm0=None, huz_level_shift:float=0):
         
         if self.SCF_type == "open-shell":
             dft_emb = dft.ROKS(self.mol_act, xc=xc_expensive)
@@ -220,7 +220,7 @@ class EmbedSCF():
         ## the fock matrix can come out positive, the sign flip then drives those orbitals
         ## *below* the active ones and aufbau locks onto the wrong (stable) state.
         if dm0 is None:
-            dm0 = self.dm_act
+            dm0 = self.dm_act.copy()
 
         # if len(dm0.shape) == 3:
         #     dm0 = dm0 + dm0 ## add alpha and beta densities together
@@ -247,7 +247,7 @@ class EmbedSCF():
         E_dft_in_dft = dft_emb.e_tot + env_plus_corrections
         return E_dft_in_dft, dft_emb, emb_corr, env_cols, env_plus_corrections
 
-    def build_emb_hf(self, proj_type="mu", dm0=None, huz_level_shift=0.0):
+    def build_emb_hf(self, proj_type="mu", dm0=None, huz_level_shift:float=0):
         
         if self.SCF_type == "open-shell":
             hf_emb = scf.ROHF(self.mol_act)
@@ -314,7 +314,7 @@ class EmbedSCF():
         ## the fock matrix can come out positive, the sign flip then drives those orbitals
         ## *below* the active ones and aufbau locks onto the wrong (stable) state.
         if dm0 is None:
-            dm0 = self.dm_act
+            dm0 = self.dm_act.copy()
 
         # if len(dm0.shape) == 3:
         #     dm0 = dm0 + dm0 ## add alpha and beta densities together
@@ -375,3 +375,30 @@ class EmbedSCF():
 
         return env_cols
 
+    def get_mo_integrals(self, act_emb_scf_obj, act_emb_C, norb, nelecas, mo_cas_idxs=None):
+        """
+        Get spatial MO integrals for the embedded system.
+        if mo_cas_idxs is None, then use all MOs in the active space
+        """
+        if mo_cas_idxs is None:
+            mo_cas_idxs = np.arange(norb)
+
+        assert len(mo_cas_idxs) == norb
+
+        assert np.sum(nelecas)<= np.sum(act_emb_scf_obj.mol.nelec)
+        cas_act_emb = mcscf.CASCI(self.mol_act,
+                                  norb,
+                                  nelecas,
+                                #   ncore=self.ncore
+                                  )
+        ## need to overwrite CASCI hcore function
+        cas_act_emb.get_hcore = lambda *args, **kwargs: act_emb_scf_obj.get_hcore()
+        
+        C_emb_ordered_subspace = mcscf.addons.sort_mo(cas_act_emb, act_emb_C, 
+                                                      mo_cas_idxs, base=0)
+        
+        h1_emb_mo, energy_core_emb = cas_act_emb.get_h1eff(mo_coeff=C_emb_ordered_subspace)
+        eri_cas_mo_S4 = cas_act_emb.get_h2eff(mo_coeff=C_emb_ordered_subspace)
+
+
+        return energy_core_emb, h1_emb_mo, eri_cas_mo_S4

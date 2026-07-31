@@ -5,13 +5,12 @@ helper functions for selecting which MO indices should be
 2. ENVIRONMENT
 to defined embedded SCF objects.
 """
-
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-
 import numpy as np
 
+
+##################################################################################
+###### how to select active and environment orbitals (NOT an active space!) ######
+##################################################################################
 
 def lowdin_populations(mol, mo_coeff, atom_indices, drop_core_1s=True):
     """Fraction of every MO sitting on each target atom.
@@ -110,7 +109,6 @@ def describe_orbital(mol, atom_indices, per_atom, index, cutoff=0.05):
     )
 
 
-
 def select_act_env_space(mf, atom_indices, n_occ_active, n_vir_active=None,
                         mo_coeff=None, drop_core_1s=True, max_spread=None):
     """Partition a mean field into a fragment on given atoms and its environment.
@@ -194,3 +192,7 @@ def select_act_env_space(mf, atom_indices, n_occ_active, n_vir_active=None,
     occ_act = mo_occ_re[act_occ_cols]
     nelecas = (int((occ_act > 0).sum()), int((occ_act > 1).sum()))
 
+##################################################################################
+###### Active space selection helper functions ######
+##################################################################################
+# TODO
