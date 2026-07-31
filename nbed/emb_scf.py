@@ -7,7 +7,11 @@ class EmbedSCF():
 
     def __init__(self, global_scf_obj,
                  act_MO_idxs, env_MO_idxs, 
-                  mo_coeff, mo_occ, Sao, max_memory_MB, mu_val=1e6):
+                 mo_coeff,
+                 mo_occ, 
+                 Sao,
+                 max_memory_MB, 
+                 mu_val=1e6):
         
         self.mu_val = mu_val
         self.Sao = Sao
@@ -127,7 +131,7 @@ class EmbedSCF():
         P_env_huz = C_env_occ @ C_env_occ.conj().T @ self.Sao
         return P_env_huz
 
-    def get_huz_operator(self, Fao):
+    def get_huz_operator(self, Fao, level_shift=0):
         """The hermitian Huzinaga level shift -(F P + P^dag F) for a given Fock matrix.
 
         With P = D_env S, this annihilates the environment orbitals' own eigenvalues
@@ -135,11 +139,21 @@ class EmbedSCF():
         pushed above the active HOMO and aufbau filling cannot reach it. Unlike the
         mu-shift there is no arbitrary constant: the shift is set by the environment
         orbital energies themselves.
+
+        level_shift optionally adds a constant on top. Because the huzinaga term already
+        removes the active-environment coupling *exactly*, a constant only relocates the
+        already decoupled environment block and cannot reintroduce the mu-shift's 1/mu
+        error. It buys aufbau headroom, which matters for ROKS: the roothaan effective
+        fock averages focka and fockb, so a singly occupied environment orbital can have
+        a positive eigenvalue, and the sign flip then moves it *down* rather than up.
         """
         FP = Fao @ self.get_huz_projector()
-        return -(FP + FP.conj().T)
+        O_huz = -(FP + FP.conj().T)
+        if level_shift>0:
+            O_huz = O_huz + level_shift * self.get_mu_projector()
+        return O_huz
 
-    def build_emb_dft(self, xc_expensive, proj_type="mu", dm0=None):
+    def build_emb_dft(self, xc_expensive, proj_type="mu", dm0=None, huz_level_shift=0.0):
         
         if self.SCF_type == "open-shell":
             dft_emb = dft.ROKS(self.mol_act, xc=xc_expensive)
@@ -191,7 +205,7 @@ class EmbedSCF():
                 else:
                     Fao = h1e + vhf
 
-                h1e_huz = h1e + self.get_huz_operator(Fao)
+                h1e_huz = h1e + self.get_huz_operator(Fao, level_shift=huz_level_shift)
                 
                 ## return using the standard function! But with modified h1e!
                 return get_fock_std(h1e=h1e_huz, s1e=s1e, vhf=vhf, dm=dm,
@@ -213,16 +227,151 @@ class EmbedSCF():
 
         dft_emb.kernel(dm0=dm0)
         ## modified - non-modified hcore
-        v_emb = dft_emb.get_hcore() - hcore_std
+        v_emb_ao = dft_emb.get_hcore() - hcore_std
 
         # correction given with respect to original active density (not new one)
         if self.SCF_type == "open-shell":
-            emb_corr = np.einsum("ij,ji->", self.dm_act[0], v_emb) + np.einsum("ij,ji->", self.dm_act[1], v_emb) 
+            emb_corr = np.einsum("ij,ji->", self.dm_act[0], v_emb_ao) + np.einsum("ij,ji->", self.dm_act[1], v_emb_ao) 
         else:
-            emb_corr = np.einsum("ij,ji->", self.dm_act, v_emb) 
+            emb_corr = np.einsum("ij,ji->", self.dm_act, v_emb_ao) 
             
         
-        E_dft_in_dft = dft_emb.e_tot +  self.E_env + self.E_cross - emb_corr
-        return E_dft_in_dft, dft_emb, emb_corr
+        # weight of every converged orbital on the occupied-environment space
+        # useful to find env orbital in case solving changes the ordering!
+        C_env = self.C_full_reidx[:, self.env_idx_occ]
+        P_env = C_env @ C_env.conj().T
+        weight = np.einsum("ji,jk,kl,li->i", dft_emb.mo_coeff, self.Sao, P_env, self.Sao @ dft_emb.mo_coeff)
+        env_cols = np.where(weight > 0.5)[0]
 
+        env_plus_corrections = self.E_env + self.E_cross - emb_corr
+        E_dft_in_dft = dft_emb.e_tot + env_plus_corrections
+        return E_dft_in_dft, dft_emb, emb_corr, env_cols, env_plus_corrections
+
+    def build_emb_hf(self, proj_type="mu", dm0=None, huz_level_shift=0.0):
+        
+        if self.SCF_type == "open-shell":
+            hf_emb = scf.ROHF(self.mol_act)
+        else:
+            hf_emb = scf.ROHF(self.mol_act)
+
+        ## use same settings as global SCF
+        hf_emb.verbose = self.global_scf_obj.verbose
+        hf_emb.max_cycle = self.global_scf_obj.max_cycle
+        hf_emb.conv_tol = self.global_scf_obj.conv_tol
+
+        ## get standard hcore in AO basis
+        hcore_std = hf_emb.get_hcore()
+
+        if proj_type == "mu":
+            P_env_ao = self.get_mu_projector()
+            v_emb = self.mu_val*P_env_ao + self.G_emb_ao
+            hcore_mod = hcore_std + v_emb
+            hf_emb.get_hcore = lambda *args, **kwargs: hcore_mod
+
+        elif proj_type == "huz":
+            ## the huzinaga shift depends on the running fock matrix, so it cannot live in
+            ## hcore: PySCF's kernel evaluates get_hcore once before the SCF loop, which would
+            ## freeze the shift at the initial guess. Override get_fock instead and leave
+            ## hcore holding the density-independent embedding potential only, which also
+            ## keeps energy_elec free of the projector.
+            hcore_mod = hcore_std + self.G_emb_ao
+            hf_emb.get_hcore = lambda *args, **kwargs: hcore_mod
+
+            get_fock_std = hf_emb.get_fock
+
+            def get_fock_huz(h1e=None, s1e=None, vhf=None, dm=None, cycle=-1,
+                             diis=None, **kwargs):
+                
+                if dm is None:
+                    dm = hf_emb.make_rdm1()
+
+                if h1e is None:
+                    h1e = hcore_mod
+                if vhf is None:
+                    vhf = hf_emb.get_veff(dm=dm) # if dm is not None else dft_emb.get_veff()
+                
+                ## rebuild the shift from this cycle's fock, then let PySCF apply
+                ## DIIS/damping/level-shift to the already-shifted matrix
+                if len(vhf.shape) == 3:
+                    focka = h1e + vhf[0]
+                    fockb = h1e + vhf[1]
+                    Fao = scf.rohf.get_roothaan_fock((focka,fockb), dm, self.Sao)
+                else:
+                    Fao = h1e + vhf
+
+                h1e_huz = h1e + self.get_huz_operator(Fao, level_shift=huz_level_shift)
+                
+                ## return using the standard function! But with modified h1e!
+                return get_fock_std(h1e=h1e_huz, s1e=s1e, vhf=vhf, dm=dm,
+                                    cycle=cycle, diis=diis, **kwargs)
+
+            hf_emb.get_fock = get_fock_huz
+        else:
+            raise ValueError(f"Invalid projection type: {proj_type}")
+        
+        ## start from the global DFT active density. The huzinaga shift only lifts the
+        ## environment by |eps_env|, so from PySCF's minao guess the environment block of
+        ## the fock matrix can come out positive, the sign flip then drives those orbitals
+        ## *below* the active ones and aufbau locks onto the wrong (stable) state.
+        if dm0 is None:
+            dm0 = self.dm_act
+
+        # if len(dm0.shape) == 3:
+        #     dm0 = dm0 + dm0 ## add alpha and beta densities together
+
+        hf_emb.kernel(dm0=dm0)
+        ## modified - non-modified hcore
+        v_emb_ao = hf_emb.get_hcore() - hcore_std
+
+        # correction given with respect to original active density (not new one)
+        if self.SCF_type == "open-shell":
+            emb_corr = np.einsum("ij,ji->", self.dm_act[0], v_emb_ao) + np.einsum("ij,ji->", self.dm_act[1], v_emb_ao) 
+        else:
+            emb_corr = np.einsum("ij,ji->", self.dm_act, v_emb_ao) 
+            
+        
+        # weight of every converged orbital on the occupied-environment space
+        # useful to find env orbital in case solving changes the ordering!
+        C_env = self.C_full_reidx[:, self.env_idx_occ]
+        P_env = C_env @ C_env.conj().T
+        weight = np.einsum("ji,jk,kl,li->i", hf_emb.mo_coeff, self.Sao, P_env, self.Sao @ hf_emb.mo_coeff)
+        env_cols = np.where(weight > 0.5)[0]
+
+        env_plus_corrections = self.E_env + self.E_cross - emb_corr
+        E_hf_in_dft = hf_emb.e_tot +  env_plus_corrections
+        return E_hf_in_dft, hf_emb, emb_corr, env_cols, env_plus_corrections
+
+    def check_embedding(self, C_act_embedded, mo_occ_act_embedded, mo_energy_act_embedded, Sao, label):
+        """Is the embedding sound? Select orbitals by *what they are*, never by column index.
+
+        emb_obj.act_cols is a positional window into the pre-embedding ordering. The embedded
+        SCF returns its own orbitals sorted by energy, so a column index carries no meaning
+        here. With the mu-shift you get away with it because the environment is parked at
+        +mu, i.e. always the last columns. Huzinaga shifts each environment orbital by only
+        |eps_env|, so they land scattered among the active virtuals and act_cols then picks
+        an environment orbital up, which looks like a broken projector but is not.
+        """
+        C_env = self.C_full_reidx[:, self.env_idx_occ]
+        P_env = C_env @ C_env.conj().T
+
+        # weight of every converged orbital on the occupied-environment space
+        weight = np.einsum("ji,jk,kl,li->i", C_act_embedded, Sao, P_env, Sao @ C_act_embedded)
+        env_cols = np.where(weight > 0.5)[0]
+        occ_cols = np.where(mo_occ_act_embedded > 0)[0]
+
+        # the WF-in-DFT requirement: occupied embedded orbitals span none of the environment
+        ovlp_occ = C_env.conj().T @ Sao @ C_act_embedded[:, occ_cols]
+        margin = mo_energy_act_embedded[env_cols].min() - mo_energy_act_embedded[occ_cols].max()
+
+        print(f"--- {label} ---")
+        print("  environment landed in columns :", env_cols)
+        print("  eps(environment)              :", np.around(mo_energy_act_embedded[env_cols], 4))
+        print("  occupied columns              :", occ_cols)
+        print("  eps(occupied)                 :", np.around(mo_energy_act_embedded[occ_cols], 4))
+        print(f"  max |<env occ| S |emb occ>|   : {np.abs(ovlp_occ).max():.2e}   <- must be ~0")
+        print(f"  aufbau margin                 : {margin:+.4f} Ha  <- must be > 0")
+        assert np.abs(ovlp_occ).max() < 1e-8, "occupied orbitals are contaminated by the environment"
+        assert margin > 0, "an environment orbital sits below the active HOMO"
+
+        return env_cols
 
