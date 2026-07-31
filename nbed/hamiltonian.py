@@ -69,3 +69,25 @@ def qubit_op_to_dict(Op:QubitOperator) -> Dict[str, float]:
             P_str[q_idx] = s_str
         op_dict["".join(P_str)] = float(coeff)
     return op_dict
+
+
+def build_number_operator(n_qubits:int, type="fermion") -> Union[QubitOperator, FermionOperator]:
+    """
+    Build number operator for n qubits
+    """
+    if type == "fermion":
+        Na = FermionOperator()
+        Nb = FermionOperator()
+        for i in range(n_qubits//2):
+            Na += FermionOperator(f"{2*i}^ {2*i}", 1) 
+            Nb += FermionOperator(f"{2*i+1}^ {2*i+1}", 1) 
+        return Na, Nb
+    elif type == "qubit_jw":
+        Na = QubitOperator()
+        Nb = QubitOperator()
+        for i in range(n_qubits//2):
+            Na += QubitOperator(f"", 0.5)  - QubitOperator(f"Z{2*i}", 0.5) 
+            Nb +=  QubitOperator(f"", 0.5) - QubitOperator(f"Z{2*i+1}", 0.5) 
+    else:
+        raise ValueError(f"Invalid type: {type}")
+    return Na,Nb
