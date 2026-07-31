@@ -12,7 +12,7 @@ molecular_structures/
 *.png
 tmp*
 
-*notebooks
+#notebooks
 *.DS_Store
 *.hdf5
 
