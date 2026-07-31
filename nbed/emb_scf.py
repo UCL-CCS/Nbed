@@ -34,10 +34,13 @@ class EmbedSCF():
         occ_all = np.where(mo_occ > 0)[0]
         vir_all = np.where(mo_occ == 0)[0]
 
-        occ_act   = np.setdiff1d(occ_all, act_MO_idxs)
-        vir_act   = np.setdiff1d(vir_all, act_MO_idxs)
-        occ_env   = np.setdiff1d(occ_all, env_MO_idxs)
-        vir_env   = np.setdiff1d(vir_all, env_MO_idxs)
+        ## intersect, not setdiff: setdiff1d(occ_all, act_MO_idxs) is the *environment*
+        ## occupied block, so naming it occ_act silently swaps the two subsystems and
+        ## embeds the complement of the requested fragment
+        occ_act   = np.intersect1d(occ_all, act_MO_idxs)
+        vir_act   = np.intersect1d(vir_all, act_MO_idxs)
+        occ_env   = np.intersect1d(occ_all, env_MO_idxs)
+        vir_env   = np.intersect1d(vir_all, env_MO_idxs)
 
         re_idx = np.concatenate([occ_env, occ_act, vir_act, vir_env])
         assert len(np.setdiff1d(re_idx, np.arange(global_scf_obj.mol.nao))) == 0, "re_indexing wrong"
@@ -201,7 +204,10 @@ class EmbedSCF():
                 if len(vhf.shape) == 3:
                     focka = h1e + vhf[0]
                     fockb = h1e + vhf[1]
-                    Fao = scf.rohf.get_roothaan_fock((focka,fockb), dm, self.Sao)
+                    ## a restricted open-shell object can still be handed a spin-summed dm
+                    ## (the initial guess is one), which get_roothaan_fock cannot unpack
+                    dm_ab = dm if np.ndim(dm) == 3 else np.array((np.asarray(dm) * 0.5,) * 2)
+                    Fao = scf.rohf.get_roothaan_fock((focka,fockb), dm_ab, self.Sao)
                 else:
                     Fao = h1e + vhf
 
@@ -252,7 +258,7 @@ class EmbedSCF():
         if self.SCF_type == "open-shell":
             hf_emb = scf.ROHF(self.mol_act)
         else:
-            hf_emb = scf.ROHF(self.mol_act)
+            hf_emb = scf.RHF(self.mol_act)
 
         ## use same settings as global SCF
         hf_emb.verbose = self.global_scf_obj.verbose
@@ -295,7 +301,10 @@ class EmbedSCF():
                 if len(vhf.shape) == 3:
                     focka = h1e + vhf[0]
                     fockb = h1e + vhf[1]
-                    Fao = scf.rohf.get_roothaan_fock((focka,fockb), dm, self.Sao)
+                    ## a restricted open-shell object can still be handed a spin-summed dm
+                    ## (the initial guess is one), which get_roothaan_fock cannot unpack
+                    dm_ab = dm if np.ndim(dm) == 3 else np.array((np.asarray(dm) * 0.5,) * 2)
+                    Fao = scf.rohf.get_roothaan_fock((focka,fockb), dm_ab, self.Sao)
                 else:
                     Fao = h1e + vhf
 

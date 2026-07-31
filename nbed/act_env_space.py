@@ -10,7 +10,7 @@ import numpy as np
 
 ##################################################################################
 ###### how to select active and environment orbitals (NOT an active space!) ######
-##################################################################################
+###################################################p###############################
 
 def lowdin_populations(mol, mo_coeff, atom_indices, drop_core_1s=True):
     """Fraction of every MO sitting on each target atom.
@@ -135,7 +135,7 @@ def select_act_env_space(mf, atom_indices, n_occ_active, n_vir_active=None,
         max_spread: Reject orbitals more diffuse than this, in Bohr.
 
     Returns:
-        An :class:`ActiveSpace`.
+        TODO
 
     Raises:
         ValueError: If the occupations are fractional, or if either half has
@@ -195,4 +195,3 @@ def select_act_env_space(mf, atom_indices, n_occ_active, n_vir_active=None,
 ##################################################################################
 ###### Active space selection helper functions ######
 ##################################################################################
-# TODO
