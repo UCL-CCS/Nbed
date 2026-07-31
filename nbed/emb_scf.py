@@ -156,7 +156,111 @@ class EmbedSCF():
             O_huz = O_huz + level_shift * self.get_mu_projector()
         return O_huz
 
-    def build_emb_dft(self, xc_expensive, proj_type="mu", dm0=None, huz_level_shift:float=0):
+    def get_block_eigenvalues(self, cols, Fao=None):
+        """Eigenvalues of the fock matrix restricted to a set of reindexed columns.
+
+        Not the same as global_scf_obj.mo_energy: those are the canonical eigenvalues,
+        whereas the huzinaga sign flip acts on whatever subspace the caller handed in,
+        which is usually localised and so has a non-diagonal fock block. It is the
+        eigenvalues of that block that get their sign flipped.
+        """
+        if Fao is None:
+            Fao = self.global_scf_obj.get_fock(dm=self.dm_full)
+        Fao = np.asarray(Fao)
+        if Fao.ndim == 3:
+            Fao = scf.rohf.get_roothaan_fock((Fao[0], Fao[1]), self.dm_full, self.Sao)
+        C_sub = self.C_full_reidx[:, cols]
+        return np.linalg.eigvalsh(C_sub.conj().T @ Fao @ C_sub)
+
+    def huz_shift_threshold(self, Fao=None):
+        """How large huz_level_shift must be for the environment to clear the fragment.
+
+        Huzinaga returns environment eigenvalues negated, so the environment's lowest
+        level lands at -max(eps_env). Filling stays correct only while that clears the
+        fragment HOMO, giving lambda > max(eps_env) + eps_homo_frag. Both are taken
+        from the global fock here, which is all that is known before the embedded SCF
+        runs, so treat the number as an estimate rather than a guarantee.
+        """
+        eps_env = self.get_block_eigenvalues(self.env_idx_occ, Fao)
+        eps_act = self.get_block_eigenvalues(self.mo_occ_act.nonzero()[0], Fao)
+        return eps_env.max() + eps_act.max(), eps_env, eps_act.max()
+
+    def warn_huz_positive_env(self, huz_level_shift:float=0):
+        """Warn when the huzinaga sign flip would push an environment level downwards.
+
+        A positive occupied-environment eigenvalue is reflected to a *negative* one, so
+        instead of being lifted out of the way it can drop below the fragment HOMO and
+        get filled. Returns True when a warning was issued.
+        """
+        threshold, eps_env, eps_homo = self.huz_shift_threshold()
+        n_pos = int((eps_env > 0).sum())
+        if n_pos == 0 or huz_level_shift > threshold:
+            return False
+
+        print(
+            f"\n!!! HUZINAGA WARNING\n"
+            f"    {n_pos} of {len(eps_env)} occupied environment orbitals have a POSITIVE\n"
+            f"    fock eigenvalue (largest {eps_env.max():+.4f} Ha). The huzinaga sign flip\n"
+            f"    sends that level DOWN to {-eps_env.max():+.4f} Ha instead of lifting it up,\n"
+            f"    and the fragment HOMO is near {eps_homo:+.4f} Ha, so aufbau filling may put\n"
+            f"    fragment electrons into the environment.\n"
+            f"    Pass huz_level_shift >= {threshold + 0.5:.2f} (or simply something large like\n"
+            f"    1e6 -- a constant shift costs no accuracy) instead of the current"
+            f" {huz_level_shift:g}.\n"
+            f"    Continuing anyway. Verify with check_embedding, and confirm that\n"
+            f"    DFT-in-DFT reproduces the global DFT energy.\n"
+        )
+        return True
+
+    def warn_not_converged(self, mf, proj_type=""):
+        """Warn when the embedded SCF never converged, whatever the projector.
+
+        Worth its own check because it is invisible to the orthogonality and aufbau
+        tests: the orbitals can be perfectly clean and the energy still wrong by a long
+        way. Returns True when a warning was issued.
+        """
+        if getattr(mf, "converged", True):
+            return False
+
+        extra = ("    A huz_level_shift also helps here: separating the fragment and\n"
+                 "    environment blocks damps the oscillation.\n") if proj_type == "huz" else ""
+        print(
+            f"\n!!! WARNING: the embedded SCF did NOT converge\n"
+            f"    E = {mf.e_tot:.8f} Ha is not trustworthy, and no orbital test will show\n"
+            f"    it -- the orbitals can look perfectly clean. Raise max_cycle, try a\n"
+            f"    different dm0, or damp the iterations.\n{extra}"
+        )
+        return True
+
+    def warn_huz_aufbau_violated(self, mf, env_cols, tol=1e-8):
+        """Warn when the converged embedding actually did fill an environment orbital.
+
+        The companion to warn_huz_positive_env: that one predicts trouble from the global
+        fock, this one detects it after the fact and is the definitive test. Returns True
+        when a warning was issued.
+        """
+        occ = mf.mo_occ > 0
+        if not len(env_cols) or not occ.any():
+            return False
+
+        C_env = self.C_full_reidx[:, self.env_idx_occ]
+        overlap = np.abs(C_env.conj().T @ self.Sao @ mf.mo_coeff[:, occ]).max()
+        margin = mf.mo_energy[env_cols].min() - mf.mo_energy[occ].max()
+        if margin > 0 and overlap < tol:
+            return False
+
+        print(
+            f"\n!!! HUZINAGA WARNING: the converged embedding is contaminated\n"
+            f"    aufbau margin              {margin:+.4f} Ha  (must be > 0)\n"
+            f"    max |<env occ|S|emb occ>|  {overlap:.2e}      (must be ~0)\n"
+            f"    An environment orbital sits at or below the fragment HOMO, so the\n"
+            f"    fragment has occupied orbitals that belong to the environment and the\n"
+            f"    energy is not trustworthy. Increase huz_level_shift.\n"
+        )
+        return True
+
+    def build_emb_dft(self, xc_expensive, proj_type="mu", dm0=None, huz_level_shift:float=0,
+                      warn:bool=True):
         
         if self.SCF_type == "open-shell":
             dft_emb = dft.ROKS(self.mol_act, xc=xc_expensive)
@@ -183,6 +287,9 @@ class EmbedSCF():
             ## freeze the shift at the initial guess. Override get_fock instead and leave
             ## hcore holding the density-independent embedding potential only, which also
             ## keeps energy_elec free of the projector.
+            if warn:
+                self.warn_huz_positive_env(huz_level_shift)
+
             hcore_mod = hcore_std + self.G_emb_ao
             dft_emb.get_hcore = lambda *args, **kwargs: hcore_mod
 
@@ -250,11 +357,17 @@ class EmbedSCF():
         weight = np.einsum("ji,jk,kl,li->i", dft_emb.mo_coeff, self.Sao, P_env, self.Sao @ dft_emb.mo_coeff)
         env_cols = np.where(weight > 0.5)[0]
 
+        if warn:
+            self.warn_not_converged(dft_emb, proj_type)
+            if proj_type == "huz":
+                self.warn_huz_aufbau_violated(dft_emb, env_cols)
+
         env_plus_corrections = self.E_env + self.E_cross - emb_corr
         E_dft_in_dft = dft_emb.e_tot + env_plus_corrections
         return E_dft_in_dft, dft_emb, emb_corr, env_cols, env_plus_corrections
 
-    def build_emb_hf(self, proj_type="mu", dm0=None, huz_level_shift:float=0):
+    def build_emb_hf(self, proj_type="mu", dm0=None, huz_level_shift:float=0,
+                     warn:bool=True):
         
         if self.SCF_type == "open-shell":
             hf_emb = scf.ROHF(self.mol_act)
@@ -281,6 +394,9 @@ class EmbedSCF():
             ## freeze the shift at the initial guess. Override get_fock instead and leave
             ## hcore holding the density-independent embedding potential only, which also
             ## keeps energy_elec free of the projector.
+            if warn:
+                self.warn_huz_positive_env(huz_level_shift)
+
             hcore_mod = hcore_std + self.G_emb_ao
             hf_emb.get_hcore = lambda *args, **kwargs: hcore_mod
 
@@ -346,6 +462,11 @@ class EmbedSCF():
         P_env = C_env @ C_env.conj().T
         weight = np.einsum("ji,jk,kl,li->i", hf_emb.mo_coeff, self.Sao, P_env, self.Sao @ hf_emb.mo_coeff)
         env_cols = np.where(weight > 0.5)[0]
+
+        if warn:
+            self.warn_not_converged(hf_emb, proj_type)
+            if proj_type == "huz":
+                self.warn_huz_aufbau_violated(hf_emb, env_cols)
 
         env_plus_corrections = self.E_env + self.E_cross - emb_corr
         E_hf_in_dft = hf_emb.e_tot +  env_plus_corrections
