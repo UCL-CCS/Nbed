@@ -158,10 +158,11 @@ def select_act_env_space(mf, atom_indices, n_occ_active, n_vir_active=None,
     mo_occ = np.rint(mo_occ).astype(int)
 
     n_vir_active = n_occ_active if n_vir_active is None else n_vir_active
-    per_atom, pop = lowdin_populations(mol, mo_coeff, atom_indices, drop_core_1s)
+    
+    _, population = lowdin_populations(mol, mo_coeff, atom_indices, drop_core_1s)
     spread = orbital_spread(mol, mo_coeff)
 
-    eligible = np.ones_like(pop, dtype=bool)
+    eligible = np.ones_like(population, dtype=bool)
     if max_spread is not None:
         eligible &= spread <= max_spread
 
@@ -173,25 +174,9 @@ def select_act_env_space(mf, atom_indices, n_occ_active, n_vir_active=None,
             f"orbitals but only {len(occ_pool)} and {len(vir_pool)} are "
             "eligible; relax max_spread or shrink the fragment"
         )
-
-    pick_occ = np.sort(occ_pool[np.argsort(-pop[occ_pool])[:n_occ_active]])
-    pick_vir = np.sort(vir_pool[np.argsort(-pop[vir_pool])[:n_vir_active]])
-
-    core_idx = np.setdiff1d(np.where(mo_occ > 0)[0], pick_occ)
-    rest_vir = np.setdiff1d(np.where(mo_occ == 0)[0], pick_vir)
-    re_idx = np.concatenate([core_idx, pick_occ, pick_vir, rest_vir])
-
-    ncore = len(core_idx)
-    ncas = n_occ_active + n_vir_active
-    act_cols = np.arange(ncore, ncore + ncas)
-    env_cols = np.setdiff1d(np.arange(len(re_idx)), act_cols)
-    mo_occ_re = mo_occ[re_idx]
-
-    act_occ_cols = act_cols[mo_occ_re[act_cols] > 0]
-    env_occ_cols = env_cols[mo_occ_re[env_cols] > 0]
-    occ_act = mo_occ_re[act_occ_cols]
-    nelecas = (int((occ_act > 0).sum()), int((occ_act > 1).sum()))
-
-##################################################################################
-###### Active space selection helper functions ######
-##################################################################################
+    
+    pick_occ = np.sort(occ_pool[np.argsort(-population[occ_pool])[:n_occ_active]])
+    pick_vir = np.sort(vir_pool[np.argsort(-population[vir_pool])[:n_vir_active]])
+    active_idxs = np.concatenate([pick_occ, pick_vir])
+    env_idxs = np.setdiff1d(np.arange(mol.nao), active_idxs)
+    return active_idxs, env_idxs, population, spread

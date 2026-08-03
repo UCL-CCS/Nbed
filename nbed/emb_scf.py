@@ -260,7 +260,7 @@ class EmbedSCF():
         return True
 
     def build_emb_dft(self, xc_expensive, proj_type="mu", dm0=None, huz_level_shift:float=0,
-                      warn:bool=True):
+                      warn:bool=True, scf_modify_function=None):
         
         if self.SCF_type == "open-shell":
             dft_emb = dft.ROKS(self.mol_act, xc=xc_expensive)
@@ -271,6 +271,12 @@ class EmbedSCF():
         dft_emb.verbose = self.global_scf_obj.verbose
         dft_emb.max_cycle = self.global_scf_obj.max_cycle
         dft_emb.conv_tol = self.global_scf_obj.conv_tol
+
+        if scf_modify_function is not None:
+            ### modifications done before embedding. This
+            ### could be used to add an embedding to the SCF object, or to add a solvent, add GPU support (gpu4pyscf), etc.
+            ### can also override global SCF settings above!
+            dft_emb = scf_modify_function(dft_emb)
 
         ## get standard hcore in AO basis
         hcore_std = dft_emb.get_hcore()
@@ -367,12 +373,24 @@ class EmbedSCF():
         return E_dft_in_dft, dft_emb, emb_corr, env_cols, env_plus_corrections
 
     def build_emb_hf(self, proj_type="mu", dm0=None, huz_level_shift:float=0,
-                     warn:bool=True):
+                     warn:bool=True, scf_modify_function=None):
         
         if self.SCF_type == "open-shell":
             hf_emb = scf.ROHF(self.mol_act)
         else:
             hf_emb = scf.RHF(self.mol_act)
+
+        ## use same settings as global SCF
+        hf_emb.verbose = self.global_scf_obj.verbose
+        hf_emb.max_cycle = self.global_scf_obj.max_cycle
+        hf_emb.conv_tol = self.global_scf_obj.conv_tol
+
+        if scf_modify_function is not None:
+            ### modifications done before embedding. This
+            ### could be used to add an embedding to the SCF object, or to add a solvent, etc.
+            ### can also override global SCF settings above!
+            hf_emb = scf_modify_function(hf_emb)
+
 
         ## use same settings as global SCF
         hf_emb.verbose = self.global_scf_obj.verbose
@@ -534,90 +552,3 @@ class EmbedSCF():
 
         return energy_core_emb, h1_emb_mo, eri_cas_mo_S4
 
-
-    def build_emb_scf_general(self, scf_obj, proj_type="mu", dm0=None, huz_level_shift:float=0,
-                              warn:bool=True):
-        """
-        Build an embedded SCF object from a general SCF object
-        This is useful if the scf_obj has had things done to it (such as an embedding added to it or solvents etc).
-        These can be attached on the global_scf_obj (and should be... but these won't be in the active build_emb_dft and build_emb_hf SCF objects
-        hence this method) 
-
-        NOTE: with this usage the user will manually have to find the environment orbitals indices after runnning scf_obj 
-              has run... this is easy to do: see the final part of build_emb_dft or build_emb_hf as a guide for how to do this.
-        """
-                            
-        assert scf_obj.mol.nao == self.mol_act.nao, "must match active emb system"
-        assert scf_obj.mol.nelec == self.mol_act.nelec, "must match active emb system"
-        assert scf_obj.mol.spin == self.mol_act.spin
-
-        ## get standard hcore in AO basis
-        hcore_std = scf_obj.get_hcore()
-
-        if proj_type == "mu":
-            P_env_ao = self.get_mu_projector()
-            v_emb = self.mu_val*P_env_ao + self.G_emb_ao
-            hcore_mod = hcore_std + v_emb
-            scf_obj.get_hcore = lambda *args, **kwargs: hcore_mod
-
-        elif proj_type == "huz":
-            ## the huzinaga shift depends on the running fock matrix, so it cannot live in
-            ## hcore: PySCF's kernel evaluates get_hcore once before the SCF loop, which would
-            ## freeze the shift at the initial guess. Override get_fock instead and leave
-            ## hcore holding the density-independent embedding potential only, which also
-            ## keeps energy_elec free of the projector.
-            if warn:
-                self.warn_huz_positive_env(huz_level_shift)
-
-            hcore_mod = hcore_std + self.G_emb_ao
-            scf_obj.get_hcore = lambda *args, **kwargs: hcore_mod
-
-            get_fock_std = scf_obj.get_fock
-
-            def get_fock_huz(h1e=None, s1e=None, vhf=None, dm=None, cycle=-1,
-                            diis=None, **kwargs):
-                
-                if dm is None:
-                    dm = scf_obj.make_rdm1()
-
-                if h1e is None:
-                    h1e = hcore_mod
-                if vhf is None:
-                    vhf = scf_obj.get_veff(dm=dm) # if dm is not None else dft_emb.get_veff()
-                
-                ## rebuild the shift from this cycle's fock, then let PySCF apply
-                ## DIIS/damping/level-shift to the already-shifted matrix
-                if len(vhf.shape) == 3:
-                    focka = h1e + vhf[0]
-                    fockb = h1e + vhf[1]
-                    ## a restricted open-shell object can still be handed a spin-summed dm
-                    ## (the initial guess is one), which get_roothaan_fock cannot unpack
-                    dm_ab = dm if np.ndim(dm) == 3 else np.array((np.asarray(dm) * 0.5,) * 2)
-                    Fao = scf.rohf.get_roothaan_fock((focka,fockb), dm_ab, self.Sao)
-                else:
-                    Fao = h1e + vhf
-
-                h1e_huz = h1e + self.get_huz_operator(Fao, level_shift=huz_level_shift)
-                
-                ## return using the standard function! But with modified h1e!
-                return get_fock_std(h1e=h1e_huz, s1e=s1e, vhf=vhf, dm=dm,
-                                    cycle=cycle, diis=diis, **kwargs)
-
-            scf_obj.get_fock = get_fock_huz
-        else:
-            raise ValueError(f"Invalid projection type: {proj_type}")
-        
-        if dm0 is None:
-            dm0 = self.dm_act.copy()
-
-        v_emb_ao = scf_obj.get_hcore() - hcore_std
-
-        # correction given with respect to original active density (not new one)
-        if self.SCF_type == "open-shell":
-            emb_corr = np.einsum("ij,ji->", self.dm_act[0], v_emb_ao) + np.einsum("ij,ji->", self.dm_act[1], v_emb_ao) 
-        else:
-            emb_corr = np.einsum("ij,ji->", self.dm_act, v_emb_ao) 
-        
-        env_plus_corrections = self.E_env + self.E_cross - emb_corr
-
-        return scf_obj, dm0, emb_corr, env_plus_corrections
