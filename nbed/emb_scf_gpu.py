@@ -547,36 +547,32 @@ class EmbedSCF_GPU():
         """
         Get spatial MO integrals for the embedded system.
         if mo_cas_idxs is None, then use all MOs in the active space
-        """
+
+        note mcscf only works on CPU, so we need to convert inputs to CPU and numpy
+        """        
         if mo_cas_idxs is None:
             mo_cas_idxs = numpy.arange(norb)
 
         assert len(mo_cas_idxs) == norb
-
-        ## numpy array of the modified hcore
-        hcore_modified = numpy.asarray(act_emb_scf_obj.get_hcore().get())
-        act_emb_C = numpy.asarray(act_emb_C.get())
-
+        try:        
+            act_emb_C = numpy.asarray(act_emb_C.get())
+        except:
+            act_emb_C = numpy.asarray(act_emb_C)
+        
         cpu_act_emb_scf_obj = act_emb_scf_obj.to_cpu()
-        assert sum(nelecas)<= sum(act_emb_scf_obj.mol.nelec)
+        assert sum(nelecas)<= sum(cpu_act_emb_scf_obj.mol.nelec)
         cas_act_emb = mcscf.CASCI(
                                  cpu_act_emb_scf_obj,
                                   norb,
                                   nelecas,
-                                #   ncore=self.ncore
                                   )
-        ## need to overwrite CASCI hcore function
-        cas_act_emb.get_hcore = lambda *args, **kwargs: hcore_modified
+        ## need to overwrite CASCI hcore function with hcore_embedded
+        cas_act_emb.get_hcore = lambda *args, **kwargs: numpy.asarray(act_emb_scf_obj.get_hcore().get())
         
         C_emb_ordered_subspace = mcscf.addons.sort_mo(cas_act_emb, act_emb_C, 
                                                       mo_cas_idxs, base=0)
         
         h1_emb_mo, energy_core_emb = cas_act_emb.get_h1eff(mo_coeff=C_emb_ordered_subspace)
         eri_cas_mo_S4 = cas_act_emb.get_h2eff(mo_coeff=C_emb_ordered_subspace)
-
-        # ## move back to numpy arrays!
-        # energy_core_emb = float(energy_core_emb)
-        # h1_emb_mo = numpy.asarray(h1_emb_mo)
-        # eri_cas_mo_S4 = numpy.asarray(eri_cas_mo_S4)
 
         return energy_core_emb, h1_emb_mo, eri_cas_mo_S4
