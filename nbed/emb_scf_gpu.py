@@ -3,7 +3,8 @@
 ### get_mo_integrals are returned as numpy arrays instead of cupy arrays.
 
 import cupy as np
-from gpu4pyscf import gto, scf, dft, mcscf
+from gpu4pyscf import gto, scf, dft
+from pyscf import mcscf
 import numpy
 
 class EmbedSCF_GPU():
@@ -537,15 +538,16 @@ class EmbedSCF_GPU():
 
         assert len(mo_cas_idxs) == norb
 
+        cpu_act_emb_scf_obj = act_emb_scf_obj.to_cpu()
         assert np.sum(nelecas)<= np.sum(act_emb_scf_obj.mol.nelec)
         cas_act_emb = mcscf.CASCI(
-                                 act_emb_scf_obj,
+                                 cpu_act_emb_scf_obj,
                                   norb,
                                   nelecas,
                                 #   ncore=self.ncore
                                   )
         ## need to overwrite CASCI hcore function
-        cas_act_emb.get_hcore = lambda *args, **kwargs: act_emb_scf_obj.get_hcore()
+        cas_act_emb.get_hcore = lambda *args, **kwargs: cpu_act_emb_scf_obj.get_hcore()
         
         C_emb_ordered_subspace = mcscf.addons.sort_mo(cas_act_emb, act_emb_C, 
                                                       mo_cas_idxs, base=0)
@@ -553,9 +555,9 @@ class EmbedSCF_GPU():
         h1_emb_mo, energy_core_emb = cas_act_emb.get_h1eff(mo_coeff=C_emb_ordered_subspace)
         eri_cas_mo_S4 = cas_act_emb.get_h2eff(mo_coeff=C_emb_ordered_subspace)
 
-        ## move back to numpy arrays!
-        energy_core_emb = float(energy_core_emb)
-        h1_emb_mo = numpy.asarray(h1_emb_mo)
-        eri_cas_mo_S4 = numpy.asarray(eri_cas_mo_S4)
+        # ## move back to numpy arrays!
+        # energy_core_emb = float(energy_core_emb)
+        # h1_emb_mo = numpy.asarray(h1_emb_mo)
+        # eri_cas_mo_S4 = numpy.asarray(eri_cas_mo_S4)
 
         return energy_core_emb, h1_emb_mo, eri_cas_mo_S4
