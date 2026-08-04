@@ -109,7 +109,7 @@ class EmbedSCF_GPU():
         cpu_obj = global_scf_obj.to_cpu()
         nelec_active = (int((cpu_obj.mo_occ_act>0).sum()),
                         int((cpu_obj.mo_occ_act>1).sum())
-                        )
+                        )gi
         coords   = cpu_obj.mol.atom_coords(unit=cpu_obj.mol.unit)
         atm_list = [cpu_obj.mol.atom_pure_symbol(i) for i in range(cpu_obj.mol.natm)]
         self.mol_act = gto.M(
