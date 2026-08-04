@@ -112,7 +112,7 @@ class EmbedSCF_GPU():
         coords   = self.global_scf_obj.mol.atom_coords(unit=self.global_scf_obj.mol.unit)
         atm_list = [self.global_scf_obj.mol.atom_pure_symbol(i) for i in range(global_scf_obj.mol.natm)]
 
-        self.mol_act = gto.Mole(
+        self.mol_act = gto.mole(
             atom=zip(atm_list, coords),
             unit=self.global_scf_obj.mol.unit,
             basis=self.global_scf_obj.mol.basis,
