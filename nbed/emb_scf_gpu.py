@@ -1,9 +1,12 @@
-## build embedded SCF objects
+### copy of emb_scf.py
+### but cupy replaces numpy! import cupy as np is the only change and
+### get_mo_integrals are returned as numpy arrays instead of cupy arrays.
 
-import numpy as np
-from pyscf import gto, scf, dft, mcscf
+import cupy as np
+from gpu4pyscf import gto, scf, dft, mcscf
+import numpy
 
-class EmbedSCF():
+class EmbedSCF_GPU():
 
     def __init__(self, global_scf_obj,
                  act_MO_idxs, env_MO_idxs, 
@@ -550,6 +553,9 @@ class EmbedSCF():
         h1_emb_mo, energy_core_emb = cas_act_emb.get_h1eff(mo_coeff=C_emb_ordered_subspace)
         eri_cas_mo_S4 = cas_act_emb.get_h2eff(mo_coeff=C_emb_ordered_subspace)
 
+        ## move back to numpy arrays!
+        energy_core_emb = float(energy_core_emb)
+        h1_emb_mo = numpy.asarray(h1_emb_mo)
+        eri_cas_mo_S4 = numpy.asarray(eri_cas_mo_S4)
 
         return energy_core_emb, h1_emb_mo, eri_cas_mo_S4
-
