@@ -1,6 +1,7 @@
-### copy of emb_scf.py
-### but cupy replaces numpy! import cupy as np is the only change and
+### GPU version of emb_scf.py
+### cupy replaces numpy
 ### get_mo_integrals are returned as numpy arrays instead of cupy arrays.
+### note needed to modify some paths to go via cpu as gpu4pyscf does not support all ops
 
 import cupy as np
 from gpu4pyscf import scf, dft
