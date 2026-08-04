@@ -109,15 +109,14 @@ class EmbedSCF_GPU():
         nelec_active = (int((self.mo_occ_act.get()>0).sum()),
                         int((self.mo_occ_act.get()>1).sum())
                         )
-
-        coords   = self.global_scf_obj.mol.atom_coords(unit=self.global_scf_obj.mol.unit)
-        atm_list = [self.global_scf_obj.mol.atom_pure_symbol(i) for i in range(global_scf_obj.mol.natm)]
-
+        cpu_obj = global_scf_obj.to_cpu()
+        coords   = cpu_obj.mol.atom_coords(unit=cpu_obj.mol.unit)
+        atm_list = [cpu_obj.mol.atom_pure_symbol(i) for i in range(global_scf_obj.mol.natm)]
         self.mol_act = gto.M(
             atom=zip(atm_list, coords),
-            unit=self.global_scf_obj.mol.unit,
-            basis=self.global_scf_obj.mol.basis,
-            charge=self.global_scf_obj.mol.charge + self.global_scf_obj.mol.nelectron - sum(nelec_active),
+            unit=cpu_obj.mol.unit,
+            basis=cpu_obj.mol.basis,
+            charge=cpu_obj.mol.charge + cpu_obj.mol.nelectron - sum(nelec_active),
             spin=nelec_active[0] - nelec_active[1],
             max_memory=max_memory_MB,
         ).build()
