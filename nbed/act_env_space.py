@@ -33,7 +33,9 @@ def lowdin_populations(mol, mo_coeff, atom_indices, drop_core_1s=True):
         IndexError: If an atom index is outside the molecule.
         ValueError: If an atom has no AOs left after dropping cores.
     """
-    ovlp = mol.intor("int1e_ovlp")
+    ovlp = np.asarray(mol.intor("int1e_ovlp"))
+    mo_coeff = np.asarray(mo_coeff)
+    
     evals, evecs = np.linalg.eigh(ovlp)
     s_half = (evecs * np.sqrt(np.clip(evals, 0.0, None))) @ evecs.T
     c_orth = s_half @ mo_coeff
@@ -81,8 +83,8 @@ def orbital_spread(mol, mo_coeff):
     Returns:
         Array of RMS spreads in Bohr; larger means more diffuse.
     """
-    dip = mol.intor("int1e_r").reshape(3, mol.nao, mol.nao)
-    r2 = mol.intor("int1e_r2")
+    dip = np.asarray(mol.intor("int1e_r").reshape(3, mol.nao, mol.nao))
+    r2  = np.asarray(mol.intor("int1e_r2"))
     r_exp = np.einsum("mi,xmn,ni->xi", mo_coeff, dip, mo_coeff)
     r2_exp = np.einsum("mi,mn,ni->i", mo_coeff, r2, mo_coeff)
     return np.sqrt(np.maximum(r2_exp - np.einsum("xi,xi->i", r_exp, r_exp), 0.0))
@@ -135,7 +137,10 @@ def select_act_env_space(mf, atom_indices, n_occ_active, n_vir_active=None,
         max_spread: Reject orbitals more diffuse than this, in Bohr.
 
     Returns:
-        TODO
+        active_idxs (np.array): The indices of the active spatial orbitals.
+        env_idxs (np.array): The indices of the environment spatial orbitals.
+        population (np.array): The summed target-atom character of each MO.
+        spread (np.array): Spatial extent of each MO, in Bohr. Larger value means more diffuse.
 
     Raises:
         ValueError: If the occupations are fractional, or if either half has

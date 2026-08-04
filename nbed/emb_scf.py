@@ -552,4 +552,3 @@ class EmbedSCF():
 
 
         return energy_core_emb, h1_emb_mo, eri_cas_mo_S4
-
