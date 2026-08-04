@@ -106,8 +106,8 @@ class EmbedSCF_GPU():
 
         assert np.allclose(self.dm_full, self.dm_act + self.dm_env), "density matrices of act and env do not match full one"
 
-        nelec_active = (int((self.mo_occ_act>0).sum()),
-                        int((self.mo_occ_act>1).sum())
+        nelec_active = (int((self.mo_occ_act.get()>0).sum()),
+                        int((self.mo_occ_act.get()>1).sum())
                         )
 
         coords   = self.global_scf_obj.mol.atom_coords(unit=self.global_scf_obj.mol.unit)
