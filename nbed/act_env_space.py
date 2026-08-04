@@ -33,8 +33,8 @@ def lowdin_populations(mol, mo_coeff, atom_indices, drop_core_1s=True):
         IndexError: If an atom index is outside the molecule.
         ValueError: If an atom has no AOs left after dropping cores.
     """
-    ovlp = np.asarray(mol.intor("int1e_ovlp"))
-    mo_coeff = np.asarray(mo_coeff)
+    ovlp = mol.intor("int1e_ovlp")
+    mo_coeff = mo_coeff
     
     evals, evecs = np.linalg.eigh(ovlp)
     s_half = (evecs * np.sqrt(np.clip(evals, 0.0, None))) @ evecs.T
