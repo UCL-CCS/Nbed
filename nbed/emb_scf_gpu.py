@@ -3,7 +3,8 @@
 ### get_mo_integrals are returned as numpy arrays instead of cupy arrays.
 
 import cupy as np
-from gpu4pyscf import gto, scf, dft
+from gpu4pyscf import scf, dft
+from pyscf import gto
 from pyscf import mcscf
 import numpy
 
@@ -112,7 +113,7 @@ class EmbedSCF_GPU():
         coords   = self.global_scf_obj.mol.atom_coords(unit=self.global_scf_obj.mol.unit)
         atm_list = [self.global_scf_obj.mol.atom_pure_symbol(i) for i in range(global_scf_obj.mol.natm)]
 
-        self.mol_act = gto.mole(
+        self.mol_act = gto.M(
             atom=zip(atm_list, coords),
             unit=self.global_scf_obj.mol.unit,
             basis=self.global_scf_obj.mol.basis,
