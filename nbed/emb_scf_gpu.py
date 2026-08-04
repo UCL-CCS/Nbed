@@ -18,6 +18,15 @@ class EmbedSCF_GPU():
                  max_memory_MB, 
                  mu_val=1e6):
         
+        ### make sure everything is on the GPU
+        global_scf_obj = global_scf_obj.to_gpu()
+        act_MO_idxs = np.asarray(act_MO_idxs)
+        env_MO_idxs = np.asarray(env_MO_idxs)
+        mo_coeff = np.asarray(mo_coeff)
+        mo_occ = np.asarray(mo_occ)
+        Sao = np.asarray(Sao)
+        ### 
+
         self.mu_val = mu_val
         self.Sao = Sao
 
@@ -111,14 +120,19 @@ class EmbedSCF_GPU():
         nelec_active = (int((mo_occ_act_np>0).sum()),
                         int((mo_occ_act_np>1).sum())
                         )
+        nelectron_full  = int(global_scf_obj.mol.nelectron)
+        charge_full     = int(global_scf_obj.mol.charge)
+        unit_full       = str(global_scf_obj.mol.unit)
+        basis_full      = str(global_scf_obj.mol.basis)
+        spin_act        = nelec_active[0] - nelec_active[1]
         coords   = cpu_obj.mol.atom_coords(unit=cpu_obj.mol.unit)
         atm_list = [cpu_obj.mol.atom_pure_symbol(i) for i in range(cpu_obj.mol.natm)]
-        self.mol_act = gto.M(
+        self.mol_act = gto.Mole(
             atom=zip(atm_list, coords),
-            unit=cpu_obj.mol.unit,
-            basis=cpu_obj.mol.basis,
-            charge=cpu_obj.mol.charge + cpu_obj.mol.nelectron - sum(nelec_active),
-            spin=nelec_active[0] - nelec_active[1],
+            unit=unit_full,
+            basis=basis_full,
+            charge=charge_full + nelectron_full - sum(nelec_active),
+            spin=spin_act,
             max_memory=max_memory_MB,
         ).build()
 
@@ -535,12 +549,16 @@ class EmbedSCF_GPU():
         if mo_cas_idxs is None, then use all MOs in the active space
         """
         if mo_cas_idxs is None:
-            mo_cas_idxs = np.arange(norb)
+            mo_cas_idxs = numpy.arange(norb)
 
         assert len(mo_cas_idxs) == norb
 
+        ## numpy array of the modified hcore
+        hcore_modified = numpy.asarray(act_emb_scf_obj.get_hcore().get())
+        act_emb_C = numpy.asarray(act_emb_C.get())
+
         cpu_act_emb_scf_obj = act_emb_scf_obj.to_cpu()
-        assert np.sum(nelecas)<= np.sum(act_emb_scf_obj.mol.nelec)
+        assert sum(nelecas)<= sum(act_emb_scf_obj.mol.nelec)
         cas_act_emb = mcscf.CASCI(
                                  cpu_act_emb_scf_obj,
                                   norb,
@@ -548,7 +566,7 @@ class EmbedSCF_GPU():
                                 #   ncore=self.ncore
                                   )
         ## need to overwrite CASCI hcore function
-        cas_act_emb.get_hcore = lambda *args, **kwargs: cpu_act_emb_scf_obj.get_hcore()
+        cas_act_emb.get_hcore = lambda *args, **kwargs: hcore_modified
         
         C_emb_ordered_subspace = mcscf.addons.sort_mo(cas_act_emb, act_emb_C, 
                                                       mo_cas_idxs, base=0)
