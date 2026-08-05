@@ -486,7 +486,7 @@ class EmbedSCF():
             if proj_type == "huz":
                 self.warn_huz_aufbau_violated(hf_emb, env_cols)
 
-        env_plus_corrections = self.E_env + self.E_cross - emb_corr
+        env_plus_corrections = float(self.E_env + self.E_cross - emb_corr)
         E_hf_in_dft = hf_emb.e_tot +  env_plus_corrections
         return E_hf_in_dft, hf_emb, emb_corr, env_cols, env_plus_corrections
 
