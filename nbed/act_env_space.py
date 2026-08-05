@@ -5,7 +5,7 @@ helper functions for selecting which MO indices should be
 2. ENVIRONMENT
 to defined embedded SCF objects.
 """
-import numpy as np
+import nbed.backend as backend
 
 
 ##################################################################################
@@ -33,11 +33,11 @@ def lowdin_populations(mol, mo_coeff, atom_indices, drop_core_1s=True):
         IndexError: If an atom index is outside the molecule.
         ValueError: If an atom has no AOs left after dropping cores.
     """
-    ovlp = mol.intor("int1e_ovlp")
-    mo_coeff = mo_coeff
+    ovlp = backend.xp.asarray(mol.intor("int1e_ovlp"))
+    mo_coeff = backend.xp.asarray(mo_coeff)
     
-    evals, evecs = np.linalg.eigh(ovlp)
-    s_half = (evecs * np.sqrt(np.clip(evals, 0.0, None))) @ evecs.T
+    evals, evecs = backend.xp.linalg.eigh(ovlp)
+    s_half = (evecs * backend.xp.sqrt(backend.xp.clip(evals, 0.0, None))) @ evecs.T
     c_orth = s_half @ mo_coeff
 
     ao_slices = mol.aoslice_by_atom()
@@ -62,9 +62,9 @@ def lowdin_populations(mol, mo_coeff, atom_indices, drop_core_1s=True):
                 f"atom {index} has no AOs left after dropping cores; "
                 "pass drop_core_1s=False"
             )
-        per_atom.append(np.einsum("mi,mi->i", c_orth[aos], c_orth[aos]))
+        per_atom.append(backend.xp.einsum("mi,mi->i", c_orth[aos], c_orth[aos]))
 
-    per_atom = np.array(per_atom)
+    per_atom = backend.xp.array(per_atom)
     return per_atom, per_atom.sum(axis=0)
 
 
@@ -83,11 +83,11 @@ def orbital_spread(mol, mo_coeff):
     Returns:
         Array of RMS spreads in Bohr; larger means more diffuse.
     """
-    dip = np.asarray(mol.intor("int1e_r").reshape(3, mol.nao, mol.nao))
-    r2  = np.asarray(mol.intor("int1e_r2"))
-    r_exp = np.einsum("mi,xmn,ni->xi", mo_coeff, dip, mo_coeff)
-    r2_exp = np.einsum("mi,mn,ni->i", mo_coeff, r2, mo_coeff)
-    return np.sqrt(np.maximum(r2_exp - np.einsum("xi,xi->i", r_exp, r_exp), 0.0))
+    dip = backend.xp.asarray(mol.intor("int1e_r").reshape(3, mol.nao, mol.nao))
+    r2  = backend.xp.asarray(mol.intor("int1e_r2"))
+    r_exp = backend.xp.einsum("mi,xmn,ni->xi", mo_coeff, dip, mo_coeff)
+    r2_exp = backend.xp.einsum("mi,mn,ni->i", mo_coeff, r2, mo_coeff)
+    return backend.xp.sqrt(backend.xp.maximum(r2_exp - backend.xp.einsum("xi,xi->i", r_exp, r_exp), 0.0))
 
 
 def describe_orbital(mol, atom_indices, per_atom, index, cutoff=0.05):
@@ -137,42 +137,42 @@ def select_act_env_space(mf, atom_indices, n_occ_active, n_vir_active=None,
         max_spread: Reject orbitals more diffuse than this, in Bohr.
 
     Returns:
-        active_idxs (np.array): The indices of the active spatial orbitals.
-        env_idxs (np.array): The indices of the environment spatial orbitals.
-        population (np.array): The summed target-atom character of each MO.
-        spread (np.array): Spatial extent of each MO, in Bohr. Larger value means more diffuse.
+        active_idxs (array): The indices of the active spatial orbitals.
+        env_idxs (array): The indices of the environment spatial orbitals.
+        population (array): The summed target-atom character of each MO.
+        spread (array): Spatial extent of each MO, in Bohr. Larger value means more diffuse.
 
     Raises:
         ValueError: If the occupations are fractional, or if either half has
             too few eligible orbitals.
     """
     mol = mf.mol
-    mo_coeff = np.asarray(mf.mo_coeff if mo_coeff is None else mo_coeff)
+    mo_coeff = backend.xp.asarray(mf.mo_coeff if mo_coeff is None else mo_coeff)
     if mo_coeff.ndim == 3:
         raise ValueError(
             "unrestricted orbitals are not supported; "
             "pass a restricted (RHF/ROHF/RKS) mean field"
         )
 
-    mo_occ = np.asarray(mf.mo_occ)
-    if not np.allclose(mo_occ, np.rint(mo_occ)):
+    mo_occ = backend.xp.asarray(mf.mo_occ)
+    if not backend.xp.allclose(mo_occ, backend.xp.rint(mo_occ)):
         raise ValueError(
             "fractional occupations: embedding needs an integer number of "
             "electrons on each subsystem"
         )
-    mo_occ = np.rint(mo_occ).astype(int)
+    mo_occ = backend.xp.rint(mo_occ).astype(int)
 
     n_vir_active = n_occ_active if n_vir_active is None else n_vir_active
     
     _, population = lowdin_populations(mol, mo_coeff, atom_indices, drop_core_1s)
     spread = orbital_spread(mol, mo_coeff)
 
-    eligible = np.ones_like(population, dtype=bool)
+    eligible = backend.xp.ones_like(population, dtype=bool)
     if max_spread is not None:
         eligible &= spread <= max_spread
 
-    occ_pool = np.where((mo_occ > 0) & eligible)[0]
-    vir_pool = np.where((mo_occ == 0) & eligible)[0]
+    occ_pool = backend.xp.where((mo_occ > 0) & eligible)[0]
+    vir_pool = backend.xp.where((mo_occ == 0) & eligible)[0]
     if len(occ_pool) < n_occ_active or len(vir_pool) < n_vir_active:
         raise ValueError(
             f"asked for {n_occ_active} occupied and {n_vir_active} virtual "
@@ -180,8 +180,8 @@ def select_act_env_space(mf, atom_indices, n_occ_active, n_vir_active=None,
             "eligible; relax max_spread or shrink the fragment"
         )
     
-    pick_occ = np.sort(occ_pool[np.argsort(-population[occ_pool])[:n_occ_active]])
-    pick_vir = np.sort(vir_pool[np.argsort(-population[vir_pool])[:n_vir_active]])
-    active_idxs = np.concatenate([pick_occ, pick_vir])
-    env_idxs = np.setdiff1d(np.arange(mol.nao), active_idxs)
+    pick_occ = backend.xp.sort(occ_pool[backend.xp.argsort(-population[occ_pool])[:n_occ_active]])
+    pick_vir = backend.xp.sort(vir_pool[backend.xp.argsort(-population[vir_pool])[:n_vir_active]])
+    active_idxs = backend.xp.concatenate([pick_occ, pick_vir])
+    env_idxs = backend.xp.setdiff1d(backend.xp.arange(mol.nao), active_idxs)
     return active_idxs, env_idxs, population, spread

@@ -74,13 +74,12 @@ import copy
 import warnings
 from dataclasses import dataclass, field
 
+from pyscf import gto, mcscf
 
-# import backend
+import numpy
+import nbed.backend as backend
 
 
-
-import numpy as np
-from pyscf import gto, mcscf, mp
 
 from .act_env_space import describe_orbital, lowdin_populations, orbital_spread
 
@@ -126,7 +125,7 @@ def fragment_valence_projector(mol, atom_indices, ref_basis="minao", drop_core=T
 
     # minao holds one shell per occupied atomic shell, so the core AOs of an atom are
     # the first few of its block: none up to He, the 1s up to Ne, the 1s2s2p up to Ar
-    keep = np.ones(ref_mol.nao, dtype=bool)
+    keep = backend.xp.ones(ref_mol.nao, dtype=bool)
     if drop_core:
         ao_slices = ref_mol.aoslice_by_atom()
         for offset, atom in enumerate(atom_indices):
@@ -138,8 +137,8 @@ def fragment_valence_projector(mol, atom_indices, ref_basis="minao", drop_core=T
         raise ValueError("the reference valence space is empty")
 
     s_cross = gto.intor_cross("int1e_ovlp", mol, ref_mol)[:, keep]
-    s_ref = ref_mol.intor("int1e_ovlp")[np.ix_(keep, keep)]
-    evals, evecs = np.linalg.eigh(s_ref)
+    s_ref = ref_mol.intor("int1e_ovlp")[backend.xp.ix_(keep, keep)]
+    evals, evecs = backend.xp.linalg.eigh(s_ref)
     ok = evals > 1e-10
     s_ref_inv = (evecs[:, ok] / evals[ok]) @ evecs[:, ok].T
     return s_cross @ s_ref_inv @ s_cross.T, int(keep.sum())
@@ -171,17 +170,17 @@ def valence_virtual_rotation(mol, c_vir, atom_indices, ref_basis="minao", fock_m
     """
     p_ref, _ = fragment_valence_projector(mol, atom_indices, ref_basis)
     metric = c_vir.T @ p_ref @ c_vir
-    weights, rot = np.linalg.eigh(metric)
-    order = np.argsort(-weights)
+    weights, rot = backend.xp.linalg.eigh(metric)
+    order = backend.xp.argsort(-weights)
     weights, rot = weights[order], rot[:, order]
     c_rot = c_vir @ rot
 
     energies = None
     if fock_mo is not None:
-        fock_mo = np.asarray(fock_mo)
+        fock_mo = backend.xp.asarray(fock_mo)
         if fock_mo.ndim == 1:
-            fock_mo = np.diag(fock_mo)
-        energies = np.einsum("ip,ij,jp->p", rot, fock_mo, rot)
+            fock_mo = backend.xp.diag(fock_mo)
+        energies = backend.xp.einsum("ip,ij,jp->p", rot, fock_mo, rot)
     return c_rot, weights, energies
 
 
@@ -210,8 +209,8 @@ def semicanonicalize(c_block, c_ref, mo_energy_ref, ovlp):
         Tuple ``(c_new, energies)``, energies ascending.
     """
     rot = c_ref.T @ ovlp @ c_block
-    fock = np.einsum("ip,i,iq->pq", rot, mo_energy_ref, rot)
-    energies, vecs = np.linalg.eigh(fock)
+    fock = backend.xp.einsum("ip,i,iq->pq", rot, mo_energy_ref, rot)
+    energies, vecs = backend.xp.linalg.eigh(fock)
     return c_block @ vecs, energies
 
 
@@ -289,10 +288,10 @@ class PoolMP2:
         e_corr: MP2 correlation energy inside [occupied + pool].
     """
 
-    rot_vir: np.ndarray = field(repr=False)
-    occ_vir: np.ndarray
-    rot_occ: np.ndarray = field(repr=False)
-    occ_occ: np.ndarray = None
+    rot_vir: backend.xp.ndarray = field(repr=False)
+    occ_vir: backend.xp.ndarray
+    rot_occ: backend.xp.ndarray = field(repr=False)
+    occ_occ: backend.xp.ndarray = None
     e_corr: float = 0.0
 
 
@@ -341,18 +340,18 @@ def pool_mp2_natural_orbitals(mf, occ_cols, pool_cols, verify_fock=True, fock_to
         AssertionError: If ``verify_fock`` and the reference is not a valid one.
         ValueError: If the pool contains a projected environment orbital.
     """
-    occ_cols = np.asarray(occ_cols, dtype=int)
-    pool_cols = np.asarray(pool_cols, dtype=int)
-    active = np.concatenate([occ_cols, pool_cols])
-    frozen = np.setdiff1d(np.arange(np.shape(mf.mo_coeff)[1]), active)
+    occ_cols = backend.xp.asarray(occ_cols, dtype=int)
+    pool_cols = backend.xp.asarray(pool_cols, dtype=int)
+    active = backend.xp.concatenate([occ_cols, pool_cols])
+    frozen = backend.xp.setdiff1d(backend.xp.arange(backend.xp.shape(mf.mo_coeff)[1]), active)
 
     if max_orbital_energy is not None:
-        e_pool = np.asarray(mf.mo_energy)[pool_cols]
-        stray = pool_cols[np.abs(e_pool) > max_orbital_energy]
+        e_pool = backend.xp.asarray(mf.mo_energy)[pool_cols]
+        stray = pool_cols[backend.xp.abs(e_pool) > max_orbital_energy]
         if len(stray):
             raise ValueError(
                 f"pool columns {stray} have orbital energies "
-                f"{np.round(e_pool[np.abs(e_pool) > max_orbital_energy], 1)} Ha, which "
+                f"{backend.xp.round(e_pool[backend.xp.abs(e_pool) > max_orbital_energy], 1)} Ha, which "
                 "means projected environment orbitals were left in the pool; pass the "
                 "env_cols returned by build_emb_hf / build_emb_dft so they are excluded"
             )
@@ -363,28 +362,28 @@ def pool_mp2_natural_orbitals(mf, occ_cols, pool_cols, verify_fock=True, fock_to
         s1e   = mf.get_ovlp()
         h1e   = mf.get_hcore()
         fock_ao = mf.get_fock(h1e, s1e, vhf, dm_ao)
-        fock_mo = np.asarray(mf.mo_coeff).T @ np.asarray(fock_ao) @ np.asarray(mf.mo_coeff)
-        off = np.abs(fock_mo[np.ix_(occ_cols, pool_cols)]).max()
+        fock_mo = backend.xp.asarray(mf.mo_coeff).T @ backend.xp.asarray(fock_ao) @ backend.xp.asarray(mf.mo_coeff)
+        off = backend.xp.abs(fock_mo[backend.xp.ix_(occ_cols, pool_cols)]).max()
         assert off < fock_tol, (
             f"the occupied-pool Fock block is {off:.1e}, so the pool is not a valid MP2 "
             "reference; either the mean field is not converged or the pool orbitals did "
             "not come from its virtual space"
         )
-        diag = np.abs(np.diag(fock_mo)[active] - np.asarray(mf.mo_energy)[active]).max()
+        diag = backend.xp.abs(backend.xp.diag(fock_mo)[active] - backend.xp.asarray(mf.mo_energy)[active]).max()
         assert diag < fock_tol, (
             f"orbital energies disagree with the Fock diagonal by {diag:.1e}: "
             "semicanonicalise the pool before correlating it"
         )
 
-    pt = mp.MP2(mf, frozen=[int(i) for i in frozen])
+    pt = backend.pyscf.mp.MP2(mf, frozen=[int(i) for i in frozen])
     pt.verbose = 0
     pt.kernel()
     dm1 = pt.make_rdm1()
 
-    occs_v, vecs_v = np.linalg.eigh(dm1[np.ix_(pool_cols, pool_cols)])
-    order_v = np.argsort(-occs_v)
-    occs_o, vecs_o = np.linalg.eigh(dm1[np.ix_(occ_cols, occ_cols)])
-    order_o = np.argsort(occs_o)
+    occs_v, vecs_v = backend.xp.linalg.eigh(dm1[backend.xp.ix_(pool_cols, pool_cols)])
+    order_v = backend.xp.argsort(-occs_v)
+    occs_o, vecs_o = backend.xp.linalg.eigh(dm1[backend.xp.ix_(occ_cols, occ_cols)])
+    order_o = backend.xp.argsort(occs_o)
 
     return PoolMP2(
         rot_vir=vecs_v[:, order_v],
@@ -428,10 +427,10 @@ def cas_columns_excluding_env(mo_occ, env_cols, n_occ, n_vir, nelectron=None):
     Raises:
         ValueError: If too few orbitals survive the environment exclusion.
     """
-    mo_occ = np.asarray(mo_occ)
-    env_cols = np.asarray(env_cols, dtype=int)
-    occ_cols = np.where(mo_occ > 0)[0]
-    vir_safe = np.setdiff1d(np.where(mo_occ == 0)[0], env_cols)
+    mo_occ = backend.xp.asarray(mo_occ)
+    env_cols = backend.xp.asarray(env_cols, dtype=int)
+    occ_cols = backend.xp.where(mo_occ > 0)[0]
+    vir_safe = backend.xp.setdiff1d(backend.xp.where(mo_occ == 0)[0], env_cols)
 
     if len(occ_cols) < n_occ or len(vir_safe) < n_vir:
         raise ValueError(
@@ -442,16 +441,16 @@ def cas_columns_excluding_env(mo_occ, env_cols, n_occ, n_vir, nelectron=None):
 
     cas_occ = occ_cols[-n_occ:]
     cas_vir = vir_safe[:n_vir]
-    mo_cas_idxs = np.concatenate([cas_occ, cas_vir])
+    mo_cas_idxs = backend.xp.concatenate([cas_occ, cas_vir])
 
     occ_in_cas = mo_occ[cas_occ]
     nelecas = (int((occ_in_cas > 0).sum()), int((occ_in_cas > 1).sum()))
 
-    naive_window = np.array([], dtype=int)
+    naive_window = backend.xp.array([], dtype=int)
     if nelectron is not None:
         ncore_naive = (int(nelectron) - 2 * n_occ) // 2
-        naive_window = np.arange(ncore_naive, ncore_naive + n_occ + n_vir)
-    collision = np.intersect1d(naive_window, env_cols)
+        naive_window = backend.xp.arange(ncore_naive, ncore_naive + n_occ + n_vir)
+    collision = backend.xp.intersect1d(naive_window, env_cols)
 
     return mo_cas_idxs, nelecas, naive_window, collision
 
@@ -487,20 +486,20 @@ class CASSelection:
         atom_indices: The target atoms.
     """
 
-    c_full: np.ndarray = field(repr=False)
-    mo_cas_idxs: np.ndarray
+    c_full: backend.xp.ndarray = field(repr=False)
+    mo_cas_idxs: backend.xp.ndarray
     ncas: int
     nelecas: tuple[int, int]
-    cas_occ_cols: np.ndarray
-    cas_vir_cols: np.ndarray
-    cas_natural_occ: np.ndarray
-    pool_natural_occ: np.ndarray = field(repr=False)
-    occupied_natural_occ: np.ndarray = field(default=None, repr=False)
-    fragment_natural_occ: np.ndarray = field(default=None, repr=False)
-    valence_weights: np.ndarray = field(default=None, repr=False)
+    cas_occ_cols: backend.xp.ndarray
+    cas_vir_cols: backend.xp.ndarray
+    cas_natural_occ: backend.xp.ndarray
+    pool_natural_occ: backend.xp.ndarray = field(repr=False)
+    occupied_natural_occ: backend.xp.ndarray = field(default=None, repr=False)
+    fragment_natural_occ: backend.xp.ndarray = field(default=None, repr=False)
+    valence_weights: backend.xp.ndarray = field(default=None, repr=False)
     n_pool: int = 0
     e_corr_pool: float = 0.0
-    atom_indices: np.ndarray = field(default=None, repr=False)
+    atom_indices: backend.xp.ndarray = field(default=None, repr=False)
 
 
 def select_cas_by_mp2_no(mf, atom_indices, n_cas_vir, n_cas_occ=None, n_pool=None,
@@ -557,16 +556,16 @@ def select_cas_by_mp2_no(mf, atom_indices, n_cas_vir, n_cas_occ=None, n_pool=Non
     """
     mol = mf.mol
     ovlp = mf.get_ovlp() if ovlp is None else ovlp
-    mo_occ = np.rint(mf.mo_occ).astype(int)
+    mo_occ = backend.xp.rint(mf.mo_occ).astype(int)
 
-    if np.any(mo_occ == 1):
+    if backend.xp.any(mo_occ == 1):
         raise NotImplementedError(
             "MP2 natural-orbital selection assumes a closed-shell embedded fragment; "
             "the pool reference is built as a doubly occupied determinant"
         )
 
-    occ_cols = np.where(mo_occ > 0)[0]
-    vir_safe = np.setdiff1d(np.where(mo_occ == 0)[0], np.asarray(env_cols, dtype=int))
+    occ_cols = backend.xp.where(mo_occ > 0)[0]
+    vir_safe = backend.xp.setdiff1d(backend.xp.where(mo_occ == 0)[0], backend.xp.asarray(env_cols, dtype=int))
 
     n_pool = min(len(vir_safe), pool_factor * n_cas_vir) if n_pool is None else n_pool
     if not n_cas_vir <= n_pool <= len(vir_safe):
@@ -610,8 +609,8 @@ def select_cas_by_mp2_no(mf, atom_indices, n_cas_vir, n_cas_occ=None, n_pool=Non
     # write the rotated orbitals back into a copy of the mean field, so that the pool is
     # a plain set of columns and pyscf's frozen-orbital MP2 can do the truncation
     mf_pool = copy.copy(mf)
-    mf_pool.mo_coeff = np.asarray(mf.mo_coeff).copy()
-    mf_pool.mo_energy = np.asarray(mf.mo_energy).copy()
+    mf_pool.mo_coeff = backend.xp.asarray(mf.mo_coeff).copy()
+    mf_pool.mo_energy = backend.xp.asarray(mf.mo_energy).copy()
     mf_pool.mo_coeff[:, pool_cols] = c_pool
     mf_pool.mo_energy[pool_cols] = e_pool
     mf_pool.mo_coeff[:, vir_safe[n_pool:]] = c_rot[:, n_pool:]
@@ -640,10 +639,10 @@ def select_cas_by_mp2_no(mf, atom_indices, n_cas_vir, n_cas_occ=None, n_pool=Non
         cas_occ_cols = occ_cols[:n_cas_occ]
         occupied_natural_occ = pool_mp2.occ_occ[:n_cas_occ]
 
-    assert np.allclose(c_full.T @ ovlp @ c_full, np.eye(c_full.shape[1]), atol=1e-8), \
+    assert backend.xp.allclose(c_full.T @ ovlp @ c_full, backend.xp.eye(c_full.shape[1]), atol=1e-8), \
         "the rebuilt orbital set is not orthonormal"
 
-    mo_cas_idxs = np.concatenate([cas_occ_cols, cas_vir_cols])
+    mo_cas_idxs = backend.xp.concatenate([cas_occ_cols, cas_vir_cols])
     occ_in_cas = mo_occ[cas_occ_cols]
     nelecas = (int((occ_in_cas > 0).sum()), int((occ_in_cas > 1).sum()))
 
@@ -661,7 +660,7 @@ def select_cas_by_mp2_no(mf, atom_indices, n_cas_vir, n_cas_occ=None, n_pool=Non
         valence_weights=valence_weights,
         n_pool=n_pool,
         e_corr_pool=pool_mp2.e_corr,
-        atom_indices=np.asarray(atom_indices),
+        atom_indices=backend.xp.asarray(atom_indices),
     )
 
 
@@ -685,7 +684,7 @@ def report_cas_orbitals(mol, c_cas, atom_indices, n_occ, mo_energy=None, p_ref=N
     spread = orbital_spread(mol, c_cas)
     if p_ref is None:
         p_ref, _ = fragment_valence_projector(mol, atom_indices)
-    valence = np.einsum("ip,ij,jp->p", c_cas, p_ref, c_cas)
+    valence = backend.xp.einsum("ip,ij,jp->p", c_cas, p_ref, c_cas)
 
     lines = ["    idx  occ    energy  fragpop  valence  spread   MP2 nat occ"
              "   composition"]
@@ -727,9 +726,9 @@ def unpaired_electrons(occ):
         Tuple ``(n_u, n_u_nl)``: Head-Gordon's ``sum min(n, 2 - n)`` and the nonlinear
         ``sum n^2 (2 - n)^2``.
     """
-    occ = np.clip(np.asarray(occ, dtype=float), 0.0, 2.0)
-    return float(np.sum(np.minimum(occ, 2.0 - occ))), \
-        float(np.sum(occ ** 2 * (2.0 - occ) ** 2))
+    occ = backend.xp.clip(backend.xp.asarray(occ, dtype=float), 0.0, 2.0)
+    return float(backend.xp.sum(backend.xp.minimum(occ, 2.0 - occ))), \
+        float(backend.xp.sum(occ ** 2 * (2.0 - occ) ** 2))
 
 
 def von_neumann_entropy(occ):
@@ -746,11 +745,11 @@ def von_neumann_entropy(occ):
     Returns:
         The entropy in nats. Zero for occupations of exactly 0 or 2.
     """
-    p = np.clip(np.asarray(occ, dtype=float) / 2.0, 0.0, 1.0)
-    terms = np.zeros_like(p)
+    p = backend.xp.clip(backend.xp.asarray(occ, dtype=float) / 2.0, 0.0, 1.0)
+    terms = backend.xp.zeros_like(p)
     for q in (p, 1.0 - p):
         ok = q > 1e-14
-        terms[ok] -= q[ok] * np.log(q[ok])
+        terms[ok] -= q[ok] * backend.xp.log(q[ok])
     return float(terms.sum())
 
 
@@ -785,16 +784,16 @@ def single_orbital_entropies(casci, ci=None):
         )
     (dm1a, dm1b), (_, dm2ab, _) = casci.fcisolver.make_rdm12s(ci, ncas, nelecas)
 
-    diag = np.arange(ncas)
+    diag = backend.xp.arange(ncas)
     w_both = dm2ab[diag, diag, diag, diag]          # <n_up n_down> on the same orbital
-    w_up = np.diag(dm1a) - w_both
-    w_down = np.diag(dm1b) - w_both
+    w_up = backend.xp.diag(dm1a) - w_both
+    w_down = backend.xp.diag(dm1b) - w_both
     w_empty = 1.0 - w_up - w_down - w_both
 
-    entropies = np.zeros(ncas)
+    entropies = backend.xp.zeros(ncas)
     for weights in (w_empty, w_up, w_down, w_both):
         ok = weights > 1e-14
-        entropies[ok] -= weights[ok] * np.log(weights[ok])
+        entropies[ok] -= weights[ok] * backend.xp.log(weights[ok])
     return entropies, float(entropies.sum())
 
 
@@ -813,10 +812,10 @@ def reference_weight(ci):
         the largest weight of any determinant. They differ once the reference stops being
         the dominant configuration.
     """
-    ci = np.asarray(ci if not isinstance(ci, (list, tuple)) else ci[0])
+    ci = backend.xp.asarray(ci if not isinstance(ci, (list, tuple)) else ci[0])
     if ci.ndim > 2:
         ci = ci[0]
-    return float(ci.flat[0] ** 2), float(np.max(ci ** 2))
+    return float(ci.flat[0] ** 2), float(backend.xp.max(ci ** 2))
 
 
 @dataclass
@@ -836,11 +835,11 @@ class CASDiagnostics:
         e_tot: Total CASCI energy of the embedded subsystem.
     """
 
-    natural_occ: np.ndarray
+    natural_occ: backend.xp.ndarray
     n_unpaired: float
     n_unpaired_nl: float
     entropy_occ: float
-    orbital_entropies: np.ndarray = field(default=None, repr=False)
+    orbital_entropies: backend.xp.ndarray = field(default=None, repr=False)
     entropy_total: float = 0.0
     reference_weight: float = 0.0
     dominant_weight: float = 0.0
@@ -851,7 +850,7 @@ class CASDiagnostics:
         lines = [
             f"  CASCI energy of the subsystem : {self.e_tot:.8f} Ha",
             f"  natural occupations           : "
-            f"{np.array2string(self.natural_occ, precision=4, suppress_small=True)}",
+            f"{backend.xp.array2string(self.natural_occ, precision=4, suppress_small=True)}",
             f"  effectively unpaired electrons: {self.n_unpaired:.4f}"
             f"   (nonlinear {self.n_unpaired_nl:.4f})",
             f"  entropy of the occupations    : {self.entropy_occ:.4f} nats",
@@ -863,7 +862,7 @@ class CASDiagnostics:
             lines += [
                 f"  summed orbital entropy        : {self.entropy_total:.4f} nats",
                 "  per-orbital entropy           : "
-                + np.array2string(self.orbital_entropies, precision=4,
+                + backend.xp.array2string(self.orbital_entropies, precision=4,
                                   suppress_small=True),
             ]
         verdict = ("strongly correlated" if self.n_unpaired > 0.5 else
@@ -885,7 +884,7 @@ def diagnose_cas(casci, verbose=True):
     """
     ncas, nelecas = casci.ncas, casci.nelecas
     dm1 = casci.fcisolver.make_rdm1(casci.ci, ncas, nelecas)
-    occ = np.linalg.eigvalsh(dm1)[::-1]
+    occ = backend.xp.linalg.eigvalsh(dm1)[::-1]
 
     n_u, n_u_nl = unpaired_electrons(occ)
     try:
@@ -930,8 +929,8 @@ def environment_overlap(c_orbitals, c_env, ovlp):
         The largest absolute overlap. Round-off means the spaces are disjoint, order one
         means the active space has eaten the environment.
     """
-    return float(np.abs(
-        np.asarray(c_orbitals).T @ np.asarray(ovlp) @ np.asarray(c_env)).max())
+    return float(backend.xp.abs(
+        backend.xp.asarray(c_orbitals).T @ backend.xp.asarray(ovlp) @ backend.xp.asarray(c_env)).max())
 
 
 def run_casci(mf, ncas, nelecas, mo_coeff=None, mo_cas_idxs=None, hcore=None):
@@ -960,14 +959,34 @@ def run_casci(mf, ncas, nelecas, mo_coeff=None, mo_cas_idxs=None, hcore=None):
     Returns:
         The solved ``mcscf.CASCI`` object.
     """
-    mo_coeff = np.asarray(mf.mo_coeff if mo_coeff is None else mo_coeff)
-    hcore = mf.get_hcore() if hcore is None else hcore
+    if mo_coeff is None:
+        mo_coeff = mf.mo_coeff
 
-    casci = mcscf.CASCI(mf, ncas, nelecas)
+    try:     
+        mf_cpu      = mf.to_cpu()   
+        mo_coeff    = numpy.asarray(mo_coeff.get())
+        if hcore is None:
+            hcore_emb = numpy.asarray(mf.get_hcore().get())
+        else:
+            hcore_emb = numpy.asarray(hcore.get())
+        if mo_cas_idxs is not None:
+            mo_cas_idxs = numpy.asarray(mo_cas_idxs.get())
+    except:
+        mf_cpu = mf
+        mo_coeff = numpy.asarray(mo_coeff)
+        if hcore is None:
+            hcore_emb = numpy.asarray(mf.get_hcore())
+        else:
+            hcore_emb = numpy.asarray(hcore)
+        if mo_cas_idxs is not None:
+            mo_cas_idxs = numpy.asarray(mo_cas_idxs)
+
+
+    casci = mcscf.CASCI(mf_cpu, ncas, nelecas)
     casci.verbose = 0
-    casci.get_hcore = lambda *args, **kwargs: np.asarray(hcore)
+    casci.get_hcore = lambda *args, **kwargs: hcore_emb
     if mo_cas_idxs is not None:
-        mo_coeff = mcscf.addons.sort_mo(casci, mo_coeff, np.asarray(mo_cas_idxs), base=0)
+        mo_coeff = mcscf.addons.sort_mo(casci, mo_coeff, mo_cas_idxs, base=0)
     casci.kernel(mo_coeff)
     return casci
 
@@ -1016,14 +1035,38 @@ def run_casscf(mf, ncas, nelecas, mo_coeff=None, mo_cas_idxs=None, hcore=None,
     Raises:
         RuntimeError: If the optimised active space overlaps the environment.
     """
-    mo_coeff = np.asarray(mf.mo_coeff if mo_coeff is None else mo_coeff)
+    if mo_coeff is None:
+        mo_coeff = mf.mo_coeff
 
-    casscf = mcscf.CASSCF(mf, ncas, nelecas)
+    try:     
+        mf_cpu      = mf.to_cpu()   
+        mo_coeff    = numpy.asarray(mo_coeff.get())
+        if hcore is None:
+            hcore_emb = numpy.asarray(mf.get_hcore().get())
+        else:
+            hcore_emb = numpy.asarray(hcore.get())
+        if mo_cas_idxs is not None:
+            mo_cas_idxs = numpy.asarray(mo_cas_idxs.get())
+        if c_env is not None:
+            c_env = numpy.asarray(c_env.get())
+    except:
+        mf_cpu = mf
+        mo_coeff = numpy.asarray(mo_coeff)
+        if hcore is None:
+            hcore_emb = numpy.asarray(mf.get_hcore())
+        else:
+            hcore_emb = numpy.asarray(hcore)
+        if mo_cas_idxs is not None:
+            mo_cas_idxs = numpy.asarray(mo_cas_idxs)
+        if c_env is not None:
+            c_env = numpy.asarray(c_env)
+
+    
+    casscf = mcscf.CASSCF(mf_cpu, ncas, nelecas)
     casscf.verbose = 0
-    if hcore is not None:
-        casscf.get_hcore = lambda *args, **kwargs: np.asarray(hcore)
+    casscf.get_hcore = lambda *args, **kwargs: hcore_emb
     if mo_cas_idxs is not None:
-        mo_coeff = mcscf.addons.sort_mo(casscf, mo_coeff, np.asarray(mo_cas_idxs), base=0)
+        mo_coeff = mcscf.addons.sort_mo(casscf, mo_coeff, mo_cas_idxs, base=0)
     casscf.kernel(mo_coeff)
 
     if c_env is not None:

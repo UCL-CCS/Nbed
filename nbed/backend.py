@@ -23,16 +23,19 @@ def get_pyscf_backend(use_gpu=False):
             raise RuntimeError("CuPy is not installed.")
     else:
         import pyscf as pyscf_backend
-        return pyscf
+        return pyscf_backend
 
 
-def set_array_backend(use_gpu):
+def set_backend(use_gpu=False):
     global xp
-    xp = get_array_backend(use_gpu)
+    xp = get_array_backend(use_gpu=use_gpu)
 
-def set_pyscf_backend(use_gpu):
     global pyscf
-    pyscf = get_pyscf_backend(use_gpu)
+    pyscf = get_pyscf_backend(use_gpu=use_gpu)
 
-xp = get_array_backend(use_gpu=False)    # Default to NumPy
-pyscf = get_pyscf_backend(use_gpu=False) # Default to CPU PySCF
+    global USING_GPU
+    USING_GPU = use_gpu
+
+
+# Default to NumPy and  CPU PySCF
+set_backend(use_gpu=False)

@@ -1,7 +1,7 @@
 ## build embedded SCF objects
-
-import numpy as np
-from pyscf import gto, scf, dft, mcscf
+from pyscf import gto, mcscf
+import numpy 
+import nbed.backend as backend
 
 class EmbedSCF():
 
@@ -22,7 +22,7 @@ class EmbedSCF():
         assert len(act_MO_idxs) + len(env_MO_idxs) == len(mo_occ), "active and environment MO indices must sum to total number of MOs"
         assert len(act_MO_idxs) + len(env_MO_idxs) == global_scf_obj.mol.nao, "active and environment MO indices must equal number of MOs"
         
-        if np.any(mo_occ==1) or hasattr(global_scf_obj, "nelec"):
+        if backend.xp.any(mo_occ==1) or hasattr(global_scf_obj, "nelec"):
             ## hasattr is needed as sometimes a user may pass in a open-shell SCF even if it is restricted (aka all double occupied) 
             self.SCF_type = "open-shell"
         else:
@@ -31,27 +31,27 @@ class EmbedSCF():
         self.global_scf_obj = global_scf_obj
 
         # use PySCF CAS order is [core_fixed, active, remaining_virtual]
-        occ_all = np.where(mo_occ > 0)[0]
-        vir_all = np.where(mo_occ == 0)[0]
+        occ_all = backend.xp.where(mo_occ > 0)[0]
+        vir_all = backend.xp.where(mo_occ == 0)[0]
 
         ## intersect, not setdiff: setdiff1d(occ_all, act_MO_idxs) is the *environment*
         ## occupied block, so naming it occ_act silently swaps the two subsystems and
         ## embeds the complement of the requested fragment
-        occ_act   = np.intersect1d(occ_all, act_MO_idxs)
-        vir_act   = np.intersect1d(vir_all, act_MO_idxs)
-        occ_env   = np.intersect1d(occ_all, env_MO_idxs)
-        vir_env   = np.intersect1d(vir_all, env_MO_idxs)
+        occ_act   = backend.xp.intersect1d(occ_all, act_MO_idxs)
+        vir_act   = backend.xp.intersect1d(vir_all, act_MO_idxs)
+        occ_env   = backend.xp.intersect1d(occ_all, env_MO_idxs)
+        vir_env   = backend.xp.intersect1d(vir_all, env_MO_idxs)
 
-        re_idx = np.concatenate([occ_env, occ_act, vir_act, vir_env])
-        assert len(np.setdiff1d(re_idx, np.arange(global_scf_obj.mol.nao))) == 0, "re_indexing wrong"
+        re_idx = backend.xp.concatenate([occ_env, occ_act, vir_act, vir_env])
+        assert len(backend.xp.setdiff1d(re_idx, backend.xp.arange(global_scf_obj.mol.nao))) == 0, "re_indexing wrong"
     
 
         self.ncore = len(occ_env) # frozen env orbitals
         self.n_act = len(act_MO_idxs) 
-        self.act_cols = np.arange(self.ncore, self.ncore + self.n_act)
-        self.remaining_cols = np.setdiff1d(np.arange(global_scf_obj.mol.nao), self.act_cols)
+        self.act_cols = backend.xp.arange(self.ncore, self.ncore + self.n_act)
+        self.remaining_cols = backend.xp.setdiff1d(backend.xp.arange(global_scf_obj.mol.nao), self.act_cols)
 
-        self.non_core_idx_all = np.setdiff1d(np.arange(global_scf_obj.mol.nao), np.arange(self.ncore))
+        self.non_core_idx_all = backend.xp.setdiff1d(backend.xp.arange(global_scf_obj.mol.nao), backend.xp.arange(self.ncore))
         ### note virtual env is included in remaining_cols! this is good for WF methods!
 
         self.C_full_reidx = mo_coeff[:, re_idx].copy()
@@ -86,10 +86,10 @@ class EmbedSCF():
         if self.SCF_type == "open-shell":
             ## need to deal with spin in this approach!
             veff_glob = self.global_scf_obj.get_veff(dm=self.dm_full) 
-            G_glob = scf.rohf.get_roothaan_fock((veff_glob[0],veff_glob[1]), self.dm_full, self.Sao)
+            G_glob = backend.pyscf.scf.rohf.get_roothaan_fock((veff_glob[0],veff_glob[1]), self.dm_full, self.Sao)
 
             veff_act = self.global_scf_obj.get_veff(dm=self.dm_act) 
-            G_act = scf.rohf.get_roothaan_fock((veff_act[0],veff_act[1]), self.dm_act, self.Sao)
+            G_act = backend.pyscf.scf.rohf.get_roothaan_fock((veff_act[0],veff_act[1]), self.dm_act, self.Sao)
         else:
             G_glob = self.global_scf_obj.get_veff(dm=self.dm_full)
             G_act = self.global_scf_obj.get_veff(dm=self.dm_act)
@@ -99,7 +99,7 @@ class EmbedSCF():
         self.G_emb_ao = G_glob - G_act
 
 
-        assert np.allclose(self.dm_full, self.dm_act + self.dm_env), "density matrices of act and env do not match full one"
+        assert backend.xp.allclose(self.dm_full, self.dm_act + self.dm_env), "density matrices of act and env do not match full one"
 
         nelec_active = (int((self.mo_occ_act>0).sum()),
                         int((self.mo_occ_act>1).sum())
@@ -166,11 +166,11 @@ class EmbedSCF():
         """
         if Fao is None:
             Fao = self.global_scf_obj.get_fock(dm=self.dm_full)
-        Fao = np.asarray(Fao)
+        Fao = backend.xp.asarray(Fao)
         if Fao.ndim == 3:
-            Fao = scf.rohf.get_roothaan_fock((Fao[0], Fao[1]), self.dm_full, self.Sao)
+            Fao = backend.pyscf.scf.rohf.get_roothaan_fock((Fao[0], Fao[1]), self.dm_full, self.Sao)
         C_sub = self.C_full_reidx[:, cols]
-        return np.linalg.eigvalsh(C_sub.conj().T @ Fao @ C_sub)
+        return backend.xp.linalg.eigvalsh(C_sub.conj().T @ Fao @ C_sub)
 
     def huz_shift_threshold(self, Fao=None):
         """How large huz_level_shift must be for the environment to clear the fragment.
@@ -244,7 +244,7 @@ class EmbedSCF():
             return False
 
         C_env = self.C_full_reidx[:, self.env_idx_occ]
-        overlap = np.abs(C_env.conj().T @ self.Sao @ mf.mo_coeff[:, occ]).max()
+        overlap = backend.xp.abs(C_env.conj().T @ self.Sao @ mf.mo_coeff[:, occ]).max()
         margin = mf.mo_energy[env_cols].min() - mf.mo_energy[occ].max()
         if margin > 0 and overlap < tol:
             return False
@@ -263,9 +263,9 @@ class EmbedSCF():
                       warn:bool=True, scf_modify_function=None):
         
         if self.SCF_type == "open-shell":
-            dft_emb = dft.ROKS(self.mol_act, xc=xc_expensive)
+            dft_emb = backend.pyscf.dft.ROKS(self.mol_act, xc=xc_expensive)
         else:
-            dft_emb = dft.RKS(self.mol_act, xc=xc_expensive)
+            dft_emb = backend.pyscf.dft.RKS(self.mol_act, xc=xc_expensive)
 
         ## use same settings as global SCF
         dft_emb.verbose = self.global_scf_obj.verbose
@@ -320,8 +320,8 @@ class EmbedSCF():
                     ## a restricted open-shell object can still be handed a spin-summed dm
                     ## (the initial guess is one), which get_roothaan_fock cannot unpack
                     ## 0.5 is needed for the case when dm is spin-summed (restricted setting!... aka split into, dm_a, dm_b)
-                    dm_ab = dm if np.ndim(dm) == 3 else np.array((np.asarray(dm) * 0.5,) * 2)
-                    Fao = scf.rohf.get_roothaan_fock((focka,fockb), dm_ab, self.Sao)
+                    dm_ab = dm if backend.xp.ndim(dm) == 3 else backend.xp.array((backend.xp.asarray(dm) * 0.5,) * 2)
+                    Fao = backend.pyscf.scf.rohf.get_roothaan_fock((focka,fockb), dm_ab, self.Sao)
                 else:
                     Fao = h1e + vhf
 
@@ -351,17 +351,17 @@ class EmbedSCF():
 
         # correction given with respect to original active density (not new one)
         if self.SCF_type == "open-shell":
-            emb_corr = np.einsum("ij,ji->", self.dm_act[0], v_emb_ao) + np.einsum("ij,ji->", self.dm_act[1], v_emb_ao) 
+            emb_corr = backend.xp.einsum("ij,ji->", self.dm_act[0], v_emb_ao) + backend.xp.einsum("ij,ji->", self.dm_act[1], v_emb_ao) 
         else:
-            emb_corr = np.einsum("ij,ji->", self.dm_act, v_emb_ao) 
+            emb_corr = backend.xp.einsum("ij,ji->", self.dm_act, v_emb_ao) 
             
         
         # weight of every converged orbital on the occupied-environment space
         # useful to find env orbital in case solving changes the ordering!
         C_env = self.C_full_reidx[:, self.env_idx_occ]
         P_env = C_env @ C_env.conj().T
-        weight = np.einsum("ji,jk,kl,li->i", dft_emb.mo_coeff, self.Sao, P_env, self.Sao @ dft_emb.mo_coeff)
-        env_cols = np.where(weight > 0.5)[0]
+        weight = backend.xp.einsum("ji,jk,kl,li->i", dft_emb.mo_coeff, self.Sao, P_env, self.Sao @ dft_emb.mo_coeff)
+        env_cols = backend.xp.where(weight > 0.5)[0]
 
         if warn:
             self.warn_not_converged(dft_emb, proj_type)
@@ -376,9 +376,9 @@ class EmbedSCF():
                      warn:bool=True, scf_modify_function=None):
         
         if self.SCF_type == "open-shell":
-            hf_emb = scf.ROHF(self.mol_act)
+            hf_emb = backend.pyscf.scf.ROHF(self.mol_act)
         else:
-            hf_emb = scf.RHF(self.mol_act)
+            hf_emb = backend.pyscf.scf.RHF(self.mol_act)
 
         ## use same settings as global SCF
         hf_emb.verbose = self.global_scf_obj.verbose
@@ -438,8 +438,8 @@ class EmbedSCF():
                     fockb = h1e + vhf[1]
                     ## a restricted open-shell object can still be handed a spin-summed dm
                     ## (the initial guess is one), which get_roothaan_fock cannot unpack
-                    dm_ab = dm if np.ndim(dm) == 3 else np.array((np.asarray(dm) * 0.5,) * 2)
-                    Fao = scf.rohf.get_roothaan_fock((focka,fockb), dm_ab, self.Sao)
+                    dm_ab = dm if backend.xp.ndim(dm) == 3 else backend.xp.array((backend.xp.asarray(dm) * 0.5,) * 2)
+                    Fao = backend.pyscf.scf.rohf.get_roothaan_fock((focka,fockb), dm_ab, self.Sao)
                 else:
                     Fao = h1e + vhf
 
@@ -469,17 +469,17 @@ class EmbedSCF():
 
         # correction given with respect to original active density (not new one)
         if self.SCF_type == "open-shell":
-            emb_corr = np.einsum("ij,ji->", self.dm_act[0], v_emb_ao) + np.einsum("ij,ji->", self.dm_act[1], v_emb_ao) 
+            emb_corr = backend.xp.einsum("ij,ji->", self.dm_act[0], v_emb_ao) + backend.xp.einsum("ij,ji->", self.dm_act[1], v_emb_ao) 
         else:
-            emb_corr = np.einsum("ij,ji->", self.dm_act, v_emb_ao) 
+            emb_corr = backend.xp.einsum("ij,ji->", self.dm_act, v_emb_ao) 
             
         
         # weight of every converged orbital on the occupied-environment space
         # useful to find env orbital in case solving changes the ordering!
         C_env = self.C_full_reidx[:, self.env_idx_occ]
         P_env = C_env @ C_env.conj().T
-        weight = np.einsum("ji,jk,kl,li->i", hf_emb.mo_coeff, self.Sao, P_env, self.Sao @ hf_emb.mo_coeff)
-        env_cols = np.where(weight > 0.5)[0]
+        weight = backend.xp.einsum("ji,jk,kl,li->i", hf_emb.mo_coeff, self.Sao, P_env, self.Sao @ hf_emb.mo_coeff)
+        env_cols = backend.xp.where(weight > 0.5)[0]
 
         if warn:
             self.warn_not_converged(hf_emb, proj_type)
@@ -504,9 +504,9 @@ class EmbedSCF():
         P_env = C_env @ C_env.conj().T
 
         # weight of every converged orbital on the occupied-environment space
-        weight = np.einsum("ji,jk,kl,li->i", C_act_embedded, Sao, P_env, Sao @ C_act_embedded)
-        env_cols = np.where(weight > 0.5)[0]
-        occ_cols = np.where(mo_occ_act_embedded > 0)[0]
+        weight = backend.xp.einsum("ji,jk,kl,li->i", C_act_embedded, Sao, P_env, Sao @ C_act_embedded)
+        env_cols = backend.xp.where(weight > 0.5)[0]
+        occ_cols = backend.xp.where(mo_occ_act_embedded > 0)[0]
 
         # the WF-in-DFT requirement: occupied embedded orbitals span none of the environment
         ovlp_occ = C_env.conj().T @ Sao @ C_act_embedded[:, occ_cols]
@@ -514,12 +514,12 @@ class EmbedSCF():
 
         print(f"--- {label} ---")
         print("  environment landed in columns :", env_cols)
-        print("  eps(environment)              :", np.around(mo_energy_act_embedded[env_cols], 4))
+        print("  eps(environment)              :", backend.xp.around(mo_energy_act_embedded[env_cols], 4))
         print("  occupied columns              :", occ_cols)
-        print("  eps(occupied)                 :", np.around(mo_energy_act_embedded[occ_cols], 4))
-        print(f"  max |<env occ| S |emb occ>|   : {np.abs(ovlp_occ).max():.2e}   <- must be ~0")
+        print("  eps(occupied)                 :", backend.xp.around(mo_energy_act_embedded[occ_cols], 4))
+        print(f"  max |<env occ| S |emb occ>|   : {backend.xp.abs(ovlp_occ).max():.2e}   <- must be ~0")
         print(f"  aufbau margin                 : {margin:+.4f} Ha  <- must be > 0")
-        assert np.abs(ovlp_occ).max() < 1e-8, "occupied orbitals are contaminated by the environment"
+        assert backend.xp.abs(ovlp_occ).max() < 1e-8, "occupied orbitals are contaminated by the environment"
         assert margin > 0, "an environment orbital sits below the active HOMO"
 
         return env_cols
@@ -528,21 +528,35 @@ class EmbedSCF():
         """
         Get spatial MO integrals for the embedded system.
         if mo_cas_idxs is None, then use all MOs in the active space
+
+        note has to be done on CPU as mcscf only works on CPU
         """
         if mo_cas_idxs is None:
-            mo_cas_idxs = np.arange(norb)
+            mo_cas_idxs = backend.xp.arange(norb)
 
         assert len(mo_cas_idxs) == norb
+        try:        
+            act_emb_C = numpy.asarray(act_emb_C.get())
+        except:
+            act_emb_C = numpy.asarray(act_emb_C)
 
-        assert np.sum(nelecas)<= np.sum(act_emb_scf_obj.mol.nelec)
+        try:
+            hcore_emb = numpy.asarray(act_emb_scf_obj.get_hcore().get())
+            mf = act_emb_scf_obj.to_cpu()
+            mo_cas_idxs = numpy.asarray(mo_cas_idxs.get())
+        except:
+            hcore_emb = numpy.asarray(act_emb_scf_obj.get_hcore())
+            mf = act_emb_scf_obj
+            mo_cas_idxs = numpy.asarray(mo_cas_idxs)
+            
+        assert sum(nelecas)<= sum(mf.mol.nelec)
         cas_act_emb = mcscf.CASCI(
-                                 act_emb_scf_obj,
+                                 mf,
                                   norb,
                                   nelecas,
-                                #   ncore=self.ncore
                                   )
-        ## need to overwrite CASCI hcore function
-        cas_act_emb.get_hcore = lambda *args, **kwargs: act_emb_scf_obj.get_hcore()
+        ## need to overwrite CASCI hcore function with hcore_embedded
+        cas_act_emb.get_hcore = lambda *args, **kwargs: hcore_emb
         
         C_emb_ordered_subspace = mcscf.addons.sort_mo(cas_act_emb, act_emb_C, 
                                                       mo_cas_idxs, base=0)
