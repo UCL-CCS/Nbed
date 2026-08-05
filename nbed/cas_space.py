@@ -140,7 +140,7 @@ def fragment_valence_projector(mol, atom_indices, ref_basis="minao", drop_core=T
         s_cross = backend.xp.asarray(gto.intor_cross("int1e_ovlp", mol, ref_mol))[:, keep]
         s_ref = backend.xp.asarray(ref_mol.intor("int1e_ovlp"))[backend.xp.ix_(keep, keep)]
     else:
-        s_cross = gto.intor_cross("int1e_ovlp", mol, ref_mol)
+        s_cross = gto.intor_cross("int1e_ovlp", mol, ref_mol)[:, keep]
         s_ref = ref_mol.intor("int1e_ovlp")[backend.xp.ix_(keep, keep)]
 
 
@@ -363,11 +363,7 @@ def pool_mp2_natural_orbitals(mf, occ_cols, pool_cols, verify_fock=True, fock_to
             )
 
     if verify_fock:
-        dm_ao = mf.make_rdm1(mo_coeff=mf.mo_coeff, mo_occ=mf.mo_occ)
-        vhf   = mf.get_veff(dm=dm_ao)
-        s1e   = mf.get_ovlp()
-        h1e   = mf.get_hcore()
-        fock_ao = mf.get_fock(h1e, s1e, vhf, dm_ao)
+        fock_ao = mf.get_fock()
         fock_mo = backend.xp.asarray(mf.mo_coeff).T @ backend.xp.asarray(fock_ao) @ backend.xp.asarray(mf.mo_coeff)
         off = backend.xp.abs(fock_mo[backend.xp.ix_(occ_cols, pool_cols)]).max()
         assert off < fock_tol, (
