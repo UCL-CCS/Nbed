@@ -137,10 +137,12 @@ def fragment_valence_projector(mol, atom_indices, ref_basis="minao", drop_core=T
         raise ValueError("the reference valence space is empty")
 
     if backend.USING_GPU:
-        s_cross = backend.xp.asarray(s_cross)
-        s_ref = backend.xp.asarray(s_ref)
-    s_cross = s_cross[:, keep]
-    s_ref = s_ref[backend.xp.ix_(keep, keep)]
+        s_cross = backend.xp.asarray(gto.intor_cross("int1e_ovlp", mol, ref_mol))[:, keep]
+        s_ref = backend.xp.asarray(ref_mol.intor("int1e_ovlp"))[backend.xp.ix_(keep, keep)]
+    else:
+        s_cross = gto.intor_cross("int1e_ovlp", mol, ref_mol)
+        s_ref = ref_mol.intor("int1e_ovlp")[backend.xp.ix_(keep, keep)]
+
 
     evals, evecs = backend.xp.linalg.eigh(s_ref)
     ok = evals > 1e-10
