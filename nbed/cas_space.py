@@ -79,10 +79,7 @@ from pyscf import gto, mcscf
 import numpy
 import nbed.backend 
 
-if nbed.backend.USING_GPU:
-    from gpu4pyscf import mp
-else:
-    from pyscf import mp
+from pyscf import mp
 
 
 
@@ -384,10 +381,16 @@ def pool_mp2_natural_orbitals(mf, occ_cols, pool_cols, verify_fock=True, fock_to
             "semicanonicalise the pool before correlating it"
         )
 
+    if nbed.backend.USING_GPU:
+        mf = mf.to_cpu()
+    
     pt = mp.MP2(mf, frozen=[int(i) for i in frozen])
     pt.verbose = 0
     pt.kernel()
     dm1 = pt.make_rdm1()
+
+    if nbed.backend.USING_GPU:
+        mdm1 = nbed.backend.xp.asarray(dm1)
 
     occs_v, vecs_v = nbed.backend.xp.linalg.eigh(dm1[nbed.backend.xp.ix_(pool_cols, pool_cols)])
     order_v = nbed.backend.xp.argsort(-occs_v)
