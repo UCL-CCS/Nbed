@@ -363,7 +363,9 @@ def pool_mp2_natural_orbitals(mf, occ_cols, pool_cols, verify_fock=True, fock_to
             )
 
     if verify_fock:
-        fock_ao = mf.get_fock()
+        rdm1ao = mf.make_rdm1()
+        vhf = mf.get_veff(mol=mf.mol, dm=rdm1ao)
+        fock_ao = mf.get_fock(vhf=vhf, dm=rdm1ao)
         fock_mo = backend.xp.asarray(mf.mo_coeff).T @ backend.xp.asarray(fock_ao) @ backend.xp.asarray(mf.mo_coeff)
         off = backend.xp.abs(fock_mo[backend.xp.ix_(occ_cols, pool_cols)]).max()
         assert off < fock_tol, (
