@@ -896,6 +896,9 @@ def diagnose_cas(casci, verbose=True):
     """
     ncas, nelecas = casci.ncas, casci.nelecas
     dm1 = casci.fcisolver.make_rdm1(casci.ci, ncas, nelecas)
+    if nbed.backend.USING_GPU:
+        dm1 = nbed.backend.xp.asarray(dm1)
+
     occ = nbed.backend.xp.linalg.eigvalsh(dm1)[::-1]
 
     n_u, n_u_nl = unpaired_electrons(occ)
