@@ -612,8 +612,7 @@ def select_cas_by_mp2_no(mf, atom_indices, n_cas_vir, n_cas_occ=None, n_pool=Non
 
     # write the rotated orbitals back into a copy of the mean field, so that the pool is
     # a plain set of columns and pyscf's frozen-orbital MP2 can do the truncation
-    mf_pool = copy.copy(mf)
-    mf_pool.mol = mf.mol.copy()
+    mf_pool = mf.copy()
     mf_pool.mo_coeff = backend.xp.asarray(mf.mo_coeff).copy()
     mf_pool.mo_energy = backend.xp.asarray(mf.mo_energy).copy()
     mf_pool.mo_coeff[:, pool_cols] = c_pool
