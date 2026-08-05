@@ -390,7 +390,7 @@ def pool_mp2_natural_orbitals(mf, occ_cols, pool_cols, verify_fock=True, fock_to
     dm1 = pt.make_rdm1()
 
     if nbed.backend.USING_GPU:
-        mdm1 = nbed.backend.xp.asarray(dm1)
+        dm1 = nbed.backend.xp.asarray(dm1)
 
     occs_v, vecs_v = nbed.backend.xp.linalg.eigh(dm1[nbed.backend.xp.ix_(pool_cols, pool_cols)])
     order_v = nbed.backend.xp.argsort(-occs_v)
