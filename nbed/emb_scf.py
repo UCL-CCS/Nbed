@@ -368,7 +368,7 @@ class EmbedSCF():
             if proj_type == "huz":
                 self.warn_huz_aufbau_violated(dft_emb, env_cols)
 
-        env_plus_corrections = self.E_env + self.E_cross - emb_corr
+        env_plus_corrections = float(self.E_env + self.E_cross - emb_corr)
         E_dft_in_dft = dft_emb.e_tot + env_plus_corrections
         return E_dft_in_dft, dft_emb, emb_corr, env_cols, env_plus_corrections
 
@@ -563,6 +563,6 @@ class EmbedSCF():
         
         h1_emb_mo, energy_core_emb = cas_act_emb.get_h1eff(mo_coeff=C_emb_ordered_subspace)
         eri_cas_mo_S4 = cas_act_emb.get_h2eff(mo_coeff=C_emb_ordered_subspace)
-
+        energy_core_emb = float(energy_core_emb)
 
         return energy_core_emb, h1_emb_mo, eri_cas_mo_S4
