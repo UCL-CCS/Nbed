@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "openfermion>=1.8.1",
-    "pyscf>=2.14.0",
+    "pyscf>=2.8.0",
 ]
 
 [project.scripts]
