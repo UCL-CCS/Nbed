@@ -796,6 +796,11 @@ def single_orbital_entropies(casci, ci=None):
         )
     (dm1a, dm1b), (_, dm2ab, _) = casci.fcisolver.make_rdm12s(ci, ncas, nelecas)
 
+    if nbed.backend.USING_GPU:
+        dm1a = nbed.backend.xp.asarray(dm1a)
+        dm1b = nbed.backend.xp.asarray(dm1b)
+        dm2ab = nbed.backend.xp.asarray(dm2ab)
+
     diag = nbed.backend.xp.arange(ncas)
     w_both = dm2ab[diag, diag, diag, diag]          # <n_up n_down> on the same orbital
     w_up = nbed.backend.xp.diag(dm1a) - w_both
