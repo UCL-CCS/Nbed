@@ -86,6 +86,7 @@ else:
 
 from pyscf.mp.mp2 import make_rdm1 as make_rdm1_mp2_restricted
 from pyscf.mp.ump2 import make_rdm1 as make_rdm1_mp2_unrestricted
+from pyscf import mp as mp2_std
 
 
 
@@ -396,11 +397,10 @@ def pool_mp2_natural_orbitals(mf, occ_cols, pool_cols, verify_fock=True, fock_to
 
     if nbed.backend.USING_GPU:
         t2 = numpy.asarray(t2.get())
-    try:
-        dm1 = make_rdm1_mp2_restricted(t2)
-    except:
-        rdm1a, rdm1b = make_rdm1_mp2_unrestricted(t2)
-        dm1 = rdm1a + rdm1b
+
+    ## do NOT run this... but use to get rdm1
+    pt_std = mp2_std.MP2(mf, frozen=[int(i) for i in frozen])
+    dm1 = pt_std.make_rdm1(t2=t2)
 
     if nbed.backend.USING_GPU:
         dm1 = nbed.backend.xp.asarray(dm1)
