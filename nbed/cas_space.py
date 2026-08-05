@@ -79,15 +79,7 @@ from pyscf import gto, mcscf
 import numpy
 import nbed.backend 
 
-if nbed.backend.USING_GPU:
-    from gpu4pyscf import mp
-else:
-    from pyscf import mp
-
-from pyscf.mp.mp2 import make_rdm1 as make_rdm1_mp2_restricted
-from pyscf.mp.ump2 import make_rdm1 as make_rdm1_mp2_unrestricted
-from pyscf import mp as mp2_std
-
+from pyscf import mp
 
 
 
@@ -389,18 +381,13 @@ def pool_mp2_natural_orbitals(mf, occ_cols, pool_cols, verify_fock=True, fock_to
             "semicanonicalise the pool before correlating it"
         )
 
-    # if nbed.backend.USING_GPU:
-    #     mf = mf.to_cpu()
+    if nbed.backend.USING_GPU:
+        mf = mf.to_cpu()
+    
     pt = mp.MP2(mf, frozen=[int(i) for i in frozen])
     pt.verbose = 0
-    _, t2 = pt.kernel()
-
-    if nbed.backend.USING_GPU:
-        t2 = numpy.asarray(t2.get())
-
-    ## do NOT run this... but use to get rdm1
-    pt_std = mp2_std.MP2(mf, frozen=[int(i) for i in frozen])
-    dm1 = pt_std.make_rdm1(t2=t2)
+    pt.kernel()
+    dm1 = pt.make_rdm1()
 
     if nbed.backend.USING_GPU:
         dm1 = nbed.backend.xp.asarray(dm1)
