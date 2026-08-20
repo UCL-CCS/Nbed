@@ -1,20 +1,15 @@
 [project]
 name = "nbed"
-version = "0.0.11"
+version = "0.1.0"
 description = "Projection-based embedding methods for reducing quantum simulation resource requirements."
 authors = [
     { name = "Michael Williams de la Bastida", email = "michael.williams.20@ucl.ac.uk" },
     { name = "Alexis Ralli", email = "alexis.ralli.18@ucl.ac.uk" },
 ]
-requires-python = ">=3.12, <4"
+requires-python = ">=3.12"
 dependencies = [
-    "openfermion (>=1.1.0, <2.0.0)",
-    "PyYAML (>=6.0.0, <7.0.0)",
-    "qiskit-nature (>=0.7.0,<1.0.0)",
-    "pyscf (>=2.3.0, <3.0.0)",
-    "numpy>=2.0.0",
-    "pydantic>=2.11.7",
-    "pytest-xdist>=3.8.0",
+    "openfermion>=1.8.1",
+    "pyscf>=2.8.0",
 ]
 
 [project.scripts]
@@ -24,6 +19,7 @@ nbed = "nbed.embed:cli"
 dev = [
     "pre-commit>=4.0.1,<5",
     "jupyter>=1.0.0,<2",
+    "matplotlib>=3.8.0",
     "pytest>=7.4.2, <9",
     "poetry>=2.0.0,<3",
     "pytest-cov>=6.0.0,<7",
