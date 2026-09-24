@@ -73,3 +73,14 @@ def test_cas_hamiltonian(snapshot, name, basis):
         "abs_coeff_sum": coeffs.sum(),
         "abs_coeff_max": coeffs.max(),
     }, rtol=0, atol=1e-6)
+
+
+@pytest.mark.parametrize("proj", ["mu", "huz"])
+@pytest.mark.parametrize("name", ["water", "methanol"])
+def test_hf_in_dft_gradient(snapshot, name, proj):
+    """Analytic HF-in-DFT nuclear gradient."""
+    from nbed.grad import embedding_gradient
+
+    emb = embedding(name)
+    grad = embedding_gradient(emb, embedded_run(name, "hf", proj).mf, proj_type=proj)
+    snapshot({"gradient": grad}, rtol=0, atol=1e-6)
