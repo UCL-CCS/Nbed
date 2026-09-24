@@ -87,20 +87,28 @@ mu → ∞, with an error of order 1/mu.
 - **Restricted references only.** UHF/UKS inputs are rejected, and open shells go
   through ROKS/ROHF.
 
-## Known issues (at the time of writing)
+## Known issues and numerical caveats
 
-- `EmbedSCF.build_emb_hf` re-applies the global SCF settings *after*
-  `scf_modify_function`, overwriting changes the user made there.
-- `select_act_env_space` builds `env_idxs` from `mol.nao` rather than the number of
-  MOs, which differ when linear dependencies have been removed.
-- `pyproject.toml` still declares the `nbed.embed:cli` script, whose module was
-  removed.
 - `emb_scf_gpu.py` duplicates `emb_scf.py`, even though `backend` already abstracts
   the difference.
+- `check_embedding` asserts an environment overlap below 1e-8, which a mu projector
+  (leaking at O(1/mu)) does not meet. Use it with Huzinaga.
+- Huzinaga HF-in-DFT can oscillate without converging (formamide/STO-3G, O fragment).
+  `warn_not_converged` reports it, and `huz_level_shift=1.0` fixes it.
+- E_xc of the partial active density is orientation-dependent on the DFT grid: rotating
+  water changes the B3LYP HF-in-DFT energy by ~2-4e-4 Ha at the default grid level.
+  DFT-in-DFT cancels this error; HF/WF-in-DFT does not. Use `grids.level >= 5`
+  (unpruned) when comparing geometries.
+
+## Tests
+
+`tests/` contains property-based tests (`hypothesis`) for every module, plus numeric
+snapshots in `tests/snapshots/` for H2, H2O, CH3OH, formamide, acetonitrile and CH3•.
+Run `uv run pytest`. After an intended change in results, run
+`uv run pytest tests/test_snapshots.py --snapshot-update` and review the diff.
 
 ## Planned work
 
-1. A property-based (`hypothesis`) and snapshot test suite in `tests/`.
-2. Analytic nuclear gradients of the embedding energy, following the Lagrangian
+1. Analytic nuclear gradients of the embedding energy, following the Lagrangian
    approach of Lee, Welborn, Manby & Miller, *J. Chem. Phys.* **151**, 074104 (2019),
    built on PySCF's (and gpu4pyscf's) gradient modules.
