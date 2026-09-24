@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `docs/ARCHITECTURE.md` describing the embedding pipeline.
 - Property-based and snapshot test suite.
+- `nbed.grad.embedding_gradient`: prototype nuclear gradients for mu-projected HF-in-DFT and DFT-in-DFT.
 
 ### Fixed
 - `build_emb_hf` no longer overrides settings made by `scf_modify_function`, and partitions with fewer MOs than AOs now work.

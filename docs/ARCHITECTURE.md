@@ -20,6 +20,7 @@ partition, the embedded SCF, and the integrals.
 | `emb_scf_gpu.py` | `EmbedSCF_GPU`: a copy of `emb_scf.py` hard-wired to cupy / gpu4pyscf. |
 | `cas_space.py` | Chooses a correlated active space *inside* the embedded fragment and diagnoses how strongly correlated it is. |
 | `hamiltonian.py` | Turns spatial MO integrals into spin-orbital integrals and OpenFermion operators. |
+| `grad.py` | Prototype analytic nuclear gradient of the mu-projected HF-in-DFT / DFT-in-DFT energy. |
 
 ## Pipeline
 
@@ -107,8 +108,26 @@ snapshots in `tests/snapshots/` for H2, H2O, CH3OH, formamide, acetonitrile and 
 Run `uv run pytest`. After an intended change in results, run
 `uv run pytest tests/test_snapshots.py --snapshot-update` and review the diff.
 
-## Planned work
+## Nuclear gradients (`grad.py`, prototype)
 
-1. Analytic nuclear gradients of the embedding energy, following the Lagrangian
-   approach of Lee, Welborn, Manby & Miller, *J. Chem. Phys.* **151**, 074104 (2019),
-   built on PySCF's (and gpu4pyscf's) gradient modules.
+`embedding_gradient(emb, mf_emb)` differentiates the energy returned by
+`build_emb_hf` / `build_emb_dft` (mu projector, closed shell, canonical partition). It
+follows the Lagrangian of Lee et al., *J. Chem. Phys.* **151**, 074104 (2019):
+
+- the embedded SCF is variational, so it contributes only an energy-weighted density;
+- a Z-vector (CPKS, `pyscf.scf.cphf`) handles the global KS orbital response;
+- closed-form multipliers enforce the canonical condition `F_ab = 0` that fixes which
+  occupied orbitals belong to the fragment (a ≠ b degenerate pair raises an error).
+
+The fragment density gamma_A is not a physical density, and its xc energy has a large
+DFT grid-weight response, up to 2e-2 Ha/bohr for B3LYP. That response has to be
+included, because the grid moves with the atoms. PySCF's Hessian `make_h1` has no grid
+response, so fixed-density Fock derivatives are instead taken as a central difference
+*in density space* of the grid-response energy gradient (`fock_deriv_contract`). That
+difference is exact for h/J/K and O(eps²) for xc. It agrees with geometric finite
+differences to ~1e-8 Ha/bohr for HF, LDA, PBE and B3LYP on water and methanol.
+
+Next steps: Huzinaga (response of the projector to the embedded Fock), Pipek-Mezey
+partitions (localisation Hessian), ROKS, WF-in-DFT via relaxed densities from
+PySCF's MP2/CCSD/CASCI gradients, a fully analytic xc grid response, and the GPU
+path via `gpu4pyscf.grad`.
