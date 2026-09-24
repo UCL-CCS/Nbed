@@ -20,7 +20,7 @@ class EmbedSCF():
             raise ValueError("SCF input must be restricted (not unrestricted)")
         
         assert len(act_MO_idxs) + len(env_MO_idxs) == len(mo_occ), "active and environment MO indices must sum to total number of MOs"
-        assert len(act_MO_idxs) + len(env_MO_idxs) == global_scf_obj.mol.nao, "active and environment MO indices must equal number of MOs"
+        assert len(act_MO_idxs) + len(env_MO_idxs) == mo_coeff.shape[1], "active and environment MO indices must equal number of MOs"
         
         if backend.xp.any(mo_occ==1) or hasattr(global_scf_obj, "nelec"):
             ## hasattr is needed as sometimes a user may pass in a open-shell SCF even if it is restricted (aka all double occupied) 
@@ -43,15 +43,15 @@ class EmbedSCF():
         vir_env   = backend.xp.intersect1d(vir_all, env_MO_idxs)
 
         re_idx = backend.xp.concatenate([occ_env, occ_act, vir_act, vir_env])
-        assert len(backend.xp.setdiff1d(re_idx, backend.xp.arange(global_scf_obj.mol.nao))) == 0, "re_indexing wrong"
+        assert len(backend.xp.setdiff1d(re_idx, backend.xp.arange(mo_coeff.shape[1]))) == 0, "re_indexing wrong"
     
 
         self.ncore = len(occ_env) # frozen env orbitals
         self.n_act = len(act_MO_idxs) 
         self.act_cols = backend.xp.arange(self.ncore, self.ncore + self.n_act)
-        self.remaining_cols = backend.xp.setdiff1d(backend.xp.arange(global_scf_obj.mol.nao), self.act_cols)
+        self.remaining_cols = backend.xp.setdiff1d(backend.xp.arange(mo_coeff.shape[1]), self.act_cols)
 
-        self.non_core_idx_all = backend.xp.setdiff1d(backend.xp.arange(global_scf_obj.mol.nao), backend.xp.arange(self.ncore))
+        self.non_core_idx_all = backend.xp.setdiff1d(backend.xp.arange(mo_coeff.shape[1]), backend.xp.arange(self.ncore))
         ### note virtual env is included in remaining_cols! this is good for WF methods!
 
         self.C_full_reidx = mo_coeff[:, re_idx].copy()
@@ -391,11 +391,6 @@ class EmbedSCF():
             ### can also override global SCF settings above!
             hf_emb = scf_modify_function(hf_emb)
 
-
-        ## use same settings as global SCF
-        hf_emb.verbose = self.global_scf_obj.verbose
-        hf_emb.max_cycle = self.global_scf_obj.max_cycle
-        hf_emb.conv_tol = self.global_scf_obj.conv_tol
 
         ## get standard hcore in AO basis
         hcore_std = hf_emb.get_hcore()

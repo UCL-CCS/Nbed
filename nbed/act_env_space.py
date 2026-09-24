@@ -183,5 +183,5 @@ def select_act_env_space(mf, atom_indices, n_occ_active, n_vir_active=None,
     pick_occ = backend.xp.sort(occ_pool[backend.xp.argsort(-population[occ_pool])[:n_occ_active]])
     pick_vir = backend.xp.sort(vir_pool[backend.xp.argsort(-population[vir_pool])[:n_vir_active]])
     active_idxs = backend.xp.concatenate([pick_occ, pick_vir])
-    env_idxs = backend.xp.setdiff1d(backend.xp.arange(mol.nao), active_idxs)
+    env_idxs = backend.xp.setdiff1d(backend.xp.arange(mo_coeff.shape[1]), active_idxs)
     return active_idxs, env_idxs, population, spread
