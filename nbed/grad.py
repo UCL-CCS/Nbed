@@ -41,8 +41,10 @@ localisation Hessian, and correlated wavefunctions in the fragment.
 from dataclasses import dataclass
 
 import numpy as np
+from pyscf import ao2mo
 from pyscf.grad.rhf import grad_nuc
-from pyscf.scf import cphf, hf
+from pyscf.scf import hf
+from scipy.sparse.linalg import LinearOperator, cg
 
 
 def _sym(a):
@@ -76,13 +78,13 @@ def elec_energy_deriv(mf_grad, dm):
     return de
 
 
-def fock_deriv_contract(mf_grad, dm, t, eps=1e-4):
+def fock_deriv_contract(mf_grad, dm, t, eps=1e-5):
     """``tr(t dF[dm]/dR)`` at fixed ``dm`` and ``t``, including grid response.
 
     Uses ``dF/d(dm) = F``: the Fock derivative contracted with ``t`` is the
     directional derivative, along ``t``, of the fixed-density energy gradient. It
     is taken by a central difference in *density* space, which is exact for the
-    one- and two-electron integrals and O(eps^2) for the xc energy. No geometry is
+    one- and two-electron integrals and O(eps^4) for the xc energy. No geometry is
     displaced. Unlike ``hessian.*.make_h1`` it includes the DFT grid-weight
     response, which is large for the partial fragment density.
 
@@ -99,9 +101,14 @@ def fock_deriv_contract(mf_grad, dm, t, eps=1e-4):
     if scale == 0:
         return np.zeros((mf_grad.mol.natm, 3))
     step = eps / scale
-    plus = elec_energy_deriv(mf_grad, dm + step * t)
-    minus = elec_energy_deriv(mf_grad, dm - step * t)
-    return (plus - minus) / (2 * step)
+
+    def central(h):
+        return (elec_energy_deriv(mf_grad, dm + h * t)
+                - elec_energy_deriv(mf_grad, dm - h * t))
+
+    # fourth-order stencil: the xc energy of the fragment density is far from
+    # quadratic along correlated density directions
+    return (8 * central(step) - central(2 * step)) / (12 * step)
 
 
 def ovlp_deriv_contract(mol, w):
@@ -234,9 +241,29 @@ def mean_field_response(emb, mf_emb, proj_type="mu", xc_grid_response=True,
     return frag
 
 
+def _solve_zvector(fvind, e_occ, e_vir, rhs, tol):
+    """Solve ``(e_a - e_i) z_ai + fvind(z)_ai = rhs_ai`` for the Z-vector.
+
+    Jacobi-preconditioned conjugate gradients on an absolute residual.
+    ``pyscf.scf.cphf.solve`` stalls when the orbital energy differences span many
+    orders of magnitude, as they do once a mu projector pushes the environment to
+    ``~mu`` hartree, and its z then carries errors of 1e-6 Ha/bohr in the gradient.
+    """
+    diag = (e_vir[:, None] - e_occ[None, :]).ravel()
+    b = np.asarray(rhs).ravel()
+    op = LinearOperator((b.size, b.size), dtype=float,
+                        matvec=lambda z: diag * z + np.asarray(fvind(z)).ravel())
+    precond = LinearOperator((b.size, b.size), dtype=float, matvec=lambda r: r / diag)
+    atol = tol * max(1.0, np.abs(b).max())
+    z, info = cg(op, b, M=precond, rtol=0.0, atol=atol, maxiter=10 * b.size + 100)
+    if info != 0:
+        raise RuntimeError("the Z-vector equations did not converge")
+    return z.reshape(len(e_vir), len(e_occ))
+
+
 def global_embedding_gradient(emb, frag, mf_global=None, proj_type="mu",
                               canonical_tol=1e-6, degeneracy_tol=1e-4, cphf_tol=1e-10,
-                              xc_grid_response=True, fd_eps=1e-4, return_terms=False):
+                              xc_grid_response=True, fd_eps=1e-5, return_terms=False):
     """Embedding gradient for any fragment solver described by a FragmentResponse.
 
     Adds the global Kohn-Sham response, the canonical-partition multipliers and the
@@ -301,8 +328,7 @@ def global_embedding_gradient(emb, frag, mf_global=None, proj_type="mu",
         dm = C_v @ z @ C_o.T
         return 2 * (C_v.T @ resp(dm + dm.T) @ C_o).ravel()
 
-    z = cphf.solve(fvind, np.concatenate([e_o, e_v]), mo_occ, -L,
-                   max_cycle=100, tol=cphf_tol)[0].reshape(nv, no)
+    z = _solve_zvector(fvind, e_o, e_v, L, cphf_tol)
     Z_ao = _sym(C_v @ z @ C_o.T)
 
     # everything that multiplies S^x, in the MO basis [A | B | v]
@@ -346,7 +372,7 @@ def global_embedding_gradient(emb, frag, mf_global=None, proj_type="mu",
 
 def embedding_gradient(emb, mf_emb, mf_global=None, proj_type="mu",
                        canonical_tol=1e-6, degeneracy_tol=1e-4, cphf_tol=1e-10,
-                       xc_grid_response=True, fd_eps=1e-4, return_terms=False):
+                       xc_grid_response=True, fd_eps=1e-5, return_terms=False):
     """Nuclear gradient of the energy returned by ``build_emb_hf`` / ``build_emb_dft``.
 
     Args:
@@ -384,3 +410,245 @@ def embedding_gradient(emb, mf_emb, mf_global=None, proj_type="mu",
     return global_embedding_gradient(
         emb, frag, mf_global, proj_type, canonical_tol, degeneracy_tol, cphf_tol,
         xc_grid_response, fd_eps, return_terms)
+
+
+##################################################################################
+############# WF-in-DFT: gradients from externally supplied RDMs #################
+##################################################################################
+
+
+def wf_in_dft_energy(e_core, h1, eri, casdm1, casdm2, env_plus_corrections):
+    """WF-in-DFT energy from active-space integrals and RDMs.
+
+    ``(e_core, h1, eri)`` are the output of ``EmbedSCF.get_mo_integrals``, and
+    ``env_plus_corrections`` that of ``build_emb_hf``. The RDMs follow PySCF's
+    ``make_rdm12`` convention, ``E = e_core + h1 . d + 1/2 (pq|rs) D_pqrs``, and can
+    come from any solver, e.g. a VQE measuring the qubit Hamiltonian.
+    """
+    norb = h1.shape[0]
+    g = ao2mo.restore(1, eri, norb)
+    return float(e_core + np.einsum("pq,pq", h1, casdm1)
+                 + 0.5 * np.einsum("pqrs,pqrs", g, casdm2) + env_plus_corrections)
+
+
+def _symmetrize_dm2(dm2):
+    dm2 = 0.25 * (dm2 + dm2.transpose(1, 0, 2, 3) + dm2.transpose(0, 1, 3, 2)
+                  + dm2.transpose(1, 0, 3, 2))
+    return 0.5 * (dm2 + dm2.transpose(2, 3, 0, 1))
+
+
+def _hcore_contract(mf_grad, a):
+    hcore_deriv = mf_grad.hcore_generator(mf_grad.mol)
+    return np.array([np.einsum("xij,ij->x", hcore_deriv(k), a)
+                     for k in range(mf_grad.mol.natm)])
+
+
+def _dm2_eri_deriv(mol, dm2_ao):
+    """``1/2 sum (mn|ls)^x Gamma_mnls`` for a fully symmetric AO 2-RDM."""
+    eri1 = mol.intor("int2e_ip1", comp=3).reshape((3,) + (mol.nao,) * 4)
+    de = np.zeros((mol.natm, 3))
+    for k, (_, _, p0, p1) in enumerate(mol.aoslice_by_atom()):
+        de[k] = -2 * np.einsum("xmnls,mnls->x", eri1[:, p0:p1], dm2_ao[p0:p1])
+    return de
+
+
+def _env_columns(emb, mf_emb):
+    """Embedded columns carrying the occupied environment (weight > 0.5)."""
+    C_B = emb.C_full_reidx[:, emb.env_idx_occ]
+    proj = mf_emb.mo_coeff.T @ emb.Sao @ C_B
+    return np.where(np.einsum("pb,pb->p", proj, proj) > 0.5)[0]
+
+
+def rdm_fragment_response(emb, mf_emb, mo_cas_idxs, casdm1, casdm2, proj_type="mu",
+                          env_cols=None, canonical_tol=1e-6, degeneracy_tol=1e-4,
+                          cphf_tol=1e-10, orthogonality_tol=1e-7, fd_eps=1e-5):
+    """:class:`FragmentResponse` of an active-space wavefunction given by its RDMs.
+
+    The fragment energy is the CASCI-form energy of the integrals that
+    ``EmbedSCF.get_mo_integrals(mf_emb, mf_emb.mo_coeff, ncas, nelecas, mo_cas_idxs)``
+    returns, evaluated with the supplied RDMs. The embedded HF orbitals are not
+    variational for it, so their response is included: a Z-vector over the
+    occupied-virtual rotations and closed-form multipliers for the rotations
+    between core and active occupied, and between active virtual and external,
+    orbitals, which the canonical condition fixes. With huzinaga, the environment
+    columns are excluded from both, since the orthogonality constraint slaves
+    their rotations to the global environment orbitals.
+
+    The result is exact when the RDMs come from a state that is stationary within
+    the active space (FCI, a converged VQE). Rotations *inside* the active space are
+    not given a response.
+
+    Args:
+        emb: The :class:`~nbed.emb_scf.EmbedSCF` that produced ``mf_emb``.
+        mf_emb: Converged embedded RHF from ``build_emb_hf``.
+        mo_cas_idxs: Columns of ``mf_emb.mo_coeff`` forming the active space.
+        casdm1: ``(ncas, ncas)`` spin-summed 1-RDM.
+        casdm2: ``(ncas,) * 4`` spin-summed 2-RDM, PySCF convention.
+        proj_type: ``"mu"`` or ``"huz"``.
+        env_cols: Environment columns of ``mf_emb``. Detected when ``None``.
+        canonical_tol: Largest off-diagonal Fock element accepted as canonical.
+        degeneracy_tol: Smallest orbital energy gap across the space boundaries.
+        cphf_tol: Convergence threshold of the Z-vector solve.
+        orthogonality_tol: Largest tolerated environment overlap (huzinaga).
+        fd_eps: Density-space step for :func:`fock_deriv_contract`.
+
+    Returns:
+        A :class:`FragmentResponse`.
+    """
+    if not isinstance(mf_emb, hf.RHF) or isinstance(mf_emb, hf.KohnShamDFT):
+        raise NotImplementedError("WF-in-DFT gradients need an embedded RHF reference")
+    mol = mf_emb.mol
+    S = emb.Sao
+    C_all = mf_emb.mo_coeff
+    nmo = C_all.shape[1]
+    mo_cas_idxs = np.asarray(mo_cas_idxs, dtype=int)
+    casdm2 = _symmetrize_dm2(np.asarray(casdm2))
+    casdm1 = 0.5 * (casdm1 + casdm1.T)
+
+    env = np.array([], dtype=int)
+    if proj_type == "huz":
+        env = _env_columns(emb, mf_emb) if env_cols is None else np.asarray(env_cols)
+        if len(np.intersect1d(env, mo_cas_idxs)):
+            raise ValueError("the active space contains environment columns")
+    comp = np.setdiff1d(np.arange(nmo), env)
+    occ_all = np.where(mf_emb.mo_occ > 0)[0]
+    if len(np.intersect1d(env, occ_all)):
+        raise ValueError("an environment column is occupied in the embedded reference")
+
+    core = np.setdiff1d(occ_all, mo_cas_idxs)
+    act_o = np.intersect1d(occ_all, mo_cas_idxs)
+    vir = np.setdiff1d(comp, occ_all)
+    act_v = np.intersect1d(vir, mo_cas_idxs)
+    ext = np.setdiff1d(vir, mo_cas_idxs)
+    # active columns in the order the RDMs use
+    C_a = C_all[:, mo_cas_idxs]
+    C_c = C_all[:, core]
+
+    # projector-free embedded Fock and the orbital energies within the fragment space
+    h_emb = mf_emb.get_hcore()
+    D_hf = mf_emb.make_rdm1()
+    fock = h_emb + mf_emb.get_veff(dm=D_hf)
+    f_mo = C_all.T @ fock @ C_all
+    f_cc = f_mo[np.ix_(comp, comp)]
+    if np.abs(f_cc - np.diag(np.diag(f_cc))).max() > canonical_tol:
+        raise NotImplementedError(
+            "the embedded orbitals are not canonical; rotated active spaces (e.g. "
+            "MP2 natural orbitals) need their own response")
+    eps = np.diag(f_mo).copy()
+    if proj_type == "huz" and len(env):
+        overlap = np.abs(C_all[:, occ_all].T @ S @ emb.C_full_reidx[:, emb.env_idx_occ])
+        if overlap.max() > orthogonality_tol:
+            raise ValueError(f"embedded occupied orbitals overlap the environment by "
+                             f"{overlap.max():.1e}")
+
+    # fragment densities and the derivative of the energy w.r.t. the orbitals
+    D_c = 2 * C_c @ C_c.T
+    D_a = C_a @ casdm1 @ C_a.T
+    D1 = D_c + D_a
+    vj, vk = mf_emb.get_jk(mol, np.array([D_c, D_a]), hermi=1)
+    G_c, G_a = vj[0] - 0.5 * vk[0], vj[1] - 0.5 * vk[1]
+    dE_dC = np.zeros_like(C_all)
+    dE_dC[:, core] = 4 * (h_emb + G_c + G_a) @ C_c
+    eri = mol.intor("int2e").reshape((mol.nao,) * 4)
+    half = np.einsum("mnls,nq,lr,st->mqrt", eri, C_a, C_a, C_a, optimize=True)
+    dE_dC[:, mo_cas_idxs] = (2 * (h_emb + G_c) @ C_a @ casdm1
+                             + 2 * np.einsum("mqrs,tqrs->mt", half, casdm2))
+    G = C_all.T @ dE_dC  # G[p, q] = c_p . dE/dc_q
+
+    resp = mf_emb.gen_response(mo_coeff=C_all, mo_occ=mf_emb.mo_occ, hermi=1)
+    omega = np.zeros((nmo, nmo))
+    mult = np.zeros((nmo, nmo))  # multipliers of the fragment orbital conditions
+
+    # rotations inside one space leave the energy unchanged: symmetric part only
+    for space in (core, act_o, act_v, ext):
+        omega[np.ix_(space, space)] += -0.5 * G[np.ix_(space, space)]
+    # the active occupied-virtual pairs are handled by the Z-vector below; only
+    # their symmetric (overlap) part is not
+
+    # pairs across a space boundary within one HF block: fixed by F_pq = 0
+    for rows, cols in ((core, act_o), (act_v, ext)):
+        if not len(rows) or not len(cols):
+            continue
+        gap = eps[rows][:, None] - eps[cols][None, :]
+        if np.abs(gap).min() < degeneracy_tol:
+            raise ValueError("near-degenerate orbitals across an active-space boundary")
+        g_pq = G[np.ix_(rows, cols)]
+        g_qp = G[np.ix_(cols, rows)]
+        x = (g_pq - g_qp.T) / gap
+        mult[np.ix_(rows, cols)] = x
+        omega[np.ix_(rows, cols)] += x * eps[cols][None, :] - g_qp.T
+    X_ao = _sym(C_all @ mult @ C_all.T)
+
+    # occupied-virtual rotations of the embedded HF: Z-vector
+    o, v = occ_all, vir
+    C_o, C_v = C_all[:, o], C_all[:, v]
+    resp_X = resp(X_ao)
+    L = G[np.ix_(v, o)] - G[np.ix_(o, v)].T - 4 * C_v.T @ resp_X @ C_o
+
+    def fvind(z):
+        z = z.reshape(len(v), len(o))
+        dm = C_v @ z @ C_o.T
+        return 2 * (C_v.T @ resp(dm + dm.T) @ C_o).ravel()
+
+    z = _solve_zvector(fvind, eps[o], eps[v], L, cphf_tol)
+    mult[np.ix_(v, o)] = z
+    Z_ao = _sym(C_v @ z @ C_o.T)
+    omega[np.ix_(v, o)] += z * eps[o][None, :]
+    omega[np.ix_(o, v)] += -G[np.ix_(o, v)]
+    Q = resp_X + resp(Z_ao)
+    omega[np.ix_(o, o)] += 2 * C_o.T @ Q @ C_o
+
+    frag_env_grad = None
+    if len(env):
+        # environment rows: slaved to the global C_B by the orthogonality constraint
+        C_E = C_all[:, env]
+        g_eff = G[np.ix_(env, comp)].copy()
+        g_eff[:, np.searchsorted(comp, o)] -= 4 * C_E.T @ Q @ C_o
+        m_c = mult[np.ix_(comp, comp)]
+        g_eff -= f_mo[np.ix_(env, comp)] @ (m_c + m_c.T)
+        omega[np.ix_(comp, env)] += -g_eff.T
+        C_B = emb.C_full_reidx[:, emb.env_idx_occ]
+        R = C_B.T @ S @ C_E
+        frag_env_grad = (-S @ C_all[:, comp] @ g_eff.T) @ R.T
+
+    T = -(X_ao + Z_ao)
+    g_hf = mf_emb.Gradients()
+    grad = (elec_energy_deriv(g_hf, D1) - elec_energy_deriv(g_hf, D_a)
+            + _hcore_contract(g_hf, D_a) + grad_nuc(mol))
+    dm2_ao = np.einsum("tuvw,mt,nu,lv,sw->mnls", casdm2, C_a, C_a, C_a, C_a,
+                       optimize=True)
+    grad += _dm2_eri_deriv(mol, dm2_ao)
+    grad += fock_deriv_contract(g_hf, D_hf, T, fd_eps)
+    grad += ovlp_deriv_contract(mol, _sym(C_all @ omega @ C_all.T))
+    return FragmentResponse(grad, D1 + T, env_orbital_grad=frag_env_grad)
+
+
+def rdm_embedding_gradient(emb, mf_emb, mo_cas_idxs, casdm1, casdm2, proj_type="mu",
+                           mf_global=None, env_cols=None, xc_grid_response=True,
+                           fd_eps=1e-5, **kwargs):
+    """Nuclear gradient of the WF-in-DFT energy of :func:`wf_in_dft_energy`.
+
+    Args:
+        emb: The :class:`~nbed.emb_scf.EmbedSCF` that produced ``mf_emb``.
+        mf_emb: Converged embedded RHF from ``build_emb_hf`` with the same projector.
+        mo_cas_idxs: Active columns of ``mf_emb.mo_coeff``, as passed to
+            ``get_mo_integrals``.
+        casdm1: Spin-summed active-space 1-RDM from the downstream solver.
+        casdm2: Spin-summed active-space 2-RDM, PySCF ``make_rdm12`` convention.
+        proj_type: ``"mu"`` or ``"huz"``.
+        mf_global: Converged global RKS. Defaults to ``emb.global_scf_obj``.
+        env_cols: Environment columns of ``mf_emb`` (huzinaga). Detected if ``None``.
+        xc_grid_response: Include the DFT grid-weight response.
+        fd_eps: Density-space step for :func:`fock_deriv_contract`.
+        **kwargs: Passed to :func:`global_embedding_gradient`.
+
+    Returns:
+        ``(natm, 3)`` gradient in hartree/bohr.
+    """
+    if emb.SCF_type != "closed-shell":
+        raise NotImplementedError("gradients are only implemented for closed shells")
+    frag = rdm_fragment_response(emb, mf_emb, mo_cas_idxs, casdm1, casdm2, proj_type,
+                                 env_cols=env_cols, fd_eps=fd_eps)
+    return global_embedding_gradient(emb, frag, mf_global, proj_type,
+                                     xc_grid_response=xc_grid_response, fd_eps=fd_eps,
+                                     **kwargs)

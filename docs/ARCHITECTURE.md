@@ -110,24 +110,52 @@ Run `uv run pytest`. After an intended change in results, run
 
 ## Nuclear gradients (`grad.py`, prototype)
 
-`embedding_gradient(emb, mf_emb)` differentiates the energy returned by
-`build_emb_hf` / `build_emb_dft` (mu projector, closed shell, canonical partition). It
-follows the Lagrangian of Lee et al., *J. Chem. Phys.* **151**, 074104 (2019):
+All gradients follow the Lagrangian of Lee et al., *J. Chem. Phys.* **151**, 074104
+(2019), and are split into two parts:
 
-- the embedded SCF is variational, so it contributes only an energy-weighted density;
-- a Z-vector (CPKS, `pyscf.scf.cphf`) handles the global KS orbital response;
-- closed-form multipliers enforce the canonical condition `F_ab = 0` that fixes which
-  occupied orbitals belong to the fragment (a ≠ b degenerate pair raises an error).
+- **Fragment** (`FragmentResponse`): the fragment energy's gradient with the AO
+  embedding potential held fixed, plus its *relaxed density* `D_rel = dE_frag/dh`. The
+  Huzinaga projector also contributes an environment-orbital gradient.
+- **Global** (`global_embedding_gradient`): everything that depends on the global KS
+  orbitals. A Z-vector (CPKS) handles the occupied–virtual response, and closed-form
+  multipliers enforce the canonical condition `F_ab = 0` that decides which occupied
+  orbitals belong to the fragment. The embedding-potential derivatives are contracted
+  with `D_rel − gamma_A`.
 
-The fragment density gamma_A is not a physical density, and its xc energy has a large
-DFT grid-weight response, up to 2e-2 Ha/bohr for B3LYP. That response has to be
-included, because the grid moves with the atoms. PySCF's Hessian `make_h1` has no grid
-response, so fixed-density Fock derivatives are instead taken as a central difference
-*in density space* of the grid-response energy gradient (`fock_deriv_contract`). That
-difference is exact for h/J/K and O(eps²) for xc. It agrees with geometric finite
-differences to ~1e-8 Ha/bohr for HF, LDA, PBE and B3LYP on water and methanol.
+Entry points:
 
-Next steps: Huzinaga (response of the projector to the embedded Fock), Pipek-Mezey
-partitions (localisation Hessian), ROKS, WF-in-DFT via relaxed densities from
-PySCF's MP2/CCSD/CASCI gradients, a fully analytic xc grid response, and the GPU
-path via `gpu4pyscf.grad`.
+| Function | Fragment energy |
+|---|---|
+| `embedding_gradient(emb, mf_emb, proj_type)` | HF-in-DFT / DFT-in-DFT from `build_emb_hf` / `build_emb_dft` |
+| `rdm_embedding_gradient(emb, mf_emb, mo_cas_idxs, casdm1, casdm2, proj_type)` | WF-in-DFT from active-space RDMs supplied by a downstream solver (e.g. a VQE on the qubit Hamiltonian); the energy is `wf_in_dft_energy(...)` |
+
+**Huzinaga.** At convergence the Huzinaga equations are exactly the stationarity
+conditions of the projector-free energy under the constraint `C'ᵀ S C_B = 0`. The
+constraint's multipliers act through `S^x` and the environment orbitals. The level
+shift drops out. Huzinaga DFT-in-DFT therefore reproduces the global KS gradient.
+
+**WF-in-DFT.** The fragment is a CASCI-type Lagrangian built from the given RDMs:
+- a Z-vector for the embedded HF occupied–virtual response;
+- closed-form multipliers for core↔active-occupied and active-virtual↔external pairs.
+
+With Huzinaga the environment columns are left out and slaved to `C_B`. The gradient is
+exact for RDMs of a state that is stationary within the active space (FCI, a
+converged VQE), on canonical embedded orbitals chosen by index. Rotated active spaces
+(e.g. MP2 natural orbitals) are refused.
+
+**Numerics.**
+- The fragment density gamma_A has a large DFT grid-weight response, up to 2e-2 Ha/bohr
+  for B3LYP. Fixed-density Fock derivatives are therefore taken as a fourth-order
+  central difference *in density space* of PySCF's grid-response energy gradient
+  (`fock_deriv_contract`, step 1e-5). No geometry is displaced.
+- The Z-vectors use Jacobi-preconditioned conjugate gradients. `pyscf.scf.cphf.solve`
+  stalls once a mu projector pushes the environment to ~mu Ha, and then leaves errors
+  of ~1e-6 Ha/bohr.
+- Checked against Richardson-extrapolated finite differences to ~1e-8 Ha/bohr for HF,
+  LDA, PBE and B3LYP (mean field), and for HF/B3LYP with FCI RDMs (WF-in-DFT).
+- Finite differences of B3LYP embedding energies need h ≤ 1e-4 bohr plus
+  extrapolation, because the fragment xc energy is strongly curved.
+
+Next steps: Pipek-Mezey partitions (localisation Hessian), ROKS, response for rotated
+active spaces, a fully analytic xc grid response, and the GPU path via
+`gpu4pyscf.grad`.
